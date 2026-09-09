@@ -146,7 +146,7 @@ license, owner_hash, src_hash, contrib_id, contrib_hash, edit_of, created_at
 
 圖表是**伺服器端就把寬高算好的純 CSS**——沒有圖表函式庫、沒有 `<canvas>`、沒有多一支 CDN。後台是一支自足的 PHP 檔，多一個外部相依就多一個「離線或 CDN 掛掉就只剩空白」的理由。
 
-`api/admin.php` 的 `pane-overview` 裡有兩個共用產生器，要加新圖表先看能不能套現成的：
+`api/manager.php` 的 `pane-overview` 裡有兩個共用產生器，要加新圖表先看能不能套現成的：
 
 | | 形狀 | 目前用在 |
 |---|---|---|
@@ -165,11 +165,11 @@ CSS 全部前綴 `.stat-card .col`，因為要蓋過同層的 `.stat-card .col o
 
 地圖核心只保留「顯示點位」這個基本功能；路線導覽、地點故事編輯、上傳投稿、嵌入碼、分享、回平台首頁、投稿者身分、依序探索、管理者邀請登入這九樣都是可關的模組，管理者在後台「編輯專案描述」對話框裡逐一勾選，存在該地圖 `meta.json` 的 `features` 物件（`{"route":true,"upload":false,...}`）。單一事實來源在 `api/features.php` 的 `souliong_modules()`（key／中文說明／預設值）與 `souliong_module_on($meta, $key)`（沒設定就用預設值，舊地圖不受影響）：
 
-- **後台**（`admin.php`）：`souliong_modules()` 逐一畫勾選框，送出後寫回 `meta.json`。
+- **後台**（`manager.php`）：`souliong_modules()` 逐一畫勾選框，送出後寫回 `meta.json`。
 - **樣板**（`view.php`）：`$mod = fn($key) => souliong_module_on($meta, $key);`，模組關閉時直接不輸出對應的按鈕／彈窗 HTML（不是用 CSS 藏起來）。
 - **前端邏輯**（`viewer.core.js`）：`MOD(key)` 讀 `window.APP.meta.features[key]`（同樣「沒設定＝開」），`canPost()` 把 `MOD('upload')` 併進解鎖判斷；凡是對應 DOM 可能不存在的地方都要 `if (el)` 再綁事件，全域鍵盤快速鍵／Esc 關閉等會不分模組狀態一律觸發的路徑也要能安全跳過（見各 `close*()` 函式的 null 檢查）。
 
-`delegation`（管理者邀請登入）跟上面那些有專屬插件檔的模組不一樣（`homeLink` 也是，它只是核心模板裡的一顆連結），不是插件檔案，而是核心裡兩段既有 UI 的開關：地圖頁品牌區塊的彩蛋入口（連點六下開啟 `#pinDialog`，見 `setupBrandEgg()`）與邀請連結兌換彈窗 `#adminRedeemDialog`（見 `handleRedeemFragment()`）。關閉後這張地圖不會再讓人透過網址 fragment 兌換出新的專案 PIN，地圖頁上也不再有快速登入入口——但完全不影響 `config['admin_pin']`／`state/admin_pins.json` 的主 PIN：主 PIN 是全域權限，一律能從 `/manager` 直接登入任何專案，這條路由不經過 `view.php`，不受這個旗標影響（見 `api/security.php` 的「主 PIN／專案 PIN」兩層設計）。適合「僅檢視、只有超級管理者能更新內容，不需要專案 PIN 或邀請代理」的部署。**已知缺口**：目前只有 `view.php`／`viewer.core.js`／`api/features.php` 接上這個旗標；`admin.php` 後台的邀請連結建立介面、與 `security.php` 的 `admin_can()`/`pins_redeem()` 對「這個專案要不要接受專案 PIN」的判斷，尚未跟著收斂，待補。
+`delegation`（管理者邀請登入）跟上面那些有專屬插件檔的模組不一樣（`homeLink` 也是，它只是核心模板裡的一顆連結），不是插件檔案，而是核心裡兩段既有 UI 的開關：地圖頁品牌區塊的彩蛋入口（連點六下開啟 `#pinDialog`，見 `setupBrandEgg()`）與邀請連結兌換彈窗 `#adminRedeemDialog`（見 `handleRedeemFragment()`）。關閉後這張地圖不會再讓人透過網址 fragment 兌換出新的專案 PIN，地圖頁上也不再有快速登入入口——但完全不影響 `config['admin_pin']`／`state/admin_pins.json` 的主 PIN：主 PIN 是全域權限，一律能從 `/manager` 直接登入任何專案，這條路由不經過 `view.php`，不受這個旗標影響（見 `api/security.php` 的「主 PIN／專案 PIN」兩層設計）。適合「僅檢視、只有超級管理者能更新內容，不需要專案 PIN 或邀請代理」的部署。**已知缺口**：目前只有 `view.php`／`viewer.core.js`／`api/features.php` 接上這個旗標；`manager.php` 後台的邀請連結建立介面、與 `security.php` 的 `admin_can()`/`pins_redeem()` 對「這個專案要不要接受專案 PIN」的判斷，尚未跟著收斂，待補。
 
 `personExplore`（依序探索）沿用原本的扁平旗標寫法（`meta.json` 直接存 `personExplore: true/false`），`souliong_module_on()` 對這個 key 特殊處理，行為與既有插件機制（見下一節）相容。
 
@@ -266,7 +266,7 @@ CSS 全部前綴 `.stat-card .col`，因為要蓋過同層的 `.stat-card .col o
 
 **這些欄位必須整組跟著 manifest，不能只抽 URL**：`subdomains`／`detectRetina`／`maxNativeZoom` 都是跟著來源走的屬性，少一個就破圖。
 
-`attribution` 也一樣跟著來源走——CARTO 的圖磚是 OSM 資料，國土測繪中心的不是，寫死在檢視器裡一定會錯。格式是一個物件陣列，每則署名 `{text, url, copyright, suffix}`：`url` 有值才會包成連結，`copyright` 是 `true` 時前面加 `&copy;`，`suffix` 接在連結後面（例 `{osm_contributors}`，跟 `text` 一樣可以用 `{key}` 引用翻譯字串，不必為每種語言各寫一份）。標籤怎麼組（要不要連結、要不要 `&copy;`）固定由 `assets/js/engine/map-engine.js` 的 `buildCredit()`/`creditHtml()` 決定，manifest 只描述資料，不寫 HTML——這樣同一份框架換圖磚來源只是換這幾個欄位的值，不會因為換供應商就要在別的地方另刻一份標註邏輯。透過「建立圖層」／去背裁切工具（`api/admin.php`／`region3d.php`／`tilecut.php`）產生的圖層目前仍存純字串（管理員手打的單行署名），`creditListHtml()` 相容這個舊格式，原樣沿用不轉換。各層的 attribution 由 `buildCredit()` 去重串接，再接上固定的引擎（Leaflet／MapLibre）＋自家連結。
+`attribution` 也一樣跟著來源走——CARTO 的圖磚是 OSM 資料，國土測繪中心的不是，寫死在檢視器裡一定會錯。格式是一個物件陣列，每則署名 `{text, url, copyright, suffix}`：`url` 有值才會包成連結，`copyright` 是 `true` 時前面加 `&copy;`，`suffix` 接在連結後面（例 `{osm_contributors}`，跟 `text` 一樣可以用 `{key}` 引用翻譯字串，不必為每種語言各寫一份）。標籤怎麼組（要不要連結、要不要 `&copy;`）固定由 `assets/js/engine/map-engine.js` 的 `buildCredit()`/`creditHtml()` 決定，manifest 只描述資料，不寫 HTML——這樣同一份框架換圖磚來源只是換這幾個欄位的值，不會因為換供應商就要在別的地方另刻一份標註邏輯。透過「建立圖層」／去背裁切工具（`api/manager.php`／`region3d.php`／`tilecut.php`）產生的圖層目前仍存純字串（管理員手打的單行署名），`creditListHtml()` 相容這個舊格式，原樣沿用不轉換。各層的 attribution 由 `buildCredit()` 去重串接，再接上固定的引擎（Leaflet／MapLibre）＋自家連結。
 
 `pane` 決定疊放層級。Leaflet 預設只有 `tilePane`(200)／`overlayPane`(400)／`markerPane`(600)，圖層之間沒有可指定的層級，所以檢視器替四種角色各開一個 pane：
 
@@ -323,7 +323,7 @@ MapLibre 沒有 Leaflet 的「pane／可疊多張獨立底圖」概念，向量 
 
 **每張地圖疊哪幾層**：「編輯專案描述」對話框裡的圖層清單，勾選＋上下箭頭排序，存進 `meta.json` 的 `layers`。
 
-清單**由上到下＝由頂層到底層**（跟繪圖軟體的圖層面板一致），`meta.json` 存的是相反方向（由下往上疊），所以 `api/admin.php` 的表單與存檔各反轉一次。送出的 `layers[]` 就是 DOM 由上到下的順序，因此排序不需要任何隱藏的序號欄位——搬動整列就是排序。
+清單**由上到下＝由頂層到底層**（跟繪圖軟體的圖層面板一致），`meta.json` 存的是相反方向（由下往上疊），所以 `api/manager.php` 的表單與存檔各反轉一次。送出的 `layers[]` 就是 DOM 由上到下的順序，因此排序不需要任何隱藏的序號欄位——搬動整列就是排序。
 
 **全部不勾＝移除欄位**（跟隨 `default_layers`），不是存成空陣列：空陣列在 `souliong_layers_for()` 裡本來就等同「沒指定」，存下去只會讓人以為自己關掉了所有圖層，實際上照樣拿到預設底圖。想要「只有插畫、沒有底圖」就只勾插畫那一層。
 
@@ -459,7 +459,7 @@ MapLibre 沒有 Leaflet 的「pane／可疊多張獨立底圖」概念，向量 
 | 全站包 | 「工具」分頁 → 主題包 | 主要管理者 | `packs/<id>/` |
 | 專案包 | 專案卡片 → 主題包 | 該專案的管理者 | `projects/<proj>/packs/<id>/` |
 
-匯出（`backup=pack`）、匯入（`action=packimport`）都比照 `backup=layer`／`layerimport`：沒帶 `project`＝全站、帶了＝該地圖自己的，權限跟著包住哪裡走（`$isProj ? !$canProject($pp) : !$master`）。刪除（`action=packdelete`）也是新加的——比照 `action=layerdelete`：路徑解析用**作用域對應的那個 root**，不是 `souliong_pack_dir()`（後者同名時偏好專案層，刪除時可能刪錯邊）；全站預設包（`state/settings.json` 的 `pack`）刪不掉，回 409，要刪請先去「工具」分頁換掉全站預設。包沒有圖層那種「檔案數量不固定」問題（固定兩個檔），所以匯出不需要遞迴走訪或大小上限。
+匯出（`backup=pack`）、匯入（`action=packimport`）都比照 `backup=layer`／`layerimport`：沒帶 `project`＝全站、帶了＝該地圖自己的，權限跟著包住哪裡走（`$isProj ? !$canProject($pp) : !$primary`）。刪除（`action=packdelete`）也是新加的——比照 `action=layerdelete`：路徑解析用**作用域對應的那個 root**，不是 `souliong_pack_dir()`（後者同名時偏好專案層，刪除時可能刪錯邊）；全站預設包（`state/settings.json` 的 `pack`）刪不掉，回 409，要刪請先去「工具」分頁換掉全站預設。包沒有圖層那種「檔案數量不固定」問題（固定兩個檔），所以匯出不需要遞迴走訪或大小上限。
 
 「編輯專案描述」對話框的包下拉選單現在也是 `souliong_pack_list($cfg, $proj)`——專案自己的包會出現在清單裡，並標注「本地圖專屬」（沿用圖層清單同一顆翻譯字串 `layer_scope_project`，文字本來就是通用的，沒有另外開一顆 `pack_scope_project`）。全站預設下拉（「工具」分頁的 `site_pack`）刻意維持 `souliong_pack_list($cfg)`（不帶 `$proj`）——全站預設本來就只該從全站包裡選，不然某張地圖刪掉自己的專案包後，其他地圖的全站預設會突然解析不到。
 
@@ -467,7 +467,7 @@ MapLibre 沒有 Leaflet 的「pane／可疊多張獨立底圖」概念，向量 
 
 ### 8.10 保持向量輸出
 
-`layer.json` 的 `type:"image"`（`imageOverlay`）從一開始就跟 `type:"raster"`（`tileLayer`）一樣是一等公民（見 8.3）——`layerfile.php`、`admin.php`、前端 viewer 全都同時支援兩種。8.7 一直沒有的，只是**產生**一份 `type:"image"` manifest 的路：`tilecut.php` 原本永遠切磚、永遠輸出 `type:"raster"`。這裡補的是產生端，不是消費端。
+`layer.json` 的 `type:"image"`（`imageOverlay`）從一開始就跟 `type:"raster"`（`tileLayer`）一樣是一等公民（見 8.3）——`layerfile.php`、`manager.php`、前端 viewer 全都同時支援兩種。8.7 一直沒有的，只是**產生**一份 `type:"image"` manifest 的路：`tilecut.php` 原本永遠切磚、永遠輸出 `type:"raster"`。這裡補的是產生端，不是消費端。
 
 **適用條件**：清單裡剛好一張、而且是 SVG。前端 `vectorEligible()`／`vectorActive()`（`api/tilecut.php` 內嵌 script）判斷是否顯示「保持向量」核取方塊；伺服器端在 `finish` 動作裡獨立再驗一次——`$_POST['vector']` 非空時要求 `edit.pieces` 剛好一筆、且檔名符合 `/^p\d{1,2}\.svg$/`，兩者有一個不成立就回 `tilecut_vector_bad_source_msg`（400）。前端的判斷只是省一次來回，真正擋壞資料的是後者。
 
@@ -479,7 +479,7 @@ MapLibre 沒有 Leaflet 的「pane／可疊多張獨立底圖」概念，向量 
 
 **在 `raster` 與 `vector` 之間切換**：同一個圖層 id 從向量模式改回一般切磚模式（或反過來）時，`begin` 動作在 `overwrite=1` 時會清掉舊有的 `layers/<id>/vector.svg`，避免它變成孤兒檔案——新版 `layer.json` 已經改指向 `tiles/`，但沒人會再去讀 `vector.svg`，它就只是佔空間又容易讓人誤會目前是哪個模式。
 
-**沒有動到的部分**：`layerfile.php`、`admin.php`、`pages/view.php`、viewer 端的 `MapLayer` 相關程式碼全部不用改——`type:"image"` 的讀取、後台圖層清單顯示、匯出 ZIP，這些機制在這次改動之前就已經對兩種 `type` 一視同仁。
+**沒有動到的部分**：`layerfile.php`、`manager.php`、`pages/view.php`、viewer 端的 `MapLayer` 相關程式碼全部不用改——`type:"image"` 的讀取、後台圖層清單顯示、匯出 ZIP，這些機制在這次改動之前就已經對兩種 `type` 一視同仁。
 
 ### 8.11 從圖磚重建（沒留原稿的降級路徑）
 
@@ -514,7 +514,7 @@ MapLibre 沒有 Leaflet 的「pane／可疊多張獨立底圖」概念，向量 
 
 要產生網址就呼叫 `Route::manager()`／`Route::logout()`／`Route::backupAll()`／`Route::backupProject()`／`Route::backupPack()`／`Route::backupLayer()`／`Route::tool()`／`Route::map()`／`Route::api()`，**不要自己黏字串**。前端也一樣：`view.php` 把 `Route::manager($proj)` 放進 `APP.manager`，`viewer.core.js` 讀 `MANAGER_URL` 就好。
 
-之所以要這一層，是因為原本沒有：`?api=admin` 光一支 `admin.php` 就出現 47 次，「還原掛載根目錄」那段計算被複製了七份（其中兩份的邊界情況還算得不一樣）。改一次網址形狀就得全域搜尋改一輪，漏改的地方不會報錯，只會在某些部署下靜靜連到錯的地方。
+之所以要這一層，是因為原本沒有：`?api=admin` 光一支 `manager.php` 就出現 47 次，「還原掛載根目錄」那段計算被複製了七份（其中兩份的邊界情況還算得不一樣）。改一次網址形狀就得全域搜尋改一輪，漏改的地方不會報錯，只會在某些部署下靜靜連到錯的地方。
 
 幾個刻意的決定：
 
@@ -523,7 +523,7 @@ MapLibre 沒有 Leaflet 的「pane／可疊多張獨立底圖」概念，向量 
 - **`backup.zip` 用副檔名而不是 `?backup=1`**：地圖代號只允許 `[a-z0-9_-]`，含點的字串永遠不可能跟它撞名，而且瀏覽器與使用者一看就知道那是下載。
 - **地圖代號撞到保留字時，真實資料優先**。`Route::parseManager()` 收一個 `$isProject` 回呼（由 `index.php` 提供，實作是「`projects/<id>/` 在不在」），所以一張真的叫 `tools` 的地圖仍然打得開（`/manager/tools`），代價是總覽的工具分頁得寫成 `/manager/tools/tools`。反過來用保留字黑名單的話，那張地圖會永遠打不開——那才是真的壞掉。
 - **`?api=photo` 這類資料出口維持 query 形式**（`Route::api()`）。它們不是「頁面」，參數本身含斜線（`f=<project>/<file>`），改成路徑只是多一層轉義。
-- **舊網址不打斷**：`?api=admin`、`/admin`、`/<mapid>/manager|admin|edit` 都還在，`admin.php` 對 **GET** 回 302 導向正規形式。只導 GET——POST 帶著表單內容，302 會把 body 丟掉；下載類請求也不導，那不是「頁面」，導了只是讓瀏覽器多跑一趟。
+- **舊網址不打斷**：`?api=admin`、`/admin`、`/<mapid>/manager|admin|edit` 都還在，`manager.php` 對 **GET** 回 302 導向正規形式。只導 GET——POST 帶著表單內容，302 會把 body 丟掉；下載類請求也不導，那不是「頁面」，導了只是讓瀏覽器多跑一趟。
 - **掛載根目錄 `Route::base()` 只算一次**：不能用「目前網址去掉 query」代替，後台可能是從 `/manager/<mapid>/tools` 這種深路徑進來的，那樣算出來的 base 會多黏幾段，組出來的公開網址與分享連結會整個是壞的。
 
 ## 十、命名與品牌
@@ -536,14 +536,14 @@ MapLibre 沒有 Leaflet 的「pane／可疊多張獨立底圖」概念，向量 
 
 主要管理者在「工具」分頁能看到全站容量總覽（投稿檔案／圖層／主題包），每個專案的總覽卡片也有一顆「空間佔用」磚——這些數字全部來自 `state/storage.json`，不是頁面載入當下算出來的。
 
-**為什麼不即時算**：`admin.php` 的後台頁面是一次把 `pane-overview`／`pane-access`／`pane-tools` 全部 render 出來，前端只用 JS 切換哪個 `.pane` 顯示（`display:none`），不是分頁各自發請求。圖層目錄是圖磚金字塔，一層可能就有幾百到幾千個檔案；如果容量計算寫在任何一個 pane 的渲染迴圈裡，等於**每次載入後台頁面都會遞迴掃過全部專案的圖磚**，不管當下看的是哪一分頁，而且是所有管理者（含專案管理者）共同承受的成本。
+**為什麼不即時算**：`manager.php` 的後台頁面是一次把 `pane-overview`／`pane-access`／`pane-tools` 全部 render 出來，前端只用 JS 切換哪個 `.pane` 顯示（`display:none`），不是分頁各自發請求。圖層目錄是圖磚金字塔，一層可能就有幾百到幾千個檔案；如果容量計算寫在任何一個 pane 的渲染迴圈裡，等於**每次載入後台頁面都會遞迴掃過全部專案的圖磚**，不管當下看的是哪一分頁，而且是所有管理者（含專案管理者）共同承受的成本。
 
 **函式分工**（`api/store.php`）：
 
-- `souliong_dir_bytes(string $dir): int`：遞迴加總一個目錄底下所有檔案大小，跟 `admin.php` 的 `backup=all` 用的 `$addDir` closure 同一套 `RecursiveIteratorIterator`／`RecursiveDirectoryIterator` 寫法，只加總不收集檔案清單；目錄不存在回 0。
+- `souliong_dir_bytes(string $dir): int`：遞迴加總一個目錄底下所有檔案大小，跟 `manager.php` 的 `backup=all` 用的 `$addDir` closure 同一套 `RecursiveIteratorIterator`／`RecursiveDirectoryIterator` 寫法，只加總不收集檔案清單；目錄不存在回 0。
 - `souliong_storage_compute(array $cfg): array`：實際做全站遞迴掃描，只回傳陣列，**不寫檔**。分三塊：`layers`／`packs` 各自用 `'' => [...]` 存全站層、`'<proj>' => [...]` 存各專案自己的（用 `$info['scope'] === 'project'` 過濾，避免跟合併進來的全站層重複計）；`uploads` 存各專案 `photos/`／`media/` 的大小。圖層要先過 `souliong_layer_is_local()`（layers.php）濾掉外部圖磚服務（本來就是 0 bytes，目錄可能根本不存在）。
 - `souliong_storage_cache(array $cfg): ?array`：讀 `state/storage.json`，檔案不存在或格式壞掉回 `null`。**呼叫端要能分辨「還沒算過」（`null`）跟「算出來是 0」**——前端據此決定顯示「—」／「還沒計算過」還是真的顯示 0 KB，不能把兩者混為一談。
 
-**寫入時機**：只有主要管理者手動 POST `action=storagerecalc`（`admin.php`）才會呼叫 `souliong_storage_compute()` 並覆寫快取，寫入時連帶記一筆 `computed_at` 時間戳，頁面上據此顯示「計算於 X」，讓數字的新舊誠實揭露，不假裝即時。這個動作本身可能跑上幾秒，跟既有的「備份全站」（同樣是單一請求裡遞迴打包全部 `projects_dir`／`state_dir`）是同一等級的操作，不需要額外的背景工作機制。
+**寫入時機**：只有主要管理者手動 POST `action=storagerecalc`（`manager.php`）才會呼叫 `souliong_storage_compute()` 並覆寫快取，寫入時連帶記一筆 `computed_at` 時間戳，頁面上據此顯示「計算於 X」，讓數字的新舊誠實揭露，不假裝即時。這個動作本身可能跑上幾秒，跟既有的「備份全站」（同樣是單一請求裡遞迴打包全部 `projects_dir`／`state_dir`）是同一等級的操作，不需要額外的背景工作機制。
 
 **這階段刻意沒做的事**：清理／壓縮功能。使用者原始需求裡有提到，但清理範圍（刪什麼、怎麼判斷能刪）與壓縮定義（是重新壓縮圖片、還是別的意思）都還沒決定，留到之後單獨規劃再做——目前只有「看得到用了多少」，沒有任何會刪檔案或改檔案內容的動作。

@@ -35,8 +35,8 @@ function souliong_site_pack(array $cfg): string
     return is_string($s['pack'] ?? null) ? $s['pack'] : '';
 }
 
-// 帳號自助註冊開關：預設關閉（只能靠 master 產生的一次性轉換/邀請連結建帳號），
-// 避免公開註冊表單被拿去暴力灌帳號；master 需要時才手動開，用完建議關回去。
+// 帳號自助註冊開關：預設關閉（只能靠 primary 產生的一次性轉換/邀請連結建帳號），
+// 避免公開註冊表單被拿去暴力灌帳號；primary 需要時才手動開，用完建議關回去。
 function souliong_registration_open(array $cfg): bool
 {
     $s = souliong_settings_load($cfg);

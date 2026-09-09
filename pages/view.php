@@ -27,12 +27,12 @@ $isManager = admin_can($apiCfg, $proj);
 // 投稿開關＝有沒有還有效的投稿碼（真正的碼在伺服器端 codes.json，前端拿不到）。
 // APP.gated 因此變成「現在有碼可解鎖」：一組都沒有時前端連解鎖鈕都不出現。
 $gated = contrib_open($apiCfg, $proj);
-// 定位點編輯（editpoint.php）走的是這個公開頁面而非後台頁，因此比照 admin.php 的作法，
+// 定位點編輯（editpoint.php）走的是這個公開頁面而非後台頁，因此比照 manager.php 的作法，
 // 帶一份「同源才讀得到」的 CSRF 驗證值，只在已登入管理者時計算並輸出。
 // 管理者三種登入方式都要各自對應到正確的衍生值，否則其中一種身分送出的請求會被誤判成 CSRF 失效。
-$isMasterAuthed = admin_authed($apiCfg);
-$acctForCsrf    = ($isManager && !$isMasterAuthed) ? account_current($apiCfg) : null;
-$csrfTok   = !$isManager ? null : ($isMasterAuthed
+$isPrimaryAuthed = admin_authed($apiCfg);
+$acctForCsrf    = ($isManager && !$isPrimaryAuthed) ? account_current($apiCfg) : null;
+$csrfTok   = !$isManager ? null : ($isPrimaryAuthed
     ? admin_derived($apiCfg)
     : ($acctForCsrf !== null ? account_derived($apiCfg, (string)$acctForCsrf['id']) : padm_derived($apiCfg, $proj, (string)padm_pin_id($apiCfg, $proj))));
 [$LANG, $DICT] = i18n_init();

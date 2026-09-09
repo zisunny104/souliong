@@ -1,6 +1,6 @@
 # 隱私與資料說明 · Privacy &amp; Data Notice
 
-_最後更新 / Last updated: 2026-08_
+_最後更新 / Last updated: 2026-09_
 
 > 站內版本：`<base>/privacy`（由 `pages/privacy.php` 直接算繪本檔，含下列所有段落）。
 > On-site version at `<base>/privacy` renders this file directly, including everything below.
@@ -15,9 +15,9 @@ We collect as little as possible, keep it de-identified, and use no third-party 
 
 以瀏覽器 `localStorage` 儲存（僅在你的裝置，可自行清除）：主題偏好、你輸入的暱稱、投稿權限（解鎖後記住的投稿碼）、一個**有期限**的「擁有者標記」（用來讓你在原裝置刪除自己的投稿），以及——若你自選了 PIN 建立可跨裝置延續的投稿者身分——一組由該 PIN 衍生的識別權杖（可用來在其他裝置編輯/刪除同一身分投稿過的內容；若此身分是由分享連結建立，管理者可為其設到期時間或使用次數上限，僅影響「新增投稿」，不影響既有內容的編輯/刪除）。
 
-公開地圖頁**不設 Cookie**；只有後台登入使用一個功能性的 `httpOnly` Cookie 維持登入，並非追蹤用途。
+公開地圖頁**不設 Cookie**；只有後台登入（PIN 或帳號）使用功能性的 `httpOnly` Cookie 維持登入，並非追蹤用途。
 
-> Kept in `localStorage` (your device only): theme, nickname, the contribution code once unlocked, a time-limited “owner marker” to let you delete your own posts from this device, and — if you chose a PIN to create a portable, cross-device contributor identity — a derived token for that identity (lets you edit/delete that identity's posts from another device; if the identity was created via a share link, an admin may set an expiry or use-count limit on it, which only affects new posts, never editing/deleting existing ones). The public map sets **no cookies**; only admin login uses a functional httpOnly cookie — not for tracking.
+> Kept in `localStorage` (your device only): theme, nickname, the contribution code once unlocked, a time-limited “owner marker” to let you delete your own posts from this device, and — if you chose a PIN to create a portable, cross-device contributor identity — a derived token for that identity (lets you edit/delete that identity's posts from another device; if the identity was created via a share link, an admin may set an expiry or use-count limit on it, which only affects new posts, never editing/deleting existing ones). The public map sets **no cookies**; only admin login (PIN or account) uses functional httpOnly cookies — not for tracking.
 
 ## 伺服器記錄的資料 / Recorded on the server
 
@@ -41,8 +41,8 @@ This service is not directed at children; do not upload content identifying mino
 
 ## 第三方 / Third parties
 
-地圖以 Leaflet 顯示、預設圖磚 © CARTO、圖資 © OpenStreetMap 貢獻者（ODbL）；QR 在你的瀏覽器本機產生。個別地圖可能改用其他圖磚來源或自繪疊圖，實際來源標示在地圖的圖資出處列。皆用於顯示功能，非廣告或追蹤。授權詳見 [LICENSE](https://github.com/zisunny104/souliong/blob/main/LICENSE)。
-Map via Leaflet, default tiles © CARTO, data © OpenStreetMap contributors (ODbL); QR generated locally in your browser. Individual maps may use other tile sources or hand-drawn overlays — the actual source is credited in the map's attribution line. For display only. See [LICENSE](https://github.com/zisunny104/souliong/blob/main/LICENSE).
+地圖以 Leaflet 顯示、預設圖磚 © CARTO、圖資 © OpenStreetMap 貢獻者（ODbL）；啟用 3D／向量底圖模式的地圖改以 MapLibre GL JS 顯示，圖磚預設來自 openfreemap.org（同樣源自 OpenStreetMap）。QR 在你的瀏覽器本機產生。個別地圖可能改用其他圖磚來源或自繪疊圖，實際來源標示在地圖的圖資出處列。皆用於顯示功能，非廣告或追蹤。授權詳見 [LICENSE](https://github.com/zisunny104/souliong/blob/main/LICENSE)。
+Map via Leaflet, default tiles © CARTO, data © OpenStreetMap contributors (ODbL); maps with 3D/vector mode enabled render via MapLibre GL JS instead, with vector tiles from openfreemap.org by default (also OpenStreetMap-derived). QR generated locally in your browser. Individual maps may use other tile sources or hand-drawn overlays — the actual source is credited in the map's attribution line. For display only. See [LICENSE](https://github.com/zisunny104/souliong/blob/main/LICENSE).
 
 ---
 

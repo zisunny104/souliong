@@ -232,7 +232,7 @@
 /* pin-input.js 會在欄位外面包一層這個 wrap。display 用區塊級的 flex、不是 inline-flex：
    對話框裡的 PIN／投稿碼欄位都寫 width:100%，而 inline-flex 的寬度是被內容撐出來的，
    於是變成「欄位問外框有多寬、外框問欄位有多寬」，最後欄位只縮成內容寬度、撐不滿對話框。
-   （admin.php 那份同名樣式本來就寫 display:block，沒有這個問題，這裡是補齊一致性。） */
+   （manager.php 那份同名樣式本來就寫 display:block，沒有這個問題，這裡是補齊一致性。） */
 .pin-toggle-wrap {
   position: relative;
   display: flex

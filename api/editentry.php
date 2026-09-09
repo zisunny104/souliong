@@ -61,9 +61,9 @@ try {
     // CSRF：owner／ctoken 是跨站讀不到的 bearer 秘密，本身就有等同 CSRF token 的防偽效果，不需再檢查；
     // 但管理者是靠 cookie 驗證，跨站請求會自動夾帶 cookie，比照 editpoint.php 另加一道 CSRF 驗證。
     if ($isAdmin) {
-        $isMaster = admin_authed($cfg);
-        $acctCsrf = $isMaster ? null : account_current($cfg);
-        $csrfExpected = $isMaster
+        $isPrimary = admin_authed($cfg);
+        $acctCsrf = $isPrimary ? null : account_current($cfg);
+        $csrfExpected = $isPrimary
             ? admin_derived($cfg)
             : ($acctCsrf !== null ? account_derived($cfg, (string)$acctCsrf['id']) : padm_derived($cfg, $project, (string)padm_pin_id($cfg, $project)));
         if (!hash_equals($csrfExpected, (string)($_POST['csrf'] ?? ''))) {

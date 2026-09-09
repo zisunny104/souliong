@@ -20,10 +20,10 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 $backProject = preg_replace('/[^a-z0-9_-]/', '', $_GET['project'] ?? '');
 $adminUrl = $esc(Route::abs(Route::manager($backProject, 'tools')));
 
-if (!admin_authed($cfg)) {
+if (!site_perm($cfg, 'manage_layers')) {
     http_response_code(401);
     header('Content-Type: text/html; charset=utf-8');
-    echo '<p>' . $tr('master_login_required_msg', ['url' => $adminUrl]) . '</p>';
+    echo '<p>' . $tr('primary_login_required_msg', ['url' => $adminUrl]) . '</p>';
     exit;
 }
 $csrf = admin_derived($cfg);

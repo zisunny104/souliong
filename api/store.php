@@ -30,7 +30,7 @@ function media_abs_path(array $cfg, string $mediaRel): ?string {
 }
 
 /**
- * 刪掉一筆記錄附帶的檔案（主檔 ＋ 縮圖）。刪投稿的地方有三處（delete.php、admin.php 的
+ * 刪掉一筆記錄附帶的檔案（主檔 ＋ 縮圖）。刪投稿的地方有三處（delete.php、manager.php 的
  * 單筆刪除與整批刪某身分），影音上線後每一處都要多記得清 media/ 一次；集中在這裡，
  * 之後再加新的檔案欄位也只有這一個地方要改。
  * 縮圖一律是 <主檔名>_t.<ext>（photo.php 自動產生的、上傳附帶的、影片抽幀的都同一套命名）。
@@ -207,7 +207,7 @@ function store_projects(array $cfg): array {
 }
 
 /**
- * 目錄底下所有檔案大小遞迴加總。跟 admin.php 的 backup=all 用的 $addDir closure
+ * 目錄底下所有檔案大小遞迴加總。跟 manager.php 的 backup=all 用的 $addDir closure
  * 同一套 RecursiveIteratorIterator 寫法，但只加總不收集檔案清單。
  */
 function souliong_dir_bytes(string $dir): int {
@@ -238,9 +238,9 @@ function souliong_storage_cache(array $cfg): ?array {
 }
 
 /**
- * 全站容量遞迴掃描的實際運算，不含寫檔——寫進 state/storage.json 是呼叫端（admin.php 的
+ * 全站容量遞迴掃描的實際運算，不含寫檔——寫進 state/storage.json 是呼叫端（manager.php 的
  * action=storagerecalc）的事，這裡只負責算出數字。刻意不在頁面每次載入時呼叫這個函式：
- * admin.php 後台頁一次把所有分頁 render 出來，前端只是切換顯示，即時算會讓每次載入都
+ * manager.php 後台頁一次把所有分頁 render 出來，前端只是切換顯示，即時算會讓每次載入都
  * 遞迴掃過所有專案的圖磚金字塔，太重。
  */
 function souliong_storage_compute(array $cfg): array {

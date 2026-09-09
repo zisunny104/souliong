@@ -20,7 +20,7 @@
  *     - points 由大到小排序 → 熱門點位長條圖 / 在地圖上用大小標記
  *     - by_hour → 24 格熱力/折線；by_dow → 一週長條
  *     - device / features → 圓餅或數字卡
- *   也可在 admin.php 內加一段 <script> fetch 這個 read API 後用 <canvas> 畫。
+ *   也可在 manager.php 內加一段 <script> fetch 這個 read API 後用 <canvas> 畫。
  */
 
 function stats_file(array $cfg, string $project): string {

@@ -2,8 +2,8 @@
 // 投稿種類（kind）與功能使用統計（feature）的中央註冊表。
 //
 // 這兩樣東西原本分散寫死在好幾個檔案裡：upload.php 驗證 kind、stat.php 的 $FEATURES 白名單、
-// admin.php 的 $featLabels 中文說明——三邊各自維護，容易漏改（例如 share 這個 feature key
-// 就曾經只在 viewer.core.js 呼叫、admin.php 準備了標籤，卻沒被 stat.php 的白名單放行）。
+// manager.php 的 $featLabels 中文說明——三邊各自維護，容易漏改（例如 share 這個 feature key
+// 就曾經只在 viewer.core.js 呼叫、manager.php 準備了標籤，卻沒被 stat.php 的白名單放行）。
 //
 // 這份註冊表原本只是「預留接口」——有 label 跟一個 has_photo 旗標，但 has_photo 全專案沒有
 // 任何一行讀它，kind 實際上只是「記錄下來的標籤」，不是「分流的依據」。加入影片／音訊／文字

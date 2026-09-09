@@ -17,7 +17,7 @@ function client_ip(array $cfg): string {
 
 /**
  * 管理登入：多 PIN + 簡易權限管理。
- * - 主 PIN：config['admin_pin']（bootstrap）+ state/admin_pins.json 的 master 清單，皆為全域權限。
+ * - 主 PIN：config['admin_pin']（bootstrap）+ state/admin_pins.json 的 primary 清單，皆為全域權限。
  * - 各專案 PIN：state/admin_pins.json 的 projects[<id>] 清單，僅該專案。
  * - 每把 PIN 可帶暱稱 label。
  * - cookie 由「鹽值」衍生（代表已通過某範圍），與特定 PIN 解耦；移除某 PIN 不影響既有登入，
@@ -35,7 +35,7 @@ function padm_derived(array $cfg, string $project, string $pinId): string { retu
 function admin_authed(array $cfg): bool {
     if (hash_equals(admin_derived($cfg), (string)($_COOKIE[ADMIN_COOKIE] ?? ''))) return true;
     $acc = account_current($cfg);
-    return $acc !== null && ($acc['role'] ?? '') === 'master';
+    return $acc !== null && ($acc['role'] ?? '') === 'primary';
 }
 
 /** 解析目前這個專案的 padm cookie，回傳驗證通過的 pinId；未登入或簽章不符回傳 null。 */
@@ -54,9 +54,18 @@ function admin_can(array $cfg, string $project): bool {
     $acc = account_current($cfg);
     return $acc !== null && project_admin_perms($cfg, $project, (string)$acc['id']) !== null;
 }
-/** 權限式判斷：主 PIN／master 帳號永遠通過；專案 PIN 或專案帳號則需 perms[$permKey] 已被開啟才通過。 */
+/** primary／primary 帳號在每個具名權限下皆視為開啟，供 admin_perm()／site_perm() 統一查表，
+ *  而非各自硬編碼略過檢查——新權限鍵一律要在這裡明列才會對 primary 生效，不會無聲預設全開。 */
+function primary_perms(): array {
+    return [
+        'delete_others' => true, 'edit_others' => true, 'edit_points' => true,
+        'grant_access' => true, 'edit_3d_regions' => true,
+        'manage_layers' => true, 'fix_exif' => true, 'fix_thumbnails' => true, 'view_stats' => true,
+    ];
+}
+/** 專案層級具名權限判斷：primary 查 primary_perms()；專案 PIN 或專案帳號則需 perms[$permKey] 已被開啟才通過。 */
 function admin_perm(array $cfg, string $project, string $permKey): bool {
-    if (admin_authed($cfg)) return true;
+    if (admin_authed($cfg)) return !empty(primary_perms()[$permKey]);
     $pinId = padm_pin_id($cfg, $project);
     if ($pinId !== null) {
         foreach (pins_load($cfg)['projects'][$project] ?? [] as $e) {
@@ -70,6 +79,10 @@ function admin_perm(array $cfg, string $project, string $permKey): bool {
     }
     return false;
 }
+/** 全站層級（跨專案）具名權限：目前僅 primary 具備，供圖層搬遷／EXIF／縮圖修復／統計等維護工具使用。 */
+function site_perm(array $cfg, string $permKey): bool {
+    return admin_authed($cfg) && !empty(primary_perms()[$permKey]);
+}
 function _cookie_opts(): array { return ['expires' => time() + 7 * 86400, 'path' => '/', 'httponly' => true, 'secure' => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'), 'samesite' => 'Lax']; }
 function admin_set_cookie(array $cfg): void { setcookie(ADMIN_COOKIE, admin_derived($cfg), _cookie_opts()); }
 function padm_set_cookie(array $cfg, string $project, string $pinId): void { setcookie(padm_cookie_name($project), $pinId . '.' . padm_derived($cfg, $project, $pinId), _cookie_opts()); }
@@ -81,19 +94,29 @@ function admin_clear_cookie(): void {
 // ── PIN 清單（state/admin_pins.json） ──
 function pins_file(array $cfg): string { return rtrim($cfg['state_dir'], '/\\') . '/admin_pins.json'; }
 /** 新專案 PIN 的預設權限：一律從全關始（等同僅主 PIN 才能動別人的東西），需主 PIN 逐項開啟下放。 */
-function pin_default_perms(): array { return ['delete_others' => false, 'edit_others' => false, 'edit_points' => false, 'delegate_admin' => false, 'edit_3d_regions' => false]; }
+function pin_default_perms(): array { return ['delete_others' => false, 'edit_others' => false, 'edit_points' => false, 'grant_access' => false, 'edit_3d_regions' => false]; }
 function pins_load(array $cfg): array {
     $d = is_file(pins_file($cfg)) ? json_decode((string)@file_get_contents(pins_file($cfg)), true) : null;
     if (!is_array($d)) $d = [];
-    $d['master'] = $d['master'] ?? [];
     $d['projects'] = $d['projects'] ?? [];
-    // 舊資料補齊 id/perms（一次性、自我修復）
+    // 舊資料補齊 id/perms（一次性、自我修復），含 delegate_admin → grant_access、master → primary 改名搬遷
     $dirty = false;
+    if (array_key_exists('master', $d)) {
+        $d['primary'] = $d['master'];
+        unset($d['master']);
+        $dirty = true;
+    }
+    $d['primary'] = $d['primary'] ?? [];
     foreach ($d['projects'] as $p => &$list) {
         foreach ($list as &$e) {
             if (empty($e['id'])) { $e['id'] = bin2hex(random_bytes(4)); $dirty = true; }
             if (!isset($e['perms']) || !is_array($e['perms'])) { $e['perms'] = pin_default_perms(); $dirty = true; }
             if (!isset($e['kind'])) { $e['kind'] = 'pin'; $dirty = true; }
+            if (array_key_exists('delegate_admin', $e['perms']) && !array_key_exists('grant_access', $e['perms'])) {
+                $e['perms']['grant_access'] = $e['perms']['delegate_admin'];
+                unset($e['perms']['delegate_admin']);
+                $dirty = true;
+            }
         }
         unset($e);
     }
@@ -103,10 +126,10 @@ function pins_load(array $cfg): array {
 }
 function pins_save(array $cfg, array $d): void { @file_put_contents(pins_file($cfg), json_encode($d, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX); }
 function _pin_in(array $list, string $pin): bool { foreach ($list as $e) { if (isset($e['pin']) && $pin !== '' && hash_equals((string)$e['pin'], $pin)) return true; } return false; }
-function check_master_pin(array $cfg, string $pin): bool {
+function check_primary_pin(array $cfg, string $pin): bool {
     if ($pin === '') return false;
     if (($cfg['admin_pin'] ?? '') !== '' && hash_equals((string)$cfg['admin_pin'], $pin)) return true;
-    return _pin_in(pins_load($cfg)['master'], $pin);
+    return _pin_in(pins_load($cfg)['primary'], $pin);
 }
 /** 找出符合此 PIN 的專案 PIN 紀錄（含 id/perms），供登入時決定 cookie 要記哪把；不符合回傳 null。 */
 function project_pin_match(array $cfg, string $project, string $pin): ?array {
@@ -139,7 +162,7 @@ function pins_check_and_bump(array $cfg, string $project, string $pinId): bool {
 }
 /**
  * 後台「分享邀請連結」用：寫入一筆 kind:"invite" entry，尚未有 PIN／暱稱——由收到連結的人自己兌換時填入。
- * 呼叫端須自行檢查「只有主 PIN 或已被授權 delegate_admin 的專案 PIN 才能建立」。
+ * 呼叫端須自行檢查「只有主 PIN 或已被授權 grant_access 的專案 PIN 才能建立」。
  * 回傳 [token, id]：token 是連結裡帶的祕密，id 是後台列表／刪除用的公開識別碼。
  */
 function pins_invite_create(array $cfg, string $project, ?string $expiresAt, ?int $maxUses): array {
@@ -201,11 +224,11 @@ function _label_in(array $list, string $pin): string {
     return '';
 }
 /** 登入用的這把 PIN 若有設定暱稱，回傳暱稱；bootstrap 主 PIN 對應 config['admin_pin_label']。供登入後帶入投稿身分。 */
-function master_pin_label(array $cfg, string $pin): string {
+function primary_pin_label(array $cfg, string $pin): string {
     if (($cfg['admin_pin'] ?? '') !== '' && hash_equals((string)$cfg['admin_pin'], $pin)) {
         return trim((string)($cfg['admin_pin_label'] ?? ''));
     }
-    return _label_in(pins_load($cfg)['master'], $pin);
+    return _label_in(pins_load($cfg)['primary'], $pin);
 }
 function project_pin_label(array $cfg, string $project, string $pin): string {
     return _label_in(pins_load($cfg)['projects'][$project] ?? [], $pin);

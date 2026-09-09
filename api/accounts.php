@@ -6,9 +6,9 @@
  *   不含密碼等任何機密，專案資料夾單獨備份/搬到別的部署也不會外流帳密；
  *   帳號在新部署的 accounts.json 裡若不存在，這份授權就自動失效（fail closed）。
  * - 舊 PIN 要「轉換為帳號」須先證明持有舊 PIN（見檔尾 account_migrate_*），
- *   帳號建好後舊 PIN 不會被自動撤銷，由 master 在既有 PIN 管理介面手動清。
- * - master 帳號視同 admin_authed()：對所有專案永遠通過，這是檔案系統擁有者本來就有
- *   的權限，應用層擋不住蓄意的 master，因此不做「限制 master 跨專案」這種安全假象，
+ *   帳號建好後舊 PIN 不會被自動撤銷，由 primary 在既有 PIN 管理介面手動清。
+ * - primary 帳號視同 admin_authed()：對所有專案永遠通過，這是檔案系統擁有者本來就有
+ *   的權限，應用層擋不住蓄意的 primary，因此不做「限制 primary 跨專案」這種安全假象，
  *   改用 audit_log() 留下事後可查的紀錄。
  */
 require_once __DIR__ . '/store.php';
@@ -20,6 +20,13 @@ function accounts_load(array $cfg): array {
     if (!is_array($d)) $d = [];
     $d['accounts'] = $d['accounts'] ?? [];
     $d['pending']  = $d['pending']  ?? [];
+    // 舊資料 role master → primary 改名搬遷（一次性、自我修復）
+    $dirty = false;
+    foreach ($d['accounts'] as &$a) {
+        if (($a['role'] ?? '') === 'master') { $a['role'] = 'primary'; $dirty = true; }
+    }
+    unset($a);
+    if ($dirty) accounts_save($cfg, $d);
     return $d;
 }
 function accounts_save(array $cfg, array $d): void { @file_put_contents(accounts_file($cfg), json_encode($d, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX); }
@@ -56,7 +63,7 @@ function account_password_check(string $userid, string $pw): ?string {
     return null;
 }
 
-// ── 登入 cookie：簽章綁 account id，事後可歸責（master 也不例外，修正舊 ADMIN_COOKIE 查不出是誰的問題）──
+// ── 登入 cookie：簽章綁 account id，事後可歸責（primary 也不例外，修正舊 ADMIN_COOKIE 查不出是誰的問題）──
 define('ACCOUNT_COOKIE', 'souliong_acct');
 function account_derived(array $cfg, string $accountId): string { return hash_hmac('sha256', 'souliong-acct', $accountId . '|' . (string)($cfg['ip_salt'] ?? '')); }
 function account_set_cookie(array $cfg, string $accountId): void { setcookie(ACCOUNT_COOKIE, $accountId . '.' . account_derived($cfg, $accountId), _cookie_opts()); }
@@ -75,7 +82,7 @@ function account_current(array $cfg): ?array {
 }
 
 // ── 登入（含失敗鎖定，userid 常常等於公開暱稱、可預測，靠這個擋暴力破解）──
-function _account_default_perms(): array { return ['delete_others' => false, 'edit_others' => false, 'edit_points' => false, 'delegate_admin' => false]; }
+function _account_default_perms(): array { return ['delete_others' => false, 'edit_others' => false, 'edit_points' => false, 'grant_access' => false]; }
 /** 回傳 ['ok'=>true,'account'=>...] 或 ['ok'=>false,'error'=>'invalid'|'locked']。 */
 function account_login(array $cfg, string $userid, string $pw): array {
     $a = account_find_by_userid($cfg, $userid);
@@ -100,7 +107,7 @@ function account_login(array $cfg, string $userid, string $pw): array {
 }
 
 // ── 自助註冊（僅 souliong_registration_open($cfg) 開啟時允許；新帳號預設無任何專案權限，
-//    要由 master 在專案授權清單裡加進去才生效，就算誤開註冊也不會憑空多出管理權限）──
+//    要由 primary 在專案授權清單裡加進去才生效，就算誤開註冊也不會憑空多出管理權限）──
 function account_register(array $cfg, string $userid, string $pw, string $label): array {
     $userid = account_userid_normalize($userid);
     if ($userid === '') return ['ok' => false, 'error' => 'userid_invalid'];
@@ -130,6 +137,17 @@ function project_admins_load(array $cfg, string $project): array {
     $d = is_file($f) ? json_decode((string)@file_get_contents($f), true) : null;
     $d = is_array($d) ? $d : [];
     $d['members'] = $d['members'] ?? [];
+    // 舊資料 delegate_admin → grant_access 改名搬遷（一次性、自我修復）
+    $dirty = false;
+    foreach ($d['members'] as &$m) {
+        if (isset($m['perms']) && is_array($m['perms']) && array_key_exists('delegate_admin', $m['perms']) && !array_key_exists('grant_access', $m['perms'])) {
+            $m['perms']['grant_access'] = $m['perms']['delegate_admin'];
+            unset($m['perms']['delegate_admin']);
+            $dirty = true;
+        }
+    }
+    unset($m);
+    if ($dirty) project_admins_save($cfg, $project, $d);
     return $d;
 }
 function project_admins_save(array $cfg, string $project, array $d): void { @file_put_contents(project_admins_file($cfg, $project), json_encode($d, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX); }
@@ -151,21 +169,21 @@ function project_admin_remove(array $cfg, string $project, string $accountId): v
     $d['members'] = array_values(array_filter($d['members'], fn($m) => (string)($m['account_id'] ?? '') !== $accountId));
     project_admins_save($cfg, $project, $d);
 }
-/** 此帳號有權限的專案清單；master 角色不會用到（對所有專案永遠通過，見 admin_can()）。 */
+/** 此帳號有權限的專案清單；primary 角色不會用到（對所有專案永遠通過，見 admin_can()）。 */
 function account_project_list(array $cfg, string $accountId): array {
     $out = [];
     foreach (store_projects($cfg) as $p) { if (project_admin_perms($cfg, $p, $accountId) !== null) $out[] = $p; }
     return $out;
 }
 
-// ── 舊 PIN 轉換為帳號：master 產生一次性連結 → 對方輸入舊 PIN 證明本人 → 設 userid/密碼 ──
+// ── 舊 PIN 轉換為帳號：primary 產生一次性連結 → 對方輸入舊 PIN 證明本人 → 設 userid/密碼 ──
 // pending token 只記「要轉換哪把舊 PIN」的參照（來源＋id），不複製 PIN 明文，直到啟用當下才去 pins.json 核對。
 function account_migrate_create(array $cfg, string $source, ?string $project, ?string $legacyId, string $suggestedUserid, string $label): array {
     $d = accounts_load($cfg);
     $token = bin2hex(random_bytes(16));
     $pending = [
         'token' => $token,
-        'source' => $source,               // 'bootstrap'｜'master'｜'project'
+        'source' => $source,               // 'bootstrap'｜'primary'｜'project'
         'project' => $project,
         'legacy_id' => $legacyId,          // pins.json 該筆的 id（bootstrap 沒有 id，為 null）
         'suggested_userid' => account_userid_dedupe($cfg, $suggestedUserid),
@@ -191,7 +209,8 @@ function _account_migrate_check_legacy_pin(array $cfg, array $pending, string $p
     if ($pending['source'] === 'bootstrap') {
         return (($cfg['admin_pin'] ?? '') !== '' && hash_equals((string)$cfg['admin_pin'], $pin)) ? [] : null;
     }
-    $list = $pending['source'] === 'master' ? pins_load($cfg)['master'] : (pins_load($cfg)['projects'][$pending['project']] ?? []);
+    // 相容改名前（source 存 'master'）尚未過期的邀請連結，一併視為 primary 來源
+    $list = in_array($pending['source'], ['master', 'primary'], true) ? pins_load($cfg)['primary'] : (pins_load($cfg)['projects'][$pending['project']] ?? []);
     foreach ($list as $e) {
         if ((string)($e['id'] ?? '') === (string)$pending['legacy_id'] && hash_equals((string)($e['pin'] ?? ''), $pin)) return $e['perms'] ?? _account_default_perms();
     }
@@ -214,7 +233,7 @@ function account_migrate_activate(array $cfg, string $token, string $legacyPin, 
         'userid' => $userid,
         'password_hash' => password_hash($pw, PASSWORD_DEFAULT),
         'label' => $pending['label'] !== '' ? $pending['label'] : $userid,
-        'role' => $pending['source'] === 'project' ? 'user' : 'master',
+        'role' => $pending['source'] === 'project' ? 'user' : 'primary',
         'created_at' => gmdate('c'),
         'disabled' => false,
         'fail_count' => 0,

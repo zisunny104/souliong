@@ -1,11 +1,11 @@
 /* 數字鍵盤／一般鍵盤切換輸入元件。
    用法：在 <input> 加上 data-pin-toggle 屬性即可，載入本檔會自動掃描套用。
    預設呼出手機原生數字鍵盤；按切換鈕可換成一般鍵盤直接輸入英數字。
-   無外部依賴，view.php（有 window.I18N）與 admin.php（無 I18N，純中文頁面）都能共用。 */
+   無外部依賴，view.php（有 window.I18N）與 manager.php（無 I18N，純中文頁面）都能共用。 */
 (function () {
   const I18N = window.I18N || {};
   const t = (key, fallback) => (I18N[key] != null ? I18N[key] : fallback);
-  // 不依賴 Font Awesome：admin.php 未登入前的頁面刻意不載入外部資源，用行內 SVG 確保一定看得到圖示
+  // 不依賴 Font Awesome：manager.php 未登入前的頁面刻意不載入外部資源，用行內 SVG 確保一定看得到圖示
   const ICON_KEYBOARD = '<svg viewBox="0 0 20 14" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1" y="1" width="18" height="12" rx="2"/><path d="M4 5h.01M8 5h.01M12 5h.01M16 5h.01M4 9h.01M8 9h8"/></svg>';
   const ICON_NUMERIC = '<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M4 2v12M10 2v12M1.5 6h13M1.5 11h13"/></svg>';
 
@@ -105,7 +105,7 @@
     return pad;
   }
 
-  // 有原生 <form> 就走原生送出（admin.php 的後台登入）；沒有的欄位（view.php 是 fetch
+  // 有原生 <form> 就走原生送出（manager.php 的後台登入）；沒有的欄位（view.php 是 fetch
   // 呼叫 API，不是表單）改派發一個假的 Enter keydown——那邊本來就掛了實體 Enter 的監聽，
   // 借用同一條路徑送出，不用讓這個共用元件認得個別頁面的送出函式。
   function submitField(input) {

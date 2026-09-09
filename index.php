@@ -95,9 +95,9 @@ switch ($action) {
     case 'manager':
         // 後台：<base>/manager[/<mapid>][/<pane>|/backup.zip|/layers/<id>.zip]、<base>/manager/logout。
         // 完整清單與拆解規則都在 api/routes.php，這裡只把拆出來的結果餵進 $_GET；路徑贏過 query string，
-        // 這樣 /manager/100chairs?project=別的 不會出現兩個真相。相容 /admin 與 ?api=admin（admin.php 會導正）。
+        // 這樣 /manager/100chairs?project=別的 不會出現兩個真相。相容 /admin 與 ?api=admin（manager.php 會導正）。
         $_GET = Route::parseManager(array_slice($seg, 1), $isProject) + $_GET;
-        require __DIR__ . '/api/admin.php';
+        require __DIR__ . '/api/manager.php';
         return;
     case 'privacy':
         include __DIR__ . '/pages/privacy.php';    // 隱私與資料說明：<base>/privacy
@@ -108,10 +108,10 @@ switch ($action) {
         $proj = preg_replace('/[^a-z0-9_-]/', '', $proj);
         if ($proj !== '' && is_dir(__DIR__ . '/projects/' . $proj)) {
             // 舊形狀 <base>/<mapid>/manager|edit|admin → 該專案管理。正規網址已改成 <base>/manager/<mapid>，
-            // 這條留著讓既有書籤與印出去的東西不失效；admin.php 收到後會把 GET 導向正規網址。
+            // 這條留著讓既有書籤與印出去的東西不失效；manager.php 收到後會把 GET 導向正規網址。
             if (isset($seg[1]) && in_array($seg[1], Route::MANAGER_ALIASES, true)) {
                 $_GET = Route::parseManager(array_merge([$proj], array_slice($seg, 2)), $isProject) + $_GET;
-                require __DIR__ . '/api/admin.php';
+                require __DIR__ . '/api/manager.php';
                 return;
             }
             $_GET['p'] = $proj;

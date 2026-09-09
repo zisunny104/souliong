@@ -23,7 +23,7 @@
  *   <base>/manager/layers/<id>.zip          全站圖層匯出
  *   <base>/manager/<mapid>/layers/<id>.zip  專案圖層匯出
  *
- * 舊網址（`?api=admin`、`/admin`、`/<mapid>/manager|admin|edit`）仍然有效，由 admin.php 對 GET
+ * 舊網址（`?api=admin`、`/admin`、`/<mapid>/manager|admin|edit`）仍然有效，由 manager.php 對 GET
  * 導向上面的正規形式，印出去的東西與既有書籤不會失效。
  */
 final class Route
@@ -160,7 +160,7 @@ final class Route
     // ── 拆網址（index.php 用）───────────────────────────────────────────────
 
     /**
-     * 把 manager 之後的路徑段拆成一組 GET 參數，回傳的鍵就是 admin.php 讀的那些。
+     * 把 manager 之後的路徑段拆成一組 GET 參數，回傳的鍵就是 manager.php 讀的那些。
      *
      * $tail       manager 這一段之後的路徑段（已 rawurldecode）
      * $isProject  判斷一個代號是不是真的存在的地圖。用途是消歧義：地圖代號跟 PANES／PACKS／

@@ -34,19 +34,19 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 $backProject = preg_replace('/[^a-z0-9_-]/', '', $_GET['project'] ?? '');
 $adminUrl = $esc(Route::abs(Route::manager($backProject, 'tools')));
 
-// 這支寫的是專案層，所以權限跟著專案走（比照 admin.php 的 layerimport）：主要管理者通吃，
-// 專案管理者只能動自己那張地圖。thumbfix 之類的全站維護工具是 master only，這支不是。
-$master = admin_authed($cfg);
-$canProj = function (string $p) use ($cfg, $master): bool {
+// 這支寫的是專案層，所以權限跟著專案走（比照 manager.php 的 layerimport）：主要管理者通吃，
+// 專案管理者只能動自己那張地圖。thumbfix 之類的全站維護工具是 primary only，這支不是。
+$primary = admin_authed($cfg);
+$canProj = function (string $p) use ($cfg, $primary): bool {
     return $p !== '' && preg_match('/^[a-z0-9_-]+$/', $p) === 1
         && is_dir(project_dir($cfg, $p))
-        && ($master || admin_can($cfg, $p));
+        && ($primary || admin_can($cfg, $p));
 };
-$auditWho = fn(string $p) => $master ? 'master' : (($acc = account_current($cfg)) !== null ? 'acct:' . $acc['id'] : 'pin:' . (string)padm_pin_id($cfg, $p));
-// 依身份派生 CSRF token：master 用 admin_derived()，帳號用 account_derived()，專案 PIN 用
-// padm_derived()。與 admin.php 574-576 行同一套規則。
-$csrfFor = function (string $p) use ($cfg, $master): string {
-    if ($master) {
+$auditWho = fn(string $p) => $primary ? 'primary' : (($acc = account_current($cfg)) !== null ? 'acct:' . $acc['id'] : 'pin:' . (string)padm_pin_id($cfg, $p));
+// 依身份派生 CSRF token：primary 用 admin_derived()，帳號用 account_derived()，專案 PIN 用
+// padm_derived()。與 manager.php 574-576 行同一套規則。
+$csrfFor = function (string $p) use ($cfg, $primary): string {
+    if ($primary) {
         return admin_derived($cfg);
     }
     $acc = account_current($cfg);
@@ -434,8 +434,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'finis
 }
 
 // ── 頁面 ──
-$allProjects = array_values(array_filter(store_projects($cfg), fn($p) => $master || admin_can($cfg, $p)));
-if (!$master && !$allProjects) {
+$allProjects = array_values(array_filter(store_projects($cfg), fn($p) => $primary || admin_can($cfg, $p)));
+if (!$primary && !$allProjects) {
     http_response_code(401);
     header('Content-Type: text/html; charset=utf-8');
     echo '<p>' . $tr('tilecut_login_required_msg', ['url' => $adminUrl]) . '</p>';

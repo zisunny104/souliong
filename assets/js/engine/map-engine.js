@@ -47,7 +47,7 @@ window.MapEngine = (() => {
     return (part.copyright ? '&copy;&nbsp;' : '') + body + (part.suffix ? ' ' + i18nSub(part.suffix) : '');
   }
   // attribution 欄位可以是上面那種物件排成的陣列（新格式，多方署名各自標 text/url）；也相容
-  // 純字串（admin.php／region3d.php／tilecut.php 讓管理員手打圖磚署名時存的就是字串，直接沿用）。
+  // 純字串（manager.php／region3d.php／tilecut.php 讓管理員手打圖磚署名時存的就是字串，直接沿用）。
   function creditListHtml(attribution) {
     if (Array.isArray(attribution)) return attribution.map(creditHtml).filter(Boolean).join(SEP);
     return i18nSub(attribution);

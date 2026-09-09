@@ -495,7 +495,7 @@ window.MapApp = (() => {
     // 順序不能反過來：建立出來的點之後也要能被管理者搬位置，那條路徑走的同樣是 kind:'point'。
     const added = CONTRIB.filter(e => e.kind === 'newpoint' && e.num != null).map(e => ({
       num: e.num, title: e.title, cat: e.cat || 'new', catLabel: e.catLabel, color: e.color || '#7a7f87',
-      lat: e.lat, lon: e.lon, story: e.story, addedBy: e.name, addedAt: e.created_at, userAdded: true,
+      lat: e.lat, lon: e.lon, story: e.story, area: e.area, addedBy: e.name, addedAt: e.created_at, userAdded: true,
     }));
     return POINTS.concat(added).map(p => {
       const ed = latest[p.num];

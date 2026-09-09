@@ -38,18 +38,18 @@ $adminUrl = $esc(Route::abs(Route::manager($backProject, 'tools')));
 // 頁面可不可以打開：跟 tilecut.php 一樣看專案管理權（admin_can）。實際會動到資料的四個動作
 // （begin/srcput/finish/rescan）另外再擋一層 edit_3d_regions——這把鑰匙才是「可以下放給特定
 // 專案 PIN」的那一把（security.php 的 pin_default_perms()），單純打開頁面看現有區域不需要它。
-$master = admin_authed($cfg);
-$canProj = function (string $p) use ($cfg, $master): bool {
+$primary = admin_authed($cfg);
+$canProj = function (string $p) use ($cfg, $primary): bool {
     return $p !== '' && preg_match('/^[a-z0-9_-]+$/', $p) === 1
         && is_dir(project_dir($cfg, $p))
-        && ($master || admin_can($cfg, $p));
+        && ($primary || admin_can($cfg, $p));
 };
 $canEdit = fn(string $p): bool => admin_perm($cfg, $p, 'edit_3d_regions');
-$auditWho = fn(string $p) => $master ? 'master' : (($acc = account_current($cfg)) !== null ? 'acct:' . $acc['id'] : 'pin:' . (string)padm_pin_id($cfg, $p));
-// 依身份派生 CSRF token：master 用 admin_derived()，帳號用 account_derived()，專案 PIN 用
-// padm_derived()。與 admin.php 574-576 行同一套規則。
-$csrfFor = function (string $p) use ($cfg, $master): string {
-    if ($master) {
+$auditWho = fn(string $p) => $primary ? 'primary' : (($acc = account_current($cfg)) !== null ? 'acct:' . $acc['id'] : 'pin:' . (string)padm_pin_id($cfg, $p));
+// 依身份派生 CSRF token：primary 用 admin_derived()，帳號用 account_derived()，專案 PIN 用
+// padm_derived()。與 manager.php 574-576 行同一套規則。
+$csrfFor = function (string $p) use ($cfg, $primary): string {
+    if ($primary) {
         return admin_derived($cfg);
     }
     $acc = account_current($cfg);
@@ -281,8 +281,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'resca
 }
 
 // ── 頁面 ──
-$allProjects = array_values(array_filter(store_projects($cfg), fn($p) => $master || admin_can($cfg, $p)));
-if (!$master && !$allProjects) {
+$allProjects = array_values(array_filter(store_projects($cfg), fn($p) => $primary || admin_can($cfg, $p)));
+if (!$primary && !$allProjects) {
     http_response_code(401);
     header('Content-Type: text/html; charset=utf-8');
     echo '<p>' . $tr('region3d_login_required_msg', ['url' => $adminUrl]) . '</p>';

@@ -13,7 +13,7 @@ if ($project === '' || !is_dir($cfg['projects_dir'] . '/' . $project)) { json_ou
 
 // 讀取（分析用，需管理密碼）
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['read'])) {
-    if (!admin_authed($cfg)) { json_out(['error' => 'forbidden'], 403); }   // 靠管理 cookie，不用網址 token
+    if (!site_perm($cfg, 'view_stats')) { json_out(['error' => 'forbidden'], 403); }   // 靠管理 cookie，不用網址 token
     json_out(['project' => $project, 'stats' => stats_read($cfg, $project)]);
 }
 

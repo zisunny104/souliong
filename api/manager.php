@@ -40,17 +40,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'login
       account_set_cookie($cfg, (string)$acc['id']);
       $ok = true;
       $label = (string)($acc['label'] !== '' ? $acc['label'] : $acc['userid']);
-      if (($acc['role'] ?? '') !== 'master') {
+      if (($acc['role'] ?? '') !== 'primary') {
         $aprojects = account_project_list($cfg, (string)$acc['id']);
         if (count($aprojects) === 1) $go = Route::manager($aprojects[0]);
       }
     } else {
       $loginErrMsg = i18n_t($DICT, $r['error'] === 'locked' ? 'account_locked_msg' : 'account_login_failed_msg');
     }
-  } elseif (check_master_pin($cfg, $pin)) {
+  } elseif (check_primary_pin($cfg, $pin)) {
     admin_set_cookie($cfg);
     $ok = true;
-    $label = master_pin_label($cfg, $pin);
+    $label = primary_pin_label($cfg, $pin);
   } elseif ($proj !== '' && ($ppMatch = project_pin_match($cfg, $proj, $pin)) !== null) {
     if (pins_check_and_bump($cfg, $proj, (string)$ppMatch['id'])) {
       padm_set_cookie($cfg, $proj, (string)$ppMatch['id']);
@@ -170,12 +170,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && !isset($_GET['backup'])) {
         exit;
     }
 }
-$master = admin_authed($cfg);
+$primary = admin_authed($cfg);
 // 帳號登入者可能同時管理多個專案，不像 PIN 綁死單一 $reqProject：$acctProjects 是他有權限的專案清單，
 // 沒有 ?project= 時（例如剛登入、或多專案帳號查看總覽）也要能通過 $authed。
-$acct = $master ? null : account_current($cfg);
+$acct = $primary ? null : account_current($cfg);
 $acctProjects = $acct !== null ? account_project_list($cfg, (string)$acct['id']) : [];
-$authed = $master
+$authed = $primary
   || ($reqProject !== '' && admin_can($cfg, $reqProject))
   || ($acct !== null && $acctProjects !== []);
 if (!$authed) {
@@ -477,7 +477,7 @@ if (!$authed) {
     <form method="post" id="panel-login" style="display:<?= $initPanel === 'login' ? '' : 'none' ?>">
       <input type="hidden" name="action" value="login"><input type="hidden" name="project" value="<?= $esc($reqProject) ?>">
       <h1><?= $t('app_title') ?></h1>
-      <div class="s"><?= $reqProject !== '' ? $t('project_scope_label', ['project' => $reqProject]) : $t('master_scope_label') ?><?= $t('enter_admin_pin') ?></div>
+      <div class="s"><?= $reqProject !== '' ? $t('project_scope_label', ['project' => $reqProject]) : $t('primary_scope_label') ?><?= $t('enter_admin_pin') ?></div>
       <div class="err"><?= $esc($loginErr) ?></div>
       <div id="loginPinFields">
         <input name="pin" type="password" autocomplete="off" autofocus placeholder="PIN" data-pin-toggle data-pin-slots="4" data-pin-keypad>
@@ -571,7 +571,7 @@ if (!$authed) {
 
         // 範圍：主 PIN → 可全部（?project= 選填，空字串＝全部）；專案 PIN → $reqProject 恆為登入時鎖定的那個專案
         $scopeProject = $reqProject;
-        $csrf = $master
+        $csrf = $primary
           ? admin_derived($cfg)
           : ($acct !== null ? account_derived($cfg, (string)$acct['id']) : padm_derived($cfg, $reqProject, (string)padm_pin_id($cfg, $reqProject)));
         $esc_csrf = $esc($csrf);
@@ -585,10 +585,10 @@ if (!$authed) {
 
         // 允許操作某專案？（主全通；專案管理者只能動自己的——admin_can() 本身已檢查 PIN／帳號授權，
         // 不需要再比對 $reqProject，否則多專案帳號在非目前網址那個專案上會被誤擋）
-        $canProject = fn($p) => $master || admin_can($cfg, $p);
+        $canProject = fn($p) => $primary || admin_can($cfg, $p);
 
-        // 稽核紀錄用的操作者識別：master／帳號 id／PIN id 三選一，供事後追查憑證外洩時歸責
-        $auditWho = fn() => $master ? 'master' : ($acct !== null ? 'acct:' . $acct['id'] : 'pin:' . (string)padm_pin_id($cfg, $reqProject));
+        // 稽核紀錄用的操作者識別：primary／帳號 id／PIN id 三選一，供事後追查憑證外洩時歸責
+        $auditWho = fn() => $primary ? 'primary' : ($acct !== null ? 'acct:' . $acct['id'] : 'pin:' . (string)padm_pin_id($cfg, $reqProject));
 
         // 專案清單（供備份/檢視）
         $allProjects = store_projects($cfg);
@@ -603,7 +603,7 @@ if (!$authed) {
           $p = preg_replace('/[^a-z0-9_-]/', '', $_POST['project'] ?? '');
           $id = (string)($_POST['id'] ?? '');
           // 刪別人投稿預設僅限主 PIN；專案管理者只有在被授權 delete_others、且動的是自己已登入的專案時才可以
-          if ($p !== '' && $id !== '' && ($master || admin_perm($cfg, $p, 'delete_others'))) {
+          if ($p !== '' && $id !== '' && ($primary || admin_perm($cfg, $p, 'delete_others'))) {
             $removed = store_delete($cfg, $p, $id);
             if ($removed) audit_log($cfg, $auditWho(), 'delete_others', $p, $id);
             store_purge_files($cfg, $removed);   // 照片與影音的主檔＋縮圖一起清（見 store.php）
@@ -706,8 +706,8 @@ if (!$authed) {
         // 平台全域設定（跨地圖，非單一專案，僅主 PIN 可改）
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'settings') {
           need_csrf($csrf);
-          if (!$master) {
-            error_page(403, $t('no_permission_title'), $t('master_only_settings_msg'), Route::manager($scopeProject, 'tools'), $t('back_to_admin'));
+          if (!$primary) {
+            error_page(403, $t('no_permission_title'), $t('primary_only_settings_msg'), Route::manager($scopeProject, 'tools'), $t('back_to_admin'));
           }
           $s = souliong_settings_load($cfg);
           $s['random_explore'] = isset($_POST['random_explore']);
@@ -719,12 +719,12 @@ if (!$authed) {
           header('Location: ' . Route::manager($scopeProject, 'tools'));
           exit;
         }
-        // 全站儲存空間快取重新計算：master-only，手動觸發（見 souliong_storage_compute() 的說明——
+        // 全站儲存空間快取重新計算：primary-only，手動觸發（見 souliong_storage_compute() 的說明——
         // 頁面平常只讀 state/storage.json，不會每次載入都遞迴掃描）。
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'storagerecalc') {
           need_csrf($csrf);
-          if (!$master) {
-            error_page(403, $t('no_permission_title'), $t('master_only_settings_msg'), Route::manager($scopeProject, 'tools'), $t('back_to_admin'));
+          if (!$primary) {
+            error_page(403, $t('no_permission_title'), $t('primary_only_settings_msg'), Route::manager($scopeProject, 'tools'), $t('back_to_admin'));
           }
           $data = souliong_storage_compute($cfg);
           @file_put_contents(souliong_storage_cache_path($cfg), json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX);
@@ -734,10 +734,10 @@ if (!$authed) {
         }
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array(($_POST['action'] ?? ''), ['addpin', 'delpin', 'setperm'], true)) {
           need_csrf($csrf);
-          if (!$master) {
-            error_page(403, $t('no_permission_title'), $t('master_only_pin_perm_msg'), Route::manager($scopeProject, 'access'), $t('back_to_admin'));
+          if (!$primary) {
+            error_page(403, $t('no_permission_title'), $t('primary_only_pin_perm_msg'), Route::manager($scopeProject, 'access'), $t('back_to_admin'));
           }   // 權限管理限主 PIN
-          $scope = ($_POST['scope'] ?? '') === 'master' ? 'master' : 'project';
+          $scope = ($_POST['scope'] ?? '') === 'primary' ? 'primary' : 'project';
           $tp = preg_replace('/[^a-z0-9_-]/', '', $_POST['project'] ?? '');
           $d = pins_load($cfg);
           if (($_POST['action']) === 'addpin') {
@@ -745,8 +745,8 @@ if (!$authed) {
             $label = substr(trim((string)($_POST['label'] ?? '')), 0, 80);
             if ($np !== '') {
               $entry = ['pin' => $np, 'label' => $label];
-              if ($scope === 'master') {
-                $d['master'][] = $entry;
+              if ($scope === 'primary') {
+                $d['primary'][] = $entry;
               } elseif ($tp !== '') {
                 $entry['id'] = bin2hex(random_bytes(4));
                 $entry['perms'] = pin_default_perms();   // 新專案 PIN 一律從全關始，之後在下方一覽表逐項開啟
@@ -770,8 +770,8 @@ if (!$authed) {
           } else {
             $del = (string)($_POST['pin_del'] ?? '');
             $filter = fn($list) => array_values(array_filter($list, fn($e) => !isset($e['pin']) || (string)$e['pin'] !== $del));
-            if ($scope === 'master') {
-              $d['master'] = $filter($d['master']);
+            if ($scope === 'primary') {
+              $d['primary'] = $filter($d['primary']);
             } elseif ($tp !== '') {
               $d['projects'][$tp] = $filter($d['projects'][$tp] ?? []);
             }
@@ -780,7 +780,7 @@ if (!$authed) {
           header('Location: ' . Route::manager($scope === 'project' ? $tp : '', 'access'));
           exit;
         }
-        // 建立「分享編輯連結」：投稿PIN（私人／僅限匿名）任何該專案管理者皆可建立；管理PIN 僅限主 PIN 或已被授權 delegate_admin 者。
+        // 建立「分享編輯連結」：投稿PIN（私人／僅限匿名）任何該專案管理者皆可建立；管理PIN 僅限主 PIN 或已被授權 grant_access 者。
         // 秘密（token／PIN）只透過網址 fragment（# 後面）帶出，伺服器與瀏覽器紀錄都不會留下──前端讀取後即用 history.replaceState 清除。
         // 特意不用 Location 導頁：導頁只能靠 query string 帶祕密回來，反而會落地在網址列/伺服器紀錄，所以留在同一次回應內顯示一次。
         $justCreatedShare = null;
@@ -791,7 +791,7 @@ if (!$authed) {
             error_page(403, $t('no_permission_title'), $t('no_project_permission_msg'), Route::manager($scopeProject, 'access'), $t('back_to_admin'));
           }
           $kind = in_array(($_POST['kind'] ?? ''), ['code', 'admin'], true) ? $_POST['kind'] : 'code';
-          if ($kind === 'admin' && !($master || admin_perm($cfg, $p, 'delegate_admin'))) {
+          if ($kind === 'admin' && !($primary || admin_perm($cfg, $p, 'grant_access'))) {
             error_page(403, $t('no_permission_title'), $t('admin_pin_share_permission_msg'), Route::manager($p, 'access'), $t('back_to_admin'));
           }
           $label = substr(trim((string)($_POST['label'] ?? '')), 0, 80);
@@ -812,32 +812,32 @@ if (!$authed) {
             $justCreatedShare = ['project' => $p, 'kind' => 'admin', 'url' => $mapUrl($p) . '#redeem=' . rawurlencode($grantedToken) . '&rmode=admin'];
           }
         }
-        // 建立「舊 PIN → 帳號」轉換連結：master（或已被授權 delegate_admin 的專案管理者，僅限 project 來源）
+        // 建立「舊 PIN → 帳號」轉換連結：primary（或已被授權 grant_access 的專案管理者，僅限 project 來源）
         // 產生一次性 token；收件人須先在啟用頁面重新輸入舊 PIN 證明本人，才能設定新的 userid/密碼。
         // 秘密（token）比照管理PIN邀請連結，只透過網址 fragment 帶出，不落地在 query string／伺服器紀錄。
         $justCreatedMigrate = null;
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'migrate_create') {
           need_csrf($csrf);
-          $mSource = in_array(($_POST['source'] ?? ''), ['bootstrap', 'master', 'project'], true) ? $_POST['source'] : '';
+          $mSource = in_array(($_POST['source'] ?? ''), ['bootstrap', 'primary', 'project'], true) ? $_POST['source'] : '';
           $mProject = $mSource === 'project' ? preg_replace('/[^a-z0-9_-]/', '', $_POST['project'] ?? '') : null;
           $mLegacyId = ($_POST['legacy_id'] ?? '') !== '' ? (string)$_POST['legacy_id'] : null;
           $mLabel = substr(trim((string)($_POST['label'] ?? '')), 0, 80);
           $canMigrate = $mSource === 'project'
-            ? ($mProject !== '' && ($master || admin_perm($cfg, $mProject, 'delegate_admin')))
-            : $master;   // master／bootstrap 兩種來源（全域身分）僅限主 PIN 本人操作
+            ? ($mProject !== '' && ($primary || admin_perm($cfg, $mProject, 'grant_access')))
+            : $primary;   // primary／bootstrap 兩種來源（全域身分）僅限主 PIN 本人操作
           if ($mSource === '' || !$canMigrate) {
-            error_page(403, $t('no_permission_title'), $t('master_only_pin_perm_msg'), Route::manager($scopeProject, 'access'), $t('back_to_admin'));
+            error_page(403, $t('no_permission_title'), $t('primary_only_pin_perm_msg'), Route::manager($scopeProject, 'access'), $t('back_to_admin'));
           }
           $pending = account_migrate_create($cfg, $mSource, $mProject, $mLegacyId, $mLabel !== '' ? $mLabel : 'user', $mLabel);
           audit_log($cfg, $auditWho(), 'migrate_create', $mProject, $mSource . ':' . ($mLegacyId ?? ''));
           $justCreatedMigrate = ['source' => $mSource, 'project' => $mProject, 'kind' => 'migrate', 'url' => Route::abs(Route::manager('', '', 'activate=' . rawurlencode($pending['token']))), 'note' => $t('migrate_link_hint')];
         }
-        // 撤銷管理PIN邀請連結（尚未兌換）：跟建立邀請同一權限門檻——主 PIN 或已被授權 delegate_admin 的專案 PIN 皆可
+        // 撤銷管理PIN邀請連結（尚未兌換）：跟建立邀請同一權限門檻——主 PIN 或已被授權 grant_access 的專案 PIN 皆可
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delinvite') {
           need_csrf($csrf);
           $p = preg_replace('/[^a-z0-9_-]/', '', $_POST['project'] ?? '');
           $iid = (string)($_POST['invite_id'] ?? '');
-          if ($p !== '' && $iid !== '' && ($master || admin_perm($cfg, $p, 'delegate_admin'))) {
+          if ($p !== '' && $iid !== '' && ($primary || admin_perm($cfg, $p, 'grant_access'))) {
             $d = pins_load($cfg);
             $d['projects'][$p] = array_values(array_filter($d['projects'][$p] ?? [], fn($e) => !(($e['kind'] ?? '') === 'invite' && (string)($e['id'] ?? '') === $iid)));
             pins_save($cfg, $d);
@@ -887,7 +887,7 @@ if (!$authed) {
           $p = preg_replace('/[^a-z0-9_-]/', '', $_POST['project'] ?? '');
           $field = ($_POST['kind'] ?? '') === 'owner' ? 'owner_hash' : 'contrib_id';
           $key = (string)($_POST['key'] ?? '');
-          if ($p !== '' && $key !== '' && ($master || admin_perm($cfg, $p, 'delete_others'))) {
+          if ($p !== '' && $key !== '' && ($primary || admin_perm($cfg, $p, 'delete_others'))) {
             $removedList = store_delete_by($cfg, $p, $field, $key);
             foreach ($removedList as $removed) {
               store_purge_files($cfg, $removed);
@@ -910,8 +910,8 @@ if (!$authed) {
             }
             // 全站包歸主要管理者，專案包歸該專案的管理者——權限跟著包實際住在哪裡走
             $isProj = ($packs[$pid]['scope'] ?? '') === 'project';
-            if ($isProj ? !$canProject($pp) : !$master) {
-              error_page(403, $t('no_permission_title'), $t('master_only_packs_msg'), Route::manager('', 'tools'), $t('back_to_admin'));
+            if ($isProj ? !$canProject($pp) : !$primary) {
+              error_page(403, $t('no_permission_title'), $t('primary_only_packs_msg'), Route::manager('', 'tools'), $t('back_to_admin'));
             }
             $pdir = souliong_pack_dir($cfg, $pid, $pp);
             $files = [];
@@ -943,8 +943,8 @@ if (!$authed) {
             }
             // 全站層歸主要管理者，專案層歸該專案的管理者——權限跟著圖層實際住在哪裡走
             $isProj = ($all[$lid]['scope'] ?? '') === 'project';
-            if ($isProj ? !$canProject($lp) : !$master) {
-              error_page(403, $t('no_permission_title'), $t('master_only_layers_msg'), Route::manager('', 'tools'), $t('back_to_admin'));
+            if ($isProj ? !$canProject($lp) : !$primary) {
+              error_page(403, $t('no_permission_title'), $t('primary_only_layers_msg'), Route::manager('', 'tools'), $t('back_to_admin'));
             }
             $ldir = souliong_layer_dir($cfg, $lid, $lp);
             $files = souliong_layer_files($ldir, $lid, $err);
@@ -972,8 +972,8 @@ if (!$authed) {
             exit;
           }
           $bp = $_GET['backup'] === 'project' ? preg_replace('/[^a-z0-9_-]/', '', $_GET['project'] ?? '') : null;
-          if ($bp === null && !$master) {
-            error_page(403, $t('no_permission_title'), $t('master_only_backup_all_msg'), Route::manager($scopeProject, 'tools'), $t('back_to_admin'));
+          if ($bp === null && !$primary) {
+            error_page(403, $t('no_permission_title'), $t('primary_only_backup_all_msg'), Route::manager($scopeProject, 'tools'), $t('back_to_admin'));
           }
           if ($bp !== null && !$canProject($bp)) {
             error_page(403, $t('no_permission_title'), $t('no_project_permission_msg'), Route::manager((string)$bp, 'tools'), $t('back_to_admin'));
@@ -1012,8 +1012,8 @@ if (!$authed) {
         // ── 匯入還原（合併／覆蓋）：主要管理者限定 ──
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'import') {
           need_csrf($csrf);
-          if (!$master) {
-            error_page(403, $t('no_permission_title'), $t('master_only_import_msg'), Route::manager($scopeProject, 'tools'), $t('back_to_admin'));
+          if (!$primary) {
+            error_page(403, $t('no_permission_title'), $t('primary_only_import_msg'), Route::manager($scopeProject, 'tools'), $t('back_to_admin'));
           }
           require_once __DIR__ . '/zip.php';
           $imported = 0;
@@ -1107,8 +1107,8 @@ if (!$authed) {
           need_csrf($csrf);
           $pp = preg_replace('/[^a-z0-9_-]/', '', $_POST['project'] ?? '');
           $backTo = Route::manager($pp, 'tools');
-          if ($pp === '' ? !$master : !$canProject($pp)) {
-            error_page(403, $t('no_permission_title'), $t('master_only_packs_msg'), $backTo, $t('back_to_admin'));
+          if ($pp === '' ? !$primary : !$canProject($pp)) {
+            error_page(403, $t('no_permission_title'), $t('primary_only_packs_msg'), $backTo, $t('back_to_admin'));
           }
           $roots = souliong_pack_roots($cfg, $pp);
           $destRoot = rtrim((string)($pp === '' ? ($roots['site'] ?? '') : ($roots['project'] ?? '')), '/\\');
@@ -1142,8 +1142,8 @@ if (!$authed) {
           need_csrf($csrf);
           $lp = preg_replace('/[^a-z0-9_-]/', '', $_POST['project'] ?? '');
           $backTo = Route::manager($lp, 'tools');
-          if ($lp === '' ? !$master : !$canProject($lp)) {
-            error_page(403, $t('no_permission_title'), $t('master_only_layers_msg'), $backTo, $t('back_to_admin'));
+          if ($lp === '' ? !$primary : !$canProject($lp)) {
+            error_page(403, $t('no_permission_title'), $t('primary_only_layers_msg'), $backTo, $t('back_to_admin'));
           }
           $roots = souliong_layer_roots($cfg, $lp);
           $destRoot = rtrim((string)($lp === '' ? ($roots['site'] ?? '') : ($roots['project'] ?? '')), '/\\');
@@ -1214,10 +1214,10 @@ if (!$authed) {
         // ── 圖層的解析：刪除與就地編輯共用。刻意用「作用域對應的那個 root」而不是
         //    souliong_layer_dir()——後者同名時會偏好專案層，用在這裡的話，想刪全站層卻剛好有
         //    同名專案層時就會刪錯一邊。權限規則與 layerimport 相同：圖層住哪，權限就跟到哪。 ──
-        $layerTarget = function (string $lp, string $lid) use ($cfg, $master, $canProject, $t): array {
+        $layerTarget = function (string $lp, string $lid) use ($cfg, $primary, $canProject, $t): array {
           $backTo = Route::manager($lp, 'tools');
-          if ($lp === '' ? !$master : !$canProject($lp)) {
-            error_page(403, $t('no_permission_title'), $t('master_only_layers_msg'), $backTo, $t('back_to_admin'));
+          if ($lp === '' ? !$primary : !$canProject($lp)) {
+            error_page(403, $t('no_permission_title'), $t('primary_only_layers_msg'), $backTo, $t('back_to_admin'));
           }
           $roots = souliong_layer_roots($cfg, $lp);
           $root = rtrim((string)($lp === '' ? ($roots['site'] ?? '') : ($roots['project'] ?? '')), '/\\');
@@ -1337,8 +1337,8 @@ if (!$authed) {
           $pp  = preg_replace('/[^a-z0-9_-]/', '', $_POST['project'] ?? '');
           $pid = strtolower(preg_replace('/[^A-Za-z0-9_-]/', '', $_POST['pack'] ?? ''));
           $backTo = Route::manager($pp, 'tools');
-          if ($pp === '' ? !$master : !$canProject($pp)) {
-            error_page(403, $t('no_permission_title'), $t('master_only_packs_msg'), $backTo, $t('back_to_admin'));
+          if ($pp === '' ? !$primary : !$canProject($pp)) {
+            error_page(403, $t('no_permission_title'), $t('primary_only_packs_msg'), $backTo, $t('back_to_admin'));
           }
           $roots = souliong_pack_roots($cfg, $pp);
           $root = rtrim((string)($pp === '' ? ($roots['site'] ?? '') : ($roots['project'] ?? '')), '/\\');
@@ -1360,7 +1360,7 @@ if (!$authed) {
         }
 
         // ── 資料 ──（$allProjects 沿用前面「專案清單」算好的那份，中間的動作不會新增/刪除專案目錄）
-        $viewProjects = $master
+        $viewProjects = $primary
           ? ($scopeProject !== '' ? [$scopeProject] : $allProjects)
           : ($acct !== null ? ($scopeProject !== '' ? [$scopeProject] : $acctProjects) : [$reqProject]);
 
@@ -2905,7 +2905,7 @@ if (!$authed) {
           ? ((string)($headMeta['title'] ?? '') !== '' ? (string)$headMeta['title'] : $scopeProject)
           : $t('all_projects_heading');
       ?>
-      <h1><i class="fa-solid <?= $scopeProject !== '' ? 'fa-map-location-dot' : 'fa-layer-group' ?>"></i> <?= $esc($headName) ?> <span class="sub"><?php if ($scopeProject !== '' && $headName !== $scopeProject): ?><span class="mono"><?= $esc($scopeProject) ?></span> · <?php endif; ?><?= $master ? $t('master_admin_label') : $t('project_admin_label') ?> · <?= $t('records_count_suffix', ['n' => count($rows)]) ?></span></h1>
+      <h1><i class="fa-solid <?= $scopeProject !== '' ? 'fa-map-location-dot' : 'fa-layer-group' ?>"></i> <?= $esc($headName) ?> <span class="sub"><?php if ($scopeProject !== '' && $headName !== $scopeProject): ?><span class="mono"><?= $esc($scopeProject) ?></span> · <?php endif; ?><?= $primary ? $t('primary_admin_label') : $t('project_admin_label') ?> · <?= $t('records_count_suffix', ['n' => count($rows)]) ?></span></h1>
       <?php
         // 回到公開網站。有指定專案就直接回那張地圖，沒有（主要管理者的總覽）就回平台首頁。
         // 走 Route 而不是寫相對連結：後台網址是 /manager/<mapid>/<pane> 這種深路徑，相對連結會被
@@ -2923,12 +2923,12 @@ if (!$authed) {
       </div>
     <?php endif; ?>
 
-    <?php if ($master && $scopeProject === ''): ?>
+    <?php if ($primary && $scopeProject === ''): ?>
       <div class="tabs">
         <a class="tab on"><?= $t('tab_all_count', ['n' => count($allProjects)]) ?></a>
         <?php foreach ($allProjects as $tp): ?><a class="tab" href="<?= $esc(Route::manager($tp)) ?>"><?= $esc($tp) ?></a><?php endforeach; ?>
       </div>
-    <?php elseif ($master): ?>
+    <?php elseif ($primary): ?>
       <div class="tabs">
         <a class="tab" href="<?= $esc(Route::manager()) ?>"><i class="fa-solid fa-arrow-left"></i> <?= $t('back_to_all_projects') ?></a>
       </div>
@@ -2953,26 +2953,26 @@ if (!$authed) {
       <button type="button" class="subtab on" data-pane="overview"><i class="fa-solid fa-chart-simple"></i> <?= $t('overview_tab') ?></button>
       <button type="button" class="subtab" data-pane="records"><i class="fa-solid fa-table-list"></i> <?= $t('records_tab_count', ['n' => count($rows)]) ?></button>
       <button type="button" class="subtab" data-pane="access"><i class="fa-solid fa-key"></i> <?= $t('access_tab') ?></button>
-      <?php if ($master): ?><button type="button" class="subtab" data-pane="tools"><i class="fa-solid fa-screwdriver-wrench"></i> <?= $t('tools_tab') ?></button><?php endif; ?>
+      <?php if ($primary): ?><button type="button" class="subtab" data-pane="tools"><i class="fa-solid fa-screwdriver-wrench"></i> <?= $t('tools_tab') ?></button><?php endif; ?>
     </div>
 
     <div class="pane" id="pane-access">
-    <?php if ($master && $scopeProject === ''): $mpins = pins_load($cfg)['master']; ?>
-      <h2><?= $t('master_pins_heading') ?></h2>
-      <div class="hint" style="margin:-6px 0 12px"><?= $t('master_pins_hint') ?></div>
+    <?php if ($primary && $scopeProject === ''): $mpins = pins_load($cfg)['primary']; ?>
+      <h2><?= $t('primary_pins_heading') ?></h2>
+      <div class="hint" style="margin:-6px 0 12px"><?= $t('primary_pins_hint') ?></div>
       <div class="card" style="padding:16px 18px">
         <div class="pinlist">
-          <span class="pinchip"><?= $t('master_config_label') ?> · <span class="mono">config</span>
+          <span class="pinchip"><?= $t('primary_config_label') ?> · <span class="mono">config</span>
             <form method="post" style="display:inline"><input type="hidden" name="csrf" value="<?= $esc_csrf ?>"><input type="hidden" name="action" value="migrate_create"><input type="hidden" name="source" value="bootstrap"><input type="hidden" name="label" value="<?= $esc($cfg['admin_pin_label'] ?? '') ?>"><button type="submit" class="chipbtn" title="<?= $t('migrate_to_account_title') ?>"><i class="fa-solid fa-right-left"></i></button></form>
           </span>
           <?php foreach ($mpins as $e): ?><span class="pinchip"><?= $esc(($e['label'] ?? '') !== '' ? $e['label'] : $t('no_nickname_label')) ?> · <?= $secret($e['pin'] ?? '') ?>
-              <form method="post" style="display:inline"><input type="hidden" name="csrf" value="<?= $esc_csrf ?>"><input type="hidden" name="action" value="migrate_create"><input type="hidden" name="source" value="master"><input type="hidden" name="legacy_id" value="<?= $esc($e['id'] ?? '') ?>"><input type="hidden" name="label" value="<?= $esc($e['label'] ?? '') ?>"><button type="submit" class="chipbtn" title="<?= $t('migrate_to_account_title') ?>"><i class="fa-solid fa-right-left"></i></button></form>
-              <form method="post"><input type="hidden" name="csrf" value="<?= $esc_csrf ?>"><input type="hidden" name="action" value="delpin"><input type="hidden" name="scope" value="master"><input type="hidden" name="pin_del" value="<?= $esc($e['pin'] ?? '') ?>"><button class="x" title="<?= $t('remove_title') ?>">×</button></form>
+              <form method="post" style="display:inline"><input type="hidden" name="csrf" value="<?= $esc_csrf ?>"><input type="hidden" name="action" value="migrate_create"><input type="hidden" name="source" value="primary"><input type="hidden" name="legacy_id" value="<?= $esc($e['id'] ?? '') ?>"><input type="hidden" name="label" value="<?= $esc($e['label'] ?? '') ?>"><button type="submit" class="chipbtn" title="<?= $t('migrate_to_account_title') ?>"><i class="fa-solid fa-right-left"></i></button></form>
+              <form method="post"><input type="hidden" name="csrf" value="<?= $esc_csrf ?>"><input type="hidden" name="action" value="delpin"><input type="hidden" name="scope" value="primary"><input type="hidden" name="pin_del" value="<?= $esc($e['pin'] ?? '') ?>"><button class="x" title="<?= $t('remove_title') ?>">×</button></form>
             </span>
           <?php endforeach; ?>
         </div>
-        <form class="row" method="post" style="margin-top:10px"><input type="hidden" name="csrf" value="<?= $esc_csrf ?>"><input type="hidden" name="action" value="addpin"><input type="hidden" name="scope" value="master">
-          <input name="pin_new" placeholder="<?= $t('add_master_pin_placeholder') ?>" autocomplete="off"><input name="label" placeholder="<?= $t('nickname_optional_placeholder') ?>" autocomplete="off"><button class="btn"><?= $t('add_btn') ?></button>
+        <form class="row" method="post" style="margin-top:10px"><input type="hidden" name="csrf" value="<?= $esc_csrf ?>"><input type="hidden" name="action" value="addpin"><input type="hidden" name="scope" value="primary">
+          <input name="pin_new" placeholder="<?= $t('add_primary_pin_placeholder') ?>" autocomplete="off"><input name="label" placeholder="<?= $t('nickname_optional_placeholder') ?>" autocomplete="off"><button class="btn"><?= $t('add_btn') ?></button>
         </form>
       </div>
       <?php if ($justCreatedMigrate && $justCreatedMigrate['project'] === null): ?>
@@ -3275,10 +3275,10 @@ if (!$authed) {
                 <span class="hint"><?= $t('tilecut_entry_hint') ?></span>
               </div>
               <?php
-                // edit_3d_regions 預設關閉（跟 delegate_admin 等其他委派權限一樣），沒開的話這裡
+                // edit_3d_regions 預設關閉（跟 grant_access 等其他委派權限一樣），沒開的話這裡
                 // 整段不出現——存檔會被伺服器擋，與其讓人填完整個編輯流程才在最後一步撞牆，不如
                 // 一開始就不給入口。
-                $canEdit3d = $master || admin_perm($cfg, $p, 'edit_3d_regions');
+                $canEdit3d = $primary || admin_perm($cfg, $p, 'edit_3d_regions');
                 $projRegions = $canEdit3d ? souliong_region3d_list($cfg, $p) : [];
               ?>
               <?php if ($canEdit3d): ?>
@@ -3364,7 +3364,7 @@ if (!$authed) {
       </div>
 
       <?php if ($canProject($p)):
-        $canDelegateAdmin = $master || admin_perm($cfg, $p, 'delegate_admin');
+        $canGrantAccess = $primary || admin_perm($cfg, $p, 'grant_access');
         $cList = contrib_load($cfg, $p);
         $codesList = codes_load($cfg, $p);
         $blocked = blocked_load($cfg, $p);
@@ -3381,7 +3381,7 @@ if (!$authed) {
           $at = (string)($r['created_at'] ?? '');
           if ($at > $ownerGroups[$oh]['last_at']) { $ownerGroups[$oh]['last_at'] = $at; $ownerGroups[$oh]['last_name'] = (string)($r['name'] ?? ''); }
         }
-        $canDeleteOthers = $master || admin_perm($cfg, $p, 'delete_others');
+        $canDeleteOthers = $primary || admin_perm($cfg, $p, 'delete_others');
         // 剛建立的憑證：只在本次回應顯示一次，畫在所屬區塊內（屬「正在分享」，維持明碼）
         $justHere = fn(...$kinds) => $justCreatedShare && $justCreatedShare['project'] === $p && in_array($justCreatedShare['kind'], $kinds, true);
         $shareNew = function (array $s, string $kindLabel) use ($esc, $p, $meta, $t) { ?>
@@ -3493,13 +3493,13 @@ if (!$authed) {
             <?php endif; ?>
           </div>
 
-          <?php if ($master || $canDelegateAdmin): ?>
+          <?php if ($primary || $canGrantAccess): ?>
           <div class="idgroup">
             <div class="sechead"><i class="fa-solid fa-user-gear"></i> <?= $t('admin_pins_heading') ?></div>
             <?php if ($realPins): ?>
               <div class="pinlist">
-                <?php if ($master):
-                  $permLabels = ['delete_others' => $t('perm_delete_others'), 'edit_others' => $t('perm_edit_others'), 'edit_points' => $t('perm_edit_points'), 'delegate_admin' => $t('perm_delegate_admin'), 'edit_3d_regions' => $t('perm_edit_3d_regions')];
+                <?php if ($primary):
+                  $permLabels = ['delete_others' => $t('perm_delete_others'), 'edit_others' => $t('perm_edit_others'), 'edit_points' => $t('perm_edit_points'), 'grant_access' => $t('perm_grant_access'), 'edit_3d_regions' => $t('perm_edit_3d_regions')];
                   foreach ($realPins as $e): $pid = (string)($e['id'] ?? ''); $perms = $e['perms'] ?? pin_default_perms(); ?>
                   <div class="pinchip pinchip-block">
                     <div class="idline"><span><?= $esc(($e['label'] ?? '') !== '' ? $e['label'] : $t('no_nickname_label')) ?> · <?= $secret($e['pin'] ?? '') ?>
@@ -3521,19 +3521,19 @@ if (!$authed) {
                   </div>
                 <?php endforeach; else: ?>
                   <?php foreach ($realPins as $e): ?>
-                    <span class="pinchip" title="<?= $t('master_only_pin_visible_title') ?>"><?= $esc(($e['label'] ?? '') !== '' ? $e['label'] : $t('no_nickname_label')) ?></span>
+                    <span class="pinchip" title="<?= $t('primary_only_pin_visible_title') ?>"><?= $esc(($e['label'] ?? '') !== '' ? $e['label'] : $t('no_nickname_label')) ?></span>
                   <?php endforeach; ?>
                 <?php endif; ?>
               </div>
             <?php endif; ?>
-            <?php if ($master): ?>
+            <?php if ($primary): ?>
               <form class="row" method="post" style="flex-wrap:wrap;margin-top:8px"><input type="hidden" name="csrf" value="<?= $esc_csrf ?>"><input type="hidden" name="action" value="addpin"><input type="hidden" name="scope" value="project"><input type="hidden" name="project" value="<?= $esc($p) ?>">
                 <label class="fieldlabel"><?= $t('add_pin_direct_label') ?><input name="pin_new" autocomplete="off" placeholder="<?= $t('add_pin_direct_placeholder') ?>"></label>
                 <label class="fieldlabel"><?= $t('col_nickname') ?><input name="label" autocomplete="off" placeholder="<?= $t('optional_placeholder') ?>"></label>
                 <button class="btn"><i class="fa-solid fa-plus"></i> <?= $t('add_pin_direct_btn') ?></button>
               </form>
             <?php endif; ?>
-            <?php if ($master && $invites): ?>
+            <?php if ($primary && $invites): ?>
               <div class="sechead"><i class="fa-solid fa-envelope-open-text"></i> <?= $t('pending_invites_heading') ?></div>
               <div class="pinlist">
                 <?php foreach ($invites as $e): $inviteId = (string)($e['id'] ?? ''); $inviteUrl = $mapUrl($p) . '#redeem=' . rawurlencode((string)($e['token'] ?? '')) . '&rmode=admin'; ?>
@@ -3551,7 +3551,7 @@ if (!$authed) {
                 <?php endforeach; ?>
               </div>
             <?php endif; ?>
-            <?php if ($canDelegateAdmin): ?>
+            <?php if ($canGrantAccess): ?>
               <details class="metaedit">
                 <summary class="btn"><i class="fa-solid fa-share-nodes"></i> <?= $t('create_invite_link_btn') ?></summary>
                 <form class="row expirywidget-row" method="post" style="flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)">
@@ -3797,10 +3797,10 @@ if (!$authed) {
         <?php endforeach; ?>
       </table>
     </div>
-    <div class="hint"><?= $t('record_hash_legend') ?><?= $master ? $t('master_scope_note') : '' ?></div>
+    <div class="hint"><?= $t('record_hash_legend') ?><?= $primary ? $t('primary_scope_note') : '' ?></div>
     </div><!-- /pane-records -->
 
-    <?php if ($master): ?>
+    <?php if ($primary): ?>
     <div class="pane" id="pane-tools">
       <h2><?= $t('tools_heading') ?></h2>
       <div class="card section-card">
