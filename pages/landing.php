@@ -41,7 +41,7 @@ $bg = $maps ? $maps[array_rand($maps)] : ['center' => [23.9, 120.7], 'zoom' => 1
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= $t('app_title') ?></title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.6.0/dist/maplibre-gl.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <style>
 :root{ --bg:#fafafa; --fg:#1b1b1d; --muted:#6b6b70; --line:#e7e7ea; --card:rgba(255,255,255,.86); --accent:#1b1b1d; --accent-fg:#fff; --r-lg:22px; --scrim:rgba(250,250,250,.72); }
@@ -115,8 +115,9 @@ footer a{color:inherit}
   <div class="cr-line">
     <span class="cr-ext">
       &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> <?= $t('osm_contributors') ?>
-      ・ <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>
-      ・ <a href="https://leafletjs.com" target="_blank" rel="noopener">Leaflet</a>
+      ・ <a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a>
+      ・ <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a>
+      ・ <a href="https://maplibre.org" target="_blank" rel="noopener">MapLibre</a>
     </span>
     <span class="cr-sep" aria-hidden="true"></span>
     <span class="cr-own">
@@ -128,19 +129,61 @@ footer a{color:inherit}
   <?= $t('platform_tagline_footer') ?> ・ <a href="<?= $b ?>privacy"><?= $t('privacy_link_text') ?></a>
 </footer>
 </div>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script>
+<script type="module">
+import * as maplibregl from 'https://unpkg.com/maplibre-gl@6.6.0/dist/maplibre-gl.mjs';
 var BASE = <?= json_encode($base) ?>, IDS = <?= json_encode(array_map(fn($m) => $m['id'], $maps)) ?>;
 var BG = <?= json_encode($bg) ?>;
-(function(){
-  var dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-  var url = 'https://{s}.basemaps.cartocdn.com/' + (dark ? 'dark_all' : 'rastertiles/voyager') + '/{z}/{x}/{y}{r}.png';
-  var map = L.map('bgmap', { zoomControl:false, attributionControl:false, dragging:false, scrollWheelZoom:false, doubleClickZoom:false, boxZoom:false, keyboard:false, touchZoom:false, tap:false, inertia:false, fadeAnimation:true })
-    .setView(BG.center || [23.9,120.7], BG.zoom || 14);
-  L.tileLayer(url, { maxZoom:20, subdomains:'abcd', detectRetina:true }).addTo(map);
-  var rb = document.getElementById('randomBtn');
-  if (rb) rb.onclick = function(){ location.href = BASE + IDS[Math.floor(Math.random()*IDS.length)]; };
-})();
+
+// 背景地圖用的極簡樣式：直接接 OpenFreeMap 的向量圖磚來源（同 layers/openfreemap-liberty），
+// 但只挑水域／公園／建物色塊跟道路留下來自己刻樣式，不套用原本的 111 層 Liberty 樣式——
+// 純裝飾用途不需要地名、POI、行政界線這些文字與符號圖層。
+function slBgStyle(dark) {
+  var pal = dark ? {
+    bg: '#141416', water: '#16232b', park: '#172019', building: '#1c1c1f',
+    roadMinor: '#2c2c30', roadMedium: '#3c3c42', roadMajor: '#57575f',
+  } : {
+    bg: '#eeeeee', water: '#cfe3ec', park: '#dde6da', building: '#e2e2e2',
+    roadMinor: '#cfcfcf', roadMedium: '#b0b0b0', roadMajor: '#8a8a8a',
+  };
+  var roadLayout = { 'line-cap': 'round', 'line-join': 'round' };
+  return {
+    version: 8,
+    sources: { openmaptiles: { type: 'vector', url: 'https://tiles.openfreemap.org/planet' } },
+    layers: [
+      { id: 'bg', type: 'background', paint: { 'background-color': pal.bg } },
+      { id: 'park', type: 'fill', source: 'openmaptiles', 'source-layer': 'park', paint: { 'fill-color': pal.park } },
+      { id: 'water', type: 'fill', source: 'openmaptiles', 'source-layer': 'water', paint: { 'fill-color': pal.water } },
+      { id: 'building', type: 'fill', source: 'openmaptiles', 'source-layer': 'building', minzoom: 13, paint: { 'fill-color': pal.building, 'fill-opacity': 0.8 } },
+      {
+        id: 'road-minor', type: 'line', source: 'openmaptiles', 'source-layer': 'transportation', layout: roadLayout,
+        filter: ['in', ['get', 'class'], ['literal', ['minor', 'service', 'track', 'street', 'street_limited']]],
+        paint: { 'line-color': pal.roadMinor, 'line-width': ['interpolate', ['exponential', 1.4], ['zoom'], 12, 0.6, 14, 1.4, 18, 4] },
+      },
+      {
+        id: 'road-medium', type: 'line', source: 'openmaptiles', 'source-layer': 'transportation', layout: roadLayout,
+        filter: ['in', ['get', 'class'], ['literal', ['secondary', 'tertiary', 'link']]],
+        paint: { 'line-color': pal.roadMedium, 'line-width': ['interpolate', ['exponential', 1.4], ['zoom'], 10, 0.8, 14, 2.2, 18, 6] },
+      },
+      {
+        id: 'road-major', type: 'line', source: 'openmaptiles', 'source-layer': 'transportation', layout: roadLayout,
+        filter: ['in', ['get', 'class'], ['literal', ['motorway', 'trunk', 'primary']]],
+        paint: { 'line-color': pal.roadMajor, 'line-width': ['interpolate', ['exponential', 1.4], ['zoom'], 10, 1.2, 14, 3.5, 18, 9] },
+      },
+    ],
+  };
+}
+
+var mq = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
+var center = BG.center || [23.9, 120.7];
+var map = new maplibregl.Map({
+  container: 'bgmap', style: slBgStyle(!!(mq && mq.matches)),
+  center: [center[1], center[0]], zoom: BG.zoom || 14,
+  interactive: false, attributionControl: false,
+});
+if (mq && mq.addEventListener) mq.addEventListener('change', function (e) { map.setStyle(slBgStyle(e.matches)); });
+
+var rb = document.getElementById('randomBtn');
+if (rb) rb.onclick = function(){ location.href = BASE + IDS[Math.floor(Math.random()*IDS.length)]; };
 </script>
 </body>
 </html>
