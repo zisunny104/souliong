@@ -857,6 +857,44 @@ if (!$authed) {
           header('Location: ' . Route::manager($scopeProject, 'access'));
           exit;
         }
+        // 帳號型專案管理者：直接以既有帳號的 userid 指派／調整權限／移除。跟 PIN 權限管理同門檻——僅限主 PIN。
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array(($_POST['action'] ?? ''), ['addacctadmin', 'delacctadmin', 'setacctperm'], true)) {
+          need_csrf($csrf);
+          if (!$primary) {
+            error_page(403, $t('no_permission_title'), $t('primary_only_pin_perm_msg'), Route::manager($scopeProject, 'access'), $t('back_to_admin'));
+          }
+          $tp = clean_id($_POST['project'] ?? '');
+          if ($tp !== '') {
+            if (($_POST['action']) === 'addacctadmin') {
+              $uid = account_userid_normalize((string)($_POST['userid'] ?? ''));
+              $acc = $uid !== '' ? account_find_by_userid($cfg, $uid) : null;
+              if ($acc !== null && project_admin_perms($cfg, $tp, (string)$acc['id']) === null) {
+                project_admin_set($cfg, $tp, (string)$acc['id'], _account_default_perms());
+                audit_log($cfg, $auditWho(), 'acctadmin_add', $tp, (string)$acc['id']);
+              }
+            } elseif (($_POST['action']) === 'setacctperm') {
+              $permKey = (string)($_POST['perm'] ?? '');
+              $accountId = (string)($_POST['account_id'] ?? '');
+              $on = ($_POST['on'] ?? '') === '1';
+              if ($accountId !== '' && array_key_exists($permKey, _account_default_perms())) {
+                $d = project_admins_load($cfg, $tp);
+                foreach ($d['members'] as &$m) {
+                  if ((string)($m['account_id'] ?? '') === $accountId) { $m['perms'][$permKey] = $on; break; }
+                }
+                unset($m);
+                project_admins_save($cfg, $tp, $d);
+              }
+            } else {
+              $accountId = (string)($_POST['account_id'] ?? '');
+              if ($accountId !== '') {
+                project_admin_remove($cfg, $tp, $accountId);
+                audit_log($cfg, $auditWho(), 'acctadmin_remove', $tp, $accountId);
+              }
+            }
+          }
+          header('Location: ' . Route::manager($tp, 'access'));
+          exit;
+        }
         // 移除附加投稿碼（立即失效；常駐碼另走 rotate）
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delcode') {
           need_csrf($csrf);
@@ -3357,6 +3395,7 @@ if (!$authed) {
 
       <?php if ($canProject($p)):
         $canGrantAccess = $primary || admin_perm($cfg, $p, 'grant_access');
+        $permLabels = ['delete_others' => $t('perm_delete_others'), 'edit_others' => $t('perm_edit_others'), 'edit_points' => $t('perm_edit_points'), 'grant_access' => $t('perm_grant_access'), 'edit_3d_regions' => $t('perm_edit_3d_regions')];
         $cList = contrib_load($cfg, $p);
         $codesList = codes_load($cfg, $p);
         $blocked = blocked_load($cfg, $p);
@@ -3491,7 +3530,6 @@ if (!$authed) {
             <?php if ($realPins): ?>
               <div class="pinlist">
                 <?php if ($primary):
-                  $permLabels = ['delete_others' => $t('perm_delete_others'), 'edit_others' => $t('perm_edit_others'), 'edit_points' => $t('perm_edit_points'), 'grant_access' => $t('perm_grant_access'), 'edit_3d_regions' => $t('perm_edit_3d_regions')];
                   foreach ($realPins as $e): $pid = (string)($e['id'] ?? ''); $perms = $e['perms'] ?? pin_default_perms(); ?>
                   <div class="pinchip pinchip-block">
                     <div class="idline"><span><?= $esc(($e['label'] ?? '') !== '' ? $e['label'] : $t('no_nickname_label')) ?> · <?= $secret($e['pin'] ?? '') ?>
@@ -3566,6 +3604,41 @@ if (!$authed) {
             <?php endif; ?>
             <?php if ($justHere('admin')) $shareNew($justCreatedShare, $t('admin_pin_invite_share_label')); ?>
             <?php if ($justCreatedMigrate && $justCreatedMigrate['project'] === $p) $shareNew($justCreatedMigrate, $t('migrate_to_account_title')); ?>
+          </div>
+          <?php endif; ?>
+
+          <?php if ($primary): $acctAdmins = project_admins_load($cfg, $p)['members']; ?>
+          <div class="idgroup">
+            <div class="sechead"><i class="fa-solid fa-user-shield"></i> <?= $t('account_admins_heading') ?></div>
+            <?php if ($acctAdmins): ?>
+              <div class="pinlist">
+                <?php foreach ($acctAdmins as $m):
+                  $accountId = (string)($m['account_id'] ?? '');
+                  $acc = account_find_by_id($cfg, $accountId);
+                  $perms = $m['perms'] ?? _account_default_perms();
+                  $accLabel = $acc !== null ? (($acc['label'] ?? '') !== '' ? $acc['label'] : $acc['userid']) : $t('account_admin_unknown_label');
+                ?>
+                  <div class="pinchip pinchip-block">
+                    <div class="idline"><span><?= $esc($accLabel) ?><?php if ($acc !== null): ?> · <span class="mono"><?= $esc($acc['userid']) ?></span><?php endif; ?></span><span class="idacts">
+                      <form method="post" style="display:inline"><input type="hidden" name="csrf" value="<?= $esc_csrf ?>"><input type="hidden" name="action" value="delacctadmin"><input type="hidden" name="project" value="<?= $esc($p) ?>"><input type="hidden" name="account_id" value="<?= $esc($accountId) ?>"><button class="x" title="<?= $t('remove_title') ?>">×</button></form>
+                    </span></div>
+                    <div class="permrow">
+                      <?php foreach ($permLabels as $pk => $ptext): $on = !empty($perms[$pk]); ?>
+                        <form method="post" style="display:inline"><input type="hidden" name="csrf" value="<?= $esc_csrf ?>"><input type="hidden" name="action" value="setacctperm"><input type="hidden" name="project" value="<?= $esc($p) ?>"><input type="hidden" name="account_id" value="<?= $esc($accountId) ?>"><input type="hidden" name="perm" value="<?= $esc($pk) ?>"><input type="hidden" name="on" value="<?= $on ? '0' : '1' ?>">
+                          <button class="permtoggle<?= $on ? ' on' : '' ?>" title="<?= $t('grant_perm_title') ?>"><?= $on ? '✓ ' : '' ?><?= $esc($ptext) ?></button>
+                        </form>
+                      <?php endforeach; ?>
+                    </div>
+                  </div>
+                <?php endforeach; ?>
+              </div>
+            <?php else: ?>
+              <div class="emptystate"><i class="fa-solid fa-user-shield" aria-hidden="true"></i><?= $t('no_account_admins_msg') ?></div>
+            <?php endif; ?>
+            <form class="row" method="post" style="flex-wrap:wrap;margin-top:8px"><input type="hidden" name="csrf" value="<?= $esc_csrf ?>"><input type="hidden" name="action" value="addacctadmin"><input type="hidden" name="project" value="<?= $esc($p) ?>">
+              <label class="fieldlabel"><?= $t('add_account_admin_label') ?><input name="userid" autocomplete="off" placeholder="<?= $t('add_account_admin_placeholder') ?>"></label>
+              <button class="btn"><i class="fa-solid fa-plus"></i> <?= $t('add_account_admin_btn') ?></button>
+            </form>
           </div>
           <?php endif; ?>
         </div>

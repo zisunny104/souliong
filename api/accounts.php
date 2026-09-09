@@ -82,7 +82,7 @@ function account_current(array $cfg): ?array {
 }
 
 // ── 登入（含失敗鎖定，userid 常常等於公開暱稱、可預測，靠這個擋暴力破解）──
-function _account_default_perms(): array { return ['delete_others' => false, 'edit_others' => false, 'edit_points' => false, 'grant_access' => false]; }
+function _account_default_perms(): array { return ['delete_others' => false, 'edit_others' => false, 'edit_points' => false, 'grant_access' => false, 'edit_3d_regions' => false]; }
 /** 回傳 ['ok'=>true,'account'=>...] 或 ['ok'=>false,'error'=>'invalid'|'locked']。 */
 function account_login(array $cfg, string $userid, string $pw): array {
     $a = account_find_by_userid($cfg, $userid);
