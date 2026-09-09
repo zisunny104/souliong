@@ -24,7 +24,7 @@ if (!site_perm($cfg, 'fix_thumbnails')) {
     echo '<p>' . $tr('primary_login_required_msg', ['url' => $adminUrl]) . '</p>';
     exit;
 }
-$csrf = admin_derived($cfg);
+$csrf = primary_derived($cfg);
 
 /** 這個專案裡「有照片、還沒有縮圖」的原始投稿（編輯版本 photo 為 null，天然不在名單裡） */
 function thumbfix_missing(array $cfg, array $dict, string $project): array {

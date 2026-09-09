@@ -49,7 +49,7 @@ if ($who === 'admin') {
         json_out(['error' => '這張地圖只有管理者能建立地點'], 403);
     }
     // CSRF：比照 editpoint.php，值＝同一支登入身分在 view.php 才拿得到的衍生值（見 $APP.csrf）
-    $csrfExpected = admin_authed($cfg) ? admin_derived($cfg) : padm_derived($cfg, $project, (string)padm_pin_id($cfg, $project));
+    $csrfExpected = primary_authed($cfg) ? primary_derived($cfg) : padm_derived($cfg, $project, (string)padm_pin_id($cfg, $project));
     if (!hash_equals($csrfExpected, (string)($_POST['csrf'] ?? ''))) {
         json_out(['error' => '憑證失效，請重新整理頁面後再操作一次'], 403);
     }

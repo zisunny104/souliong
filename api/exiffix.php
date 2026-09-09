@@ -31,7 +31,7 @@ if (!site_perm($cfg, 'fix_exif')) {
     echo '<p>' . $tr('primary_login_required_msg', ['url' => $adminUrl]) . '</p>';
     exit;
 }
-$csrf = admin_derived($cfg);
+$csrf = primary_derived($cfg);
 
 function exiffix_dist_m(float $lat1, float $lon1, float $lat2, float $lon2): float {
     $R = 6371000;

@@ -30,10 +30,10 @@ $gated = contrib_open($apiCfg, $proj);
 // 定位點編輯（editpoint.php）走的是這個公開頁面而非後台頁，因此比照 manager.php 的作法，
 // 帶一份「同源才讀得到」的 CSRF 驗證值，只在已登入管理者時計算並輸出。
 // 管理者三種登入方式都要各自對應到正確的衍生值，否則其中一種身分送出的請求會被誤判成 CSRF 失效。
-$isPrimaryAuthed = admin_authed($apiCfg);
+$isPrimaryAuthed = primary_authed($apiCfg);
 $acctForCsrf    = ($isManager && !$isPrimaryAuthed) ? account_current($apiCfg) : null;
 $csrfTok   = !$isManager ? null : ($isPrimaryAuthed
-    ? admin_derived($apiCfg)
+    ? primary_derived($apiCfg)
     : ($acctForCsrf !== null ? account_derived($apiCfg, (string)$acctForCsrf['id']) : padm_derived($apiCfg, $proj, (string)padm_pin_id($apiCfg, $proj))));
 [$LANG, $DICT] = i18n_init();
 $t = fn(string $key, array $vars = []): string => htmlspecialchars(i18n_t($DICT, $key, $vars), ENT_QUOTES);

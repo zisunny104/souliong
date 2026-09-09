@@ -4,7 +4,7 @@
  * 無外部相依；限流本身失敗時「放行」而非拒服務（避免自我 DoS）。
  * 位於 Nginx 反代後，需在 config 開 trust_forwarded 才會用 X-Forwarded-For。
  */
-require_once __DIR__ . '/accounts.php';   // admin_authed/admin_can/admin_perm 疊加帳號登入判斷，需要 account_current() 等函式
+require_once __DIR__ . '/accounts.php';   // primary_authed/admin_can/admin_perm 疊加帳號登入判斷，需要 account_current() 等函式
 
 function client_ip(array $cfg): string {
     if (!empty($cfg['trust_forwarded']) && !empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
@@ -23,8 +23,8 @@ function client_ip(array $cfg): string {
  * - cookie 由「鹽值」衍生（代表已通過某範圍），與特定 PIN 解耦；移除某 PIN 不影響既有登入，
  *   需全面登出可更換 ip_salt。
  */
-define('ADMIN_COOKIE', 'souliong_admin');
-function admin_derived(array $cfg): string { return hash_hmac('sha256', 'souliong-admin', (string)($cfg['ip_salt'] ?? '')); }
+define('PRIMARY_COOKIE', 'souliong_primary');
+function primary_derived(array $cfg): string { return hash_hmac('sha256', 'souliong-primary', (string)($cfg['ip_salt'] ?? '')); }
 function padm_cookie_name(string $project): string { return 'souliong_padm_' . preg_replace('/[^a-z0-9_-]/', '', $project); }
 // cookie 值＝"<pinId>.<簽章>"：簽章綁定 project+pinId，讓 cookie 記得「用哪一把專案 PIN 登入」，
 // 才能做到權限旗標可個別下放到特定專案 PIN（而非只要有登入任一把就視為同權）。
@@ -32,8 +32,8 @@ function padm_derived(array $cfg, string $project, string $pinId): string { retu
 
 // PIN 登入與帳號登入（見檔尾「帳號系統」）並存：只要任一種通過就算通過，帳號是 PIN 之上疊加的
 // 一層，不取代——舊 PIN 在完成「轉換為帳號」前持續有效，不會有人被迫中斷登入。
-function admin_authed(array $cfg): bool {
-    if (hash_equals(admin_derived($cfg), (string)($_COOKIE[ADMIN_COOKIE] ?? ''))) return true;
+function primary_authed(array $cfg): bool {
+    if (hash_equals(primary_derived($cfg), (string)($_COOKIE[PRIMARY_COOKIE] ?? ''))) return true;
     $acc = account_current($cfg);
     return $acc !== null && ($acc['role'] ?? '') === 'primary';
 }
@@ -49,7 +49,7 @@ function padm_pin_id(array $cfg, string $project): ?string {
     return $pinId;
 }
 function admin_can(array $cfg, string $project): bool {
-    if (admin_authed($cfg)) return true;
+    if (primary_authed($cfg)) return true;
     if (padm_pin_id($cfg, $project) !== null) return true;
     $acc = account_current($cfg);
     return $acc !== null && project_admin_perms($cfg, $project, (string)$acc['id']) !== null;
@@ -65,7 +65,7 @@ function primary_perms(): array {
 }
 /** 專案層級具名權限判斷：primary 查 primary_perms()；專案 PIN 或專案帳號則需 perms[$permKey] 已被開啟才通過。 */
 function admin_perm(array $cfg, string $project, string $permKey): bool {
-    if (admin_authed($cfg)) return !empty(primary_perms()[$permKey]);
+    if (primary_authed($cfg)) return !empty(primary_perms()[$permKey]);
     $pinId = padm_pin_id($cfg, $project);
     if ($pinId !== null) {
         foreach (pins_load($cfg)['projects'][$project] ?? [] as $e) {
@@ -81,13 +81,13 @@ function admin_perm(array $cfg, string $project, string $permKey): bool {
 }
 /** 全站層級（跨專案）具名權限：目前僅 primary 具備，供圖層搬遷／EXIF／縮圖修復／統計等維護工具使用。 */
 function site_perm(array $cfg, string $permKey): bool {
-    return admin_authed($cfg) && !empty(primary_perms()[$permKey]);
+    return primary_authed($cfg) && !empty(primary_perms()[$permKey]);
 }
 function _cookie_opts(): array { return ['expires' => time() + 7 * 86400, 'path' => '/', 'httponly' => true, 'secure' => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'), 'samesite' => 'Lax']; }
-function admin_set_cookie(array $cfg): void { setcookie(ADMIN_COOKIE, admin_derived($cfg), _cookie_opts()); }
+function primary_set_cookie(array $cfg): void { setcookie(PRIMARY_COOKIE, primary_derived($cfg), _cookie_opts()); }
 function padm_set_cookie(array $cfg, string $project, string $pinId): void { setcookie(padm_cookie_name($project), $pinId . '.' . padm_derived($cfg, $project, $pinId), _cookie_opts()); }
-function admin_clear_cookie(): void {
-    setcookie(ADMIN_COOKIE, '', ['expires' => time() - 3600, 'path' => '/']);
+function primary_clear_cookie(): void {
+    setcookie(PRIMARY_COOKIE, '', ['expires' => time() - 3600, 'path' => '/']);
     foreach ($_COOKIE as $k => $v) { if (strpos($k, 'souliong_padm_') === 0) setcookie($k, '', ['expires' => time() - 3600, 'path' => '/']); }
 }
 

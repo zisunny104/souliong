@@ -7,7 +7,7 @@
  *   帳號在新部署的 accounts.json 裡若不存在，這份授權就自動失效（fail closed）。
  * - 舊 PIN 要「轉換為帳號」須先證明持有舊 PIN（見檔尾 account_migrate_*），
  *   帳號建好後舊 PIN 不會被自動撤銷，由 primary 在既有 PIN 管理介面手動清。
- * - primary 帳號視同 admin_authed()：對所有專案永遠通過，這是檔案系統擁有者本來就有
+ * - primary 帳號視同 primary_authed()：對所有專案永遠通過，這是檔案系統擁有者本來就有
  *   的權限，應用層擋不住蓄意的 primary，因此不做「限制 primary 跨專案」這種安全假象，
  *   改用 audit_log() 留下事後可查的紀錄。
  */
@@ -63,7 +63,7 @@ function account_password_check(string $userid, string $pw): ?string {
     return null;
 }
 
-// ── 登入 cookie：簽章綁 account id，事後可歸責（primary 也不例外，修正舊 ADMIN_COOKIE 查不出是誰的問題）──
+// ── 登入 cookie：簽章綁 account id，事後可歸責（primary 帳號登入也不例外）──
 define('ACCOUNT_COOKIE', 'souliong_acct');
 function account_derived(array $cfg, string $accountId): string { return hash_hmac('sha256', 'souliong-acct', $accountId . '|' . (string)($cfg['ip_salt'] ?? '')); }
 function account_set_cookie(array $cfg, string $accountId): void { setcookie(ACCOUNT_COOKIE, $accountId . '.' . account_derived($cfg, $accountId), _cookie_opts()); }

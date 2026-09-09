@@ -53,7 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'login
       $loginErrMsg = i18n_t($DICT, $r['error'] === 'locked' ? 'account_locked_msg' : 'account_login_failed_msg');
     }
   } elseif (check_primary_pin($cfg, $pin)) {
-    admin_set_cookie($cfg);
+    primary_set_cookie($cfg);
     $ok = true;
     $label = primary_pin_label($cfg, $pin);
   } elseif ($proj !== '' && ($ppMatch = project_pin_match($cfg, $proj, $pin)) !== null) {
@@ -82,7 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'login
   $loginErr = $loginErrMsg ?? i18n_t($DICT, 'admin_pin_incorrect');
 }
 if (isset($_GET['logout'])) {
-  admin_clear_cookie();
+  primary_clear_cookie();
   account_clear_cookie();
   header('Location: ' . Route::manager());
   exit;
@@ -175,7 +175,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && !isset($_GET['backup'])) {
         exit;
     }
 }
-$primary = admin_authed($cfg);
+$primary = primary_authed($cfg);
 // 帳號登入者可能同時管理多個專案，不像 PIN 綁死單一 $reqProject：$acctProjects 是他有權限的專案清單，
 // 沒有 ?project= 時（例如剛登入、或多專案帳號查看總覽）也要能通過 $authed。
 $acct = $primary ? null : account_current($cfg);
@@ -577,7 +577,7 @@ if (!$authed) {
         // 範圍：主 PIN → 可全部（?project= 選填，空字串＝全部）；專案 PIN → $reqProject 恆為登入時鎖定的那個專案
         $scopeProject = $reqProject;
         $csrf = $primary
-          ? admin_derived($cfg)
+          ? primary_derived($cfg)
           : ($acct !== null ? account_derived($cfg, (string)$acct['id']) : padm_derived($cfg, $reqProject, (string)padm_pin_id($cfg, $reqProject)));
         $esc_csrf = $esc($csrf);
         function need_csrf(string $csrf): void

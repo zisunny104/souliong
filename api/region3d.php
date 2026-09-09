@@ -38,7 +38,7 @@ $adminUrl = $esc(Route::abs(Route::manager($backProject, 'tools')));
 // 頁面可不可以打開：跟 tilecut.php 一樣看專案管理權（admin_can）。實際會動到資料的四個動作
 // （begin/srcput/finish/rescan）另外再擋一層 edit_3d_regions——這把鑰匙才是「可以下放給特定
 // 專案 PIN」的那一把（security.php 的 pin_default_perms()），單純打開頁面看現有區域不需要它。
-$primary = admin_authed($cfg);
+$primary = primary_authed($cfg);
 $canProj = function (string $p) use ($cfg, $primary): bool {
     return $p !== '' && preg_match('/^[a-z0-9_-]+$/', $p) === 1
         && is_dir(project_dir($cfg, $p))
@@ -46,11 +46,11 @@ $canProj = function (string $p) use ($cfg, $primary): bool {
 };
 $canEdit = fn(string $p): bool => admin_perm($cfg, $p, 'edit_3d_regions');
 $auditWho = fn(string $p) => $primary ? 'primary' : (($acc = account_current($cfg)) !== null ? 'acct:' . $acc['id'] : 'pin:' . (string)padm_pin_id($cfg, $p));
-// 依身份派生 CSRF token：primary 用 admin_derived()，帳號用 account_derived()，專案 PIN 用
+// 依身份派生 CSRF token：primary 用 primary_derived()，帳號用 account_derived()，專案 PIN 用
 // padm_derived()。與 manager.php 574-576 行同一套規則。
 $csrfFor = function (string $p) use ($cfg, $primary): string {
     if ($primary) {
-        return admin_derived($cfg);
+        return primary_derived($cfg);
     }
     $acc = account_current($cfg);
     return $acc !== null ? account_derived($cfg, (string)$acc['id']) : padm_derived($cfg, $p, (string)padm_pin_id($cfg, $p));

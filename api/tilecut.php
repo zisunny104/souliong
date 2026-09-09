@@ -36,18 +36,18 @@ $adminUrl = $esc(Route::abs(Route::manager($backProject, 'tools')));
 
 // 這支寫的是專案層，所以權限跟著專案走（比照 manager.php 的 layerimport）：主要管理者通吃，
 // 專案管理者只能動自己那張地圖。thumbfix 之類的全站維護工具是 primary only，這支不是。
-$primary = admin_authed($cfg);
+$primary = primary_authed($cfg);
 $canProj = function (string $p) use ($cfg, $primary): bool {
     return $p !== '' && preg_match('/^[a-z0-9_-]+$/', $p) === 1
         && is_dir(project_dir($cfg, $p))
         && ($primary || admin_can($cfg, $p));
 };
 $auditWho = fn(string $p) => $primary ? 'primary' : (($acc = account_current($cfg)) !== null ? 'acct:' . $acc['id'] : 'pin:' . (string)padm_pin_id($cfg, $p));
-// 依身份派生 CSRF token：primary 用 admin_derived()，帳號用 account_derived()，專案 PIN 用
+// 依身份派生 CSRF token：primary 用 primary_derived()，帳號用 account_derived()，專案 PIN 用
 // padm_derived()。與 manager.php 574-576 行同一套規則。
 $csrfFor = function (string $p) use ($cfg, $primary): string {
     if ($primary) {
-        return admin_derived($cfg);
+        return primary_derived($cfg);
     }
     $acc = account_current($cfg);
     return $acc !== null ? account_derived($cfg, (string)$acc['id']) : padm_derived($cfg, $p, (string)padm_pin_id($cfg, $p));

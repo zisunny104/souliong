@@ -26,7 +26,7 @@ if (!site_perm($cfg, 'manage_layers')) {
     echo '<p>' . $tr('primary_login_required_msg', ['url' => $adminUrl]) . '</p>';
     exit;
 }
-$csrf = admin_derived($cfg);
+$csrf = primary_derived($cfg);
 
 /** 這個專案目前的圖層狀態：跟 souliong_layers_for() 用同一套「有沒有非空 layers 欄位」判斷式，
  *  不能自己另外土法重猜一次，否則這裡顯示的跟頁面實際生效的圖層可能各講各的。 */
