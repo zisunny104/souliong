@@ -323,6 +323,7 @@ return [
     'back_to_map_btn'            => '回到這張地圖',
     'overview_tab'                => '總覽',
     'records_tab_count'          => '投稿紀錄（{n}）',
+    'view_records_link'          => '查看投稿紀錄',
     'access_tab'                  => '專案與權限',
     'tools_tab'                   => '工具',
     'primary_pins_heading'        => '主要管理 PIN（可進入所有專案）',

@@ -322,6 +322,7 @@ return [
     'back_to_map_btn'            => 'Back to this map',
     'overview_tab'                => 'Overview',
     'records_tab_count'          => 'Submissions ({n})',
+    'view_records_link'          => 'View submissions',
     'access_tab'                  => 'Projects & access',
     'tools_tab'                   => 'Tools',
     'primary_pins_heading'        => 'Main admin PINs (access all projects)',

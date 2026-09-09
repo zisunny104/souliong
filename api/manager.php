@@ -18,6 +18,11 @@ rate_limit($cfg, 'admin');
 $t  = fn(string $key, array $vars = []): string => htmlspecialchars(i18n_t($DICT, $key, $vars), ENT_QUOTES);
 $tr = fn(string $key, array $vars = []): string => i18n_t($DICT, $key, $vars);   // 內容含固定 HTML 標籤（非使用者輸入），此頁自行保證安全，不做二次跳脫
 $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
+// 專案／主題包／圖層 id 只收 [a-z0-9_-]，其餘字元一律砍掉；GET／POST 各處取這些 id 都走這裡
+function clean_id($raw): string
+{
+  return (string)preg_replace('/[^a-z0-9_-]/', '', (string)$raw);
+}
 // PIN／碼是唯一輸入憑證，後台一律預設遮罩、按眼睛才顯示（固定六點，不洩漏長度）；
 // 例外：常駐投稿碼與「剛建立」區塊屬於正在分享的內容，維持明碼。
 $secret = fn($v) => '<span class="secretwrap"><span class="mono secretval" data-val="' . $esc($v) . '">••••••</span><button type="button" class="eyebtn" title="' . $t('eye_toggle_title') . '"><i class="fa-solid fa-eye"></i></button></span>';
@@ -26,7 +31,7 @@ $secret = fn($v) => '<span class="secretwrap"><span class="mono secretval" data-
 $loginErr = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'login') {
   $pin = (string)($_POST['pin'] ?? '');
-  $proj = preg_replace('/[^a-z0-9_-]/', '', $_POST['project'] ?? '');
+  $proj = clean_id($_POST['project'] ?? '');
   $userid = trim((string)($_POST['userid'] ?? ''));
   $pw = (string)($_POST['pw'] ?? '');
   $ok = false;
@@ -133,7 +138,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'accou
 // 最多只是幫別人兌換一個權限全關的身分，rate_limit($cfg,'admin')（見本檔開頭）已足以節流亂猜。
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'admin_redeem') {
   header('Content-Type: application/json; charset=utf-8');
-  $rProj = preg_replace('/[^a-z0-9_-]/', '', $_POST['project'] ?? '');
+  $rProj = clean_id($_POST['project'] ?? '');
   $rToken = (string)($_POST['token'] ?? '');
   $rPin = (string)($_POST['pin'] ?? '');
   $rLabel = isset($_POST['label']) ? (string)$_POST['label'] : null;
@@ -153,7 +158,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'admin
 }
 
 // ── 認證與範圍 ──
-$reqProject = preg_replace('/[^a-z0-9_-]/', '', $_GET['project'] ?? '');
+$reqProject = clean_id($_GET['project'] ?? '');
 // 目前停在哪個分頁。網址上寫得出來才能加書籤／分享，所以 pane 是路徑的一段而不是 fragment；
 // 拆解在 Route::parseManager()，這裡只認 Route::PANES 之內的值。
 $reqPane = in_array((string)($_GET['pane'] ?? ''), Route::PANES, true) ? (string)$_GET['pane'] : '';
@@ -612,7 +617,7 @@ if (!$authed) {
         // ── 動作 ──
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delete') {
           need_csrf($csrf);
-          $p = preg_replace('/[^a-z0-9_-]/', '', $_POST['project'] ?? '');
+          $p = clean_id($_POST['project'] ?? '');
           $id = (string)($_POST['id'] ?? '');
           // 刪別人投稿預設僅限主 PIN；專案管理者只有在被授權 delete_others、且動的是自己已登入的專案時才可以
           if ($p !== '' && $id !== '' && ($primary || admin_perm($cfg, $p, 'delete_others'))) {
@@ -626,7 +631,7 @@ if (!$authed) {
         // 編輯專案描述（只改標題/副標/說明/資料來源，其餘欄位保留；免手改 meta.json）
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'meta') {
           need_csrf($csrf);
-          $p = preg_replace('/[^a-z0-9_-]/', '', $_POST['project'] ?? '');
+          $p = clean_id($_POST['project'] ?? '');
           if ($p === '' || !$canProject($p)) {
             error_page(403, $t('no_permission_title'), $t('no_project_permission_msg'), Route::manager($scopeProject, 'access'), $t('back_to_admin'));
           }
@@ -745,7 +750,7 @@ if (!$authed) {
             error_page(403, $t('no_permission_title'), $t('primary_only_pin_perm_msg'), Route::manager($scopeProject, 'access'), $t('back_to_admin'));
           }   // 權限管理限主 PIN
           $scope = ($_POST['scope'] ?? '') === 'primary' ? 'primary' : 'project';
-          $tp = preg_replace('/[^a-z0-9_-]/', '', $_POST['project'] ?? '');
+          $tp = clean_id($_POST['project'] ?? '');
           $d = pins_load($cfg);
           if (($_POST['action']) === 'addpin') {
             $np = trim((string)($_POST['pin_new'] ?? ''));
@@ -793,7 +798,7 @@ if (!$authed) {
         $justCreatedShare = null;
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'sharelink') {
           need_csrf($csrf);
-          $p = preg_replace('/[^a-z0-9_-]/', '', $_POST['project'] ?? '');
+          $p = clean_id($_POST['project'] ?? '');
           if ($p === '' || !$canProject($p)) {
             error_page(403, $t('no_permission_title'), $t('no_project_permission_msg'), Route::manager($scopeProject, 'access'), $t('back_to_admin'));
           }
@@ -826,7 +831,7 @@ if (!$authed) {
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'migrate_create') {
           need_csrf($csrf);
           $mSource = in_array(($_POST['source'] ?? ''), ['bootstrap', 'primary', 'project'], true) ? $_POST['source'] : '';
-          $mProject = $mSource === 'project' ? preg_replace('/[^a-z0-9_-]/', '', $_POST['project'] ?? '') : null;
+          $mProject = $mSource === 'project' ? clean_id($_POST['project'] ?? '') : null;
           $mLegacyId = ($_POST['legacy_id'] ?? '') !== '' ? (string)$_POST['legacy_id'] : null;
           $mLabel = substr(trim((string)($_POST['label'] ?? '')), 0, 80);
           $canMigrate = $mSource === 'project'
@@ -842,7 +847,7 @@ if (!$authed) {
         // 撤銷管理PIN邀請連結（尚未兌換）：跟建立邀請同一權限門檻——主 PIN 或已被授權 grant_access 的專案 PIN 皆可
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delinvite') {
           need_csrf($csrf);
-          $p = preg_replace('/[^a-z0-9_-]/', '', $_POST['project'] ?? '');
+          $p = clean_id($_POST['project'] ?? '');
           $iid = (string)($_POST['invite_id'] ?? '');
           if ($p !== '' && $iid !== '' && ($primary || admin_perm($cfg, $p, 'grant_access'))) {
             $d = pins_load($cfg);
@@ -855,7 +860,7 @@ if (!$authed) {
         // 移除附加投稿碼（立即失效；常駐碼另走 rotate）
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delcode') {
           need_csrf($csrf);
-          $p = preg_replace('/[^a-z0-9_-]/', '', $_POST['project'] ?? '');
+          $p = clean_id($_POST['project'] ?? '');
           $dc = preg_replace('/\D/', '', (string)($_POST['code_del'] ?? ''));
           if ($p !== '' && $dc !== '' && $canProject($p)) {
             codes_save($cfg, $p, array_values(array_filter(codes_load($cfg, $p), fn($e) => (string)($e['code'] ?? '') !== $dc)));
@@ -866,7 +871,7 @@ if (!$authed) {
         // 移除投稿身分（含分享連結建立的、使用者自行設定的皆可）
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delcontrib') {
           need_csrf($csrf);
-          $p = preg_replace('/[^a-z0-9_-]/', '', $_POST['project'] ?? '');
+          $p = clean_id($_POST['project'] ?? '');
           $cid = (string)($_POST['contrib_id'] ?? '');
           if ($p !== '' && $cid !== '' && $canProject($p)) {
             $cd = contrib_load($cfg, $p);
@@ -878,7 +883,7 @@ if (!$authed) {
         // 鎖定／解除鎖定某個投稿身分（PIN 投稿者用 contrib_id、匿名裝置用 owner_hash）：只擋日後投稿，不影響已投稿內容
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array(($_POST['action'] ?? ''), ['blockid', 'unblockid'], true)) {
           need_csrf($csrf);
-          $p = preg_replace('/[^a-z0-9_-]/', '', $_POST['project'] ?? '');
+          $p = clean_id($_POST['project'] ?? '');
           $kind = ($_POST['kind'] ?? '') === 'owner' ? 'owner' : 'contrib';
           $key = (string)($_POST['key'] ?? '');
           if ($p !== '' && $key !== '' && $canProject($p)) {
@@ -891,7 +896,7 @@ if (!$authed) {
         // 刪除某身分的全部投稿：跟單筆刪除同一權限規則（動別人的東西預設限主 PIN，或已授權 delete_others 的專案 PIN）
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delbyid') {
           need_csrf($csrf);
-          $p = preg_replace('/[^a-z0-9_-]/', '', $_POST['project'] ?? '');
+          $p = clean_id($_POST['project'] ?? '');
           $field = ($_POST['kind'] ?? '') === 'owner' ? 'owner_hash' : 'contrib_id';
           $key = (string)($_POST['key'] ?? '');
           if ($p !== '' && $key !== '' && ($primary || admin_perm($cfg, $p, 'delete_others'))) {
@@ -909,8 +914,8 @@ if (!$authed) {
           require_once __DIR__ . '/zip.php';
           // ── 主題包匯出：單一 pack 資料夾打包，路徑內含 <id>/ 前綴（比照 projects/<id>/ 的做法） ──
           if ($_GET['backup'] === 'pack') {
-            $pid = preg_replace('/[^a-z0-9_-]/', '', $_GET['pack'] ?? '');
-            $pp  = preg_replace('/[^a-z0-9_-]/', '', $_GET['project'] ?? '');
+            $pid = clean_id($_GET['pack'] ?? '');
+            $pp  = clean_id($_GET['project'] ?? '');
             $packs = souliong_pack_list($cfg, $pp);
             if ($pid === '' || !isset($packs[$pid])) {
               error_page(404, $t('error_404_title'), $t('pack_not_found_msg'), Route::manager('', 'tools'), $t('back_to_admin'));
@@ -942,8 +947,8 @@ if (!$authed) {
           //    數量不固定——單張疊圖只有兩個檔，切好的圖磚金字塔可能上萬個——所以要遞迴走訪，
           //    並且設上限：超過就擋下來，請對方直接從伺服器取，而不是讓這個請求跑到逾時。 ──
           if ($_GET['backup'] === 'layer') {
-            $lid = preg_replace('/[^a-z0-9_-]/', '', $_GET['layer'] ?? '');
-            $lp  = preg_replace('/[^a-z0-9_-]/', '', $_GET['project'] ?? '');
+            $lid = clean_id($_GET['layer'] ?? '');
+            $lp  = clean_id($_GET['project'] ?? '');
             $all = souliong_layer_list($cfg, $lp);
             if ($lid === '' || !isset($all[$lid])) {
               error_page(404, $t('error_404_title'), $t('layer_not_found_msg'), Route::manager('', 'tools'), $t('back_to_admin'));
@@ -978,7 +983,7 @@ if (!$authed) {
             @unlink($tmp);
             exit;
           }
-          $bp = $_GET['backup'] === 'project' ? preg_replace('/[^a-z0-9_-]/', '', $_GET['project'] ?? '') : null;
+          $bp = $_GET['backup'] === 'project' ? clean_id($_GET['project'] ?? '') : null;
           if ($bp === null && !$primary) {
             error_page(403, $t('no_permission_title'), $t('primary_only_backup_all_msg'), Route::manager($scopeProject, 'tools'), $t('back_to_admin'));
           }
@@ -1110,7 +1115,7 @@ if (!$authed) {
         //    該地圖自己的包。匯入不會刪掉 zip 裡沒有的舊檔（覆蓋不是取代）。 ──
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'packimport') {
           need_csrf($csrf);
-          $pp = preg_replace('/[^a-z0-9_-]/', '', $_POST['project'] ?? '');
+          $pp = clean_id($_POST['project'] ?? '');
           $backTo = Route::manager($pp, 'tools');
           if ($pp === '' ? !$primary : !$canProject($pp)) {
             error_page(403, $t('no_permission_title'), $t('primary_only_packs_msg'), $backTo, $t('back_to_admin'));
@@ -1145,7 +1150,7 @@ if (!$authed) {
         //    匯入不會刪掉 zip 裡沒有的舊檔（同 pack，是覆蓋不是取代）。 ──
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'layerimport') {
           need_csrf($csrf);
-          $lp = preg_replace('/[^a-z0-9_-]/', '', $_POST['project'] ?? '');
+          $lp = clean_id($_POST['project'] ?? '');
           $backTo = Route::manager($lp, 'tools');
           if ($lp === '' ? !$primary : !$canProject($lp)) {
             error_page(403, $t('no_permission_title'), $t('primary_only_layers_msg'), $backTo, $t('back_to_admin'));
@@ -1238,7 +1243,7 @@ if (!$authed) {
         //    靜靜略過（同 pack），地圖只會少一層而不會開天窗。 ──
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'layerdelete') {
           need_csrf($csrf);
-          $lp  = preg_replace('/[^a-z0-9_-]/', '', $_POST['project'] ?? '');
+          $lp  = clean_id($_POST['project'] ?? '');
           $lid = strtolower(preg_replace('/[^A-Za-z0-9_-]/', '', $_POST['layer'] ?? ''));
           [$root, $dir, $backTo] = $layerTarget($lp, $lid);
           // 全站預設層刪掉的話，所有沒自訂圖層的地圖會同時變成一片空白——這種「一鍵讓整站沒有
@@ -1269,7 +1274,7 @@ if (!$authed) {
         //    不等於使用者想清掉它。 ──
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'layeredit') {
           need_csrf($csrf);
-          $lp  = preg_replace('/[^a-z0-9_-]/', '', $_POST['project'] ?? '');
+          $lp  = clean_id($_POST['project'] ?? '');
           $lid = strtolower(preg_replace('/[^A-Za-z0-9_-]/', '', $_POST['layer'] ?? ''));
           [$root, $dir, $backTo] = $layerTarget($lp, $lid);
           $mf = $dir . '/layer.json';
@@ -1339,7 +1344,7 @@ if (!$authed) {
         //    settings.json 不必清理，souliong_pack_for() 對找不到的 id 本來就靜靜略過。 ──
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'packdelete') {
           need_csrf($csrf);
-          $pp  = preg_replace('/[^a-z0-9_-]/', '', $_POST['project'] ?? '');
+          $pp  = clean_id($_POST['project'] ?? '');
           $pid = strtolower(preg_replace('/[^A-Za-z0-9_-]/', '', $_POST['pack'] ?? ''));
           $backTo = Route::manager($pp, 'tools');
           if ($pp === '' ? !$primary : !$canProject($pp)) {
@@ -2112,15 +2117,6 @@ if (!$authed) {
       margin-bottom: var(--sp-3)
     }
 
-    .stat-card>summary {
-      cursor: pointer;
-      list-style: none
-    }
-
-    .stat-card>summary::-webkit-details-marker {
-      display: none
-    }
-
     .stat-card-head {
       display: flex;
       align-items: center;
@@ -2131,15 +2127,6 @@ if (!$authed) {
 
     .stat-card-head b {
       font-size: 0.8125rem
-    }
-
-    .stat-card-head .chev {
-      color: var(--muted);
-      transition: transform var(--t)
-    }
-
-    .stat-card[open] .stat-card-head .chev {
-      transform: rotate(180deg)
     }
 
     .stats-grid {
@@ -3681,39 +3668,40 @@ if (!$authed) {
         $projBytes = $upB + $lyB + $pkB;
       }
     ?>
-      <details class="stat-card">
-        <summary>
-          <div class="stat-card-head"><b><?= $esc($p) ?></b><i class="fa-solid fa-chevron-down chev" aria-hidden="true"></i></div>
-          <div class="stats-grid">
-            <div class="tile">
-              <div class="n"><?= (int)($s['views'] ?? 0) ?></div>
-              <div class="l"><?= $t('stat_views_label') ?></div>
-              <div class="d"><?= $t('stat_views_desc') ?></div>
-            </div>
-            <div class="tile">
-              <div class="n"><?= (int)($s['sessions'] ?? 0) ?></div>
-              <div class="l"><?= $t('stat_sessions_label') ?></div>
-              <div class="d"><?= $t('stat_sessions_desc') ?></div>
-            </div>
-            <div class="tile">
-              <div class="n"><?= (int)($s['uploads'] ?? 0) ?></div>
-              <div class="l"><?= $t('stat_uploads_label') ?></div>
-              <div class="d"><?= $t('stat_uploads_desc') ?></div>
-            </div>
-            <div class="tile">
-              <div class="n statdev"><span class="a"><?= $mob ?></span><span class="sep">/</span><span class="b"><?= $desk ?></span></div>
-              <?php if ($mob + $desk > 0): ?><div class="statratio" aria-hidden="true"><span class="a" style="width:<?= $mobPct ?>%"></span><span class="b" style="width:<?= 100 - $mobPct ?>%"></span></div><?php endif; ?>
-              <div class="l"><?= $t('stat_mobile_desktop_label') ?></div>
-              <div class="d"><?= $t('stat_device_desc') ?></div>
-            </div>
-            <div class="tile">
-              <div class="n" <?= $projBytes !== null ? 'title="' . $esc(i18n_t($DICT, 'stat_storage_breakdown', ['up' => $fmtBytes($upB), 'ly' => $fmtBytes($lyB), 'pk' => $fmtBytes($pkB)])) . '"' : '' ?>><?= $projBytes !== null ? $esc($fmtBytes($projBytes)) : '—' ?></div>
-              <div class="l"><?= $t('stat_storage_label') ?></div>
-              <div class="d"><?= $t('stat_storage_desc') ?></div>
-            </div>
+      <div class="stat-card">
+        <div class="stat-card-head">
+          <b><?= $esc($p) ?></b>
+          <a class="btn" href="<?= $esc(Route::manager($p, 'records')) ?>"><i class="fa-solid fa-table-list"></i> <?= $t('view_records_link') ?></a>
+        </div>
+        <div class="stats-grid">
+          <div class="tile">
+            <div class="n"><?= (int)($s['views'] ?? 0) ?></div>
+            <div class="l"><?= $t('stat_views_label') ?></div>
+            <div class="d"><?= $t('stat_views_desc') ?></div>
           </div>
-          <div class="break"><?= $t('top_points_label') ?><b><?= $esc($top($s['points'])) ?></b><br><?= $t('top_cameras_label') ?><b><?= $esc($top($s['cameras'])) ?></b></div>
-        </summary>
+          <div class="tile">
+            <div class="n"><?= (int)($s['sessions'] ?? 0) ?></div>
+            <div class="l"><?= $t('stat_sessions_label') ?></div>
+            <div class="d"><?= $t('stat_sessions_desc') ?></div>
+          </div>
+          <div class="tile">
+            <div class="n"><?= (int)($s['uploads'] ?? 0) ?></div>
+            <div class="l"><?= $t('stat_uploads_label') ?></div>
+            <div class="d"><?= $t('stat_uploads_desc') ?></div>
+          </div>
+          <div class="tile">
+            <div class="n statdev"><span class="a"><?= $mob ?></span><span class="sep">/</span><span class="b"><?= $desk ?></span></div>
+            <?php if ($mob + $desk > 0): ?><div class="statratio" aria-hidden="true"><span class="a" style="width:<?= $mobPct ?>%"></span><span class="b" style="width:<?= 100 - $mobPct ?>%"></span></div><?php endif; ?>
+            <div class="l"><?= $t('stat_mobile_desktop_label') ?></div>
+            <div class="d"><?= $t('stat_device_desc') ?></div>
+          </div>
+          <div class="tile">
+            <div class="n" <?= $projBytes !== null ? 'title="' . $esc(i18n_t($DICT, 'stat_storage_breakdown', ['up' => $fmtBytes($upB), 'ly' => $fmtBytes($lyB), 'pk' => $fmtBytes($pkB)])) . '"' : '' ?>><?= $projBytes !== null ? $esc($fmtBytes($projBytes)) : '—' ?></div>
+            <div class="l"><?= $t('stat_storage_label') ?></div>
+            <div class="d"><?= $t('stat_storage_desc') ?></div>
+          </div>
+        </div>
+        <div class="break"><?= $t('top_points_label') ?><b><?= $esc($top($s['points'])) ?></b><br><?= $t('top_cameras_label') ?><b><?= $esc($top($s['cameras'])) ?></b></div>
         <div class="cols">
           <div class="col">
             <h4><?= $t('points_rank_heading') ?></h4>
@@ -3744,7 +3732,7 @@ if (!$authed) {
             <?= $statCols($dowCells, $dowAria) ?>
           </div>
         </div>
-      </details>
+      </div>
     <?php endforeach; ?>
     </div><!-- /pane-overview -->
 
@@ -3858,11 +3846,11 @@ if (!$authed) {
             <input type="checkbox" name="registration_open" <?= souliong_registration_open($cfg) ? 'checked' : '' ?>>
             <span><b><?= $t('registration_open_toggle_label') ?></b><br><span class="hint"><?= $t('registration_open_toggle_hint') ?></span></span>
           </label>
-          <?php $sitePackCur = souliong_site_pack($cfg); ?>
+          <?php $sitePackCur = souliong_site_pack($cfg); $installedPacks = souliong_pack_list($cfg); ?>
           <label class="setrow"><b><?= $t('site_pack_label') ?></b>
             <select name="site_pack">
               <option value=""><?= $t('no_pack_option') ?></option>
-              <?php foreach (souliong_pack_list($cfg) as $pid => $pinfo): ?>
+              <?php foreach ($installedPacks as $pid => $pinfo): ?>
               <option value="<?= $esc($pid) ?>" <?= $sitePackCur === $pid ? 'selected' : '' ?>><?= $esc($pinfo['label'] ?? $pid) ?></option>
               <?php endforeach; ?>
             </select>
@@ -3894,7 +3882,6 @@ if (!$authed) {
       <div class="card section-card">
         <div class="badge"><i class="fa-solid fa-swatchbook"></i> <?= $t('packs_heading') ?></div>
         <div class="hint" style="margin-top:6px"><?= $t('packs_hint') ?></div>
-        <?php $installedPacks = souliong_pack_list($cfg); ?>
         <?php if ($installedPacks): ?>
         <div style="display:flex;flex-direction:column;gap:6px;margin-top:10px">
           <?php foreach ($installedPacks as $pid => $pinfo): ?>
