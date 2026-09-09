@@ -587,6 +587,18 @@ if (!$authed) {
         // 不需要再比對 $reqProject，否則多專案帳號在非目前網址那個專案上會被誤擋）
         $canProject = fn($p) => $primary || admin_can($cfg, $p);
 
+        // 目前是否為「所有專案」總覽頁：全站專屬功能（工具分頁、主要管理 PIN）只在這裡顯示與生效
+        $sitewideOnly = $primary && $scopeProject === '';
+
+        // 全站專屬操作的表單守門，供下方 action=settings／storagerecalc／import 共用
+        function need_sitewide_primary(string $msgKey): void
+        {
+          global $sitewideOnly, $t;
+          if (!$sitewideOnly) {
+            error_page(403, $t('no_permission_title'), $t($msgKey), Route::manager('', 'tools'), $t('back_to_admin'));
+          }
+        }
+
         // 稽核紀錄用的操作者識別：primary／帳號 id／PIN id 三選一，供事後追查憑證外洩時歸責
         $auditWho = fn() => $primary ? 'primary' : ($acct !== null ? 'acct:' . $acct['id'] : 'pin:' . (string)padm_pin_id($cfg, $reqProject));
 
@@ -703,12 +715,10 @@ if (!$authed) {
           header('Location: ' . Route::manager($scopeProject !== '' ? $p : '', 'access'));
           exit;
         }
-        // 平台全域設定（跨地圖，非單一專案，僅主 PIN 可改）
+        // 平台全域設定（跨地圖，非單一專案）
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'settings') {
           need_csrf($csrf);
-          if (!$primary) {
-            error_page(403, $t('no_permission_title'), $t('primary_only_settings_msg'), Route::manager($scopeProject, 'tools'), $t('back_to_admin'));
-          }
+          need_sitewide_primary('primary_only_settings_msg');
           $s = souliong_settings_load($cfg);
           $s['random_explore'] = isset($_POST['random_explore']);
           $s['registration_open'] = isset($_POST['registration_open']);
@@ -719,13 +729,10 @@ if (!$authed) {
           header('Location: ' . Route::manager($scopeProject, 'tools'));
           exit;
         }
-        // 全站儲存空間快取重新計算：primary-only，手動觸發（見 souliong_storage_compute() 的說明——
-        // 頁面平常只讀 state/storage.json，不會每次載入都遞迴掃描）。
+        // 全站儲存空間快取重新計算（手動觸發，算的是全站總量）
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'storagerecalc') {
           need_csrf($csrf);
-          if (!$primary) {
-            error_page(403, $t('no_permission_title'), $t('primary_only_settings_msg'), Route::manager($scopeProject, 'tools'), $t('back_to_admin'));
-          }
+          need_sitewide_primary('primary_only_settings_msg');
           $data = souliong_storage_compute($cfg);
           @file_put_contents(souliong_storage_cache_path($cfg), json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX);
           audit_log($cfg, $auditWho(), 'storage_recalc', null, '');
@@ -1009,12 +1016,10 @@ if (!$authed) {
           exit;
         }
 
-        // ── 匯入還原（合併／覆蓋）：主要管理者限定 ──
+        // ── 匯入還原（合併／覆蓋，ZIP 可能含任何專案的資料） ──
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'import') {
           need_csrf($csrf);
-          if (!$primary) {
-            error_page(403, $t('no_permission_title'), $t('primary_only_import_msg'), Route::manager($scopeProject, 'tools'), $t('back_to_admin'));
-          }
+          need_sitewide_primary('primary_only_import_msg');
           require_once __DIR__ . '/zip.php';
           $imported = 0;
           if (isset($_FILES['backup']) && $_FILES['backup']['error'] === UPLOAD_ERR_OK) {
@@ -2953,11 +2958,11 @@ if (!$authed) {
       <button type="button" class="subtab on" data-pane="overview"><i class="fa-solid fa-chart-simple"></i> <?= $t('overview_tab') ?></button>
       <button type="button" class="subtab" data-pane="records"><i class="fa-solid fa-table-list"></i> <?= $t('records_tab_count', ['n' => count($rows)]) ?></button>
       <button type="button" class="subtab" data-pane="access"><i class="fa-solid fa-key"></i> <?= $t('access_tab') ?></button>
-      <?php if ($primary): ?><button type="button" class="subtab" data-pane="tools"><i class="fa-solid fa-screwdriver-wrench"></i> <?= $t('tools_tab') ?></button><?php endif; ?>
+      <?php if ($sitewideOnly): ?><button type="button" class="subtab" data-pane="tools"><i class="fa-solid fa-screwdriver-wrench"></i> <?= $t('tools_tab') ?></button><?php endif; ?>
     </div>
 
     <div class="pane" id="pane-access">
-    <?php if ($primary && $scopeProject === ''): $mpins = pins_load($cfg)['primary']; ?>
+    <?php if ($sitewideOnly): $mpins = pins_load($cfg)['primary']; ?>
       <h2><?= $t('primary_pins_heading') ?></h2>
       <div class="hint" style="margin:-6px 0 12px"><?= $t('primary_pins_hint') ?></div>
       <div class="card" style="padding:16px 18px">
@@ -3800,7 +3805,7 @@ if (!$authed) {
     <div class="hint"><?= $t('record_hash_legend') ?><?= $primary ? $t('primary_scope_note') : '' ?></div>
     </div><!-- /pane-records -->
 
-    <?php if ($primary): ?>
+    <?php if ($sitewideOnly): ?>
     <div class="pane" id="pane-tools">
       <h2><?= $t('tools_heading') ?></h2>
       <div class="card section-card">
