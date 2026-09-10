@@ -482,8 +482,6 @@ return [
     'stat_conversion_desc' => '工作階段中送出投稿的比例',
     'stat_mobile_desktop_label'      => '手機/桌機',
     'stat_device_desc' => '造訪裝置分佈',
-    'stat_theme_label'                => '淺色/深色',
-    'stat_theme_desc' => '造訪當下呈現的主題深淺',
     'stat_storage_label'              => '空間佔用',
     'stat_storage_desc' => '投稿檔案＋圖層＋主題包',
     'stat_storage_breakdown'          => '投稿 {up}／圖層 {ly}／主題包 {pk}',

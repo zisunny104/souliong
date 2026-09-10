@@ -3812,9 +3812,6 @@ if (!$authed) {
       $mob = (int)($s['device']['mobile'] ?? 0);
       $desk = (int)($s['device']['desktop'] ?? 0);
       $mobPct = ($mob + $desk) > 0 ? (int)round($mob / ($mob + $desk) * 100) : 0;
-      $light = (int)($s['theme']['light'] ?? 0);
-      $dark = (int)($s['theme']['dark'] ?? 0);
-      $themePct = ($light + $dark) > 0 ? (int)round($light / ($light + $dark) * 100) : 0;
       // 時段／星期：連沒有資料的格子都要列出來，才看得出一整天、一整週的形狀
       $hourCells = [];
       for ($hx = 0; $hx <= 23; $hx++) {
@@ -3886,14 +3883,6 @@ if (!$authed) {
             <div class="statratio" aria-hidden="true"><span class="a" style="width:<?= $mobPct ?>%"></span><span class="b" style="width:<?= 100 - $mobPct ?>%"></span></div>
             <div class="l"><?= $t('stat_mobile_desktop_label') ?></div>
             <div class="d"><?= $t('stat_device_desc') ?></div>
-          </div>
-          <?php endif; ?>
-          <?php if ($light + $dark > 0): ?>
-          <div class="tile">
-            <div class="n statdev"><span class="a"><?= $light ?></span><span class="sep">/</span><span class="b"><?= $dark ?></span></div>
-            <div class="statratio" aria-hidden="true"><span class="a" style="width:<?= $themePct ?>%"></span><span class="b" style="width:<?= 100 - $themePct ?>%"></span></div>
-            <div class="l"><?= $t('stat_theme_label') ?></div>
-            <div class="d"><?= $t('stat_theme_desc') ?></div>
           </div>
           <?php endif; ?>
           <div class="tile">

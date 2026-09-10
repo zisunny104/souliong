@@ -43,9 +43,6 @@ stats_apply($cfg, $project, function (&$s) use ($type, $id, $h, $d, $FEATURES) {
         case 'device':
             if ($id === 'mobile' || $id === 'desktop') stats_bump($s, 'device', $id, 4);
             break;
-        case 'theme':
-            if ($id === 'light' || $id === 'dark') stats_bump($s, 'theme', $id, 2);
-            break;
         case 'feature':
             if (in_array($id, $FEATURES, true)) stats_bump($s, 'features', $id, 20);
             break;
