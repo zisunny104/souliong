@@ -1,6 +1,6 @@
 {
   "label": "CARTO 配色（OpenFreeMap 資料）",
-  "desc": "外觀比照 CARTO Voyager／Dark Matter 的配色與圖示，但圖磚資料改抓 OpenFreeMap，不依賴 CARTO 的線上圖磚服務；圖示與字型仍讀 CARTO 的靜態素材。道路寬度另外加寬，放大到街廓層級也看得清楚。",
+  "desc": "外觀比照 CARTO Voyager／Dark Matter 的配色與圖示，圖磚、字型都改走 OpenFreeMap，執行期不會再對 CARTO 的伺服器發任何請求；圖示（僅一顆圓點）已下載成本地靜態檔隨圖層附帶。道路寬度另外加寬，放大到街廓層級也看得清楚。",
   "type": "vector",
   "pane": "base",
   "url": "style-light.json",
