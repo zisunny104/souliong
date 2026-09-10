@@ -1,14 +1,7 @@
 <?php
 // 投稿種類（kind）與功能使用統計（feature）的中央註冊表。
-//
-// 這兩樣東西原本分散寫死在好幾個檔案裡：upload.php 驗證 kind、stat.php 的 $FEATURES 白名單、
-// manager.php 的 $featLabels 中文說明——三邊各自維護，容易漏改（例如 share 這個 feature key
-// 就曾經只在 viewer.core.js 呼叫、manager.php 準備了標籤，卻沒被 stat.php 的白名單放行）。
-//
-// 這份註冊表原本只是「預留接口」——有 label 跟一個 has_photo 旗標，但 has_photo 全專案沒有
-// 任何一行讀它，kind 實際上只是「記錄下來的標籤」，不是「分流的依據」。加入影片／音訊／文字
-// 三種新投稿後，這裡改成真正被消費的定義：upload.php 依 file/mimes 決定怎麼收檔案、
-// view.php 依 tab 決定要載哪些前端型別檔、對話框依 tab 分頁。
+// upload.php 依此決定怎麼收檔案、stat.php 依此限制可用的 feature key、manager.php 依此產生中文標籤、
+// view.php 依 tab 決定要載哪些前端型別檔、投稿對話框依 tab 分頁——四邊共用同一份定義，不必個別維護。
 
 // 投稿種類：key => 中繼資料
 //   label    後台投稿列表的種類標籤
