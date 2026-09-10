@@ -5,6 +5,7 @@
  *   {
  *     "views": 1234, "sessions": 320, "uploads": 88,
  *     "points": {"9": 41, "23": 77},        // 各點位被點開次數（熱門點）
+ *     "kinds":   {"photo": 60, "text": 20},  // 投稿種類分布（photo/video/audio/text/newpoint…）
  *     "by_hour": {"14": 90, ...},           // 依「使用者本地小時」分佈（探索時段）
  *     "by_dow":  {"6": 210, ...},           // 依星期（0=日）
  *     "device":  {"mobile": 900, "desktop": 334},

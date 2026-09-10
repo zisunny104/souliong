@@ -234,9 +234,10 @@ try {
     ];
     store_append($cfg, $project, $record);
 
-    // 統計：上傳數 + 相機型號（有上限，防膨脹）
-    stats_apply($cfg, $project, function (&$s) use ($exif) {
+    // 統計：上傳數 + 投稿種類 + 相機型號（有上限，防膨脹）
+    stats_apply($cfg, $project, function (&$s) use ($exif, $kind) {
         stats_bump($s, 'uploads');
+        stats_bump($s, 'kinds', $kind, 10);
         if ($exif && !empty($exif['model'])) stats_bump($s, 'cameras', $exif['model'], 300);
     });
 

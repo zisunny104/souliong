@@ -45,9 +45,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'login
       account_set_cookie($cfg, (string)$acc['id']);
       $ok = true;
       $label = (string)($acc['label'] !== '' ? $acc['label'] : $acc['userid']);
-      if (($acc['role'] ?? '') !== 'primary') {
+      // 全站身分（主帳號／主 PIN）本來就能連到任何專案，不該因為順便有全站權限
+      // 就把人送去主站總覽——登入表單帶著來源專案（見 panel-login 的 hidden input），
+      // 來源在某個專案就回那裡。
+      if (($acc['role'] ?? '') === 'primary') {
+        if ($proj !== '' && is_dir($cfg['projects_dir'] . '/' . $proj)) $go = Route::manager($proj);
+      } else {
         $aprojects = account_project_list($cfg, (string)$acc['id']);
-        if (count($aprojects) === 1) $go = Route::manager($aprojects[0]);
+        if ($proj !== '' && in_array($proj, $aprojects, true)) $go = Route::manager($proj);
+        elseif (count($aprojects) === 1) $go = Route::manager($aprojects[0]);
       }
     } else {
       $loginErrMsg = i18n_t($DICT, $r['error'] === 'locked' ? 'account_locked_msg' : 'account_login_failed_msg');
@@ -56,6 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'login
     primary_set_cookie($cfg);
     $ok = true;
     $label = primary_pin_label($cfg, $pin);
+    if ($proj !== '' && is_dir($cfg['projects_dir'] . '/' . $proj)) $go = Route::manager($proj);
   } elseif ($proj !== '' && ($ppMatch = project_pin_match($cfg, $proj, $pin)) !== null) {
     if (pins_check_and_bump($cfg, $proj, (string)$ppMatch['id'])) {
       padm_set_cookie($cfg, $proj, (string)$ppMatch['id']);
@@ -2147,6 +2154,84 @@ if (!$authed) {
       background: var(--bg)
     }
 
+    /* 專案卡片列：取代「所有專案」那排純文字分頁——項目一多會一路換行、頁面被拉得很長。
+       預設橫向捲動（手機用手勢，桌機用捲輪/拖曳），旁邊給一顆展開鈕改成換行顯示全部。
+       跟 .tabs／.tab（分頁動作、單一「返回」連結）分開一組類別，語意不同、不互相套用。 */
+    .pcards-wrap {
+      display: flex;
+      align-items: center;
+      gap: var(--sp-2);
+      margin: var(--sp-4) 0 var(--sp-1)
+    }
+
+    .pcards {
+      display: flex;
+      gap: var(--sp-2);
+      overflow-x: auto;
+      scrollbar-width: thin;
+      padding-bottom: 2px;
+      scroll-snap-type: x proximity
+    }
+
+    .pcards.expanded {
+      flex-wrap: wrap;
+      overflow-x: visible
+    }
+
+    .pcard {
+      flex: 0 0 auto;
+      scroll-snap-align: start;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      padding: var(--sp-2) var(--sp-4);
+      min-height: 2.25rem;
+      display: inline-flex;
+      align-items: center;
+      gap: var(--sp-2);
+      border-radius: var(--r-md);
+      border: 1px solid var(--line);
+      background: var(--card);
+      color: var(--fg);
+      text-decoration: none;
+      white-space: nowrap
+    }
+
+    .pcard.on {
+      background: var(--accent);
+      color: var(--accent-fg);
+      border-color: var(--accent)
+    }
+
+    .pcard:not(.on):hover {
+      background: var(--bg)
+    }
+
+    .pcards-toggle {
+      flex: 0 0 auto;
+      width: 2.25rem;
+      height: 2.25rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--r-md);
+      border: 1px solid var(--line);
+      background: var(--card);
+      color: var(--fg);
+      cursor: pointer
+    }
+
+    .pcards-toggle:hover {
+      background: var(--bg)
+    }
+
+    .pcards-toggle i {
+      transition: transform .15s
+    }
+
+    .pcards-toggle.on i {
+      transform: rotate(180deg)
+    }
+
     .stat-card {
       background: var(--card);
       border: 1px solid var(--line);
@@ -2954,18 +3039,24 @@ if (!$authed) {
     <?php endif; ?>
 
     <?php if ($primary && $scopeProject === ''): ?>
-      <div class="tabs">
-        <a class="tab on"><?= $t('tab_all_count', ['n' => count($allProjects)]) ?></a>
-        <?php foreach ($allProjects as $tp): ?><a class="tab" href="<?= $esc(Route::manager($tp)) ?>"><?= $esc($tp) ?></a><?php endforeach; ?>
+      <div class="pcards-wrap">
+        <div class="pcards" id="pcards-projects">
+          <a class="pcard on"><?= $t('tab_all_count', ['n' => count($allProjects)]) ?></a>
+          <?php foreach ($allProjects as $tp): ?><a class="pcard" href="<?= $esc(Route::manager($tp)) ?>"><?= $esc($tp) ?></a><?php endforeach; ?>
+        </div>
+        <button type="button" class="pcards-toggle" data-target="pcards-projects" aria-expanded="false" title="<?= $t('pcards_expand_btn') ?>"><i class="fa-solid fa-chevron-down"></i></button>
       </div>
     <?php elseif ($primary): ?>
       <div class="tabs">
         <a class="tab" href="<?= $esc(Route::manager()) ?>"><i class="fa-solid fa-arrow-left"></i> <?= $t('back_to_all_projects') ?></a>
       </div>
     <?php elseif ($acct !== null && count($acctProjects) > 1 && $scopeProject === ''): ?>
-      <div class="tabs">
-        <a class="tab on"><?= $t('tab_all_count', ['n' => count($acctProjects)]) ?></a>
-        <?php foreach ($acctProjects as $tp): ?><a class="tab" href="<?= $esc(Route::manager($tp)) ?>"><?= $esc($tp) ?></a><?php endforeach; ?>
+      <div class="pcards-wrap">
+        <div class="pcards" id="pcards-projects">
+          <a class="pcard on"><?= $t('tab_all_count', ['n' => count($acctProjects)]) ?></a>
+          <?php foreach ($acctProjects as $tp): ?><a class="pcard" href="<?= $esc(Route::manager($tp)) ?>"><?= $esc($tp) ?></a><?php endforeach; ?>
+        </div>
+        <button type="button" class="pcards-toggle" data-target="pcards-projects" aria-expanded="false" title="<?= $t('pcards_expand_btn') ?>"><i class="fa-solid fa-chevron-down"></i></button>
       </div>
     <?php elseif ($acct !== null && count($acctProjects) > 1): ?>
       <div class="tabs">
@@ -3648,6 +3739,14 @@ if (!$authed) {
     </div><!-- /pane-access -->
 
     <div class="pane on" id="pane-overview">
+    <?php if (count($viewProjects) > 1): ?>
+      <div class="pcards-wrap">
+        <div class="pcards" id="pcards-stats-jump">
+          <?php foreach ($viewProjects as $jp): ?><a class="pcard" href="#stat-<?= $esc($jp) ?>"><?= $esc($jp) ?></a><?php endforeach; ?>
+        </div>
+        <button type="button" class="pcards-toggle" data-target="pcards-stats-jump" aria-expanded="false" title="<?= $t('pcards_expand_btn') ?>"><i class="fa-solid fa-chevron-down"></i></button>
+      </div>
+    <?php endif; ?>
     <h2><?= $t('stats_summary_heading') ?></h2>
     <?php
       // 統計圖表：長度在 PHP 端就算好，純 CSS 畫條，不引圖表庫也不用 JS。
@@ -3686,8 +3785,10 @@ if (!$authed) {
       if (!$s) continue;
       $s['points'] = $s['points'] ?? [];
       $s['cameras'] = $s['cameras'] ?? [];
+      $s['kinds'] = $s['kinds'] ?? [];
       arsort($s['points']);
       arsort($s['cameras']);
+      arsort($s['kinds']);
       $top = function ($arr, $n = 5) {
         $o = [];
         foreach (array_slice($arr, 0, $n, true) as $k => $v) $o[] = $k . '·' . $v;
@@ -3740,8 +3841,15 @@ if (!$authed) {
         $pkB = array_sum($storageCache['packs'][$p] ?? []);
         $projBytes = $upB + $lyB + $pkB;
       }
+      // 轉換率：工作階段中有多少比例真的送出投稿。沒有工作階段資料就沒有分母，不算、不顯示這格。
+      $sessions = (int)($s['sessions'] ?? 0);
+      $uploads  = (int)($s['uploads'] ?? 0);
+      $convPct  = $sessions > 0 ? round($uploads / $sessions * 100, 1) : null;
+      $convStr  = $convPct !== null ? rtrim(rtrim(number_format($convPct, 1, '.', ''), '0'), '.') : '';
+      // 這張卡完全沒有任何「有沒有資料」都要判斷的內容時，底下的排行／分布欄位一格都不會顯示——
+      // 這是正常狀態（例如剛上線還沒人來過），不是錯誤，所以不額外畫「尚無資料」的空卡片。
     ?>
-      <div class="stat-card">
+      <div class="stat-card" id="stat-<?= $esc($p) ?>">
         <div class="stat-card-head">
           <b><?= $esc($p) ?></b>
           <a class="btn" href="<?= $esc(Route::manager($p, 'records')) ?>"><i class="fa-solid fa-table-list"></i> <?= $t('view_records_link') ?></a>
@@ -3753,58 +3861,93 @@ if (!$authed) {
             <div class="d"><?= $t('stat_views_desc') ?></div>
           </div>
           <div class="tile">
-            <div class="n"><?= (int)($s['sessions'] ?? 0) ?></div>
+            <div class="n"><?= $sessions ?></div>
             <div class="l"><?= $t('stat_sessions_label') ?></div>
             <div class="d"><?= $t('stat_sessions_desc') ?></div>
           </div>
           <div class="tile">
-            <div class="n"><?= (int)($s['uploads'] ?? 0) ?></div>
+            <div class="n"><?= $uploads ?></div>
             <div class="l"><?= $t('stat_uploads_label') ?></div>
             <div class="d"><?= $t('stat_uploads_desc') ?></div>
           </div>
+          <?php if ($convPct !== null): ?>
+          <div class="tile">
+            <div class="n"><?= $esc($convStr) ?>%</div>
+            <div class="l"><?= $t('stat_conversion_label') ?></div>
+            <div class="d"><?= $t('stat_conversion_desc') ?></div>
+          </div>
+          <?php endif; ?>
+          <?php if ($mob + $desk > 0): ?>
           <div class="tile">
             <div class="n statdev"><span class="a"><?= $mob ?></span><span class="sep">/</span><span class="b"><?= $desk ?></span></div>
-            <?php if ($mob + $desk > 0): ?><div class="statratio" aria-hidden="true"><span class="a" style="width:<?= $mobPct ?>%"></span><span class="b" style="width:<?= 100 - $mobPct ?>%"></span></div><?php endif; ?>
+            <div class="statratio" aria-hidden="true"><span class="a" style="width:<?= $mobPct ?>%"></span><span class="b" style="width:<?= 100 - $mobPct ?>%"></span></div>
             <div class="l"><?= $t('stat_mobile_desktop_label') ?></div>
             <div class="d"><?= $t('stat_device_desc') ?></div>
           </div>
+          <?php endif; ?>
           <div class="tile">
             <div class="n" <?= $projBytes !== null ? 'title="' . $esc(i18n_t($DICT, 'stat_storage_breakdown', ['up' => $fmtBytes($upB), 'ly' => $fmtBytes($lyB), 'pk' => $fmtBytes($pkB)])) . '"' : '' ?>><?= $projBytes !== null ? $esc($fmtBytes($projBytes)) : '—' ?></div>
             <div class="l"><?= $t('stat_storage_label') ?></div>
             <div class="d"><?= $t('stat_storage_desc') ?></div>
           </div>
         </div>
+        <?php if ($s['points'] || $s['cameras']): ?>
         <div class="break"><?= $t('top_points_label') ?><b><?= $esc($top($s['points'])) ?></b><br><?= $t('top_cameras_label') ?><b><?= $esc($top($s['cameras'])) ?></b></div>
+        <?php endif; ?>
+        <?php
+          // 每一欄都是「有資料才畫」：尚無資料的排行／分布不再顯示空卡片或佔位文字。
+          // 全部欄位都沒資料時（例如剛上線還沒人來過）連 .cols 外框（虛線分隔＋留白）都不畫，
+          // 不然會留一段看起來像版面壞掉的空白。
+          $hasAnyCol = $s['points'] || $s['kinds'] || $s['cameras'] || $feats || $browsers || $oses || $byHour;
+        ?>
+        <?php if ($hasAnyCol): ?>
         <div class="cols">
+          <?php if ($s['points']): ?>
           <div class="col">
             <h4><?= $t('points_rank_heading') ?></h4>
             <p class="colnote"><?= $t('points_rank_note') ?></p>
-            <?php if ($s['points']): ?><?= $statBars($s['points'], fn($k) => i18n_t($DICT, 'point_short_label', ['k' => $k])) ?><?php else: ?><p><?= $t('no_data_msg') ?></p><?php endif; ?>
+            <?= $statBars($s['points'], fn($k) => i18n_t($DICT, 'point_short_label', ['k' => $k])) ?>
           </div>
+          <?php endif; ?>
+          <?php if ($s['kinds']): ?>
+          <div class="col">
+            <h4><?= $t('kinds_rank_heading') ?></h4>
+            <p class="colnote"><?= $t('kinds_rank_note') ?></p>
+            <?= $statBars($s['kinds'], fn($k) => souliong_kind_label($k)) ?>
+          </div>
+          <?php endif; ?>
+          <?php if ($s['cameras']): ?>
           <div class="col">
             <h4><?= $t('cameras_rank_heading') ?></h4>
             <p class="colnote"><?= $t('cameras_rank_note') ?></p>
-            <?php if ($s['cameras']): ?><?= $statBars($s['cameras'], fn($k) => (string)$k) ?><?php else: ?><p><?= $t('no_data_msg') ?></p><?php endif; ?>
+            <?= $statBars($s['cameras'], fn($k) => (string)$k) ?>
           </div>
+          <?php endif; ?>
+          <?php if ($feats): ?>
           <div class="col">
             <h4><?= $t('feature_usage_heading') ?></h4>
             <p class="colnote"><?= $t('feature_usage_note') ?></p>
-            <?php if ($feats): ?><?= $statBars($feats, fn($k) => $featLabels[$k] ?? $k) ?><?php else: ?><p><?= $t('no_data_msg') ?></p><?php endif; ?>
+            <?= $statBars($feats, fn($k) => $featLabels[$k] ?? $k) ?>
           </div>
+          <?php endif; ?>
+          <?php if ($browsers || $oses): ?>
           <div class="col">
             <h4><?= $t('browser_os_heading') ?></h4>
             <p class="colnote"><?= $t('browser_os_note') ?></p>
             <?php if ($browsers): ?><div class="statsub"><?= $t('browser_label') ?></div><?= $statBars($browsers, fn($k) => $bLabels[$k] ?? $k, 8) ?><?php endif; ?>
             <?php if ($oses): ?><div class="statsub"><?= $t('os_label') ?></div><?= $statBars($oses, fn($k) => $oLabels[$k] ?? $k, 8) ?><?php endif; ?>
-            <?php if (!$browsers && !$oses): ?><p><?= $t('no_data_since_stat_msg') ?></p><?php endif; ?>
           </div>
+          <?php endif; ?>
+          <?php if ($byHour): ?>
           <div class="col wide">
             <h4><?= $t('visit_time_heading') ?></h4>
             <p class="colnote"><?= $t('visit_time_note') ?></p>
             <?= $statCols($hourCells, $hourAria) ?>
             <?= $statCols($dowCells, $dowAria) ?>
           </div>
+          <?php endif; ?>
         </div>
+        <?php endif; ?>
       </div>
     <?php endforeach; ?>
     </div><!-- /pane-overview -->
@@ -4130,6 +4273,18 @@ if (!$authed) {
         var show = btn.classList.toggle('on');
         val.textContent = show ? val.dataset.val : '••••••';
         btn.innerHTML = show ? '<i class="fa-solid fa-eye-slash"></i>' : '<i class="fa-solid fa-eye"></i>';
+      });
+    });
+
+    // ── 專案卡片列：展開鈕在「橫向捲動」跟「全部換行顯示」間切換，狀態不記憶——
+    // 每次進頁面都先給最省空間的捲動列，要看全部再自己展開。──
+    document.querySelectorAll('.pcards-toggle').forEach(function(btn) {
+      var row = document.getElementById(btn.dataset.target);
+      if (!row) return;
+      btn.addEventListener('click', function() {
+        var on = row.classList.toggle('expanded');
+        btn.classList.toggle('on', on);
+        btn.setAttribute('aria-expanded', on ? 'true' : 'false');
       });
     });
 
