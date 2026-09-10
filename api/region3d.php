@@ -47,7 +47,7 @@ $canProj = function (string $p) use ($cfg, $primary): bool {
 $canEdit = fn(string $p): bool => admin_perm($cfg, $p, 'edit_3d_regions');
 $auditWho = fn(string $p) => $primary ? 'primary' : (($acc = account_current($cfg)) !== null ? 'acct:' . $acc['id'] : 'pin:' . (string)padm_pin_id($cfg, $p));
 // 依身份派生 CSRF token：primary 用 primary_derived()，帳號用 account_derived()，專案 PIN 用
-// padm_derived()。與 manager.php 574-576 行同一套規則。
+// padm_derived()。與 manager.php 的 $csrf 衍生邏輯同一套規則。
 $csrfFor = function (string $p) use ($cfg, $primary): string {
     if ($primary) {
         return primary_derived($cfg);
