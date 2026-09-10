@@ -261,6 +261,7 @@ function souliong_layer_mimes(): array
         'jpeg' => 'image/jpeg',
         'avif' => 'image/avif',
         'svg'  => 'image/svg+xml',
+        'json' => 'application/json',   // 自訂向量樣式（style.json），layerfile.php 另外擋掉檔名 layer.json 本身
     ];
 }
 

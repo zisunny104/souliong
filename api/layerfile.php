@@ -31,6 +31,12 @@ if (!isset($MIMES[$ext])) {
     http_response_code(400);
     exit;
 }
+// .json 開放給自訂向量樣式（style.json）用，但註冊表本身不能從這支端點外流——
+// 就算哪天真的有人把檔案取名叫 layer.json，這裡照樣擋下來。
+if ($ext === 'json' && strtolower(basename($rel)) === 'layer.json') {
+    http_response_code(400);
+    exit;
+}
 
 $dir  = souliong_layer_dir($cfg, $id, $proj);
 $real = ($dir === null) ? false : realpath($dir . '/' . $rel);

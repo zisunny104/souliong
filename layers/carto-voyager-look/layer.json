@@ -1,0 +1,13 @@
+{
+  "label": "CARTO 配色（OpenFreeMap 資料）",
+  "desc": "外觀比照 CARTO Voyager／Dark Matter 的配色與圖示，但圖磚資料改抓 OpenFreeMap，不依賴 CARTO 的線上圖磚服務；圖示與字型仍讀 CARTO 的靜態素材。道路寬度另外加寬，放大到街廓層級也看得清楚。",
+  "type": "vector",
+  "pane": "base",
+  "url": "style-light.json",
+  "urlDark": "style-dark.json",
+  "attribution": [
+    { "text": "OpenStreetMap", "url": "https://www.openstreetmap.org/copyright", "copyright": true, "suffix": "{osm_contributors}" },
+    { "text": "OpenFreeMap", "url": "https://openfreemap.org" },
+    { "text": "CARTO", "url": "https://carto.com/attributions" }
+  ]
+}
