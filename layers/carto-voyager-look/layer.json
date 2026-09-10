@@ -7,7 +7,6 @@
   "urlDark": "style-dark.json",
   "attribution": [
     { "text": "OpenStreetMap", "url": "https://www.openstreetmap.org/copyright", "copyright": true, "suffix": "{osm_contributors}" },
-    { "text": "OpenFreeMap", "url": "https://openfreemap.org" },
-    { "text": "CARTO", "url": "https://carto.com/attributions" }
+    { "text": "OpenFreeMap", "url": "https://openfreemap.org" }
   ]
 }
