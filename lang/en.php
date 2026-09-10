@@ -480,6 +480,8 @@ return [
     'stat_conversion_desc' => 'Share of sessions that submitted something',
     'stat_mobile_desktop_label'      => 'Mobile/Desktop',
     'stat_device_desc' => 'Visiting device split',
+    'stat_theme_label'                => 'Light/Dark',
+    'stat_theme_desc' => 'Theme appearance at the time of visit',
     'stat_storage_label'              => 'Storage',
     'stat_storage_desc' => 'Uploads + layers + packs',
     'stat_storage_breakdown'          => 'Uploads {up} / Layers {ly} / Packs {pk}',

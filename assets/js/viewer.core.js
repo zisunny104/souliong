@@ -195,6 +195,7 @@ window.MapApp = (() => {
         sessionStorage.setItem('sVisited', '1');
         statSend('session');
         statSend('device', /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ? 'mobile' : 'desktop');
+        statSend('theme', isDark() ? 'dark' : 'light');
       }
     } catch (e) {}
   }

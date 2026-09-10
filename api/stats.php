@@ -9,6 +9,7 @@
  *     "by_hour": {"14": 90, ...},           // 依「使用者本地小時」分佈（探索時段）
  *     "by_dow":  {"6": 210, ...},           // 依星期（0=日）
  *     "device":  {"mobile": 900, "desktop": 334},
+ *     "theme":   {"light": 500, "dark": 734},   // 造訪當下實際呈現的深淺（系統偏好已解析成 light/dark）
  *     "browser": {"chrome": 200, "safari": 90, "line": 30},   // UA 歸大類後計數（不存原始 UA）
  *     "os":      {"ios": 150, "android": 120, "windows": 50},
  *     "features":{"route": 40, "photos": 120, "filter": 22, "embed": 5, "random": 18, "upload": 88}
