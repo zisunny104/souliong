@@ -25,6 +25,8 @@ return [
     'toggle_theme_aria'    => 'Toggle light/dark theme',
     'toggle_3d'            => 'Toggle 3D view',
     'toggle_3d_aria'       => 'Toggle 3D map mode',
+    'toggle_points'        => 'Show/hide point icons',
+    'toggle_points_aria'   => 'Toggle point icon visibility',
     'reset_view'           => 'Reset map view (R)',
     'reset_view_aria'      => 'Reset map view',
 

@@ -335,7 +335,7 @@ window.MapApp = (() => {
   }
 
   let META = null, POINTS = [], CATS = [], active = {}, CONTRIB = [], counts = {};
-  let engine = null, photoLayerOn = false;
+  let engine = null, photoLayerOn = false, chairsVisible = true;
   let filterPerson = '';
 
   function updateThemeIcon() {
@@ -540,6 +540,7 @@ window.MapApp = (() => {
     return specs;
   }
   function renderChairs() {
+    if (!chairsVisible) { engine.clearMarkerLayer('chairs'); return; }
     engine.setMarkerLayer('chairs', chairMarkerSpecs());
   }
   const THUMB_ZOOM = 15;   // ≥ 此縮放顯示縮圖，較遠只顯示小方塊
@@ -1187,6 +1188,17 @@ window.MapApp = (() => {
       feature('theme');
     };
     if (window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (themeMode === 'system' && engine) engine.applyTheme(isDark()); });
+
+    // 地點圖示顯示／隱藏：純檢視期間的畫面偏好，不記憶、重新整理就回到預設顯示
+    const pvBtn = document.getElementById('pointsVisBtn');
+    if (pvBtn) {
+      pvBtn.onclick = () => {
+        chairsVisible = !chairsVisible;
+        pvBtn.querySelector('i').className = chairsVisible ? 'fa-solid fa-eye' : 'fa-solid fa-eye-slash';
+        pvBtn.setAttribute('aria-pressed', chairsVisible ? 'false' : 'true');
+        renderChairs();
+      };
+    }
 
     // 語言切換（手動覆寫）：客製化下拉（原生 select 選單樣式無法跟主題搭配），選了哪個就切哪個，
     // 帶著目前網址參數整頁重新載入，讓伺服器端重新解析並寫入 lang cookie

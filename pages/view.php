@@ -188,6 +188,7 @@ if ($pack) {
   <div class="tr-items" id="trItems">
     <?php if ($mod('homeLink')): ?><a class="icon-btn hide-in-embed" id="homeBtn" href="<?= $b ?>" title="<?= $t('back_to_list') ?>" aria-label="<?= $t('back_to_list') ?>"><i class="fa-solid fa-house" aria-hidden="true"></i></a><?php endif; ?>
     <button id="themeBtn" class="icon-btn" title="<?= $t('toggle_theme') ?>" aria-label="<?= $t('toggle_theme_aria') ?>"><i class="fa-solid fa-circle-half-stroke" aria-hidden="true"></i></button>
+    <button id="pointsVisBtn" class="icon-btn" title="<?= $t('toggle_points') ?>" aria-label="<?= $t('toggle_points_aria') ?>" aria-pressed="false"><i class="fa-solid fa-eye" aria-hidden="true"></i></button>
     <button id="shortcutsBtn" class="icon-btn shortcuts-btn" title="<?= $t('shortcuts_btn') ?>" aria-label="<?= $t('shortcuts_btn') ?>"><i class="fa-solid fa-keyboard" aria-hidden="true"></i></button>
     <div class="lang-menu hide-in-embed" id="langMenu">
       <button type="button" class="lang-btn" id="langBtn" title="<?= $t('lang_switch') ?>" aria-haspopup="listbox" aria-expanded="false">

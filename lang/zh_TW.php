@@ -24,6 +24,8 @@ return [
     'toggle_theme_aria'      => '切換深淺主題',
     'toggle_3d'               => '切換 3D 檢視',
     'toggle_3d_aria'         => '切換 3D 地圖模式',
+    'toggle_points'          => '顯示／隱藏地點圖示',
+    'toggle_points_aria'     => '切換地點圖示顯示',
     'reset_view'              => '回到地圖初始位置（R）',
     'reset_view_aria'        => '重置地圖視角',
 
