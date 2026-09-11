@@ -83,8 +83,9 @@
         '<div class="sl-mp-medium-top">' +
           '<div class="sl-mp-cover sl-mp-medium-cover"></div>' +
           '<div class="sl-mp-medium-text">' +
-            '<div class="sl-mp-medium-title"></div>' +
-            '<div class="sl-mp-medium-desc"></div>' +
+            '<div class="sl-mp-cat"></div>' +
+            '<div class="sl-mp-title"></div>' +
+            '<div class="sl-mp-sub"></div>' +
           '</div>' +
         '</div>' +
         '<button class="sl-play-btn sl-mp-medium-play" type="button" aria-label="' + esc(t('play_audio_btn')) + '"><i class="fa-solid fa-play" aria-hidden="true"></i></button>' +
@@ -93,8 +94,9 @@
       const body = panel.querySelector('.p-body');
       panel.insertBefore(el, body);
       this.medium = el;
-      this.mediumTitle = el.querySelector('.sl-mp-medium-title');
-      this.mediumDesc = el.querySelector('.sl-mp-medium-desc');
+      this.mediumCat = el.querySelector('.sl-mp-cat');
+      this.mediumTitle = el.querySelector('.sl-mp-title');
+      this.mediumSub = el.querySelector('.sl-mp-sub');
       this.mediumCover = el.querySelector('.sl-mp-medium-cover');
       this.mediumBtn = el.querySelector('.sl-mp-medium-play');
       this.mediumBar = el.querySelector('.sl-mp-medium-bar');
@@ -115,18 +117,18 @@
       el.innerHTML =
         '<div class="sl-mp-cover sl-mp-mini-cover"></div>' +
         '<div class="sl-mp-mini-info">' +
-          '<div class="sl-mp-mini-cat"></div>' +
-          '<div class="sl-mp-mini-title"></div>' +
-          '<div class="sl-mp-mini-sub"></div>' +
+          '<div class="sl-mp-cat"></div>' +
+          '<div class="sl-mp-title"></div>' +
+          '<div class="sl-mp-sub"></div>' +
         '</div>' +
         '<button class="sl-play-btn sl-mp-mini-play" type="button" aria-label="' + esc(t('play_audio_btn')) + '"><i class="fa-solid fa-play" aria-hidden="true"></i></button>' +
         '<div class="sl-mp-mini-bar"><div class="sl-mp-mini-fill"></div></div>';
       document.body.appendChild(el);
       this.mini = el;
       this.miniCover = el.querySelector('.sl-mp-mini-cover');
-      this.miniCatEl = el.querySelector('.sl-mp-mini-cat');
-      this.miniTitleEl = el.querySelector('.sl-mp-mini-title');
-      this.miniSubEl = el.querySelector('.sl-mp-mini-sub');
+      this.miniCatEl = el.querySelector('.sl-mp-cat');
+      this.miniTitleEl = el.querySelector('.sl-mp-title');
+      this.miniSubEl = el.querySelector('.sl-mp-sub');
       this.miniBtn = el.querySelector('.sl-mp-mini-play');
       this.miniBar = el.querySelector('.sl-mp-mini-bar');
       this.miniFill = el.querySelector('.sl-mp-mini-fill');
@@ -155,15 +157,16 @@
       panel.classList.toggle('sl-has-audio', this.hasAudio);
 
       const catEl = document.getElementById('pCat');
+      const catText = catEl ? catEl.textContent : '';
+      const catColor = catEl ? catEl.style.color : '';
       const titleText = document.getElementById('pTitle').textContent;
-      const captionEl = document.querySelector('#entries .story .story-caption');
-      const caption = captionEl ? captionEl.textContent.trim() : '';
       const subRaw = document.getElementById('pSub').innerHTML || '';
       const subText = subRaw.replace(/<br\s*\/?>/gi, ' ・ ').trim();
-      const blurb = caption || subText;
 
+      this.mediumCat.textContent = catText;
+      this.mediumCat.style.color = catColor;
       this.mediumTitle.textContent = titleText;
-      this.mediumDesc.textContent = blurb;
+      this.mediumSub.textContent = subText;
 
       const url = this.coverUrlFor(point);
       panel.classList.toggle('sl-has-cover', !!url);
@@ -173,8 +176,8 @@
       this.syncExpandIcon(panel.classList.contains('wide'));
 
       this.miniPoint = point;
-      this.miniCatText = catEl ? catEl.textContent : '';
-      this.miniCatColor = catEl ? catEl.style.color : '';
+      this.miniCatText = catText;
+      this.miniCatColor = catColor;
       this.miniTitleText = titleText;
       this.miniSubText = subText;
       this.miniCoverUrl = url;
@@ -188,14 +191,10 @@
       this.showMini();
     }
 
-    /* ---------- 封面圖：優先取這個點最新的照片投稿，沒有就用分類色＋唱片圖示頂替 ---------- */
+    /* ---------- 封面圖：點位自己的 photo/thumb 欄位，沒有就用分類色＋唱片圖示頂替 ---------- */
 
     coverUrlFor(point) {
-      const App = this.mapApp;
-      const photos = App.effectiveEntries().filter(e => e.item_num === point.num && App.kindOf(e) === 'photo');
-      if (!photos.length) return null;
-      photos.sort((a, b) => new Date(b.photo_time || b.created_at) - new Date(a.photo_time || a.created_at));
-      return App.entryThumbUrl(photos[0]) || null;
+      return this.mapApp.entryThumbUrl(point) || null;
     }
 
     paintCover(el, url) {
