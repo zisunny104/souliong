@@ -5,7 +5,7 @@ return [
     'state_dir'       => __DIR__ . '/../state',
     'packs_dir'       => __DIR__ . '/../packs',              // 主題包（面板材質／外框／字體），每個子目錄一包
     'layers_dir'      => __DIR__ . '/../layers',             // 平台內建地圖圖層（底圖／疊圖），每個子目錄一層；某張地圖專屬的圖層放 projects/<id>/layers/
-    'default_layers'  => ['carto-voyager'],                  // meta.json 沒寫 layers 時套用的圖層組，由下往上疊
+    'default_layers'  => ['paper-ink'],                       // meta.json 沒寫 layers 時套用的圖層組，由下往上疊
     'layersrc_max_file'  => 64 * 1024 * 1024,                // 切磚工具「保留原稿」的單檔上限
     'layersrc_max_total' => 256 * 1024 * 1024,               // 同上，單一圖層所有原稿加起來的上限
 
