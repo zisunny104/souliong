@@ -29,6 +29,11 @@
     border-radius: 999px;
     background: var(--line)
   }
+
+  /* 中卡／全卡／迷你列三個狀態全靠拖曳把手切換，不留 X 或展開切換鈕（.p-expand 本來就已經
+     在手機版隱藏）：把手往下滑到底＝回迷你列，等同以前按 X 的效果（見 sound-player.js
+     buildHandle()，直接呼叫既有的 App.closePanel()，不是另外做一套關閉邏輯）。 */
+  #panel.sl-audio.sl-has-audio .p-close { display: none }
 }
 
 /* 封面圖：中卡、迷你列、.p-head 三處共用的外框樣式，各自只決定尺寸。沒有照片時
@@ -197,7 +202,9 @@
   font-variant-numeric: tabular-nums
 }
 
-/* ---------- 迷你列：探索地圖時的浮動播放列，跟 #panel 開關無關 ---------- */
+/* ---------- 迷你列：探索地圖時的浮動播放列，跟 #panel 開關無關 ----------
+   跟 #panel 一樣走主題色（--panel/--line/--fg/--muted/--accent），不自訂一套固定配色，
+   深淺主題切換時才會一起跟著換，不會變成貼在地圖上、跟其他介面不搭的異色浮塊。 */
 .sl-mp-mini {
   position: fixed;
   left: 10px;
@@ -206,8 +213,8 @@
   z-index: 1150;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
+  gap: 12px;
+  padding: 10px 14px;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--r-md);
@@ -219,8 +226,8 @@
 .sl-mp-mini[hidden] { display: none }
 
 .sl-mp-mini-cover {
-  width: 40px;
-  height: 40px
+  width: 44px;
+  height: 44px
 }
 
 .sl-mp-mini-play {
@@ -233,16 +240,30 @@
   min-width: 0
 }
 
-.sl-mp-mini-title {
-  font-size: 0.8125rem;
+/* 沿用 .p-head 的類別＋標題＋輔助標題三段式組合（見 point-panel.css .p-head .cat/h2/.sub），
+   只是換算成迷你列的尺寸——.p-head 的選取器限定在 .p-head 底下，這裡另外開一組同語彙的規則 */
+.sl-mp-mini-cat {
+  font-size: 0.6875rem;
   font-weight: 700;
+  letter-spacing: .02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis
+}
+
+.sl-mp-mini-title {
+  margin-top: 1px;
+  font-size: 0.875rem;
+  font-weight: 800;
+  line-height: 1.25;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis
 }
 
 .sl-mp-mini-sub {
-  font-size: 0.6875rem;
+  margin-top: 1px;
+  font-size: 0.75rem;
   color: var(--muted);
   white-space: nowrap;
   overflow: hidden;

@@ -1,9 +1,11 @@
 /* 選用插件：聲音地圖的播放器／點位卡片（見 souliong/docs/EXTENDING.md 第七節）
    只在該地圖 meta.json 的 contrib.primaryKind 是 audio 時，view.php 才會載入這個檔案。
    不碰 viewer.core.js 一行程式碼——全靠 registerEntriesHint()（每次 renderEntries() 都會呼叫，
-   可以動任何 DOM，不限於 #entries）跟改寫 .p-close/.p-expand 的 onclick 來擴充既有的 #panel。
-   手機版在既有的單一底部抽屜狀態之外，多插「中卡」「迷你列」兩個狀態；電腦版完全不動既有的
-   .wide 展開機制，只在 .p-head 多畫一張封面圖。播放器本身也不重做：所有新按鈕／進度條都直接
+   可以動任何 DOM，不限於 #entries）跟 panelReset 這個既有 hook 來擴充既有的 #panel，
+   .p-close/.p-expand 的 onclick 完全沿用核心預設，這裡不重新綁定。
+   手機版在既有的單一底部抽屜狀態之外，多插「中卡」「迷你列」兩個狀態，靠 .sl-mp-handle 拖曳
+   切換（中卡/全卡/退回迷你列），不用另外的圖示按鈕；電腦版完全不動既有的 .wide 展開機制，
+   只在 .p-head 多畫一張封面圖。播放器本身也不重做：所有新按鈕／進度條都直接
    操作核心 audioPlayerHtml() 產生的同一顆 <audio>，不另外建立第二顆播放器（見 onAudioChanged()）。 */
 (() => {
   const I18N = window.I18N || {};
@@ -21,6 +23,8 @@
       this.hasAudio = false;
       this.lastNum = null;
       this.miniPoint = null;
+      this.miniCatText = '';
+      this.miniCatColor = '';
       this.miniTitleText = '';
       this.miniSubText = '';
       this.miniCoverUrl = null;
@@ -54,7 +58,11 @@
       handle.addEventListener('pointermove', ev => {
         if (startY == null) return;
         const dy = ev.clientY - startY;
-        if (Math.abs(dy) > 24) { this.setSize(dy < 0 ? 'full' : 'medium'); moved = true; startY = null; }
+        if (Math.abs(dy) < 24) return;
+        moved = true; startY = null;
+        if (dy < 0) { this.setSize('full'); return; }
+        if (panel.classList.contains('sl-full')) this.setSize('medium');
+        else this.mapApp.closePanel();
       });
       handle.addEventListener('pointerup', () => { startY = null; });
       handle.addEventListener('click', () => { if (!moved) this.toggleSize(); });
@@ -106,15 +114,17 @@
       el.setAttribute('aria-label', t('reopen_player_aria'));
       el.innerHTML =
         '<div class="sl-mp-cover sl-mp-mini-cover"></div>' +
-        '<button class="sl-play-btn sl-mp-mini-play" type="button" aria-label="' + esc(t('play_audio_btn')) + '"><i class="fa-solid fa-play" aria-hidden="true"></i></button>' +
         '<div class="sl-mp-mini-info">' +
+          '<div class="sl-mp-mini-cat"></div>' +
           '<div class="sl-mp-mini-title"></div>' +
           '<div class="sl-mp-mini-sub"></div>' +
         '</div>' +
+        '<button class="sl-play-btn sl-mp-mini-play" type="button" aria-label="' + esc(t('play_audio_btn')) + '"><i class="fa-solid fa-play" aria-hidden="true"></i></button>' +
         '<div class="sl-mp-mini-bar"><div class="sl-mp-mini-fill"></div></div>';
       document.body.appendChild(el);
       this.mini = el;
       this.miniCover = el.querySelector('.sl-mp-mini-cover');
+      this.miniCatEl = el.querySelector('.sl-mp-mini-cat');
       this.miniTitleEl = el.querySelector('.sl-mp-mini-title');
       this.miniSubEl = el.querySelector('.sl-mp-mini-sub');
       this.miniBtn = el.querySelector('.sl-mp-mini-play');
@@ -135,7 +145,6 @@
 
     onRender(point) {
       const panel = document.getElementById('panel');
-      const App = this.mapApp;
       const audio = document.querySelector('#entries .story .sl-aplay audio');
       this.hasAudio = !!(audio && audio.getAttribute('src'));
       this.audioEl = this.hasAudio ? audio : null;
@@ -145,6 +154,7 @@
       if (isNewPoint) panel.classList.remove('sl-full');
       panel.classList.toggle('sl-has-audio', this.hasAudio);
 
+      const catEl = document.getElementById('pCat');
       const titleText = document.getElementById('pTitle').textContent;
       const captionEl = document.querySelector('#entries .story .story-caption');
       const caption = captionEl ? captionEl.textContent.trim() : '';
@@ -160,15 +170,13 @@
       this.paintCover(this.headCover, url);
       this.paintCover(this.mediumCover, url);
 
-      const closeBtn = panel.querySelector('.p-close');
-      const expandBtn = panel.querySelector('.p-expand');
-      closeBtn.onclick = () => App.closePanel();
-      expandBtn.onclick = () => App.togglePanelSize();
       this.syncExpandIcon(panel.classList.contains('wide'));
 
       this.miniPoint = point;
+      this.miniCatText = catEl ? catEl.textContent : '';
+      this.miniCatColor = catEl ? catEl.style.color : '';
       this.miniTitleText = titleText;
-      this.miniSubText = blurb;
+      this.miniSubText = subText;
       this.miniCoverUrl = url;
 
       this.onAudioChanged();
@@ -222,6 +230,8 @@
 
     showMini() {
       if (!this.miniPoint) return;
+      this.miniCatEl.textContent = this.miniCatText;
+      this.miniCatEl.style.color = this.miniCatColor;
       this.miniTitleEl.textContent = this.miniTitleText;
       this.miniSubEl.textContent = this.miniSubText;
       this.paintCover(this.miniCover, this.miniCoverUrl);
