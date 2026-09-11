@@ -18,6 +18,38 @@
   line-height: 1
 }
 
+.dot-pin span svg {
+  width: 1em;
+  height: 1em;
+  display: block
+}
+
+/* 標記尺寸：small／large 兩個修飾類別，沒有的話就是預設（原本的 24px） */
+.dot-pin.sl-sz-sm {
+  width: 18px;
+  height: 18px;
+  border-width: 2px
+}
+
+.dot-pin.sl-sz-sm span {
+  font-size: 0.5625rem
+}
+
+.dot-pin.sl-sz-lg {
+  width: 32px;
+  height: 32px;
+  border-width: 3px
+}
+
+.dot-pin.sl-sz-lg span {
+  font-size: 0.8125rem
+}
+
+/* 白色外框開關：這條要排在尺寸規則後面，才能連同尺寸修飾一起蓋掉 border-width */
+.dot-pin.sl-noborder {
+  border: none
+}
+
 /* 有聲音內容的地點，播放中才顯示 teal 脈衝光暈（is-playing 由 viewer.core.js 依 <audio> 播放狀態切換）；
    跟角標紅／分類色（綠／粉／藍）都不撞色 */
 .dot-pin.has-audio.is-playing::after {
@@ -33,6 +65,29 @@
 @keyframes sl-pulse {
   0%   { box-shadow: 0 0 0 0 rgba(20, 184, 166, .55) }
   70%  { box-shadow: 0 0 0 14px rgba(20, 184, 166, 0) }
+  100% { box-shadow: 0 0 0 0 rgba(20, 184, 166, 0) }
+}
+
+/* sm/lg 標記尺寸：光暈的起始外距（inset，對齊該尺寸的 border-width）跟脈衝最大半徑都跟著比例縮放 */
+.dot-pin.sl-sz-sm.has-audio.is-playing::after {
+  inset: -2px;
+  animation-name: sl-pulse-sm
+}
+
+.dot-pin.sl-sz-lg.has-audio.is-playing::after {
+  inset: -3px;
+  animation-name: sl-pulse-lg
+}
+
+@keyframes sl-pulse-sm {
+  0%   { box-shadow: 0 0 0 0 rgba(20, 184, 166, .55) }
+  70%  { box-shadow: 0 0 0 10px rgba(20, 184, 166, 0) }
+  100% { box-shadow: 0 0 0 0 rgba(20, 184, 166, 0) }
+}
+
+@keyframes sl-pulse-lg {
+  0%   { box-shadow: 0 0 0 0 rgba(20, 184, 166, .55) }
+  70%  { box-shadow: 0 0 0 20px rgba(20, 184, 166, 0) }
   100% { box-shadow: 0 0 0 0 rgba(20, 184, 166, 0) }
 }
 

@@ -658,6 +658,26 @@ if (!$authed) {
               $meta[$k] = $v;
             }
           }
+          // 點位編號顯示：三選一，非白名單值一律退回預設（名稱後面）
+          if (isset($_POST['numbering'])) {
+            $nb = (string)$_POST['numbering'];
+            $meta['numbering'] = in_array($nb, ['prefix', 'disable'], true) ? $nb : 'suffix';
+          }
+          // 地圖標記樣式：圓點裡要放編號、留空、固定幾何圖形，還是自訂圖片；非白名單值退回預設（顯示編號）。
+          // 「圖片」這個狀態只能透過下面的圖片上傳表單切換成立，這裡收到 image 但其實沒有檔案就不採信，
+          // 避免手動改表單值造成沒有圖可顯示的空狀態。
+          if (isset($_POST['pinMark'])) {
+            $pm = (string)$_POST['pinMark'];
+            if ($pm === 'image' && cover_file_of(project_dir($cfg, $p) . '/pinmark') === null) {
+              $pm = 'number';
+            }
+            $meta['pinMark'] = in_array($pm, ['blank', 'shape', 'image'], true) ? $pm : 'number';
+            // 標記尺寸／外框：跟 pinMark 同一個表單區塊一起送出，借用上面的 isset($_POST['pinMark']) 判斷這區有沒有送出——
+            // pinBorder 是 checkbox，沒勾就不會出現在 $_POST，所以「沒出現」＝關閉（跟功能開關那組 checkbox 同邏輯）
+            $psz = (string)($_POST['pinSize'] ?? '');
+            $meta['pinSize'] = in_array($psz, ['sm', 'lg'], true) ? $psz : 'md';
+            $meta['pinBorder'] = isset($_POST['pinBorder']);
+          }
           // 功能模組開關：checkbox 沒勾就不會出現在 $_POST，所以「沒出現」＝關閉（非「保留原值」）
           if (isset($_POST['features']) || isset($_POST['modules_submitted'])) {
             $features = is_array($_POST['features'] ?? null) ? $_POST['features'] : [];
@@ -1304,6 +1324,47 @@ if (!$authed) {
           if (!is_array($cmeta)) $cmeta = [];
           cover_apply_reset($cbase, $cmf, $cmeta);
           audit_log($cfg, $auditWho(), 'cover_reset', $cp, '');
+          header('Location: ' . $backTo);
+          exit;
+        }
+
+        // ── 地圖標記圖片：上傳／重設，跟封面共用同一套影像處理（api/coverlib.php）。
+        //    存在才會生效——action=meta 那邊若收到 pinMark=image 但沒有檔案會退回 number，
+        //    所以這裡上傳成功才把 pinMark 切成 image，跟封面上傳自動轉 mode=custom 同一個道理。 ──
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'pinmarkupload') {
+          need_csrf($csrf);
+          $cp = clean_id($_POST['project'] ?? '');
+          $backTo = Route::manager($scopeProject !== '' ? $cp : '', 'access');
+          if ($cp === '' || !$canProject($cp)) {
+            error_page(403, $t('no_permission_title'), $t('no_permission_msg'), $backTo, $t('back_to_admin'));
+          }
+          $cmf = $cfg['projects_dir'] . '/' . $cp . '/meta.json';
+          $pmbase = project_dir($cfg, $cp) . '/pinmark';
+          $cmeta = is_file($cmf) ? json_decode((string)@file_get_contents($cmf), true) : [];
+          if (!is_array($cmeta)) $cmeta = [];
+          if (isset($_FILES['pinmark']) && $_FILES['pinmark']['error'] === UPLOAD_ERR_OK) {
+            $bytes = @file_get_contents($_FILES['pinmark']['tmp_name']);
+            if ($bytes !== false) {
+              $r = pinmark_apply_bytes($cfg, $pmbase, $cmf, $cmeta, $bytes);
+              if ($r['ok']) audit_log($cfg, $auditWho(), 'pinmark_upload', $cp, '');
+            }
+          }
+          header('Location: ' . $backTo);
+          exit;
+        }
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'pinmarkreset') {
+          need_csrf($csrf);
+          $cp = clean_id($_POST['project'] ?? '');
+          $backTo = Route::manager($scopeProject !== '' ? $cp : '', 'access');
+          if ($cp === '' || !$canProject($cp)) {
+            error_page(403, $t('no_permission_title'), $t('no_permission_msg'), $backTo, $t('back_to_admin'));
+          }
+          $cmf = $cfg['projects_dir'] . '/' . $cp . '/meta.json';
+          $pmbase = project_dir($cfg, $cp) . '/pinmark';
+          $cmeta = is_file($cmf) ? json_decode((string)@file_get_contents($cmf), true) : [];
+          if (!is_array($cmeta)) $cmeta = [];
+          pinmark_apply_reset($pmbase, $cmf, $cmeta);
+          audit_log($cfg, $auditWho(), 'pinmark_reset', $cp, '');
           header('Location: ' . $backTo);
           exit;
         }
@@ -3340,6 +3401,41 @@ if (!$authed) {
               <label><?= $t('field_desc_label') ?><textarea name="desc" rows="2" maxlength="300" placeholder="<?= $t('desc_optional_placeholder') ?>"><?= $esc($meta['desc'] ?? '') ?></textarea></label>
               <label><?= $t('field_source_label') ?><input name="source" maxlength="300" value="<?= $esc($meta['source'] ?? '') ?>" placeholder="<?= $t('source_placeholder') ?>"></label>
               <label><?= $t('field_credit_label') ?><input name="credit" maxlength="300" value="<?= $esc($meta['credit'] ?? '') ?>" placeholder="<?= $t('credit_placeholder') ?>"></label>
+              <?php $numberingCur = in_array($meta['numbering'] ?? '', ['prefix', 'disable'], true) ? $meta['numbering'] : 'suffix'; ?>
+              <label><?= $t('field_numbering_label') ?>
+                <select name="numbering">
+                  <option value="suffix" <?= $numberingCur === 'suffix' ? 'selected' : '' ?>><?= $t('numbering_suffix_option') ?></option>
+                  <option value="prefix" <?= $numberingCur === 'prefix' ? 'selected' : '' ?>><?= $t('numbering_prefix_option') ?></option>
+                  <option value="disable" <?= $numberingCur === 'disable' ? 'selected' : '' ?>><?= $t('numbering_disable_option') ?></option>
+                </select>
+              </label>
+              <?php
+                $pinMarkHasImg = cover_file_of(project_dir($cfg, $p) . '/pinmark') !== null;
+                $pinMarkCur = in_array($meta['pinMark'] ?? '', ['blank', 'shape', 'image'], true) ? $meta['pinMark'] : 'number';
+              ?>
+              <label><?= $t('field_pinmark_label') ?>
+                <select name="pinMark">
+                  <option value="number" <?= $pinMarkCur === 'number' ? 'selected' : '' ?>><?= $t('pinmark_number_option') ?></option>
+                  <option value="blank" <?= $pinMarkCur === 'blank' ? 'selected' : '' ?>><?= $t('pinmark_blank_option') ?></option>
+                  <option value="shape" <?= $pinMarkCur === 'shape' ? 'selected' : '' ?>><?= $t('pinmark_shape_option') ?></option>
+                  <?php if ($pinMarkHasImg): ?>
+                  <option value="image" <?= $pinMarkCur === 'image' ? 'selected' : '' ?>><?= $t('pinmark_image_option') ?></option>
+                  <?php endif; ?>
+                </select>
+              </label>
+              <div class="hint"><?= $t('pinmark_image_hint') ?></div>
+              <?php $pinSizeCur = in_array($meta['pinSize'] ?? '', ['sm', 'lg'], true) ? $meta['pinSize'] : 'md'; ?>
+              <label><?= $t('field_pinsize_label') ?>
+                <select name="pinSize">
+                  <option value="sm" <?= $pinSizeCur === 'sm' ? 'selected' : '' ?>><?= $t('pinsize_sm_option') ?></option>
+                  <option value="md" <?= $pinSizeCur === 'md' ? 'selected' : '' ?>><?= $t('pinsize_md_option') ?></option>
+                  <option value="lg" <?= $pinSizeCur === 'lg' ? 'selected' : '' ?>><?= $t('pinsize_lg_option') ?></option>
+                </select>
+              </label>
+              <label class="modrow">
+                <input type="checkbox" name="pinBorder" <?= ($meta['pinBorder'] ?? true) ? 'checked' : '' ?>>
+                <span><?= $t('field_pinborder_label') ?></span>
+              </label>
               <?php
                 // 三態下拉（對應上面 action=meta 的 pack 處理）：沒有 pack 欄位＝跟隨全站，
                 // 空字串＝這張地圖明確不套用。順便把全站目前設的是哪一包寫在選項裡，
@@ -3560,6 +3656,33 @@ if (!$authed) {
                 <input type="hidden" name="csrf" value="<?= $esc_csrf ?>"><input type="hidden" name="action" value="coverreset"><input type="hidden" name="project" value="<?= $esc($p) ?>">
                 <button class="btn danger"><i class="fa-solid fa-rotate-left"></i> <?= $t('cover_reset_btn') ?></button>
               </form>
+              <div class="dlgactions">
+                <button type="button" class="btn" onclick="this.closest('dialog').close()"><?= $t('close') ?></button>
+              </div>
+            </div>
+          </dialog>
+          <button type="button" class="btn" onclick="document.getElementById('pmkdlg-<?= $esc($p) ?>').showModal()"><i class="fa-solid fa-location-dot"></i> <?= $t('pinmark_image_heading') ?></button>
+          <dialog id="pmkdlg-<?= $esc($p) ?>" class="metadlg" onclick="if(event.target===this)this.close()">
+            <div class="metaform">
+              <h3><i class="fa-solid fa-location-dot"></i> <?= $t('pinmark_image_heading') ?></h3>
+              <div class="hint"><?= $t('pinmark_image_dlg_hint') ?></div>
+              <?php if ($pinMarkHasImg): ?>
+              <div class="cov-preview">
+                <img src="<?= $esc(Route::api('pinmark', ['project' => $p])) ?>" alt="">
+              </div>
+              <?php endif; ?>
+              <form method="post" enctype="multipart/form-data" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px">
+                <input type="hidden" name="csrf" value="<?= $esc_csrf ?>"><input type="hidden" name="action" value="pinmarkupload"><input type="hidden" name="project" value="<?= $esc($p) ?>">
+                <label class="btn" style="cursor:pointer"><i class="fa-solid fa-folder-open"></i> <span data-file><?= $t('choose_image_btn') ?></span>
+                  <input type="file" name="pinmark" accept="image/*" required hidden onchange="this.parentNode.querySelector('[data-file]').textContent=this.files[0]?this.files[0].name:<?= json_encode(i18n_t($DICT, 'choose_image_btn'), JSON_UNESCAPED_UNICODE) ?>"></label>
+                <button class="btn"><i class="fa-solid fa-upload"></i> <?= $t('cover_upload_btn') ?></button>
+              </form>
+              <?php if ($pinMarkHasImg): ?>
+              <form method="post" onsubmit="return confirm(<?= $esc(json_encode($tr('pinmark_reset_confirm'), JSON_UNESCAPED_UNICODE)) ?>)">
+                <input type="hidden" name="csrf" value="<?= $esc_csrf ?>"><input type="hidden" name="action" value="pinmarkreset"><input type="hidden" name="project" value="<?= $esc($p) ?>">
+                <button class="btn danger"><i class="fa-solid fa-rotate-left"></i> <?= $t('cover_reset_btn') ?></button>
+              </form>
+              <?php endif; ?>
               <div class="dlgactions">
                 <button type="button" class="btn" onclick="this.closest('dialog').close()"><?= $t('close') ?></button>
               </div>

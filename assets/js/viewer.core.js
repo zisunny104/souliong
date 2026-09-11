@@ -441,8 +441,14 @@ window.MapApp = (() => {
   const pointName = (p) => p.theme || p.title || p.chair || '';
   function pointTitle(p) {
     const base = pointName(p);
+    if (META.numbering === 'disable') return base;
     if (META.numbering === 'prefix') return (p.num != null ? pad2(p.num) + ' ' : '') + base;
     return base + (p.num != null ? ' ' + pad2(p.num) : '');
+  }
+  // 點位列表／跳轉選單共用的「編號｜名稱」標籤（回傳值已 HTML 跳脫，可直接接進 innerHTML）
+  function pointNumLabel(p) {
+    const name = esc(pointName(p));
+    return META.numbering === 'disable' ? name : pad2(p.num) + '｜' + name;
   }
   function pointSub(p) {
     const bits = [];
@@ -546,6 +552,7 @@ window.MapApp = (() => {
     const added = CONTRIB.filter(e => e.kind === 'newpoint' && e.num != null).map(e => ({
       num: e.num, title: e.title, cat: e.cat || 'new', catLabel: e.catLabel, color: e.color || '#7a7f87',
       lat: e.lat, lon: e.lon, story: e.story, area: e.area, addedBy: e.name, addedAt: e.created_at, userAdded: true,
+      photo: e.photo || null, thumb: e.thumb || null,
     }));
     return POINTS.concat(added).map(p => {
       const ed = latest[p.num];
@@ -559,13 +566,39 @@ window.MapApp = (() => {
   // badgeColor 有給值時（篩選單一投稿者時）覆蓋角標底色，跟該投稿者的路徑同色
   // 回傳的是引擎無關的 marker spec（見 assets/js/engine/map-engine.js 的 setMarkerLayer()），
   // 不是某個引擎的原生 icon 物件——LeafletEngine／MapLibreEngine 各自決定怎麼把它畫出來。
+  // 幾何圖形固定由 num 算出（num 是點位建立時分配、之後永不改變的識別碼），
+  // 不需要另存欄位：同一個點每次算出來的圖形永遠一樣，效果等同「建立時隨機、之後固定」。
+  const PIN_SHAPES = [
+    '<polygon points="5,0.5 9.5,9.5 0.5,9.5"/>',                    // 三角形
+    '<rect x="1" y="1" width="8" height="8"/>',                     // 正方形
+    '<polygon points="5,0 10,5 5,10 0,5"/>',                        // 菱形
+    '<polygon points="5,0 9.76,3.42 7.94,9.08 2.06,9.08 0.24,3.42"/>', // 五邊形
+    '<polygon points="5,0 6.53,3.53 10,5 6.53,6.47 5,10 3.47,6.47 0,5 3.47,3.53"/>', // 星形
+    '<polygon points="2.5,0.5 7.5,0.5 9.5,5 7.5,9.5 2.5,9.5 0.5,5"/>', // 六邊形
+  ];
+  function pinShapeSvg(num) {
+    const n = ((num % PIN_SHAPES.length) + PIN_SHAPES.length) % PIN_SHAPES.length;
+    return '<svg viewBox="0 0 10 10" width="10" height="10" fill="currentColor" aria-hidden="true">' + PIN_SHAPES[n] + '</svg>';
+  }
+  // pinMark='image' 時，所有標記統一換成後台上傳的同一張圖（圓形裁切），取代編號／留空／幾何圖形
+  const PIN_MARK_IMAGE_URL = apiUrl('pinmark') + '&project=' + encodeURIComponent(PROJECT);
+  // pinSize：圓點直徑——sm/lg 對應 CSS 的 .sl-sz-sm/.sl-sz-lg 修飾類別，沒設或非白名單值就是預設 24px
+  const PIN_SIZE_PX = { sm: 18, lg: 32 };
   function chairIcon(c, count, badgeColor) {
     const badge = count ? '<div class="badge"' + (badgeColor ? ' style="background:' + badgeColor + '"' : '') + '>' + count + '</div>' : '';
+    const sizeCls = META.pinSize === 'sm' ? ' sl-sz-sm' : META.pinSize === 'lg' ? ' sl-sz-lg' : '';
+    // pinBorder：白色外框開關，沒設過（舊專案）預設為 true，跟改版前的固定外框行為一致
+    const borderCls = META.pinBorder === false ? ' sl-noborder' : '';
     // has-audio：這個地點掛了聲音；is-playing：其中一則正在播放，脈衝光暈只在播放中顯示（見 map-markers.css）
-    const cls = 'dot-pin' + (count ? ' has-contrib' : '') + (audioPoints.has(c.num) ? ' has-audio' : '') + (playingPoints.has(c.num) ? ' is-playing' : '');
+    const cls = 'dot-pin' + sizeCls + borderCls + (count ? ' has-contrib' : '') + (audioPoints.has(c.num) ? ' has-audio' : '') + (playingPoints.has(c.num) ? ' is-playing' : '');
+    // pinMark：地圖上圓點裡要放什麼——number（預設，顯示編號）／blank（留空）／shape（依 num 固定配一個幾何圖形）／image（自訂圖片取代整個標記）
+    const isImage = META.pinMark === 'image';
+    const pinMark = isImage || META.pinMark === 'blank' ? '' : META.pinMark === 'shape' ? '<span>' + pinShapeSvg(c.num) + '</span>' : '<span>' + c.num + '</span>';
+    const bg = isImage ? 'url(' + PIN_MARK_IMAGE_URL + ') center/cover' : (c.color || '#888');
+    const px = PIN_SIZE_PX[META.pinSize] || 24, half = px / 2;
     return {
-      size: [24, 24], anchor: [12, 12],
-      html: '<div class="' + cls + '" style="background:' + (c.color || '#888') + '"><span>' + c.num + '</span>' + badge + '</div>'
+      size: [px, px], anchor: [half, half],
+      html: '<div class="' + cls + '" style="background:' + bg + '">' + pinMark + badge + '</div>'
     };
   }
   // 音訊播放狀態切換：只有播放中的地點才顯示標記脈衝，切換時才需要重畫標記層
@@ -696,7 +729,7 @@ window.MapApp = (() => {
       const pts = effectivePoints().sort((a, b) => a.num - b.num);
       sel.innerHTML = '<option value="">' + esc(t('jump_to_point_option', { n: pts.length })) + '</option>' +
         pts.map(p =>
-          '<option value="' + p.num + '">' + pad2(p.num) + '｜' + esc(pointName(p)) + (p.area ? '（' + esc(p.area) + '）' : '') + '</option>'
+          '<option value="' + p.num + '">' + pointNumLabel(p) + (p.area ? '（' + esc(p.area) + '）' : '') + '</option>'
         ).join('');
     }
   }
@@ -708,7 +741,7 @@ window.MapApp = (() => {
       pts.map(p =>
         '<button type="button" class="sl-point-list-item" data-num="' + p.num + '">' +
           '<span class="sl-point-list-dot" style="background:' + esc(p.color || '#888') + '"></span>' +
-          '<span class="sl-point-list-label">' + pad2(p.num) + '｜' + esc(pointName(p)) + '</span>' +
+          '<span class="sl-point-list-label">' + pointNumLabel(p) + '</span>' +
           (p.area ? '<span class="sl-point-list-area">' + esc(p.area) + '</span>' : '') +
         '</button>'
       ).join('');

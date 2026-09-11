@@ -58,3 +58,33 @@ function cover_apply_reset(string $coverBase, string $mf, array $meta): array
     cover_save_meta($mf, $meta);
     return ['ok' => true, 'cover' => null];
 }
+
+/**
+ * 地圖標記自訂圖片：同 cover_apply_bytes()，但寫回 meta.json 的是 pinMark='image'＋
+ * pinMarkImage.updatedAt（見 api/manager.php 的 pinmarkupload、api/pinmark.php 的 GET 輸出）。
+ * 上傳成功即把 pinMark 切成 image，跟封面上傳自動轉 mode=custom 同一個道理。
+ */
+function pinmark_apply_bytes(array $cfg, string $pmBase, string $mf, array $meta, string $bytes): array
+{
+    $d = souliong_image_decode_bytes($bytes);
+    if ($d === null) return ['ok' => false, 'error' => 'unsupported image'];
+    [$src, $w, $h] = $d;
+    $out = souliong_image_resize_encode($src, $w, $h, (int)($cfg['pinmark_max_dim'] ?? 200), $pmBase);
+    imagedestroy($src);
+    if ($out === null) return ['ok' => false, 'error' => 'save failed'];
+    cover_purge_other($pmBase, $out);
+    $meta['pinMark'] = 'image';
+    $meta['pinMarkImage'] = ['updatedAt' => gmdate('c')];
+    cover_save_meta($mf, $meta);
+    return ['ok' => true];
+}
+
+/** 清空地圖標記圖片，pinMark 退回編號模式。 */
+function pinmark_apply_reset(string $pmBase, string $mf, array $meta): array
+{
+    foreach (['webp', 'jpg'] as $ext) @unlink($pmBase . '.' . $ext);
+    unset($meta['pinMarkImage']);
+    if (($meta['pinMark'] ?? '') === 'image') $meta['pinMark'] = 'number';
+    cover_save_meta($mf, $meta);
+    return ['ok' => true];
+}

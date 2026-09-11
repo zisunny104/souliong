@@ -491,11 +491,7 @@ body.embed .tr-group .tr-toggle {
   display: none
 }
 
-/* 有投稿的點：加光環標記；開「投稿」聚焦模式時淡化沒有投稿的點 */
-.dot-pin.has-contrib {
-  box-shadow: 0 2px 6px rgba(0, 0, 0, .35), 0 0 0 3px rgba(255, 255, 255, .55), 0 0 10px 2px rgba(0, 0, 0, .28)
-}
-
+/* 開「投稿」聚焦模式時淡化沒有投稿的點（有投稿已經有紅色角標，不需要再加光環） */
 body.focus-contrib .dot-pin:not(.has-contrib) {
   opacity: .32;
   filter: grayscale(.55)
