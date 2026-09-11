@@ -34,6 +34,29 @@
      在手機版隱藏）：把手往下滑到底＝回迷你列，等同以前按 X 的效果（見 sound-player.js
      buildHandle()，直接呼叫既有的 App.closePanel()，不是另外做一套關閉邏輯）。 */
   #panel.sl-audio.sl-has-audio .p-close { display: none }
+
+  /* 迷你列出現時，把左下地圖操作區（縮放／羅盤／重置視角）跟版權列往上推，避免被迷你列
+     蓋住（迷你列高度隨標題／副標換行而變，位移量由 sound-player.js 的 updateMiniGap()
+     即時量測寫進 --sl-mini-gap，這裡只負責套用）。*/
+  .maplibregl-ctrl-bottom-left,
+  .leaflet-bottom.leaflet-left,
+  .cr-bar,
+  .leaflet-bottom.leaflet-right {
+    transition: transform .18s ease-out
+  }
+
+  body.sl-mini-open .maplibregl-ctrl-bottom-left,
+  body.sl-mini-open .leaflet-bottom.leaflet-left {
+    transform: translateY(calc(-1 * var(--sl-mini-gap, 0px)))
+  }
+
+  /* .cr-bar／.leaflet-bottom.leaflet-right 本來就靠 translateX(-50%) 做水平置中（見
+     map-controls.css），這裡要整個 transform 一起疊寫，不能只加 translateY，
+     否則會蓋掉原本的置中效果 */
+  body.sl-mini-open .cr-bar,
+  body.sl-mini-open .leaflet-bottom.leaflet-right {
+    transform: translateX(-50%) translateY(calc(-1 * var(--sl-mini-gap, 0px)))
+  }
 }
 
 /* 封面圖：中卡、迷你列、.p-head 三處共用的外框樣式，各自只決定尺寸。沒有照片時
@@ -154,7 +177,9 @@
     display: flex;
     flex-direction: column;
     gap: 14px;
-    padding: 6px 18px 18px
+    padding: 6px 18px 18px;
+    touch-action: none;
+    cursor: grab
   }
 
   #panel.sl-audio.sl-has-audio:not(.sl-full) .p-head,

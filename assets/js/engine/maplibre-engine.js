@@ -156,6 +156,7 @@ window.MapLibreEngine = (() => {
       this._dark = !!o.dark;
       this._overlayIds = [];
       this._markerLayers = {};
+      this._markerSpecs = {};
       this._zoomThresholds = [];
       this._idSeq = 0;
       // 3D 能力狀態（見 enter3D()/exit3D()）：_3dCfg 是進入 3D 時收到的 {excludedBuildingIds,regions}，
@@ -187,7 +188,33 @@ window.MapLibreEngine = (() => {
     get supportsSnapshot() { return true; }
     getCanvasDataURL(mime, quality) {
       try {
-        return this.map.getCanvas().toDataURL(mime || 'image/png', quality);
+        const src = this.map.getCanvas();
+        const chairs = (this._markerSpecs && this._markerSpecs.chairs) || [];
+        if (!chairs.length) return src.toDataURL(mime || 'image/png', quality);
+        // 疊繪簡化圓點：chairs 標記是 DOM 覆蓋層，不在 WebGL canvas 的繪圖緩衝區裡，
+        // 直接 toDataURL() 擷不到，改成另開一張同尺寸的 2D canvas，先貼底圖再手動畫點。
+        const out = document.createElement('canvas');
+        out.width = src.width;
+        out.height = src.height;
+        const ctx = out.getContext('2d');
+        ctx.drawImage(src, 0, 0);
+        // map.project() 回傳的是 CSS 像素座標，跟 canvas 實際繪圖緩衝區（依裝置畫素比可能
+        // 更大）不是同一個座標系，這裡實測容器的 CSS 尺寸換算縮放比，不假設 devicePixelRatio。
+        const rect = this.map.getContainer().getBoundingClientRect();
+        const sx = rect.width ? src.width / rect.width : 1;
+        const sy = rect.height ? src.height / rect.height : 1;
+        const r = 5 * Math.min(sx, sy);
+        ctx.lineWidth = Math.max(1, 1.5 * Math.min(sx, sy));
+        ctx.strokeStyle = '#fff';
+        chairs.forEach(spec => {
+          const pt = this.map.project([spec.lon, spec.lat]);
+          ctx.beginPath();
+          ctx.arc(pt.x * sx, pt.y * sy, r, 0, Math.PI * 2);
+          ctx.fillStyle = spec.color || '#888';
+          ctx.fill();
+          ctx.stroke();
+        });
+        return out.toDataURL(mime || 'image/png', quality);
       } catch (e) {
         return null;   // 跨網域圖磚沒開 CORS 導致 canvas 被污染時 toDataURL() 會丟例外
       }
@@ -258,6 +285,7 @@ window.MapLibreEngine = (() => {
     _layerArr(layerKey) { return this._markerLayers[layerKey] || (this._markerLayers[layerKey] = []); }
     setMarkerLayer(layerKey, specs) {
       this.clearMarkerLayer(layerKey);
+      this._markerSpecs[layerKey] = specs || [];
       const arr = this._layerArr(layerKey);
       (specs || []).forEach(spec => {
         const el = document.createElement('div');
@@ -276,6 +304,7 @@ window.MapLibreEngine = (() => {
       const arr = this._markerLayers[layerKey];
       if (arr) arr.forEach(mk => mk.remove());
       this._markerLayers[layerKey] = [];
+      this._markerSpecs[layerKey] = [];
     }
     onZoomThresholdCross(zoom, fn) {
       this._zoomThresholds.push({ zoom, wasAbove: this.map.getZoom() >= zoom, fn });

@@ -643,6 +643,7 @@ window.MapApp = (() => {
       const icon = chairIcon(c, count, badgeColor);
       specs.push({
         id: c.num, lat: c.lat, lon: c.lon, html: icon.html, size: icon.size, anchor: icon.anchor,
+        color: c.color || '#888',
         onClick: () => { emitHook('panelReset'); openPanel(c); },
       });
     });

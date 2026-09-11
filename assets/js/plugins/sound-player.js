@@ -37,6 +37,8 @@
       this.buildHandle(panel);
       this.buildHeadCover(panel);
       this.buildMedium(panel);
+      this.attachMediumGesture(this.medium);
+      this.attachCollapseGesture(this.head);
       this.buildMini();
       this.mapApp.registerEntriesHint(point => { this.onRender(point); return null; });
       this.mapApp.onHook('panelReset', () => this.onPanelReset());
@@ -74,6 +76,7 @@
       const head = panel.querySelector('.p-head');
       head.insertBefore(cover, head.firstChild);
       this.headCover = cover;
+      this.head = head;
     }
 
     buildMedium(panel) {
@@ -107,6 +110,59 @@
       this.attachSeek(this.mediumBar);
     }
 
+    /* 中卡↔展開/收合：整張中卡都能滑／點，不侷限 .sl-mp-handle 那條窄把手——
+       播放鍵／進度條各自處理自己的手勢，pointerdown 一開始就排除掉。上滑或點擊
+       （無明顯位移）展開大卡；下滑收成迷你列，效果等同 .sl-mp-handle 在中卡狀態
+       下滑呼叫 closePanel()，只是命中範圍從窄把手擴大到整張卡片。 */
+    attachMediumGesture(el) {
+      const IGNORE = '.sl-mp-medium-play, .sl-mp-medium-bar';
+      let startY = null, startT = 0, moved = false;
+      el.addEventListener('pointerdown', ev => {
+        if (ev.target.closest(IGNORE)) return;
+        startY = ev.clientY; startT = performance.now(); moved = false;
+        try { el.setPointerCapture(ev.pointerId); } catch (err) {}
+      });
+      el.addEventListener('pointermove', ev => {
+        if (startY == null) return;
+        if (Math.abs(ev.clientY - startY) > 6) moved = true;
+      });
+      el.addEventListener('pointerup', ev => {
+        if (startY == null) return;
+        const dy = ev.clientY - startY;
+        const dt = Math.max(1, performance.now() - startT);
+        startY = null;
+        if (dy < -30 || dy / dt < -0.5 || !moved) { this.setSize('full'); return; }
+        if (dy > 30 || dy / dt > 0.5) this.mapApp.closePanel();
+      });
+    }
+
+    /* 大卡→中卡：整個 .p-head（標題列）都能下滑收合，不侷限窄把手。只做下滑手勢、
+       不做點擊收合——.p-head 上有標題文字、編輯按鈕等使用者本來就會點擊/閱讀的
+       內容，加點擊收合容易誤觸，這點跟中卡（點哪都只是展開）不一樣。
+       .p-head 在電腦版一律可見（不像 .sl-mp-medium 電腦版天生 display:none），
+       沒有下面這層限制的話，電腦版在標題列拖曳文字就會誤觸 setSize()，連帶讓
+       syncExpandIcon() 覆寫 .p-expand 的圖示——那顆按鈕在電腦版其實是核心
+       togglePanelSize() 的「全寬大卡」.wide 開關，兩邊搶著寫同一顆按鈕會讓電腦版
+       出現圖示與實際狀態對不上的顯示錯誤，所以只在手機＋該點位真的有聲音投稿時生效。 */
+    attachCollapseGesture(el) {
+      const IGNORE = 'button, a, input, select, textarea, .point-editor';
+      const panel = document.getElementById('panel');
+      let startY = null, startT = 0;
+      el.addEventListener('pointerdown', ev => {
+        if (!this.isMobile() || !panel.classList.contains('sl-has-audio')) return;
+        if (ev.target.closest(IGNORE)) return;
+        startY = ev.clientY; startT = performance.now();
+        try { el.setPointerCapture(ev.pointerId); } catch (err) {}
+      });
+      el.addEventListener('pointerup', ev => {
+        if (startY == null) return;
+        const dy = ev.clientY - startY;
+        const dt = Math.max(1, performance.now() - startT);
+        startY = null;
+        if (dy > 30 || dy / dt > 0.5) this.setSize('medium');
+      });
+    }
+
     buildMini() {
       const el = document.createElement('div');
       el.className = 'sl-mp-mini';
@@ -125,6 +181,9 @@
         '<div class="sl-mp-mini-bar"><div class="sl-mp-mini-fill"></div></div>';
       document.body.appendChild(el);
       this.mini = el;
+      if (window.ResizeObserver) {
+        new ResizeObserver(() => { if (!el.hidden) this.updateMiniGap(); }).observe(el);
+      }
       this.miniCover = el.querySelector('.sl-mp-mini-cover');
       this.miniCatEl = el.querySelector('.sl-mp-cat');
       this.miniTitleEl = el.querySelector('.sl-mp-title');
@@ -235,9 +294,22 @@
       this.miniSubEl.textContent = this.miniSubText;
       this.paintCover(this.miniCover, this.miniCoverUrl);
       this.mini.hidden = false;
+      document.body.classList.add('sl-mini-open');
+      this.updateMiniGap();
     }
 
-    hideMini() { this.mini.hidden = true; }
+    hideMini() {
+      this.mini.hidden = true;
+      document.body.classList.remove('sl-mini-open');
+      document.body.style.removeProperty('--sl-mini-gap');
+    }
+
+    // 左下地圖操作區／版權列往上推的距離：迷你列自身高度＋它的 bottom:10px 留白＋
+    // 再留 10px 間距，跟現有的 10px 視覺節奏一致（見 sound-player.css 的 .sl-mini-open 規則）
+    updateMiniGap() {
+      const h = this.mini.getBoundingClientRect().height;
+      document.body.style.setProperty('--sl-mini-gap', h ? (h + 20) + 'px' : '0px');
+    }
 
     reopen() {
       if (!this.miniPoint) return;
