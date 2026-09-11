@@ -676,11 +676,12 @@ if (!$authed) {
             // 依註冊表順序過濾，順便擋掉表單送來的任何非法 key（tab 為 null 的 desc／point 不在其中）
             $kinds = array_values(array_intersect(souliong_contrib_kinds(), $want));
             if (!$kinds) $kinds = ['photo'];   // 一種都不留＝這張地圖不能投稿，那是「上傳投稿」模組的職責，不是這裡
-            $meta['contrib'] = [
+            // 這張表單沒有 primaryKind 欄位；用合併而非整包覆寫，才不會把既有值（如 soundspace 的 'audio'）洗掉
+            $meta['contrib'] = array_merge($meta['contrib'] ?? [], [
               'kinds' => $kinds,
               'default' => (string)($_POST['contrib_default'] ?? ''),
               'newPoint' => (string)($_POST['contrib_newpoint'] ?? 'off'),
-            ];
+            ]);
             // 存檔前先讓 souliong_contrib_cfg() 收斂一次：預設分頁若不在啟用型別的分頁裡會被換掉、
             // 權限值不在白名單裡會退回 off。寫進 meta.json 的就是前端實際拿到的東西，不留對不上的設定。
             $ccfg = souliong_contrib_cfg($meta);
