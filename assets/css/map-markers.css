@@ -18,6 +18,24 @@
   line-height: 1
 }
 
+/* 有聲音內容的地點，播放中才顯示 teal 脈衝光暈（is-playing 由 viewer.core.js 依 <audio> 播放狀態切換）；
+   跟角標紅／分類色（綠／粉／藍）都不撞色 */
+.dot-pin.has-audio.is-playing::after {
+  content: '';
+  position: absolute;
+  inset: -2.5px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 0 rgba(20, 184, 166, .55);
+  animation: sl-pulse 2.2s ease-out infinite;
+  pointer-events: none;
+}
+
+@keyframes sl-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(20, 184, 166, .55) }
+  70%  { box-shadow: 0 0 0 14px rgba(20, 184, 166, 0) }
+  100% { box-shadow: 0 0 0 0 rgba(20, 184, 166, 0) }
+}
+
 .badge {
   position: absolute;
   top: -7px;

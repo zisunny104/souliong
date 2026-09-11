@@ -89,6 +89,10 @@ $APP = [
     'layers'      => $layers,
     'engine'      => $primaryEngine,
     'map3d'       => $map3d,
+    // 封面快照（api/cover.php）：POST 目標網址＋前端節流用的最小間距，避免管理者每次開頁
+    // 都白白擷圖編碼一次（伺服器端仍是權威判斷，這裡只是省一趟沒意義的請求）。
+    'coverUrl'         => Route::api('cover', ['project' => $proj]),
+    'coverMinInterval' => (int)($apiCfg['cover_min_interval'] ?? 3600),
 ];
 $jsonFlags = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS;
 $esc = fn($s): string => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
@@ -130,6 +134,10 @@ $cssFiles = ['theme', 'control-card', 'popups', 'map-markers', 'point-panel', 'm
 if ($mod('upload')) {
     $cssFiles[] = 'contrib';
 }
+// 播放器／點位卡片的中卡、全卡、迷你列樣式只有「聲音地圖」用得到（見 sound-player.js）
+if (($contribCfg['primaryKind'] ?? '') === 'audio') {
+    $cssFiles[] = 'sound-player';
+}
 foreach ($cssFiles as $f) {
 ?>
 <link rel="stylesheet" href="<?= $assetUrl("assets/css/$f.css") ?>">
@@ -165,20 +173,27 @@ if ($pack) {
 
 <div id="controls" class="floatcard">
   <div class="ctl-head">
-    <span class="brand" id="title" title="<?= $t('brand_hint') ?>" role="button" tabindex="0"><span class="brand-txt" id="titleTxt"><?= $t('app_title') ?></span></span>
+    <span class="brand" id="title" title="<?= $t('brand_hint') ?>" role="button" tabindex="0"><span class="brand-txt" id="titleTxt"><?= $t('app_title') ?></span><span class="brand-sub" id="titleSub"></span></span>
     <span id="brandShape" class="brand-shape" aria-hidden="true"></span>
     <span class="spacer"></span>
     <button id="collapseBtn" class="icon-btn" title="<?= $t('collapse') ?>" aria-label="<?= $t('collapse_aria') ?>"><i class="fa-solid fa-chevron-down" aria-hidden="true"></i></button>
   </div>
   <div class="ctl-body" id="ctlBody">
+    <?php if ($mod('categoryLegend')): ?>
     <div class="legend" id="legend"></div>
+    <?php endif; ?>
+    <?php if ($mod('contribBrowse')): ?>
     <div class="ctl-row">
       <button class="btn" id="allPointsBtn" title="<?= $t('show_all_points') ?>"><i class="fa-solid fa-layer-group"></i> <?= $t('all') ?></button>
       <button class="btn" id="photoLayerBtn" title="<?= $t('filter_by_contrib') ?>"><i class="fa-solid fa-photo-film"></i> <?= $t('contrib') ?></button>
     </div>
-    <div class="ctl-row">
+    <?php endif; ?>
+    <div class="ctl-row" id="personFilterRow">
       <select id="personFilter" title="<?= $t('filter_person') ?>"><option value=""><?= $t('all_contributors') ?></option></select>
     </div>
+    <?php if ($mod('pointList')): ?>
+    <div class="sl-point-list" id="pointList"></div>
+    <?php endif; ?>
     <div class="ctl-foot" id="foot"></div>
   </div>
 </div>
@@ -188,7 +203,6 @@ if ($pack) {
   <div class="tr-items" id="trItems">
     <?php if ($mod('homeLink')): ?><a class="icon-btn hide-in-embed" id="homeBtn" href="<?= $b ?>" title="<?= $t('back_to_list') ?>" aria-label="<?= $t('back_to_list') ?>"><i class="fa-solid fa-house" aria-hidden="true"></i></a><?php endif; ?>
     <button id="themeBtn" class="icon-btn" title="<?= $t('toggle_theme') ?>" aria-label="<?= $t('toggle_theme_aria') ?>"><i class="fa-solid fa-circle-half-stroke" aria-hidden="true"></i></button>
-    <button id="pointsVisBtn" class="icon-btn" title="<?= $t('toggle_points') ?>" aria-label="<?= $t('toggle_points_aria') ?>" aria-pressed="false"><i class="fa-solid fa-eye" aria-hidden="true"></i></button>
     <button id="shortcutsBtn" class="icon-btn shortcuts-btn" title="<?= $t('shortcuts_btn') ?>" aria-label="<?= $t('shortcuts_btn') ?>"><i class="fa-solid fa-keyboard" aria-hidden="true"></i></button>
     <div class="lang-menu hide-in-embed" id="langMenu">
       <button type="button" class="lang-btn" id="langBtn" title="<?= $t('lang_switch') ?>" aria-haspopup="listbox" aria-expanded="false">
@@ -350,12 +364,19 @@ window.maplibregl = maplibregl;
 <?php if ($mod('share')): ?>
 <script src="<?= $assetUrl('assets/js/vendor/qrcode-generator.js') ?>"></script>
 <script src="<?= $assetUrl('assets/js/plugins/share-link.js') ?>"></script>
+<script src="<?= $assetUrl('assets/js/plugins/entry-link.js') ?>"></script>
 <?php endif; ?>
 <?php if ($mod('route')): ?>
 <script src="<?= $assetUrl('assets/js/plugins/route-tour.js') ?>"></script>
 <?php endif; ?>
 <?php if ($mod('story')): ?>
 <script src="<?= $assetUrl('assets/js/plugins/story-editor.js') ?>"></script>
+<?php endif; ?>
+<?php if ($mod('soundEdit')): ?>
+<script src="<?= $assetUrl('assets/js/plugins/sound-editor.js') ?>"></script>
+<?php endif; ?>
+<?php if (($contribCfg['primaryKind'] ?? '') === 'audio'): ?>
+<script src="<?= $assetUrl('assets/js/plugins/sound-player.js') ?>"></script>
 <?php endif; ?>
 <?php if ($mod('personExplore')): ?>
 <script src="<?= $assetUrl('assets/js/plugins/person-explore.js') ?>"></script>

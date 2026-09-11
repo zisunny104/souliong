@@ -28,9 +28,15 @@
       idEl.title = t('contributor_identity');
       idEl.setAttribute('role', 'button');
       idEl.tabIndex = 0;
+
+      let host = idEl;
+      // 只有真正的管理者才看得到「檢視模式」切換鈕：包一層 .sl-idmenu 容器，把身分晶片跟
+      // 新的下拉鈕放在一起，晶片本身的點擊/長按邏輯不受影響。
+      if (this.mapApp.canTogglePreview()) host = this.buildPreviewMenu(idEl);
+
       // 排在這組按鈕的最前面。原本是「插在首頁鈕之前」，但首頁鈕是可關閉的模組（homeLink），
       // 關掉時 insertBefore(…, null) 會變成 append，身分標籤就跑到語言選單後面去了。
-      if (trItems) trItems.insertBefore(idEl, trItems.firstChild);
+      if (trItems) trItems.insertBefore(host, trItems.firstChild);
 
       let idLpTimer = null, idLpFired = false;
       idEl.addEventListener('pointerdown', () => { idLpFired = false; idLpTimer = setTimeout(() => { idLpFired = true; this.mapApp.rerollAnon(); }, 600); });
@@ -52,17 +58,65 @@
       this.render();
     }
 
-    // 顯示目前暱稱（未輸入則管理者帶入「管理者」、否則顯示本次匿名預覽名）；解鎖狀態附鎖圖示
+    // 比照語言選單（.lang-menu／.lang-btn／.lang-list）同一套定位／開合模式：
+    // position:relative 容器＋absolute 選單＋.open class，點外部關閉
+    buildPreviewMenu(idEl) {
+      const wrap = document.createElement('span');
+      wrap.className = 'sl-idmenu';
+      wrap.id = 'idMenu';
+      const btn = document.createElement('button');
+      btn.type = 'button'; btn.className = 'sl-idmenu-btn'; btn.id = 'idMenuBtn';
+      btn.title = t('preview_mode_switch');
+      btn.setAttribute('aria-haspopup', 'listbox'); btn.setAttribute('aria-expanded', 'false');
+      btn.innerHTML = '<i class="fa-solid fa-chevron-down" aria-hidden="true"></i>';
+      const list = document.createElement('ul');
+      list.className = 'sl-idmenu-list'; list.id = 'idMenuList';
+      list.setAttribute('role', 'listbox'); list.setAttribute('aria-label', t('preview_mode_switch'));
+      list.innerHTML =
+        '<li role="option" data-preview="0">' + esc(t('preview_mode_off')) + '</li>' +
+        '<li role="option" data-preview="1">' + esc(t('preview_mode_on')) + '</li>';
+      wrap.appendChild(idEl); wrap.appendChild(btn); wrap.appendChild(list);
+
+      btn.onclick = () => {
+        const open = wrap.classList.toggle('open');
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      };
+      list.querySelectorAll('li').forEach(li => {
+        li.onclick = () => {
+          this.mapApp.setPreviewMode(li.dataset.preview === '1');   // 會觸發 identityChanged hook，render() 自動跟著更新
+          wrap.classList.remove('open');
+          btn.setAttribute('aria-expanded', 'false');
+        };
+      });
+      document.addEventListener('click', e => {
+        if (wrap.classList.contains('open') && !wrap.contains(e.target)) {
+          wrap.classList.remove('open');
+          btn.setAttribute('aria-expanded', 'false');
+        }
+      });
+      return wrap;
+    }
+
+    // 顯示目前暱稱（未輸入則管理者帶入「管理者」、否則顯示本次匿名預覽名）；解鎖狀態附鎖圖示；
+    // 管理者切成檢視模式時改用眼睛圖示，提醒自己還在「假裝訪客」而不是真的登出
     render() {
       const el = document.getElementById('identity');
       if (!el) return;
       if (this.mapApp.isEmbedMode()) { el.style.display = 'none'; return; }
+      const previewing = this.mapApp.isPreviewMode && this.mapApp.isPreviewMode();
       let name = '';
       try { name = (localStorage.getItem('myName') || '').trim(); } catch (e) {}
       const shown = name || (window.APP.isManager ? t('identity_manager') : this.mapApp.anonName());
       const unlocked = this.mapApp.isUnlocked();
-      el.innerHTML = '<i class="fa-solid ' + (unlocked ? 'fa-user-check' : 'fa-user') + '"></i> ' + esc(shown);
-      el.title = t('identity_title_named', { name: shown }) + (name ? '' : (window.APP.isManager ? t('identity_title_manager_suffix') : t('identity_title_anon_suffix')));
+      const icon = previewing ? 'fa-eye' : (unlocked ? 'fa-user-check' : 'fa-user');
+      el.innerHTML = '<i class="fa-solid ' + icon + '"></i> ' + esc(shown);
+      el.title = t('identity_title_named', { name: shown }) +
+        (previewing ? t('identity_title_preview_suffix') : (name ? '' : (window.APP.isManager ? t('identity_title_manager_suffix') : t('identity_title_anon_suffix'))));
+
+      const list = document.getElementById('idMenuList');
+      if (list) list.querySelectorAll('li').forEach(li => {
+        li.setAttribute('aria-selected', (li.dataset.preview === '1') === previewing ? 'true' : 'false');
+      });
     }
   }
 

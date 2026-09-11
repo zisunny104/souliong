@@ -124,7 +124,9 @@
 #panel .name-in,
 #panel .photo-editor,
 #panel .photo-history,
-#panel #descEditor textarea {
+#panel #descEditor textarea,
+#panel #soundEditor textarea,
+#panel #soundEditor input {
   --fg: var(--fg-base);
   --muted: var(--muted-base);
   color: var(--fg);
@@ -287,7 +289,14 @@
   border-radius: var(--r-md);
   overflow: hidden;
   margin-bottom: 12px;
-  background: var(--bg)
+  background: var(--bg);
+  transition: box-shadow .6s ease, border-color .6s ease
+}
+
+/* 透過 ?entry= 深層連結進來時，捲到這張卡片後短暫高亮提示（見 assets/js/plugins/entry-link.js） */
+.entry.entry-highlight {
+  border-color: #14b8a6;
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, .35)
 }
 
 .entry img {
@@ -383,32 +392,117 @@
   pointer-events: none
 }
 
-/* 音訊直接在卡片上聽：沒有東西好放大，開燈箱反而多一步 */
+/* 音訊直接在卡片上聽：沒有東西好放大，開燈箱反而多一步。播放器本身見下面的 .sl-aplay */
 .sl-prev-audio {
   display: flex;
   align-items: center;
-  gap: 10px;
   padding: 12px;
   background: var(--hover)
 }
 
-.sl-prev-audio .sl-dur {
-  position: static;
-  background: none;
-  color: var(--muted);
-  padding: 0
+/* 通用播放鍵：圓形、半透明底＋輕微毛玻璃，不是整片實色。任何地方要放播放/暫停鍵都掛這顆，
+   不要各自重寫一份——大小只透過 --sl-play-size / --sl-play-icon 兩個變數覆寫（見下面
+   .sl-aplay-btn／sound-player.css 的 .sl-mp-medium-play／.sl-mp-mini-play 怎麼疊）。
+   三角形圖示的視覺重心偏左，用 icon 本身的 margin-left（em 為單位，隨字體大小縮放）補回來，
+   而且只挑 .fa-play 補：切成暫停鍵是 .fa-pause，形狀本身對稱不用補，圖示一切換就自動歸位，
+   不會像固定在按鈕上的 padding 那樣，暫停時反而被推歪。 */
+.sl-play-btn {
+  --sl-play-size: 36px;
+  --sl-play-icon: 0.85rem;
+  flex: none;
+  width: var(--sl-play-size);
+  height: var(--sl-play-size);
+  border-radius: 50%;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--sl-play-icon);
+  background: color-mix(in srgb, var(--accent) 55%, transparent);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: var(--accent-fg);
+  cursor: pointer;
+  transition: background var(--t)
 }
 
-.sl-prev-ico {
-  font-size: 1.1rem;
-  color: var(--muted);
-  flex: none
+.sl-play-btn:hover {
+  background: color-mix(in srgb, var(--accent) 75%, transparent)
 }
 
-.sl-prev-audio audio {
+.sl-play-btn i {
+  pointer-events: none
+}
+
+.sl-play-btn i.fa-play {
+  margin-left: 0.12em
+}
+
+/* 自訂音訊播放器：大顆播放鍵＋進度條，取代瀏覽器原生 <audio controls>（不顯示音量／速度／
+   下載等雜項設定）。卡片牆（.sl-prev-audio 裡）與故事區的主要聲音內容共用同一份樣式；
+   .sl-aplay-lg 是故事區用的放大版，播放鍵要比卡片牆上的更顯眼。 */
+.sl-aplay {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%
+}
+
+.sl-aplay audio {
+  display: none
+}
+
+.sl-aplay-btn {
+  --sl-play-size: 36px;
+  --sl-play-icon: 0.85rem
+}
+
+.sl-aplay-lg .sl-aplay-btn {
+  --sl-play-size: 44px;
+  --sl-play-icon: 1rem
+}
+
+.sl-aplay-main {
   flex: 1;
-  min-width: 0;
-  height: 34px
+  min-width: 0
+}
+
+.sl-aplay-bar {
+  position: relative;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--hover);
+  cursor: pointer;
+  touch-action: none
+}
+
+/* 手機用手指拖拉，視覺細條本身太窄不好點準；用透明的生成內容墊出更大的熱區，不改變外觀 */
+.sl-aplay-bar::before {
+  content: '';
+  position: absolute;
+  inset: -10px 0
+}
+
+.sl-aplay-lg .sl-aplay-bar {
+  height: 8px
+}
+
+.sl-aplay-fill {
+  position: absolute;
+  inset: 0;
+  width: 0;
+  border-radius: inherit;
+  background: var(--accent);
+  pointer-events: none
+}
+
+.sl-aplay-time {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 5px;
+  font-size: 0.6875rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums
 }
 
 /* 文字投稿沒有預覽區，那則文字本身就是內容，不該用留言的尺寸 */
@@ -474,10 +568,36 @@
   white-space: pre-wrap
 }
 
+.story-caption {
+  font-size: 0.8125rem;
+  color: var(--muted);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  margin-top: 10px
+}
+
 .story-by {
   font-size: 0.6875rem;
   color: var(--muted);
   margin-top: 8px
+}
+
+.story-source {
+  font-size: 0.75rem;
+  margin-top: 6px
+}
+
+.story-source a {
+  color: var(--muted)
+}
+
+.story-source-lic {
+  color: var(--muted)
+}
+
+.story-source-lic::before {
+  content: '\00b7';
+  margin: 0 6px
 }
 
 .story-actions {
@@ -487,7 +607,8 @@
   flex-wrap: wrap
 }
 
-#descEditor textarea {
+#descEditor textarea,
+#soundEditor textarea {
   width: 100%;
   border: 1px solid var(--line);
   border-radius: var(--r-md);
@@ -500,6 +621,23 @@
   resize: vertical;
   margin: 10px 0;
   line-height: 1.6
+}
+
+#soundEditor input[type="url"] {
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 10px;
+  font-size: 0.875rem;
+  background: var(--bg);
+  font-family: inherit
+}
+
+/* 錄音鈕／選檔鈕並排；手機寬度不夠時各自換行，避免橫向擠壓到看不清楚 */
+.sl-sndrec {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px
 }
 
 .hist-title {

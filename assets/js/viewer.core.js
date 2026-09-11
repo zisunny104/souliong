@@ -22,7 +22,7 @@ window.MapApp = (() => {
 
   // 這張地圖的投稿設定（由 view.php 依 souliong_contrib_cfg() 算好塞進 APP.contrib）。
   // 舊部署或獨立部署可能沒有這個欄位，退回「只有照片、不能建點」——跟加入多型別之前一樣。
-  const CONTRIB_CFG = Object.assign({ kinds: ['photo'], tabs: ['media'], default: 'media', newPoint: 'off' }, APP.contrib || {});
+  const CONTRIB_CFG = Object.assign({ kinds: ['photo'], tabs: ['media'], default: 'media', newPoint: 'off', primaryKind: '' }, APP.contrib || {});
 
   // 投稿型別在**呈現端**的中繼資料。刻意跟 api/features.php 的註冊表分開：那份管的是
   // 「怎麼收檔案」（受 upload 模組控制、關掉就整套不存在），這份管的是「怎麼顯示」——
@@ -38,6 +38,10 @@ window.MapApp = (() => {
     // 只會出現在所屬地點的投稿牆上。
     text:  { icon: 'fa-align-left',       layer: false, box: 'text'  },
   };
+  // 主要內容型別（如聲音地圖的錄音）：這個型別不進投稿牆，而是取代故事文字、直接當成
+  // 點位本身的主要內容顯示（見 renderEntries() 的 .story 區塊），比照 desc 的角色但換成媒體型別。
+  const PRIMARY_KIND = CONTRIB_CFG.primaryKind || '';
+  const PRIMARY_BOX = PRIMARY_KIND && KINDS[PRIMARY_KIND] ? KINDS[PRIMARY_KIND].box : null;
   // 沒有 kind 的舊記錄一律當照片（多型別上線前所有投稿都是照片）
   const kindOf = (e) => (e && KINDS[e.kind] ? e.kind : 'photo');
   const kindDef = (e) => KINDS[kindOf(e)];
@@ -211,6 +215,19 @@ window.MapApp = (() => {
     emitHook('identityChanged');
     if (current) renderEntries();   // 讓「編輯說明」鈕跟著出現/消失
   }
+  // 管理者「檢視模式」：直接覆寫 APP.isManager 本身，讓所有既有讀 APP.isManager 的地方
+  // （核心與各插件的管理者專屬 UI／CSRF 附加邏輯）不用個別修改，一次翻轉全部一起生效。
+  // 不做持久化，重新整理頁面就回到真實管理者狀態。
+  const REAL_IS_MANAGER = !!APP.isManager;
+  let PREVIEW_MODE = false;
+  function setPreviewMode(on) {
+    if (!REAL_IS_MANAGER || on === PREVIEW_MODE) return;
+    PREVIEW_MODE = on;
+    APP.isManager = on ? false : true;
+    applyPostState();
+    refreshAll();
+    if (current) openPanel(current);
+  }
   // 右上身分指示鈕的點擊行為（觸發上傳捷徑或解鎖流程）：留在核心是因為要用到 MOD/canPost 等私有狀態；
   // 指示鈕本身的渲染／長按換名／解鎖對話框裡的建立身分欄位都在 assets/js/plugins/contributor-identity.js。
   function identityChipClick() { if (!MOD('upload')) return; if (canPost()) { emitHook('identityUploadShortcut'); } else if (APP.gated) { openUnlock(); } }
@@ -231,6 +248,35 @@ window.MapApp = (() => {
     } catch (e) { return { ok: false, msg: t('connection_failed') }; }
   }
   function toast(html) { const t = document.createElement('div'); t.className = 'toast egg'; t.innerHTML = html; document.body.appendChild(t); setTimeout(() => { t.style.opacity = '0'; }, 2200); setTimeout(() => t.remove(), 2800); }
+
+  // 封面快照：管理者檢視時機會性擷圖更新（伺服器端仍會依最小間距與 custom 模式把關，這裡的
+  // 檢查只是避免每次開頁都白白擷圖編碼）。force＝後台「強制刷新」按鈕開的分頁（見 ?snapcover=force），
+  // 略過間距檢查並在完成後跳提示，方便管理者確認新圖真的存進去了。
+  function trySnapshotCover(force) {
+    if (!APP.isManager || !engine || !engine.supportsSnapshot) return;
+    const cov = (APP.meta && APP.meta.cover) || null;
+    if (!force) {
+      if (cov && cov.mode === 'custom') return;
+      if (cov && cov.updatedAt && (Date.now() - Date.parse(cov.updatedAt)) < (APP.coverMinInterval || 3600) * 1000) return;
+    }
+    const dataUrl = engine.getCanvasDataURL('image/jpeg', 0.85);
+    if (!dataUrl) return;
+    const fd = new FormData();
+    fd.append('project', APP.project);
+    fd.append('action', 'auto');
+    if (force) fd.append('force', '1');
+    fd.append('image', dataUrl);
+    fd.append('csrf', APP.csrf || '');
+    fetch(APP.coverUrl, { method: 'POST', body: fd }).then(r => r.json()).then(d => {
+      if (d && d.ok) {
+        APP.meta = APP.meta || {};
+        APP.meta.cover = d.cover || null;
+        if (force) toast('<i class="fa-solid fa-check"></i> ' + esc(t('cover_refresh_done')));
+      } else if (force) {
+        toast('<i class="fa-solid fa-triangle-exclamation"></i> ' + esc(t('cover_refresh_failed')));
+      }
+    }).catch(() => { if (force) toast('<i class="fa-solid fa-triangle-exclamation"></i> ' + esc(t('cover_refresh_failed'))); });
+  }
 
   // 管理 PIN 連結兌換：秘密只透過網址 fragment（#redeem=...&rmode=admin）傳遞，不落地在 query string／伺服器紀錄。
   // 讀出後立刻用 history.replaceState 清掉，避免重新整理或分享網址時重複兌換／外流。
@@ -334,8 +380,8 @@ window.MapApp = (() => {
     const box = document.getElementById('scanBox'); if (box) box.style.display = 'none';
   }
 
-  let META = null, POINTS = [], CATS = [], active = {}, CONTRIB = [], counts = {};
-  let engine = null, photoLayerOn = false, chairsVisible = true;
+  let META = null, POINTS = [], CATS = [], active = {}, CONTRIB = [], counts = {}, audioPoints = new Set(), playingPoints = new Set();
+  let engine = null, photoLayerOn = false;
   let filterPerson = '';
 
   function updateThemeIcon() {
@@ -360,10 +406,12 @@ window.MapApp = (() => {
   function emitHook(name, ...args) { (hookListeners[name] || []).forEach(fn => { try { fn(...args); } catch (err) { console.error('[hook:' + name + ']', err); } }); }
   const photoFilters = [];     // fn(photoEntry, currentPoint) => bool；renderEntries() 的照片清單要 AND 全部通過
   const entriesHintFns = [];   // fn(currentPoint) => HTMLElement|null；renderEntries() 會把回傳的節點插進卡片內容
+  const entryActionFns = [];   // fn(entry) => HTMLElement|null；renderEntries() 會把回傳的節點接在每張投稿卡的操作列（編輯／刪除按鈕）後面
   const scopeParamFns = [];    // fn() => {key: value}|null；插件自己在分享連結／嵌入碼網址上帶的額外參數，讀取時插件自己讀 location.search，不需要核心知道
   const shortcuts = [];        // {key, label}；key 顯示鍵名（例："Esc"／"R"），label 是 i18n 過的說明字串——鍵盤快捷鍵提示彈窗（見 openShortcuts()）照登記順序列出，各檔案自己知道自己註冊了哪個鍵，核心不需要另外維護一份對照表
   function registerPhotoFilter(fn) { photoFilters.push(fn); }
   function registerEntriesHint(fn) { entriesHintFns.push(fn); }
+  function registerEntryAction(fn) { entryActionFns.push(fn); }
   function registerScopeParam(fn) { scopeParamFns.push(fn); }
   function registerShortcut(spec) { shortcuts.push(spec); }
 
@@ -446,8 +494,9 @@ window.MapApp = (() => {
   }
 
   // 哪些記錄是「排在投稿牆上的一則投稿」。desc（地點故事版本）不算，它顯示在故事區；
+  // primaryKind（如聲音地圖的錄音）同理不算，它也顯示在故事區、取代 desc 的角色；
   // point／newpoint 也不算，它們是地點本身而不是掛在地點底下的內容。
-  const isEntry = (e) => !!(e && (KINDS[e.kind] || (!e.kind && e.photo)) && e.kind !== 'desc');
+  const isEntry = (e) => !!(e && (KINDS[e.kind] || (!e.kind && e.photo)) && e.kind !== 'desc' && (!PRIMARY_KIND || e.kind !== PRIMARY_KIND));
 
   // 合併「原始投稿」與其 edit_of 編輯紀錄，算出目前應顯示的內容：
   // 留言/關聯地點/定位取最新一筆編輯，但檔案本身與原始拍攝時間永遠沿用原始那筆（編輯不能換照片/影音檔）。
@@ -455,6 +504,7 @@ window.MapApp = (() => {
     const originals = {}, edits = {};
     CONTRIB.forEach(e => {
       if (e.kind === 'desc' || e.kind === 'point' || e.kind === 'newpoint') return;
+      if (PRIMARY_KIND && e.kind === PRIMARY_KIND) return;
       if (e.edit_of) (edits[e.edit_of] = edits[e.edit_of] || []).push(e);
       // photo 記錄要有圖才算（純留言的照片投稿沿用舊行為不上牆）；其餘型別各有自己的成立條件
       else if (isEntry(e) && (e.photo || e.media || (e.kind === 'text' && e.comment))) originals[e.id] = e;
@@ -511,11 +561,25 @@ window.MapApp = (() => {
   // 不是某個引擎的原生 icon 物件——LeafletEngine／MapLibreEngine 各自決定怎麼把它畫出來。
   function chairIcon(c, count, badgeColor) {
     const badge = count ? '<div class="badge"' + (badgeColor ? ' style="background:' + badgeColor + '"' : '') + '>' + count + '</div>' : '';
-    const cls = 'dot-pin' + (count ? ' has-contrib' : '');
+    // has-audio：這個地點掛了聲音；is-playing：其中一則正在播放，脈衝光暈只在播放中顯示（見 map-markers.css）
+    const cls = 'dot-pin' + (count ? ' has-contrib' : '') + (audioPoints.has(c.num) ? ' has-audio' : '') + (playingPoints.has(c.num) ? ' is-playing' : '');
     return {
       size: [24, 24], anchor: [12, 12],
       html: '<div class="' + cls + '" style="background:' + (c.color || '#888') + '"><span>' + c.num + '</span>' + badge + '</div>'
     };
+  }
+  // 音訊播放狀態切換：只有播放中的地點才顯示標記脈衝，切換時才需要重畫標記層
+  function setPointPlaying(num, playing) {
+    if (num == null) return;
+    const had = playingPoints.has(num);
+    if (playing) playingPoints.add(num); else playingPoints.delete(num);
+    if (had !== playing) renderChairs();
+  }
+  // 一則 <audio> 元素綁定播放狀態事件；卸除時（面板重繪／關閉）要先呼叫 pause() 才會確實觸發 pause 事件
+  function bindAudioPlayState(audioEl, itemNum) {
+    audioEl.addEventListener('play', () => setPointPlaying(itemNum, true));
+    audioEl.addEventListener('pause', () => setPointPlaying(itemNum, false));
+    audioEl.addEventListener('ended', () => setPointPlaying(itemNum, false));
   }
   // 引擎無關的 chairs marker spec 陣列——2D 主地圖跟 map3d.js 的 3D 模式共用同一份，
   // 不要各刻一份（3D 之前自己重畫過一次簡化圓點，見 Part D 整併紀錄）。
@@ -540,7 +604,6 @@ window.MapApp = (() => {
     return specs;
   }
   function renderChairs() {
-    if (!chairsVisible) { engine.clearMarkerLayer('chairs'); return; }
     engine.setMarkerLayer('chairs', chairMarkerSpecs());
   }
   const THUMB_ZOOM = 15;   // ≥ 此縮放顯示縮圖，較遠只顯示小方塊
@@ -606,12 +669,18 @@ window.MapApp = (() => {
     if (!personColorCache[name]) personColorCache[name] = 'hsl(' + Math.floor(Math.random() * 360) + ', 70%, 45%)';
     return personColorCache[name];
   }
-  // 依目前「全部／投稿」模式切換下拉選單的用途：投稿模式列投稿者、全部模式列地點標籤（可跳到任一地點，
-  // 不受地圖上標記可能重疊、點不到的影響）
+  // 依目前「全部／投稿」模式切換下拉選單的用途：投稿模式列投稿者（跟 pointList 模組開關無關，
+  // 一定要用下拉選單，因為選了要記住、重新整理不會跑掉）；全部模式列地點標籤，開了 pointList
+  // 模組時改交給左上角卡片的點位列表（見 renderPointList()），下拉選單本身隱藏。
   function rebuildPersonFilter() {
     const sel = document.getElementById('personFilter');
-    if (!sel) return;
+    const selRow = document.getElementById('personFilterRow');
+    const listBox = document.getElementById('pointList');
+    if (!sel && !listBox) return;
     if (photoLayerOn) {
+      if (listBox) listBox.style.display = 'none';
+      if (selRow) selRow.style.display = '';
+      if (!sel) return;
       sel.title = t('filter_person');
       const names = [...new Set(CONTRIB.filter(e => e.name && (e.photo || e.comment) && !e.edit_of).map(e => e.name))].sort();
       sel.innerHTML = '';
@@ -619,6 +688,9 @@ window.MapApp = (() => {
       sel.appendChild(all);
       names.forEach(n => { const o = document.createElement('option'); o.value = n; o.textContent = n; sel.appendChild(o); });
       sel.value = names.includes(filterPerson) ? filterPerson : '';
+    } else if (listBox) {
+      if (selRow) selRow.style.display = 'none';
+      renderPointList(listBox);
     } else {
       sel.title = t('jump_to_point');
       const pts = effectivePoints().sort((a, b) => a.num - b.num);
@@ -627,6 +699,25 @@ window.MapApp = (() => {
           '<option value="' + p.num + '">' + pad2(p.num) + '｜' + esc(pointName(p)) + (p.area ? '（' + esc(p.area) + '）' : '') + '</option>'
         ).join('');
     }
+  }
+  // pointList 模組：左上角卡片直接列出可點擊的點位，取代「跳到地點」下拉選單（見上方 rebuildPersonFilter()）
+  function renderPointList(box) {
+    const pts = effectivePoints().sort((a, b) => a.num - b.num);
+    box.style.display = '';
+    box.innerHTML = '<div class="sl-point-list-heading">' + esc(t('point_list_heading', { n: pts.length })) + '</div>' +
+      pts.map(p =>
+        '<button type="button" class="sl-point-list-item" data-num="' + p.num + '">' +
+          '<span class="sl-point-list-dot" style="background:' + esc(p.color || '#888') + '"></span>' +
+          '<span class="sl-point-list-label">' + pad2(p.num) + '｜' + esc(pointName(p)) + '</span>' +
+          (p.area ? '<span class="sl-point-list-area">' + esc(p.area) + '</span>' : '') +
+        '</button>'
+      ).join('');
+    box.querySelectorAll('.sl-point-list-item').forEach(btn => {
+      btn.onclick = () => {
+        const pt = effectivePoints().find(p => p.num === +btn.dataset.num);
+        if (pt) { emitHook('panelReset'); openPanel(pt); engine.panTo(pt.lat, pt.lon, { animate: true }); }
+      };
+    });
   }
 
   /* ---------- legend ---------- */
@@ -649,7 +740,7 @@ window.MapApp = (() => {
     });
   }
   function buildLegend() {
-    const legend = document.getElementById('legend'); legend.innerHTML = '';
+    const legend = document.getElementById('legend'); if (!legend) return; legend.innerHTML = '';
     CATS.forEach(c => {
       const el = document.createElement('div'); el.className = 'chip' + (active[c.key] === false ? ' off' : '');
       el.innerHTML = '<span class="dot" style="background:' + esc(c.color) + '"></span>' + esc(c.label);
@@ -754,62 +845,101 @@ window.MapApp = (() => {
   }
   function renderEntries() {
     if (!current) return;
-    const box = document.getElementById('entries'); box.innerHTML = '';
-    const descs = CONTRIB.filter(e => e.item_num === current.num && e.kind === 'desc' && e.comment).sort((a, b) => tv(a) - tv(b));
+    const box = document.getElementById('entries');
+    // 重繪前先暫停舊的播放器：光把節點丟掉不保證觸發 pause 事件，標記的播放脈衝會卡住不消失
+    box.querySelectorAll('audio').forEach(el => { try { el.pause(); } catch (err) {} });
+    box.innerHTML = '';
+    // 版本種類：一般地圖是 desc（改寫故事文字）；設了 primaryKind 的地圖（如聲音地圖）
+    // 改成那個型別本身（如 audio），取代故事文字變成點位的主要內容，兩者共用同一套版本化機制。
+    const versionKind = PRIMARY_KIND || 'desc';
+    const descs = CONTRIB.filter(e => e.item_num === current.num && e.kind === versionKind && !e.edit_of && (e.comment || e.media)).sort((a, b) => tv(a) - tv(b));
     const entries = effectiveEntries().filter(e => e.item_num === current.num && photoFilters.every(f => f(e, current))).sort((a, b) => tv(a) - tv(b));
-    // 版本序列：原始（資料來源為專案自訂的 META.source，例如 StoryMaps）在最舊，之後接使用者編輯版本
+    // 版本序列：原始（資料來源為專案自訂的 META.source，例如 StoryMaps）在最舊，之後接使用者送出的版本。
+    // 這個「原始」只對文字故事有意義——設了 primaryKind 後點位內容本身就是媒體，沒有等價的純文字原始版本。
     const versions = [];
-    if (current.story) versions.push({ name: t('original_source_tag'), comment: current.story, created_at: null, baseline: true });
+    if (!PRIMARY_KIND && current.story) versions.push({ name: t('original_source_tag'), comment: current.story, created_at: null, baseline: true });
     descs.forEach(d => versions.push(d));
     const latest = versions[versions.length - 1];
-    const byLine = latest
+    const hasPrimary = !!PRIMARY_KIND;
+    const isPrimaryAudio = PRIMARY_BOX === 'audio';
+    const byLine = (!hasPrimary && latest)
       ? (latest.baseline ? esc(t('source_label', { src: META.source || META.credit || '' })) : '— ' + esc(latest.name || t('anon_fallback')) + '・' + fmtTime(latest.photo_time || latest.created_at))
       : '';
+    const sourceLic = latest && latest.source_license === 'cc-by' ? 'CC BY' : (latest && latest.source_license === 'cc0' ? 'CC0' : '');
+    let sourceLine = '';
+    if (latest && latest.source_url) {
+      let sourceHost = latest.source_url;
+      try { sourceHost = new URL(latest.source_url).host || sourceHost; } catch (e) {}
+      sourceLine = '<div class="story-source">' + esc(t('field_source_label')) + '：<a href="' + esc(latest.source_url) + '" target="_blank" rel="noopener">' + esc(sourceHost) + '</a>' +
+        (sourceLic ? '<span class="story-source-lic">' + sourceLic + '</span>' : '') +
+        '</div>';
+    }
+
+    // 主要內容本身：一般地圖是故事文字；設了 primaryKind 且型別是音訊時，改成大播放鍵＋進度條的
+    // 自訂播放器（不用瀏覽器原生介面），文字說明（如果有）放在播放器下方當作附註。
+    let bodyHtml;
+    if (isPrimaryAudio && latest && latest.media) {
+      bodyHtml = audioPlayerHtml(entryFullUrl(latest), latest.duration, { big: true }) +
+        (latest.comment ? '<div class="story-caption">' + esc(latest.comment) + '</div>' : '');
+    } else if (latest) {
+      bodyHtml = esc(latest.comment);
+    } else {
+      bodyHtml = '<span class="empty">' + esc(t(isPrimaryAudio ? 'sound_story_empty' : 'story_empty')) + '</span>';
+    }
 
     // 故事 / 說明（版本化，預設只顯示最新版）
     const story = document.createElement('div'); story.className = 'story';
     story.innerHTML =
-      '<div class="story-head">' + esc(t('location_story_title')) + '</div>' +
-      '<div class="story-body">' + (latest ? esc(latest.comment) : '<span class="empty">' + esc(t('story_empty')) + '</span>') + '</div>' +
+      (hasPrimary ? '' : '<div class="story-head">' + esc(t('location_story_title')) + '</div>') +
+      '<div class="story-body">' + bodyHtml + '</div>' +
       (byLine ? '<div class="story-by">' + byLine + '</div>' : '') +
+      sourceLine +
       '<div class="story-actions" id="storyActions">' +
       (!EMBED && versions.length > 1 ? '<button class="btn small" id="histBtn">' + esc(t('history_versions', { n: versions.length })) + '</button>' : '') +
       '</div><div id="descHistory" style="display:none"></div>';
     box.appendChild(story);
+    if (PRIMARY_BOX === 'audio' && latest && latest.media) wireAudioPlayer(story, current.num);
     const hb = story.querySelector('#histBtn'); if (hb) hb.onclick = () => toggleHistory(versions);
 
     // 插件掛勾點：讓插件（例如上傳、依序探索）在照片牆前面插入自己的提示區塊或按鈕（如「上傳照片到這個點」「僅顯示 X 的照片・顯示全部」）
     entriesHintFns.forEach(fn => { const el = fn(current); if (el) box.appendChild(el); });
 
-    // 投稿牆
-    const gwrap = document.createElement('div');
-    gwrap.className = 'gallery';   // 大卡片模式時靠這個 class 排成多欄
-    if (!entries.length) gwrap.innerHTML = '<div class="empty" style="margin-top:12px">' + esc(t('photos_empty')) + '</div>';
-    entries.forEach(e => {
-      const d = document.createElement('div'); d.className = 'entry sl-kind-' + kindOf(e); d.dataset.entryId = e.id;
-      const alt = esc(e.comment || (current.chair || current.theme || t('contrib_photo_alt')));
-      const canEdit = canPost() && (isMine(e) || APP.isManager);
-      // 只有預覽區依型別換掉，底下的 meta／編輯／刪除／歷史四段所有型別完全共用
-      d.innerHTML = entryPreviewHtml(e, alt) + '<div class="meta"><div class="who">' + esc(e.name || t('anon_fallback')) +
-        (e.edited ? ' <span class="edited-tag">' + esc(t('edited_tag')) + '</span>' : '') + '</div>' +
-        '<div class="time">' + fmtTime(e.photo_time || e.created_at) + '</div>' +
-        (e.comment ? '<div class="txt">' + esc(e.comment) + '</div>' : '') +
-        '<div class="entry-actions">' +
-        (canEdit ? '<button class="btn small edit-btn" type="button"><i class="fa-solid fa-pen"></i> ' + esc(t('edit')) + '</button>' : '') +
-        (!EMBED && e.editHistory && e.editHistory.length > 1 ? '<button class="btn small hist-btn" type="button">' + esc(t('history_versions', { n: e.editHistory.length })) + '</button>' : '') +
-        (!EMBED && isMine(e) ? '<button class="del-btn" type="button"><i class="fa-solid fa-trash"></i> ' + esc(t('delete')) + '</button>' : '') + '</div>' +
-        '</div><div class="photo-editor" style="display:none"></div><div class="photo-history" style="display:none"></div>';
-      const open = d.querySelector('.sl-open');   // 文字與音訊沒有這個元素：文字不開燈箱，音訊直接在卡片上聽
-      if (open) {
-        open.onclick = () => openLightbox(e);
-        open.onkeydown = (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openLightbox(e); } };
-      }
-      const del = d.querySelector('.del-btn'); if (del) del.onclick = () => deleteEntry(e.id);
-      const edbtn = d.querySelector('.edit-btn'); if (edbtn) edbtn.onclick = () => togglePhotoEditor(e, d);
-      const hbtn = d.querySelector('.hist-btn'); if (hbtn) hbtn.onclick = () => togglePhotoEditHistory(e, d);
-      gwrap.appendChild(d);
-    });
-    box.appendChild(gwrap);
+    // 投稿牆：只有這張地圖除了主要內容型別外還能投其他型別時才顯示（比照 contribution.js
+    // initTabs() 的判斷方式）——否則投稿牆永遠不會有內容，不該固定顯示「還沒有投稿」空狀態
+    const hasExtraKinds = CONTRIB_CFG.kinds.some(k => k !== PRIMARY_KIND);
+    if (hasExtraKinds) {
+      const gwrap = document.createElement('div');
+      gwrap.className = 'gallery';   // 大卡片模式時靠這個 class 排成多欄
+      if (!entries.length) gwrap.innerHTML = '<div class="empty" style="margin-top:12px">' + esc(t('photos_empty')) + '</div>';
+      entries.forEach(e => {
+        const d = document.createElement('div'); d.className = 'entry sl-kind-' + kindOf(e); d.dataset.entryId = e.id;
+        const alt = esc(e.comment || (current.chair || current.theme || t('contrib_photo_alt')));
+        const canEdit = canPost() && (isMine(e) || APP.isManager);
+        // 只有預覽區依型別換掉，底下的 meta／編輯／刪除／歷史四段所有型別完全共用
+        d.innerHTML = entryPreviewHtml(e, alt) + '<div class="meta"><div class="who">' + esc(e.name || t('anon_fallback')) +
+          (e.edited ? ' <span class="edited-tag">' + esc(t('edited_tag')) + '</span>' : '') + '</div>' +
+          '<div class="time">' + fmtTime(e.photo_time || e.created_at) + '</div>' +
+          (e.comment ? '<div class="txt">' + esc(e.comment) + '</div>' : '') +
+          '<div class="entry-actions">' +
+          (canEdit ? '<button class="btn small edit-btn" type="button"><i class="fa-solid fa-pen"></i> ' + esc(t('edit')) + '</button>' : '') +
+          (!EMBED && e.editHistory && e.editHistory.length > 1 ? '<button class="btn small hist-btn" type="button">' + esc(t('history_versions', { n: e.editHistory.length })) + '</button>' : '') +
+          (!EMBED && isMine(e) ? '<button class="del-btn" type="button"><i class="fa-solid fa-trash"></i> ' + esc(t('delete')) + '</button>' : '') + '</div>' +
+          '</div><div class="photo-editor" style="display:none"></div><div class="photo-history" style="display:none"></div>';
+        const open = d.querySelector('.sl-open');   // 文字與音訊沒有這個元素：文字不開燈箱，音訊直接在卡片上聽
+        if (open) {
+          open.onclick = () => openLightbox(e);
+          open.onkeydown = (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openLightbox(e); } };
+        }
+        if (d.querySelector('.sl-aplay')) wireAudioPlayer(d, e.item_num);
+        const del = d.querySelector('.del-btn'); if (del) del.onclick = () => deleteEntry(e.id);
+        const edbtn = d.querySelector('.edit-btn'); if (edbtn) edbtn.onclick = () => togglePhotoEditor(e, d);
+        const hbtn = d.querySelector('.hist-btn'); if (hbtn) hbtn.onclick = () => togglePhotoEditHistory(e, d);
+        const actions = d.querySelector('.entry-actions');
+        if (actions) entryActionFns.forEach(fn => { const el = fn(e); if (el) actions.appendChild(el); });
+        gwrap.appendChild(d);
+      });
+      box.appendChild(gwrap);
+    }
   }
   // 卡片牆的預覽區。`.sl-open` 是「點了會開燈箱」的標記，只有需要放大／播放的型別才給。
   function entryPreviewHtml(e, alt) {
@@ -828,12 +958,57 @@ window.MapApp = (() => {
         '<span class="sl-play"><i class="fa-solid fa-play"></i></span>' + dur + '</div>';
     }
     if (def.box === 'audio') {
-      // 音訊反過來：沒有東西好放大，直接在卡片上聽最省事（preload=none，捲過不會下載）
-      return '<div class="sl-prev sl-prev-audio">' +
-        '<i class="fa-solid ' + def.icon + ' sl-prev-ico" aria-hidden="true"></i>' +
-        '<audio controls preload="none" src="' + esc(entryFullUrl(e) || '') + '"></audio>' + dur + '</div>';
+      // 音訊反過來：沒有東西好放大，直接在卡片上聽最省事
+      return '<div class="sl-prev sl-prev-audio">' + audioPlayerHtml(entryFullUrl(e), e.duration) + '</div>';
     }
     return '';   // 文字投稿沒有預覽區，內容就是底下 meta 裡的 .txt
+  }
+  // 自訂音訊播放器：大顆播放鍵＋進度條，不用瀏覽器原生介面（沒有音量／速度／下載等雜項設定）。
+  // 卡片牆與故事區的主要聲音內容共用同一個元件；headless 的 <audio> 仍吃 preload=none，捲過不會下載。
+  function audioPlayerHtml(src, dur, opts) {
+    opts = opts || {};
+    return '<div class="sl-aplay' + (opts.big ? ' sl-aplay-lg' : '') + '">' +
+      '<audio preload="none" src="' + esc(src || '') + '"></audio>' +
+      '<button class="sl-play-btn sl-aplay-btn" type="button" aria-label="' + esc(t('play_audio_btn')) + '"><i class="fa-solid fa-play"></i></button>' +
+      '<div class="sl-aplay-main">' +
+        '<div class="sl-aplay-bar"><div class="sl-aplay-fill"></div></div>' +
+        '<div class="sl-aplay-time"><span class="sl-aplay-cur">0:00</span><span class="sl-aplay-dur">' + esc(dur ? fmtDur(dur) : '') + '</span></div>' +
+      '</div></div>';
+  }
+  // 幫一顆 .sl-aplay 接上互動：播放鍵切換、進度條點擊／拖曳定位、目前時間更新；
+  // itemNum 有給值時順便接上 bindAudioPlayState()，讓地圖標記的播放脈衝對這顆播放器也生效。
+  function wireAudioPlayer(root, itemNum) {
+    const wrap = root.querySelector('.sl-aplay'); if (!wrap) return;
+    const audio = wrap.querySelector('audio');
+    const btn = wrap.querySelector('.sl-aplay-btn');
+    const icon = btn.querySelector('i');
+    const bar = wrap.querySelector('.sl-aplay-bar');
+    const fill = wrap.querySelector('.sl-aplay-fill');
+    const curEl = wrap.querySelector('.sl-aplay-cur');
+    const durEl = wrap.querySelector('.sl-aplay-dur');
+    btn.onclick = () => { if (audio.paused) audio.play().catch(() => {}); else audio.pause(); };
+    audio.addEventListener('play', () => { icon.className = 'fa-solid fa-pause'; });
+    audio.addEventListener('pause', () => { icon.className = 'fa-solid fa-play'; });
+    audio.addEventListener('ended', () => { icon.className = 'fa-solid fa-play'; });
+    audio.addEventListener('timeupdate', () => {
+      if (audio.duration) fill.style.width = (audio.currentTime / audio.duration * 100) + '%';
+      curEl.textContent = fmtDur(audio.currentTime);
+    });
+    audio.addEventListener('loadedmetadata', () => { if (!durEl.textContent && audio.duration) durEl.textContent = fmtDur(audio.duration); });
+    let dragging = false;
+    const seek = (clientX) => {
+      const r = bar.getBoundingClientRect();
+      const ratio = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
+      if (!audio.duration) return;
+      audio.currentTime = ratio * audio.duration;
+      fill.style.width = (ratio * 100) + '%';
+      curEl.textContent = fmtDur(audio.currentTime);
+    };
+    bar.addEventListener('pointerdown', ev => { dragging = true; bar.setPointerCapture(ev.pointerId); seek(ev.clientX); });
+    bar.addEventListener('pointermove', ev => { if (dragging) seek(ev.clientX); });
+    bar.addEventListener('pointerup', () => { dragging = false; });
+    if (itemNum != null) bindAudioPlayState(audio, itemNum);
+    return audio;
   }
   const tv = (e) => new Date(e.photo_time || e.created_at).getTime() || 0;
   function chairColorOf(num) { const p = POINTS.find(x => x.num === num); return p ? p.color : '#888'; }
@@ -963,7 +1138,7 @@ window.MapApp = (() => {
           '<div class="hist-item"><div class="hist-meta">' + (i === 0 ? '<b>' + esc(t('latest_tag')) + '</b>・' : '') +
           (d.baseline ? esc(t('original_source_tag')) : esc(d.name || t('anon_fallback')) + '・' + fmtTime(d.photo_time || d.created_at)) +
           (!EMBED && isMine(d) ? ' <button class="del-btn" type="button" data-id="' + esc(d.id) + '">' + esc(t('delete')) + '</button>' : '') + '</div>' +
-          '<div class="hist-txt">' + esc(d.comment) + '</div></div>').join('');
+          '<div class="hist-txt">' + (d.comment ? esc(d.comment) : '<span class="empty">' + esc(t('no_comment')) + '</span>') + '</div></div>').join('');
       el.querySelectorAll('.del-btn[data-id]').forEach(b => b.onclick = () => deleteEntry(b.dataset.id));
     } else { el.style.display = 'none'; el.innerHTML = ''; }
   }
@@ -1010,8 +1185,9 @@ window.MapApp = (() => {
         ? '<video controls autoplay playsinline preload="metadata"' + (poster ? ' poster="' + esc(poster) + '"' : '') +
           ' src="' + esc(nextUrl || '') + '"></video>'
         : '<div class="lb-audio"><i class="fa-solid ' + def.icon + '" aria-hidden="true"></i>' +
-          '<audio controls autoplay preload="metadata" src="' + esc(nextUrl || '') + '"></audio></div>';
+          '<audio controls preload="metadata" src="' + esc(nextUrl || '') + '"></audio></div>';
       lbMedia.style.display = '';
+      if (def.box === 'audio') { const lbAudio = lbMedia.querySelector('audio'); if (lbAudio) bindAudioPlayState(lbAudio, e.item_num); }
     } else {
       lbImg.style.display = '';
       // 換照片時先淡出，避免舊照片在新資訊（姓名/時間/說明）已更新後還被誤認成「已載入完成」
@@ -1084,11 +1260,18 @@ window.MapApp = (() => {
   // 地圖標記角標與「投稿」鈕的數字：所有型別一起算（文字投稿也是一則投稿）
   let contribTotal = 0;
   function recount() {
-    counts = {}; contribTotal = 0;
+    counts = {}; contribTotal = 0; audioPoints = new Set();
     effectiveEntries().forEach(e => {
       contribTotal++;
-      if (e.item_num != null) counts[e.item_num] = (counts[e.item_num] || 0) + 1;
+      if (e.item_num != null) {
+        counts[e.item_num] = (counts[e.item_num] || 0) + 1;
+        if (kindOf(e) === 'audio') audioPoints.add(e.item_num);
+      }
     });
+    // 主要內容型別若是音訊（如聲音地圖的錄音），不算進投稿數，但地圖標記仍要標示「這個點有聲音」
+    if (PRIMARY_BOX === 'audio') {
+      CONTRIB.forEach(e => { if (e.kind === PRIMARY_KIND && e.item_num != null) audioPoints.add(e.item_num); });
+    }
     updatePhotoBtn();
   }
   // 供插件在自己完成一次會影響地圖/清單顯示的動作（例如上傳、建立地點）後，一次重繪所有受影響的畫面。
@@ -1131,7 +1314,8 @@ window.MapApp = (() => {
     META = APP.meta || await fetch(APP.base + 'projects/' + PROJECT + '/meta.json').then(r => r.json());
     POINTS = APP.points || await fetch(APP.base + 'projects/' + PROJECT + '/' + (META.points || 'points.json')).then(r => r.json());
     document.title = (META.title || t('map_title_fallback')) + (META.subtitle ? '・' + META.subtitle : '');
-    document.getElementById('titleTxt').textContent = (META.title || t('map_title_fallback')) + (META.subtitle ? '・' + META.subtitle : '');
+    document.getElementById('titleTxt').textContent = META.title || t('map_title_fallback');
+    document.getElementById('titleSub').textContent = META.subtitle ? '・' + META.subtitle : '';
     // 資料來源連結（meta.sources = [{label,url}]，可展開看原始 StoryMaps）與原始單位署名（meta.credit）
     var srcLinks = '';
     if (Array.isArray(META.sources) && META.sources.length) {
@@ -1171,6 +1355,13 @@ window.MapApp = (() => {
     renderChairs();
     if (POINTS.length) engine.fitBounds(POINTS.map(c => [c.lat, c.lon]), { pad: 0.08 });
 
+    // 封面快照要等圖磚真的畫完才擷圖，不然存到的是半載入的畫面；只有 MapLibre 引擎有 'idle' 事件
+    // 可等（見 engine.supportsSnapshot），Leaflet 專案這裡什麼都不會發生。
+    if (engine.supportsSnapshot) {
+      const forceSnap = new URLSearchParams(location.search).get('snapcover') === 'force';
+      engine.getRawMap().once('idle', () => trySnapshotCover(forceSnap));
+    }
+
     // 暱稱隱藏欄位（單一真實來源；與上傳視窗 #modalName 的同步交給 contribution-upload.js 自己處理）
     const myName = document.getElementById('myName');
     myName.value = localStorage.getItem('myName') || '';
@@ -1188,17 +1379,6 @@ window.MapApp = (() => {
       feature('theme');
     };
     if (window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (themeMode === 'system' && engine) engine.applyTheme(isDark()); });
-
-    // 地點圖示顯示／隱藏：純檢視期間的畫面偏好，不記憶、重新整理就回到預設顯示
-    const pvBtn = document.getElementById('pointsVisBtn');
-    if (pvBtn) {
-      pvBtn.onclick = () => {
-        chairsVisible = !chairsVisible;
-        pvBtn.querySelector('i').className = chairsVisible ? 'fa-solid fa-eye' : 'fa-solid fa-eye-slash';
-        pvBtn.setAttribute('aria-pressed', chairsVisible ? 'false' : 'true');
-        renderChairs();
-      };
-    }
 
     // 語言切換（手動覆寫）：客製化下拉（原生 select 選單樣式無法跟主題搭配），選了哪個就切哪個，
     // 帶著目前網址參數整頁重新載入，讓伺服器端重新解析並寫入 lang cookie
@@ -1242,28 +1422,32 @@ window.MapApp = (() => {
     if (peBtn) peBtn.onclick = togglePointEditor;
 
     // 全部點位／投稿：互斥的顯示模式，預設「全部」；?contrib=1（嵌入用）或曾記住的投稿者篩選可預設改成「投稿」
+    // apb/plb 不存在＝這張地圖關了 contribBrowse 模組（見 api/features.php），photoLayerOn 永遠留在
+    // 預設值 false，行為等同一直停在「全部」模式；#personFilter 仍會渲染，只是只剩「跳到地點」用途。
     const apb = document.getElementById('allPointsBtn'), plb = document.getElementById('photoLayerBtn');
-    function setContribMode(on, opts) {
-      photoLayerOn = on;
-      plb.classList.toggle('on', on);
-      apb.classList.toggle('on', !on);
-      document.body.classList.toggle('focus-contrib', on);
-      if (!on) filterPerson = '';   // 切回「全部」時，下拉選單改用途（跳到地點），投稿者篩選狀態一併清掉
-      rebuildPersonFilter();
-      renderContribLayer();
-      if (on && !(opts && opts.silent)) feature('photos');
-      renderChairs(); emitHook('stateChange');
+    if (apb && plb) {
+      function setContribMode(on, opts) {
+        photoLayerOn = on;
+        plb.classList.toggle('on', on);
+        apb.classList.toggle('on', !on);
+        document.body.classList.toggle('focus-contrib', on);
+        if (!on) filterPerson = '';   // 切回「全部」時，下拉選單改用途（跳到地點），投稿者篩選狀態一併清掉
+        rebuildPersonFilter();
+        renderContribLayer();
+        if (on && !(opts && opts.silent)) feature('photos');
+        renderChairs(); emitHook('stateChange');
+      }
+      apb.onclick = function () { if (photoLayerOn) setContribMode(false); };
+      plb.onclick = function () { if (!photoLayerOn) setContribMode(true); };
+      const personPrefKey = 'filterPerson_' + PROJECT;
+      let savedPerson = ''; try { savedPerson = localStorage.getItem(personPrefKey) || ''; } catch (e) {}
+      // ?contributor=<name>（分享／嵌入帶入的指定投稿者）優先於本機記住的篩選，但不落地存到 localStorage，
+      // 避免別人分享的連結覆蓋掉這台裝置本來記住的篩選對象
+      const urlPerson = params.get('contributor') || '';
+      if (urlPerson) filterPerson = urlPerson;
+      else if (savedPerson) filterPerson = savedPerson;
+      setContribMode(params.get('contrib') === '1' || !!filterPerson, { silent: true });
     }
-    apb.onclick = function () { if (photoLayerOn) setContribMode(false); };
-    plb.onclick = function () { if (!photoLayerOn) setContribMode(true); };
-    const personPrefKey = 'filterPerson_' + PROJECT;
-    let savedPerson = ''; try { savedPerson = localStorage.getItem(personPrefKey) || ''; } catch (e) {}
-    // ?contributor=<name>（分享／嵌入帶入的指定投稿者）優先於本機記住的篩選，但不落地存到 localStorage，
-    // 避免別人分享的連結覆蓋掉這台裝置本來記住的篩選對象
-    const urlPerson = params.get('contributor') || '';
-    if (urlPerson) filterPerson = urlPerson;
-    else if (savedPerson) filterPerson = savedPerson;
-    setContribMode(params.get('contrib') === '1' || !!filterPerson, { silent: true });
 
     // 下拉選單依模式切換用途：「投稿」模式＝篩選投稿者（看他的觀察地圖，選擇會記住，重新整理不會跑掉）；
     // 「全部」模式＝跳到指定地點標籤（不是持續篩選，選完會自動重置）
@@ -1531,7 +1715,7 @@ window.MapApp = (() => {
     closePanel, togglePanelSize, openLightbox, closeLightbox, closePin, closeUnlock, closeAdminRedeem,
     extLinkProceed, closeExtLinkDialog, openShortcuts, closeShortcuts,
     // ---- 選用插件掛勾點 API（見 souliong/docs/EXTENDING.md）----
-    onHook, registerPhotoFilter, registerEntriesHint, registerScopeParam, registerShortcut,
+    onHook, registerPhotoFilter, registerEntriesHint, registerEntryAction, registerScopeParam, registerShortcut,
     personTimeline, pointTitle, photoFullUrl, openPanel, openUnlock, refreshEntries: renderEntries,
     refreshPersonFilter: rebuildPersonFilter,
     // 正式的引擎存取介面，回傳 MapEngine 抽象基底的實例（見 docs/EXTENDING.md）。
@@ -1539,12 +1723,16 @@ window.MapApp = (() => {
     getFilterPerson: () => filterPerson, isPhotoLayerOn: () => photoLayerOn,
     getCurrentPoint: () => current,
     isUnlocked, isEmbedMode: () => EMBED,
+    canTogglePreview: () => REAL_IS_MANAGER, isPreviewMode: () => PREVIEW_MODE, setPreviewMode,
     hasIdentity: () => !!contribToken(),
     trackFeature: feature, currentScopeParams, getProjectId: () => PROJECT,
     // effectivePhotos／photoFullUrl 是「只有照片」的那份，route-tour／person-explore 兩個插件在用
     // （那些畫面只處理得了 <img>）；要拿到全部型別的投稿請用 effectiveEntries + entryFullUrl。
     effectivePhotos, effectiveEntries, entryFullUrl, entryThumbUrl, effectivePoints, chairMarkerSpecs,
     kindOf, contribCfg: () => CONTRIB_CFG, fmtDur,
+    // 自訂聲音播放器元件（大播放鍵＋進度條，取代預設 <audio controls>）：故事區、投稿卡片預覽共用，
+    // 供插件（如 sound-editor.js 錄音後的即時試聽）也能用同一套外觀，見 renderEntries() 內的用法。
+    audioPlayerHtml, wireAudioPlayer,
     personColor, toast,
     displayName, anonName: () => SESSION_ANON, submitContribution, submitNewPoint,
     rerollAnon, identityChipClick,

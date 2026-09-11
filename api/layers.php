@@ -386,3 +386,52 @@ function souliong_layer_rmtree(string $dir, string $root): bool
     }
     return !is_dir($rd);
 }
+
+/**
+ * 版權標註（PHP 端）：跟 assets/js/engine/map-engine.js 的 creditHtml()／creditListHtml() 是
+ * 同一套規則、同一份資料形狀（layer.json 的 attribution: [{text,url,copyright,suffix}]）——
+ * 只有 copyright:true 的項目才加 &copy;，suffix 支援 {key} 形式的 i18n 代換。兩邊分別存在是因為
+ * PHP 頁面（pages/landing.php）沒有載入前端地圖引擎，執行環境不同、共用不了同一份函式；
+ * 但規則要對得起來，改動一邊記得另一邊也要跟著改。
+ */
+function souliong_credit_i18n_sub(string $s, array $DICT): string
+{
+    return preg_replace_callback('/\{([a-z0-9_]+)\}/i', fn(array $m): string => i18n_t($DICT, $m[1]), $s);
+}
+
+/** 單一署名項目（{text,url,copyright,suffix}）轉成一段 HTML。 */
+function souliong_credit_html(?array $part, array $DICT): string
+{
+    if (!$part) {
+        return '';
+    }
+    $text = htmlspecialchars(souliong_credit_i18n_sub((string)($part['text'] ?? ''), $DICT), ENT_QUOTES, 'UTF-8');
+    $body = !empty($part['url'])
+        ? '<a href="' . htmlspecialchars((string)$part['url'], ENT_QUOTES, 'UTF-8') . '" target="_blank" rel="noopener">' . $text . '</a>'
+        : $text;
+    $suffix = !empty($part['suffix'])
+        ? ' ' . htmlspecialchars(souliong_credit_i18n_sub((string)$part['suffix'], $DICT), ENT_QUOTES, 'UTF-8')
+        : '';
+    return (!empty($part['copyright']) ? '&copy;&nbsp;' : '') . $body . $suffix;
+}
+
+/** attribution 陣列（新格式）或純字串（管理端手打舊格式，沿用相容）整串轉成 HTML。 */
+function souliong_credit_list_html($attribution, array $DICT): string
+{
+    if (!is_array($attribution)) {
+        return htmlspecialchars(souliong_credit_i18n_sub((string)$attribution, $DICT), ENT_QUOTES, 'UTF-8');
+    }
+    $parts = array_filter(array_map(fn($p) => souliong_credit_html(is_array($p) ? $p : null, $DICT), $attribution));
+    return implode(' &middot; ', $parts);
+}
+
+/** 這組圖層裡只要有向量圖層，主引擎署名就換成 MapLibre；判斷方式跟 view.php 的 $primaryEngine 一致。 */
+function souliong_engine_credit(array $layers): array
+{
+    foreach ($layers as $l) {
+        if (($l['type'] ?? '') === 'vector') {
+            return ['text' => 'MapLibre', 'url' => 'https://maplibre.org'];
+        }
+    }
+    return ['text' => 'Leaflet', 'url' => 'https://leafletjs.com'];
+}

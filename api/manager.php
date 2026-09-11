@@ -8,6 +8,7 @@ require __DIR__ . '/features.php';
 require_once __DIR__ . '/packs.php';
 require_once __DIR__ . '/layers.php';     // 地圖圖層註冊表（底圖／疊圖），形狀同 packs.php
 require_once __DIR__ . '/regions3d.php';  // 3D 自訂模型區域註冊表，形狀同上，見 api/region3d.php
+require_once __DIR__ . '/coverlib.php';   // 封面／地圖快照的存檔邏輯，與 api/cover.php 共用
 require_once __DIR__ . '/routes.php';    // 網址表：後台網址只有這一份定義，不在各處黏字串
 require_once __DIR__ . '/settings.php';   // packs.php 內部也會載它，兩邊都用 require_once 才不會重複宣告
 require __DIR__ . '/../pages/error.php';
@@ -1266,6 +1267,46 @@ if (!$authed) {
           exit;
         }
 
+        // ── 封面圖片：上傳／重設共用同一套存檔邏輯（api/coverlib.php），跟前台自動快照
+        //    （api/cover.php）寫的是同一份檔案。手動上傳一律存 mode=custom，理由見 coverlib.php。 ──
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'coverupload') {
+          need_csrf($csrf);
+          $cp = clean_id($_POST['project'] ?? '');
+          $backTo = Route::manager($scopeProject !== '' ? $cp : '', 'access');
+          if ($cp === '' || !$canProject($cp)) {
+            error_page(403, $t('no_permission_title'), $t('no_permission_msg'), $backTo, $t('back_to_admin'));
+          }
+          $cmf = $cfg['projects_dir'] . '/' . $cp . '/meta.json';
+          $cbase = project_dir($cfg, $cp) . '/cover';
+          $cmeta = is_file($cmf) ? json_decode((string)@file_get_contents($cmf), true) : [];
+          if (!is_array($cmeta)) $cmeta = [];
+          if (isset($_FILES['cover']) && $_FILES['cover']['error'] === UPLOAD_ERR_OK) {
+            $bytes = @file_get_contents($_FILES['cover']['tmp_name']);
+            if ($bytes !== false) {
+              $r = cover_apply_bytes($cfg, $cbase, $cmf, $cmeta, $bytes, 'custom');
+              if ($r['ok']) audit_log($cfg, $auditWho(), 'cover_upload', $cp, '');
+            }
+          }
+          header('Location: ' . $backTo);
+          exit;
+        }
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'coverreset') {
+          need_csrf($csrf);
+          $cp = clean_id($_POST['project'] ?? '');
+          $backTo = Route::manager($scopeProject !== '' ? $cp : '', 'access');
+          if ($cp === '' || !$canProject($cp)) {
+            error_page(403, $t('no_permission_title'), $t('no_permission_msg'), $backTo, $t('back_to_admin'));
+          }
+          $cmf = $cfg['projects_dir'] . '/' . $cp . '/meta.json';
+          $cbase = project_dir($cfg, $cp) . '/cover';
+          $cmeta = is_file($cmf) ? json_decode((string)@file_get_contents($cmf), true) : [];
+          if (!is_array($cmeta)) $cmeta = [];
+          cover_apply_reset($cbase, $cmf, $cmeta);
+          audit_log($cfg, $auditWho(), 'cover_reset', $cp, '');
+          header('Location: ' . $backTo);
+          exit;
+        }
+
         // ── 圖層的解析：刪除與就地編輯共用。刻意用「作用域對應的那個 root」而不是
         //    souliong_layer_dir()——後者同名時會偏好專案層，用在這裡的話，想刪全站層卻剛好有
         //    同名專案層時就會刪錯一邊。權限規則與 layerimport 相同：圖層住哪，權限就跟到哪。 ──
@@ -1919,6 +1960,42 @@ if (!$authed) {
       width: 1rem;
       height: 1rem;
       flex: none
+    }
+
+    /* 封面預覽：固定 16:9，圖讀不到（尚未有封面）時 onerror 幫 .cov-preview 掛上 .cov-empty，
+       改顯示置中圖示，不留一個破圖示的瀏覽器預設樣式。 */
+    .cov-preview {
+      position: relative;
+      width: 100%;
+      max-width: 320px;
+      aspect-ratio: 16 / 9;
+      border: 1px solid var(--line);
+      border-radius: var(--r-sm);
+      overflow: hidden;
+      background: var(--bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .cov-preview img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .cov-preview .cov-empty-icon {
+      display: none;
+      font-size: 1.75rem;
+      color: var(--muted);
+    }
+
+    .cov-preview.cov-empty img {
+      display: none;
+    }
+
+    .cov-preview.cov-empty .cov-empty-icon {
+      display: block;
     }
 
     .lymove {
@@ -3439,6 +3516,48 @@ if (!$authed) {
                   <input type="file" name="layer" accept=".zip" required hidden onchange="this.parentNode.querySelector('[data-file]').textContent=this.files[0]?this.files[0].name:<?= json_encode(i18n_t($DICT, 'choose_zip_btn'), JSON_UNESCAPED_UNICODE) ?>"></label>
                 <label style="display:inline-flex;align-items:center;gap:6px;font-size:0.8125rem"><input type="checkbox" name="overwrite" value="1"> <?= $t('layer_import_overwrite_label') ?></label>
                 <button class="btn"><i class="fa-solid fa-upload"></i> <?= $t('restore_btn') ?></button>
+              </form>
+              <div class="dlgactions">
+                <button type="button" class="btn" onclick="this.closest('dialog').close()"><?= $t('close') ?></button>
+              </div>
+            </div>
+          </dialog>
+          <?php
+            // 這張地圖的主引擎：直接呼叫跟 pages/view.php 相同的 souliong_layers_for()，
+            // 而不是用上面圖層挑選器的 $layCur——$layCur 只放 meta.json 明講的那幾筆，沒明講
+            // （跟全站預設圖層）的專案會是空陣列，就看不出其實在吃向量底圖。只有 MapLibre 才能
+            // 在前台擷圖，Leaflet 專案這裡不給「強制刷新」入口，只能靠管理者自訂上傳。
+            $pEngine = 'leaflet';
+            foreach (souliong_layers_for($cfg, $meta, $p) as $lm) {
+              if (($lm['type'] ?? '') === 'vector') { $pEngine = 'maplibre'; break; }
+            }
+          ?>
+          <button type="button" class="btn" onclick="document.getElementById('covdlg-<?= $esc($p) ?>').showModal()"><i class="fa-solid fa-image"></i> <?= $t('cover_heading') ?></button>
+          <dialog id="covdlg-<?= $esc($p) ?>" class="metadlg" onclick="if(event.target===this)this.close()">
+            <div class="metaform">
+              <h3><i class="fa-solid fa-image"></i> <?= $t('cover_heading') ?></h3>
+              <div class="hint"><?= $t('cover_hint') ?></div>
+              <div class="cov-preview">
+                <img src="<?= $esc(Route::api('cover', ['project' => $p])) ?>" alt="" onerror="this.closest('.cov-preview').classList.add('cov-empty')">
+                <div class="cov-empty-icon"><i class="fa-solid fa-map-location-dot"></i></div>
+              </div>
+              <form method="post" enctype="multipart/form-data" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px">
+                <input type="hidden" name="csrf" value="<?= $esc_csrf ?>"><input type="hidden" name="action" value="coverupload"><input type="hidden" name="project" value="<?= $esc($p) ?>">
+                <label class="btn" style="cursor:pointer"><i class="fa-solid fa-folder-open"></i> <span data-file><?= $t('choose_image_btn') ?></span>
+                  <input type="file" name="cover" accept="image/*" required hidden onchange="this.parentNode.querySelector('[data-file]').textContent=this.files[0]?this.files[0].name:<?= json_encode(i18n_t($DICT, 'choose_image_btn'), JSON_UNESCAPED_UNICODE) ?>"></label>
+                <button class="btn"><i class="fa-solid fa-upload"></i> <?= $t('cover_upload_btn') ?></button>
+              </form>
+              <div class="row" style="margin:10px 0;gap:10px;flex-wrap:wrap;align-items:center">
+                <?php if ($pEngine === 'maplibre'): ?>
+                <a class="btn" href="<?= $esc(Route::map($p) . '?snapcover=force') ?>" target="_blank" rel="noopener"><i class="fa-solid fa-camera-rotate"></i> <?= $t('cover_force_refresh_btn') ?></a>
+                <span class="hint"><?= $t('cover_force_refresh_hint') ?></span>
+                <?php else: ?>
+                <span class="hint"><i class="fa-solid fa-circle-info"></i> <?= $t('cover_no_snapshot_msg') ?></span>
+                <?php endif; ?>
+              </div>
+              <form method="post" onsubmit="return confirm(<?= $esc(json_encode($tr('cover_reset_confirm'), JSON_UNESCAPED_UNICODE)) ?>)">
+                <input type="hidden" name="csrf" value="<?= $esc_csrf ?>"><input type="hidden" name="action" value="coverreset"><input type="hidden" name="project" value="<?= $esc($p) ?>">
+                <button class="btn danger"><i class="fa-solid fa-rotate-left"></i> <?= $t('cover_reset_btn') ?></button>
               </form>
               <div class="dlgactions">
                 <button type="button" class="btn" onclick="this.closest('dialog').close()"><?= $t('close') ?></button>

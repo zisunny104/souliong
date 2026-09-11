@@ -58,6 +58,13 @@ switch ($action) {
     case 'appasset':
         require __DIR__ . '/api/appasset.php';   // 第一方 CSS／JS 靜態資源：<base>?api=appasset&f=...
         return;
+    case 'cover':
+        // 只在真的有路徑段時才覆寫：POST 時 project 是夾在表單裡的（見 api/cover.php 的
+        // $_GET['project'] ?? $_POST['project'] ?? ''），這裡若像其他 case 一樣強制補一個
+        // 空字串，會讓那個 ?? 永遠命中這個空字串、吃不到 POST 過來的值。
+        if (isset($seg[1])) $_GET['project'] = $seg[1];
+        require __DIR__ . '/api/cover.php';   // 專案封面／地圖快照：GET 輸出圖檔，POST 限管理者 upload/auto/reset
+        return;
     case 'delete':
         require __DIR__ . '/api/delete.php';
         return;

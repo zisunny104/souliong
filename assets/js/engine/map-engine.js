@@ -134,6 +134,13 @@ window.MapEngine = (() => {
     get supports3D() { return false; }
     enter3D(cfg) {}
     exit3D() {}
+
+    // ---- 快照擷圖（供封面圖片自動產生用，見 api/cover.php）----
+    // 並非每個引擎都能擷出單張畫面：Leaflet 是多張 <img> 拼貼的 DOM/圖磚渲染，沒有單一 canvas
+    // 可讀；MapLibre 是 WebGL 單一 canvas，才覆寫成真的能擷圖。不支援的引擎回傳 null，呼叫端
+    // （viewer.core.js）據此完全跳過自動快照，該專案改為僅能由管理者自訂上傳封面。
+    get supportsSnapshot() { return false; }
+    getCanvasDataURL() { return null; }
   }
 
   MapEngine.buildCredit = buildCredit;

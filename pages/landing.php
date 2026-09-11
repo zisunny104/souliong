@@ -1,6 +1,6 @@
 <?php
 /**
- * Souliong 地圖清單首頁。背景為隨機一張地圖（不可互動），內容浮在其上。
+ * Souliong 地圖清單首頁。背景為固定的裝飾地圖（不可互動，中心點見 api/config.php 的 landing_bg_center），內容浮在其上。
  */
 $cfg = include __DIR__ . '/../config.php';
 require_once __DIR__ . '/../api/settings.php';
@@ -10,9 +10,18 @@ $randomExplore = souliong_random_explore_on($apiCfg);
 [$LANG, $DICT] = i18n_init();
 $t = fn(string $key, array $vars = []): string => htmlspecialchars(i18n_t($DICT, $key, $vars), ENT_QUOTES);
 require_once __DIR__ . '/../api/routes.php';   // 網址表：掛載根目錄的算法只有這一份（見 api/routes.php）
+require_once __DIR__ . '/../api/layers.php';   // 版權標註共用函式（souliong_credit_html 等）＋圖層解析
 $base = Route::base();
 
 $maps = [];
+// 全站版權區塊：跨所有專案，把「實際用得到」的圖層署名＋引擎署名去重合併，
+// 不是寫死列出全部已知服務——沒有專案在用的圖磚／引擎不該出現在這裡。
+// 每個專案自己頁面上的版權角標（in-map attribution）維持只顯示自己那份，互不影響。
+$creditParts = [];
+$addCredit = function (?array $part) use (&$creditParts, $DICT) {
+    $html = souliong_credit_html($part, $DICT);
+    if ($html !== '' && !in_array($html, $creditParts, true)) $creditParts[] = $html;
+};
 // 用 scandir 而不是 glob()：glob 會把路徑裡的中括號當成「字元集合」樣式，
 // 安裝在含中括號的目錄下（例如 .../亞洲大學[Asia University]/...）時整個樣式一個檔案都對不到，
 // 首頁就會在明明有地圖的情況下顯示「尚未有地圖」。這裡只是逐一列目錄，沒有比對樣式的需要。
@@ -30,11 +39,22 @@ foreach (scandir($projectsDir) ?: [] as $entry) {
         'desc' => $m['desc'] ?? '',
         'center' => $m['center'] ?? [23.9, 120.7],
         'zoom' => $m['zoom'] ?? 14,
+        'cover' => is_array($m['cover'] ?? null) ? $m['cover'] : null,
     ];
+    $layers = souliong_layers_for($apiCfg, $m, $entry);
+    foreach ($layers as $l) {
+        $attr = $l['attribution'] ?? null;
+        if (is_array($attr)) { foreach ($attr as $part) { if (is_array($part)) $addCredit($part); } }
+    }
+    if ($layers) $addCredit(souliong_engine_credit($layers));
 }
 $b = htmlspecialchars($base, ENT_QUOTES);
 $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
-$bg = $maps ? $maps[array_rand($maps)] : ['center' => [23.9, 120.7], 'zoom' => 14];
+$bg = [
+    'center' => $apiCfg['landing_bg_center'] ?? [23.9, 120.7],
+    'zoom'   => $apiCfg['landing_bg_zoom'] ?? 14,
+    'offset' => $apiCfg['landing_bg_offset'] ?? [0, 0],
+];
 ?><!DOCTYPE html>
 <html lang="<?= $LANG === 'en' ? 'en' : 'zh-Hant' ?>">
 <head>
@@ -50,7 +70,7 @@ $bg = $maps ? $maps[array_rand($maps)] : ['center' => [23.9, 120.7], 'zoom' => 1
 body{margin:0;font-family:system-ui,sans-serif;background:var(--bg);color:var(--fg);-webkit-font-smoothing:antialiased;min-height:100vh}
 #bgmap{position:fixed;inset:0;z-index:0;pointer-events:none}
 .scrim{position:fixed;inset:0;z-index:1;background:var(--scrim);-webkit-backdrop-filter:blur(1.5px);backdrop-filter:blur(1.5px)}
-.page{position:relative;z-index:2}
+.page{position:relative;z-index:2;display:flex;flex-direction:column;min-height:100vh}
 .wrap{max-width:940px;margin:0 auto;padding:0 20px 24px}
 header{text-align:center;padding:60px 20px 26px}
 header .logo{font-size:2rem;font-weight:800;letter-spacing:-.02em}
@@ -62,13 +82,14 @@ header .tag{color:var(--muted);font-size:0.875rem;margin-top:10px;line-height:1.
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:18px;margin-top:26px}
 .card{display:flex;flex-direction:column;text-decoration:none;color:inherit;background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);overflow:hidden;transition:transform .16s,box-shadow .16s;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
 .card:hover{transform:translateY(-3px);box-shadow:0 16px 44px rgba(0,0,0,.18)}
-.card .cover{height:120px;display:flex;align-items:center;justify-content:center;font-size:2.5rem;color:#fff;background:linear-gradient(135deg,#2e9e5b,#2f7ec6 55%,#e34a6f)}
+.card .cover{height:120px;display:flex;align-items:center;justify-content:center;font-size:2.5rem;color:#fff;background:linear-gradient(135deg,#2e9e5b,#2f7ec6 55%,#e34a6f);overflow:hidden}
+.card .cover img{width:100%;height:100%;object-fit:cover}
 .card .body{padding:16px 18px}
 .card h2{margin:0 0 3px;font-size:1.125rem;font-weight:800}
 .card .st{color:var(--muted);font-size:0.7813rem;margin-bottom:9px}
 .card .desc{font-size:0.8125rem;line-height:1.6}
 .empty{text-align:center;color:var(--muted);padding:50px;font-size:0.875rem}
-footer{text-align:center;color:var(--muted);font-size:0.75rem;padding:22px;line-height:1.8}
+footer{text-align:center;color:var(--muted);font-size:0.75rem;padding:22px;line-height:1.8;margin-top:auto}
 footer a{color:inherit}
 .langsw{position:fixed;top:16px;right:16px;z-index:3;display:flex;gap:2px;font-size:0.75rem}
 .langsw a{color:var(--muted);text-decoration:none;padding:4px 8px;border-radius:999px}
@@ -104,7 +125,7 @@ footer a{color:inherit}
     <div class="grid">
       <?php foreach ($maps as $m): ?>
         <a class="card" href="<?= $b . $esc($m['id']) ?>">
-          <div class="cover"><i class="fa-solid fa-map-location-dot"></i></div>
+          <div class="cover"><?php if ($m['cover']): ?><img src="<?= $esc(Route::api('cover', ['project' => $m['id']])) ?>" alt="" loading="lazy"><?php else: ?><i class="fa-solid fa-map-location-dot"></i><?php endif; ?></div>
           <div class="body"><h2><?= $esc($m['title']) ?></h2><div class="st"><?= $esc($m['subtitle']) ?></div><div class="desc"><?= $esc($m['desc']) ?></div></div>
         </a>
       <?php endforeach; ?>
@@ -113,13 +134,10 @@ footer a{color:inherit}
 </div>
 <footer>
   <div class="cr-line">
-    <span class="cr-ext">
-      &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> <?= $t('osm_contributors') ?>
-      ・ <a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a>
-      ・ <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a>
-      ・ <a href="https://maplibre.org" target="_blank" rel="noopener">MapLibre</a>
-    </span>
+    <?php if ($creditParts): ?>
+    <span class="cr-ext"><?= implode(' &middot; ', $creditParts) ?></span>
     <span class="cr-sep" aria-hidden="true"></span>
+    <?php endif; ?>
     <span class="cr-own">
       <a href="https://github.com/zisunny104/souliong" target="_blank" rel="noopener"><i class="fa-brands fa-github"></i> GitHub</a>
       ・ <a href="<?= $b ?>">Souliong</a>
@@ -175,11 +193,17 @@ function slBgStyle(dark) {
 
 var mq = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
 var center = BG.center || [23.9, 120.7];
+var lngLat = [center[1], center[0]];
 var map = new maplibregl.Map({
   container: 'bgmap', style: slBgStyle(!!(mq && mq.matches)),
-  center: [center[1], center[0]], zoom: BG.zoom || 14,
+  center: lngLat, zoom: BG.zoom || 14,
   interactive: false, attributionControl: false,
 });
+// offset：把中心點在畫面上往上推，理由見 api/config.php 的 landing_bg_offset 註解——
+// 建構子的 center 只會落在容器正中央，要偏移得靠 jumpTo() 的 CameraOptions.offset 重新對一次。
+if (BG.offset && (BG.offset[0] || BG.offset[1])) {
+  map.jumpTo({ center: lngLat, zoom: BG.zoom || 14, offset: BG.offset });
+}
 if (mq && mq.addEventListener) mq.addEventListener('change', function (e) { map.setStyle(slBgStyle(e.matches)); });
 
 var rb = document.getElementById('randomBtn');

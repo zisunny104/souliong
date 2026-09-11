@@ -1,6 +1,6 @@
 <?php
 // POST upload.php  (multipart/form-data)
-// 共同欄位：project, item_num, kind, name, comment, photo_time(ISO), lat, lon, loc_source
+// 共同欄位：project, item_num, kind, name, comment, source_url, photo_time(ISO), lat, lon, loc_source
 // 依 kind 而不同的檔案欄位（見 features.php 的 souliong_kinds()）：
 //   photo → photo(檔案) + thumb(檔案，選填)
 //   video → media(檔案) + thumb(檔案，選填) + duration(秒)
@@ -79,6 +79,13 @@ if (in_array($kind, souliong_contrib_kinds(), true) && !in_array($kind, $contrib
 }
 $name       = clean_str($_POST['name'] ?? null, $cfg['name_max']) ?? '匿名';
 $comment    = clean_str($_POST['comment'] ?? null, $cfg['comment_max']);
+// 資料來源連結（如引用音源的原始頁面）：只收 http(s) 網址，格式不對就當沒填，不擋整筆投稿。
+$source_url = clean_str($_POST['source_url'] ?? null, 500);
+if ($source_url !== null && (!preg_match('#^https?://#i', $source_url) || filter_var($source_url, FILTER_VALIDATE_URL) === false)) {
+    $source_url = null;
+}
+// 引用來源本身的授權（跟下面 $license「投稿者本人姓名標示權利」是兩件事，不共用欄位）
+$source_license = in_array($_POST['source_license'] ?? '', ['cc0', 'cc-by'], true) ? $_POST['source_license'] : null;
 $item_num   = (isset($_POST['item_num']) && $_POST['item_num'] !== '') ? (int)$_POST['item_num'] : null;
 $lat        = num_or_null($_POST['lat'] ?? null);
 $lon        = num_or_null($_POST['lon'] ?? null);
@@ -214,6 +221,8 @@ try {
         'kind'       => $kind,
         'name'       => $name,
         'comment'    => $comment,
+        'source_url' => $source_url,
+        'source_license' => $source_license,
         'photo'      => $photoRel,
         'thumb'      => $thumbRel,
         'media'      => $mediaRel,                                        // 影音檔（照片不用這欄，見上面的目錄切分說明）

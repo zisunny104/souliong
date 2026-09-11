@@ -174,6 +174,7 @@ window.MapLibreEngine = (() => {
         center: [o.center ? o.center[1] : 120.7, o.center ? o.center[0] : 23.9],
         zoom: o.zoom || 14,
         attributionControl: false,
+        preserveDrawingBuffer: true,   // 讓 getCanvasDataURL() 讀得到畫面（見下方快照擷圖）；WebGL 預設畫完就可能清緩衝區
       });
       this.map.on('load', () => this._mountOverlays());
       this.map.on('zoomend', () => this._checkZoomThresholds());
@@ -182,6 +183,15 @@ window.MapLibreEngine = (() => {
     get type() { return 'maplibre'; }
     get supports3D() { return true; }
     getRawMap() { return this.map; }
+
+    get supportsSnapshot() { return true; }
+    getCanvasDataURL(mime, quality) {
+      try {
+        return this.map.getCanvas().toDataURL(mime || 'image/png', quality);
+      } catch (e) {
+        return null;   // 跨網域圖磚沒開 CORS 導致 canvas 被污染時 toDataURL() 會丟例外
+      }
+    }
 
     _styleFor(dark) {
       return this._baseManifest ? ((dark && this._baseManifest.urlDark) || this._baseManifest.url)

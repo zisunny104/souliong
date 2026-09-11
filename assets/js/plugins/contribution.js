@@ -46,13 +46,16 @@
     }
 
     // ---- 分頁 ----
-    // 有哪些分頁＝已載入的型別檔涵蓋到哪些分頁。順序依 TABS 的宣告順序，不依載入順序，
+    // 有哪些分頁＝已載入的型別檔涵蓋到哪些分頁，但主要內容型別（primaryKind，例如聲音地圖的
+    // audio）除外——那個型別已經是點位本身的主要內容（見故事區的專屬編輯外掛 sound-editor.js），
+    // 不該又出現在這個通用投稿對話框裡讓人重複投稿。順序依 TABS 的宣告順序，不依載入順序，
     // 這樣不同地圖的分頁排列才一致（跟 souliong_contrib_cfg() 依註冊表排序是同一個道理）。
     initTabs() {
-      const have = SL.kinds.map(k => k.tab);
+      const cfg = this.mapApp.contribCfg() || {};
+      const primary = cfg.primaryKind || '';
+      const have = SL.kinds.filter(k => k.key !== primary).map(k => k.tab);
       this.tabs = Object.keys(TABS).filter(tb => have.includes(tb));
-      const def = (this.mapApp.contribCfg() || {}).default;
-      this.tab = this.tabs.includes(def) ? def : this.tabs[0];
+      this.tab = this.tabs.includes(cfg.default) ? cfg.default : this.tabs[0];
     }
     tabKinds(tab) { return SL.byTab(tab); }
     // 目前分頁能接受的檔案型別；擋在檔案選擇器上，而不是等使用者選完才跳警告
@@ -77,8 +80,10 @@
     injectDom() {
       const resetBtn = document.getElementById('resetBtn');
       if (resetBtn) {
+        // 沒有分頁可投時（見 initTabs()）這顆鈕沒有東西可開，先天隱藏
+        const hideUpload = this.tabs.length ? '' : ' style="display:none"';
         resetBtn.insertAdjacentHTML('afterend',
-          '<button class="fabtn upload-only" id="uploadBtn"><i class="fa-solid fa-plus"></i> ' + esc(t('contrib_fab')) + '</button>' +
+          '<button class="fabtn upload-only" id="uploadBtn"' + hideUpload + '><i class="fa-solid fa-plus"></i> ' + esc(t('contrib_fab')) + '</button>' +
           '<button class="fabtn fab-unlock" id="unlockFab" style="display:none"><i class="fa-solid fa-lock"></i> ' + esc(t('unlock_contrib')) + '</button>' +
           '<input type="file" id="pickImages" multiple hidden>');
       }
@@ -163,7 +168,7 @@
         if (pick) pick.onchange = e => { this.addFiles(Array.from(e.target.files)); };
         const submitAllBtn = document.getElementById('submitAllBtn');
         if (submitAllBtn) submitAllBtn.onclick = () => this.submitAll();
-        this.mapApp.registerShortcut({ key: 'U', label: t('shortcut_upload') });
+        if (this.tabs.length) this.mapApp.registerShortcut({ key: 'U', label: t('shortcut_upload') });
       }
 
       document.addEventListener('keydown', e => {
@@ -175,8 +180,10 @@
       });
     }
 
-    // 「投稿到這個點」鈕：放在故事底下、第一則投稿之前（核心 renderEntries() 在故事區塊後、投稿牆前呼叫這裡）
+    // 「投稿到這個點」鈕：放在故事底下、第一則投稿之前（核心 renderEntries() 在故事區塊後、投稿牆前呼叫這裡）。
+    // 沒有任何分頁可投（例如整張地圖只開放了 primaryKind 那一種型別）時，通用投稿對話框沒有東西好顯示，不出現這顆鈕。
     entriesUploadButton(point) {
+      if (!this.tabs.length) return null;
       const upBtn = document.createElement('button');
       upBtn.className = 'btn primary upload-only'; upBtn.style.width = '100%';
       upBtn.innerHTML = '<i class="fa-solid fa-plus"></i> ' + esc(t('upload_to_point'));
@@ -185,6 +192,8 @@
     }
 
     openModal(contextPoint) {
+      // 沒有分頁可投時整個對話框沒有內容（見 initTabs()），所有入口（FAB、快捷鍵 U、身分鈕）共用這道保險
+      if (!this.tabs.length) return;
       document.getElementById('modalName').value = document.getElementById('myName').value || localStorage.getItem('myName') || '';
       // CC BY 只在已建立身分時才顯示（沒有穩定身分就沒有名字可標示）；每次開窗都重新判斷，
       // 並從上次記憶的選擇還原勾選狀態，讓使用者能再次確認而不是被迫重選。
@@ -235,8 +244,9 @@
     }
 
     renderEmpty() {
-      const meta = this.tabMeta(this.tab);
       const q = document.getElementById('queue');
+      if (!this.tabs.length) { q.innerHTML = ''; return; }   // 沒有分頁可投（見 initTabs()），對話框本來就不會被打開
+      const meta = this.tabMeta(this.tab);
       q.innerHTML = '<div class="queue-empty"><div class="sl-actions">' +
         '<button class="btn primary" id="pickBtn"><i class="fa-solid ' + meta.icon + '"></i> ' + esc(t(meta.pick || meta.add)) + '</button>' +
         '</div><div class="hint">' + esc(t(meta.hint)) + '</div></div>';

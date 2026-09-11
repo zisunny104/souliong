@@ -21,6 +21,10 @@ return [
     'name_max'        => 60,
     'comment_max'     => 1000,
 
+    // 專案封面／地圖快照（api/cover.php）
+    'cover_min_interval' => 3600,   // 自動快照最短重生間距（秒）
+    'cover_max_dim'      => 960,    // 封面圖最長邊上限（px）
+
     // 管理 PIN（人輸入；驗證後以 httpOnly cookie 保持登入，PIN 不進網址）
     'admin_pin'       => 'CHANGE-ME',
     'admin_pin_label' => '',   // 用這把主 PIN 登入後要帶入的顯示名稱（留空則顯示「管理者」）

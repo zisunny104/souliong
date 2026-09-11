@@ -1,0 +1,271 @@
+/* ---------- 聲音地圖播放器（sound-player.js 專用，見該檔開頭說明） ----------
+   只在 #panel 掛了 .sl-audio 標記時才生效（外掛 mount() 時加上），一般地圖的 #panel
+   完全不受影響。手機版在既有的單一底部抽屜狀態外，多兩個狀態：
+   - 中卡（預設）：.sl-audio.sl-has-audio 且沒有 .sl-full 時顯示 .sl-mp-medium，
+     隱藏 .p-head／.p-body（今天的完整內容留給下面的「全卡」狀態）。
+   - 全卡：多了 .sl-full，回到跟現在完全一樣的 .p-head＋.p-body 版面（只多一張封面圖）。
+   - 迷你列（.sl-mp-mini）：另外掛在 <body> 下，跟 #panel 開關無關，行動裝置離開卡片但
+     音訊還在播時顯示。
+   電腦版不新增任何尺寸狀態，.wide 展開機制完全不動，只在 .p-head 多畫封面圖。 */
+
+/* 拖曳把手：手機版中卡／全卡共用，全卡時也在，讓使用者能往下拖回中卡 */
+.sl-mp-handle { display: none }
+
+@media (max-width:640px) {
+  #panel.sl-audio.sl-has-audio .sl-mp-handle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 20px;
+    flex: none;
+    touch-action: none;
+    cursor: grab
+  }
+
+  #panel.sl-audio.sl-has-audio .sl-mp-handle::after {
+    content: '';
+    width: 36px;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--line)
+  }
+}
+
+/* 封面圖：中卡、迷你列、.p-head 三處共用的外框樣式，各自只決定尺寸。沒有照片時
+   paintCover() 直接把元素設成 hidden，不畫任何頂替圖示——版面跟著收回這塊空間，
+   跟這個點根本沒有封面功能時長得一樣。 */
+.sl-mp-cover {
+  flex: none;
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  background: var(--hover)
+}
+
+.sl-mp-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block
+}
+
+/* .p-head 封面：只有這個點真的有照片時才畫（sound-player.js 用 sl-has-cover 開關；
+   沒照片就完全不占版面，跟這個功能還沒做之前長得一模一樣，不用假的分類色圖示頂替一塊空間）。
+   用 CSS Grid 讓封面另開左側一欄、跨滿 cat/h2/.sub 那三列（grid-row:1/4），不是插進文字
+   排版流也不是疊在文字上面：這幾個是核心渲染的既有手足節點，外掛不重排 DOM，只靠
+   grid-template-columns 把它們併成右欄。封面固定正方形、靠格子左上角對齊（align-self/
+   justify-self:start），故意不用 stretch 撐滿列高——文字比封面矮，封面還是原尺寸浮在左上；
+   文字比封面高，封面也不會被拉伸變形。
+   封面擺左側，右側維持核心原本的 padding-right（給 .p-close/.p-expand 用），兩顆鈕不用
+   再跟封面搶位置。#pointEditBtn／.point-editor 這兩個編輯用元素固定跨滿兩欄（1/-1），
+   排到封面欄結束後的下一列，不會被硬擠進封面或文字的格子。
+   #panel 開 inline-size containment，@container 量的是面板本身寬度：手機直式全卡或視窗
+   很窄時兩欄會擠壓過頭，改用 @container 切回上下堆疊，不讓文字被硬壓縮到要換行。 */
+#panel.sl-audio { container-type: inline-size; container-name: sl-panel }
+
+.sl-mp-head-cover { display: none }
+
+#panel.sl-audio.sl-has-cover .p-head {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  column-gap: 12px
+}
+
+#panel.sl-audio.sl-has-cover .sl-mp-head-cover {
+  display: block;
+  grid-column: 1;
+  grid-row: 1 / 4;
+  width: 64px;
+  height: 64px;
+  align-self: start;
+  justify-self: start
+}
+
+#panel.sl-audio.sl-has-cover .p-head .cat,
+#panel.sl-audio.sl-has-cover .p-head h2,
+#panel.sl-audio.sl-has-cover .p-head .sub {
+  grid-column: 2
+}
+
+#panel.sl-audio.sl-has-cover .p-head #pointEditBtn,
+#panel.sl-audio.sl-has-cover .p-head .point-editor {
+  grid-column: 1 / -1
+}
+
+@container sl-panel (max-width: 340px) {
+  #panel.sl-audio.sl-has-cover .p-head {
+    grid-template-columns: 1fr
+  }
+
+  #panel.sl-audio.sl-has-cover .sl-mp-head-cover {
+    grid-column: 1;
+    grid-row: 1;
+    margin-bottom: 8px
+  }
+
+  #panel.sl-audio.sl-has-cover .p-head .cat,
+  #panel.sl-audio.sl-has-cover .p-head h2,
+  #panel.sl-audio.sl-has-cover .p-head .sub {
+    grid-column: 1
+  }
+}
+
+/* ---------- 中卡（手機預設狀態） ---------- */
+.sl-mp-medium { display: none }
+
+@media (max-width:640px) {
+  #panel.sl-audio.sl-has-audio:not(.sl-full) .sl-mp-medium {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 6px 18px 18px
+  }
+
+  #panel.sl-audio.sl-has-audio:not(.sl-full) .p-head,
+  #panel.sl-audio.sl-has-audio:not(.sl-full) .p-body { display: none }
+}
+
+.sl-mp-medium-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px
+}
+
+.sl-mp-medium-text {
+  flex: 1;
+  min-width: 0
+}
+
+.sl-mp-medium-title {
+  font-size: 1.0625rem;
+  font-weight: 800;
+  line-height: 1.3;
+  margin-bottom: 4px
+}
+
+.sl-mp-medium-desc {
+  font-size: 0.8125rem;
+  color: var(--muted);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden
+}
+
+.sl-mp-medium-cover {
+  width: 72px;
+  height: 72px
+}
+
+/* 播放鍵本體樣式共用 point-panel.css 的 .sl-play-btn，這裡只疊尺寸變數＋卡片裡的排版位置 */
+.sl-mp-medium-play {
+  --sl-play-size: 56px;
+  --sl-play-icon: 1.25rem;
+  align-self: center
+}
+
+.sl-mp-medium-bar {
+  position: relative;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--hover);
+  cursor: pointer;
+  touch-action: none
+}
+
+.sl-mp-medium-bar::before {
+  content: '';
+  position: absolute;
+  inset: -10px 0
+}
+
+.sl-mp-medium-fill {
+  position: absolute;
+  inset: 0;
+  width: 0;
+  border-radius: inherit;
+  background: var(--accent);
+  pointer-events: none
+}
+
+.sl-mp-medium-time {
+  display: flex;
+  justify-content: space-between;
+  margin-top: -6px;
+  font-size: 0.6875rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums
+}
+
+/* ---------- 迷你列：探索地圖時的浮動播放列，跟 #panel 開關無關 ---------- */
+.sl-mp-mini {
+  position: fixed;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  z-index: 1150;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--sh-2);
+  overflow: hidden;
+  cursor: pointer
+}
+
+.sl-mp-mini[hidden] { display: none }
+
+.sl-mp-mini-cover {
+  width: 40px;
+  height: 40px
+}
+
+.sl-mp-mini-play {
+  --sl-play-size: 36px;
+  --sl-play-icon: 0.85rem
+}
+
+.sl-mp-mini-info {
+  flex: 1;
+  min-width: 0
+}
+
+.sl-mp-mini-title {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis
+}
+
+.sl-mp-mini-sub {
+  font-size: 0.6875rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis
+}
+
+.sl-mp-mini-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: var(--hover)
+}
+
+.sl-mp-mini-fill {
+  position: absolute;
+  inset: 0;
+  width: 0;
+  background: var(--accent)
+}
+
+/* 桌機版永遠不出現迷你列：卡片本身就一直看得到，不需要退回一條浮動列 */
+@media (min-width:641px) {
+  .sl-mp-mini { display: none !important }
+}

@@ -1,6 +1,6 @@
 <?php
 // 編輯自己（或管理者可管理的）投稿：只能改文字/關聯地點/定位，不能換檔案本身（照片、影片、音訊皆同）。
-// POST project, edit_of(原始投稿 id), item_num(可留空), comment, lat, lon, loc_source, name, owner 或 ctoken（需與原投稿相符，或具管理權限）。
+// POST project, edit_of(原始投稿 id), item_num(可留空), comment, source_url, lat, lon, loc_source, name, owner 或 ctoken（需與原投稿相符，或具管理權限）。
 // 比照「故事」的版本化精神：不覆寫舊資料，而是新增一筆引用原始 id 的版本紀錄；原始紀錄與所有舊版本永久保留。
 require __DIR__ . '/store.php';
 require __DIR__ . '/security.php';
@@ -46,6 +46,12 @@ try {
     if (!in_array($origKind, souliong_contrib_kinds(), true) || !$hasBody) {
         json_out(['error' => 'not found'], 404);
     }
+    // 主要內容型別（如聲音地圖的錄音）是點位本身的內容，不是可局部修改的投稿——
+    // 要換內容就整筆重新送出一筆新的（見 sound-editor.js），這裡比照 desc 的精神直接擋掉。
+    $meta = json_decode((string)@file_get_contents($cfg['projects_dir'] . '/' . $project . '/meta.json'), true);
+    if ($origKind === souliong_contrib_cfg($meta)['primaryKind']) {
+        json_out(['error' => 'not found'], 404);
+    }
 
     // 權限：原投稿者本人（owner 或 ctoken 相符）或管理者（主 PIN 或此專案 PIN）
     $owner  = (string)($_POST['owner'] ?? '');
@@ -72,6 +78,10 @@ try {
     }
 
     $comment    = clean_str_ee($_POST['comment'] ?? null, $cfg['comment_max']);
+    $source_url = clean_str_ee($_POST['source_url'] ?? null, 500);
+    if ($source_url !== null && (!preg_match('#^https?://#i', $source_url) || filter_var($source_url, FILTER_VALIDATE_URL) === false)) {
+        $source_url = null;
+    }
     $item_num   = (isset($_POST['item_num']) && $_POST['item_num'] !== '') ? (int)$_POST['item_num'] : null;
     $lat        = num_or_null_ee($_POST['lat'] ?? null);
     $lon        = num_or_null_ee($_POST['lon'] ?? null);
@@ -93,6 +103,7 @@ try {
         'edit_of'      => $editOf,               // 指向被編輯的原始投稿 id，供前端組出「最新版本」
         'name'         => $editorName,
         'comment'      => $comment,
+        'source_url'   => $source_url,
         'photo'        => null,                  // 編輯不換檔案本身（照片／影音同理），顯示時沿用原始那筆
         'media'        => null,
         'photo_time'   => $orig['photo_time'] ?? null,
