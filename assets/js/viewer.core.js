@@ -252,6 +252,8 @@ window.MapApp = (() => {
   // 封面快照：管理者檢視時機會性擷圖更新（伺服器端仍會依最小間距與 custom 模式把關，這裡的
   // 檢查只是避免每次開頁都白白擷圖編碼）。force＝後台「強制刷新」按鈕開的分頁（見 ?snapcover=force），
   // 略過間距檢查並在完成後跳提示，方便管理者確認新圖真的存進去了。
+  // 封面統一用淺色主題擷圖：管理者當下若開著深色主題，擷圖前先暫時切回淺色、擷完再切回去，
+  // 避免同一批專案的封面卡片因為各管理者擷圖當下開的主題不同而深淺不一。
   function trySnapshotCover(force) {
     if (!APP.isManager || !engine || !engine.supportsSnapshot) return;
     const cov = (APP.meta && APP.meta.cover) || null;
@@ -259,23 +261,33 @@ window.MapApp = (() => {
       if (cov && cov.mode === 'custom') return;
       if (cov && cov.updatedAt && (Date.now() - Date.parse(cov.updatedAt)) < (APP.coverMinInterval || 3600) * 1000) return;
     }
-    const dataUrl = engine.getCanvasDataURL('image/jpeg', 0.85);
-    if (!dataUrl) return;
-    const fd = new FormData();
-    fd.append('project', APP.project);
-    fd.append('action', 'auto');
-    if (force) fd.append('force', '1');
-    fd.append('image', dataUrl);
-    fd.append('csrf', APP.csrf || '');
-    fetch(APP.coverUrl, { method: 'POST', body: fd }).then(r => r.json()).then(d => {
-      if (d && d.ok) {
-        APP.meta = APP.meta || {};
-        APP.meta.cover = d.cover || null;
-        if (force) toast('<i class="fa-solid fa-check"></i> ' + esc(t('cover_refresh_done')));
-      } else if (force) {
-        toast('<i class="fa-solid fa-triangle-exclamation"></i> ' + esc(t('cover_refresh_failed')));
-      }
-    }).catch(() => { if (force) toast('<i class="fa-solid fa-triangle-exclamation"></i> ' + esc(t('cover_refresh_failed'))); });
+    const needLightSwap = isDark() && engine.hasDarkStyle;
+    const capture = () => {
+      const dataUrl = engine.getCanvasDataURL('image/jpeg', 0.85);
+      if (needLightSwap) engine.applyTheme(true);   // 擷完切回管理者原本開著的深色主題，不留痕跡
+      if (!dataUrl) return;
+      const fd = new FormData();
+      fd.append('project', APP.project);
+      fd.append('action', 'auto');
+      if (force) fd.append('force', '1');
+      fd.append('image', dataUrl);
+      fd.append('csrf', APP.csrf || '');
+      fetch(APP.coverUrl, { method: 'POST', body: fd }).then(r => r.json()).then(d => {
+        if (d && d.ok) {
+          APP.meta = APP.meta || {};
+          APP.meta.cover = d.cover || null;
+          if (force) toast('<i class="fa-solid fa-check"></i> ' + esc(t('cover_refresh_done')));
+        } else if (force) {
+          toast('<i class="fa-solid fa-triangle-exclamation"></i> ' + esc(t('cover_refresh_failed')));
+        }
+      }).catch(() => { if (force) toast('<i class="fa-solid fa-triangle-exclamation"></i> ' + esc(t('cover_refresh_failed'))); });
+    };
+    if (needLightSwap) {
+      engine.applyTheme(false);
+      engine.getRawMap().once('idle', capture);   // 等新樣式的圖磚真的畫完，不然擷到切換中的半載入畫面
+    } else {
+      capture();
+    }
   }
 
   // 管理 PIN 連結兌換：秘密只透過網址 fragment（#redeem=...&rmode=admin）傳遞，不落地在 query string／伺服器紀錄。

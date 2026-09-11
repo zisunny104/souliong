@@ -126,6 +126,8 @@ window.MapEngine = (() => {
     // ---- 圖層堆疊 ----
     applyTheme(dark) {}
     styleUrl() { return ''; }
+    // 底圖是否真的有深色版樣式（供封面擷圖判斷要不要暫時切成淺色，見 viewer.core.js 的 trySnapshotCover）
+    get hasDarkStyle() { return false; }
 
     // ---- 小地圖選點器 ----
     createMiniPicker(container, opts) { throw new Error('MapEngine.createMiniPicker() not implemented'); }

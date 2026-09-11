@@ -334,6 +334,7 @@ window.MapLibreEngine = (() => {
       this.map.setStyle(this._styleFor(this._dark));
     }
     styleUrl() { return (this._baseManifest && this._baseManifest.url) || ''; }
+    get hasDarkStyle() { return !!(this._baseManifest && this._baseManifest.urlDark); }
 
     createMiniPicker(container, opts) {
       const o = opts || {};
