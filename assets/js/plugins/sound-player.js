@@ -51,7 +51,11 @@
     buildHandle(panel) {
       const handle = document.createElement('div');
       handle.className = 'sl-mp-handle';
+      handle.setAttribute('role', 'button');
+      handle.tabIndex = 0;
+      handle.setAttribute('aria-label', t('expand_panel'));
       panel.insertBefore(handle, panel.firstChild);
+      this.handle = handle;
       let startY = null, moved = false;
       handle.addEventListener('pointerdown', ev => {
         startY = ev.clientY; moved = false;
@@ -68,6 +72,16 @@
       });
       handle.addEventListener('pointerup', () => { startY = null; });
       handle.addEventListener('click', () => { if (!moved) this.toggleSize(); });
+      // 鍵盤等效：上下滑動手勢分別對應方向鍵，Enter/Space 對應點擊（切換全卡／中卡）
+      handle.addEventListener('keydown', ev => {
+        if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); this.toggleSize(); }
+        else if (ev.key === 'ArrowUp') { ev.preventDefault(); this.setSize('full'); }
+        else if (ev.key === 'ArrowDown') {
+          ev.preventDefault();
+          if (panel.classList.contains('sl-full')) this.setSize('medium');
+          else this.mapApp.closePanel();
+        }
+      });
     }
 
     buildHeadCover(panel) {
@@ -107,13 +121,12 @@
       this.mediumCur = el.querySelector('.sl-mp-medium-cur');
       this.mediumDur = el.querySelector('.sl-mp-medium-dur');
       this.mediumBtn.onclick = () => this.togglePlay();
+      this.initSeekAria(this.mediumBar);
       this.attachSeek(this.mediumBar);
     }
 
-    /* 中卡↔展開/收合：整張中卡都能滑／點，不侷限 .sl-mp-handle 那條窄把手——
-       播放鍵／進度條各自處理自己的手勢，pointerdown 一開始就排除掉。上滑或點擊
-       （無明顯位移）展開大卡；下滑收成迷你列，效果等同 .sl-mp-handle 在中卡狀態
-       下滑呼叫 closePanel()，只是命中範圍從窄把手擴大到整張卡片。 */
+    /* 整張中卡都能滑／點展開收合，不侷限 .sl-mp-handle 窄把手（播放鍵／進度條自行處理
+       手勢，此處排除）。上滑或點擊展開大卡；下滑收成迷你列，效果同把手下滑。 */
     attachMediumGesture(el) {
       const IGNORE = '.sl-mp-medium-play, .sl-mp-medium-bar';
       let startY = null, startT = 0, moved = false;
@@ -136,14 +149,9 @@
       });
     }
 
-    /* 大卡→中卡：整個 .p-head（標題列）都能下滑收合，不侷限窄把手。只做下滑手勢、
-       不做點擊收合——.p-head 上有標題文字、編輯按鈕等使用者本來就會點擊/閱讀的
-       內容，加點擊收合容易誤觸，這點跟中卡（點哪都只是展開）不一樣。
-       .p-head 在電腦版一律可見（不像 .sl-mp-medium 電腦版天生 display:none），
-       沒有下面這層限制的話，電腦版在標題列拖曳文字就會誤觸 setSize()，連帶讓
-       syncExpandIcon() 覆寫 .p-expand 的圖示——那顆按鈕在電腦版其實是核心
-       togglePanelSize() 的「全寬大卡」.wide 開關，兩邊搶著寫同一顆按鈕會讓電腦版
-       出現圖示與實際狀態對不上的顯示錯誤，所以只在手機＋該點位真的有聲音投稿時生效。 */
+    /* .p-head 下滑收合成中卡，只做下滑、不做點擊（標題文字／編輯鈕本來就要點擊閱讀，
+       點擊收合易誤觸）。只在手機＋有聲音投稿時生效：.p-head 電腦版也一直顯示，若不擋住
+       會跟核心 togglePanelSize() 的 .wide／.p-expand 圖示互相覆寫，顯示狀態對不上。 */
     attachCollapseGesture(el) {
       const IGNORE = 'button, a, input, select, textarea, .point-editor';
       const panel = document.getElementById('panel');
@@ -160,6 +168,31 @@
         const dt = Math.max(1, performance.now() - startT);
         startY = null;
         if (dy > 30 || dy / dt > 0.5) this.setSize('medium');
+      });
+    }
+
+    /* 迷你列點擊會重開，這裡加上滑手勢（門檻同 attachMediumGesture）。手勢達標時標記
+       swiped，讓隨後補發的 click 略過，避免重複觸發 reopen()。 */
+    attachMiniGesture(el) {
+      const IGNORE = '.sl-mp-mini-play, .sl-mp-mini-bar';
+      let startY = null, startT = 0, swiped = false;
+      el.addEventListener('pointerdown', ev => {
+        swiped = false;
+        if (ev.target.closest(IGNORE)) return;
+        startY = ev.clientY; startT = performance.now();
+        try { el.setPointerCapture(ev.pointerId); } catch (err) {}
+      });
+      el.addEventListener('pointerup', ev => {
+        if (startY == null) return;
+        const dy = ev.clientY - startY;
+        const dt = Math.max(1, performance.now() - startT);
+        startY = null;
+        if (dy < -30 || dy / dt < -0.5) { swiped = true; this.reopen(); }
+      });
+      el.addEventListener('click', ev => {
+        if (ev.target.closest(IGNORE)) return;
+        if (swiped) return;
+        this.reopen();
       });
     }
 
@@ -192,13 +225,12 @@
       this.miniBar = el.querySelector('.sl-mp-mini-bar');
       this.miniFill = el.querySelector('.sl-mp-mini-fill');
       this.miniBtn.onclick = (ev) => { ev.stopPropagation(); this.togglePlay(); };
+      this.initSeekAria(this.miniBar);
       this.attachSeek(this.miniBar);
-      el.addEventListener('click', (ev) => {
-        if (ev.target.closest('.sl-mp-mini-play') || ev.target.closest('.sl-mp-mini-bar')) return;
-        this.reopen();
-      });
+      this.attachMiniGesture(el);
       el.addEventListener('keydown', ev => {
-        if ((ev.key === 'Enter' || ev.key === ' ') && !ev.target.closest('.sl-mp-mini-play')) { ev.preventDefault(); this.reopen(); }
+        if (ev.target.closest('.sl-mp-mini-play, .sl-mp-mini-bar')) return;
+        if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); this.reopen(); }
       });
     }
 
@@ -278,10 +310,12 @@
 
     syncExpandIcon(expanded) {
       const btn = document.querySelector('#panel .p-expand');
-      if (!btn) return;
-      btn.title = t(expanded ? 'collapse_panel' : 'expand_panel');
-      btn.setAttribute('aria-label', btn.title);
-      btn.innerHTML = '<i class="fa-solid ' + (expanded ? 'fa-down-left-and-up-right-to-center' : 'fa-up-right-and-down-left-from-center') + '" aria-hidden="true"></i>';
+      if (btn) {
+        btn.title = t(expanded ? 'collapse_panel' : 'expand_panel');
+        btn.setAttribute('aria-label', btn.title);
+        btn.innerHTML = '<i class="fa-solid ' + (expanded ? 'fa-down-left-and-up-right-to-center' : 'fa-up-right-and-down-left-from-center') + '" aria-hidden="true"></i>';
+      }
+      if (this.handle) this.handle.setAttribute('aria-label', t(expanded ? 'collapse_panel' : 'expand_panel'));
     }
 
     /* ---------- 迷你列：退到探索地圖但音訊繼續播 ---------- */
@@ -322,25 +356,52 @@
 
     /* ---------- 播放器：中卡／迷你列的按鈕與進度條都操作同一顆 <audio> ---------- */
 
+    initSeekAria(bar) {
+      bar.setAttribute('role', 'slider');
+      bar.tabIndex = 0;
+      bar.setAttribute('aria-label', t('seek_audio_aria'));
+      bar.setAttribute('aria-valuemin', '0');
+      bar.setAttribute('aria-valuemax', '0');
+      bar.setAttribute('aria-valuenow', '0');
+    }
+
     attachSeek(bar) {
       let dragging = false;
+      let rect = null;
       const seek = (clientX) => {
         const a = this.audioEl;
-        if (!a || !a.duration) return;
-        const r = bar.getBoundingClientRect();
-        const ratio = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
+        if (!a || !a.duration || !rect) return;
+        const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
         a.currentTime = ratio * a.duration;
         this.syncProgress();
       };
       bar.addEventListener('pointerdown', ev => {
         if (!this.audioEl) return;
         dragging = true;
+        rect = bar.getBoundingClientRect();
         try { bar.setPointerCapture(ev.pointerId); } catch (err) {}
         seek(ev.clientX);
         ev.stopPropagation();
       });
+      // rect 在拖曳開始時量一次就好：拖曳中每次 pointermove 都重量會跟 syncProgress()
+      // 寫入的 style.width 輪流觸發強制重排（layout thrashing），拖曳期間位置不會變不需要重量。
       bar.addEventListener('pointermove', ev => { if (dragging) seek(ev.clientX); });
-      bar.addEventListener('pointerup', () => { dragging = false; });
+      bar.addEventListener('pointerup', () => { dragging = false; rect = null; });
+      // 鍵盤等效：左右／上下鍵各跳 5 秒，Home/End 跳到頭尾，取代僅能用滑鼠拖曳的操作
+      bar.addEventListener('keydown', ev => {
+        const a = this.audioEl;
+        if (!a || !a.duration) return;
+        let handled = true;
+        if (ev.key === 'ArrowRight' || ev.key === 'ArrowUp') a.currentTime = Math.min(a.duration, a.currentTime + 5);
+        else if (ev.key === 'ArrowLeft' || ev.key === 'ArrowDown') a.currentTime = Math.max(0, a.currentTime - 5);
+        else if (ev.key === 'Home') a.currentTime = 0;
+        else if (ev.key === 'End') a.currentTime = a.duration;
+        else handled = false;
+        if (!handled) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        this.syncProgress();
+      });
     }
 
     togglePlay() {
@@ -374,6 +435,19 @@
       this.miniFill.style.width = pct + '%';
       this.mediumCur.textContent = a ? this.mapApp.fmtDur(a.currentTime) : '0:00';
       this.mediumDur.textContent = (a && a.duration) ? this.mapApp.fmtDur(a.duration) : '';
+      const dur = (a && a.duration) ? a.duration : 0;
+      const cur = a ? a.currentTime : 0;
+      const valuetext = (a && a.duration)
+        ? this.mapApp.fmtDur(cur) + ' / ' + this.mapApp.fmtDur(dur)
+        : '0:00';
+      this.setSeekAria(this.mediumBar, dur, cur, valuetext);
+      this.setSeekAria(this.miniBar, dur, cur, valuetext);
+    }
+
+    setSeekAria(bar, dur, cur, valuetext) {
+      bar.setAttribute('aria-valuemax', Math.round(dur));
+      bar.setAttribute('aria-valuenow', Math.round(cur));
+      bar.setAttribute('aria-valuetext', valuetext);
     }
   }
 

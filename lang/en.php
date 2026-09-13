@@ -42,6 +42,7 @@ return [
     'expand_panel'         => 'Expand to large card',
     'collapse_panel'       => 'Shrink back to small card',
     'reopen_player_aria'   => 'Expand the currently playing sound',
+    'seek_audio_aria'      => 'Playback position, use arrow keys to adjust',
     'embed_size_unit'      => 'Size unit',
     'copy_link'            => 'Copy link',
     'copy_entry_link'      => 'Copy link to this entry',

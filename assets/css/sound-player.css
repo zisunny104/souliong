@@ -31,8 +31,8 @@
   }
 
   /* 中卡／全卡／迷你列三個狀態全靠拖曳把手切換，不留 X 或展開切換鈕（.p-expand 本來就已經
-     在手機版隱藏）：把手往下滑到底＝回迷你列，等同以前按 X 的效果（見 sound-player.js
-     buildHandle()，直接呼叫既有的 App.closePanel()，不是另外做一套關閉邏輯）。 */
+     在手機版隱藏）：把手往下滑到底呼叫既有的 App.closePanel() 退回迷你列（見 sound-player.js
+     buildHandle()），不是另外做一套關閉邏輯。 */
   #panel.sl-audio.sl-has-audio .p-close { display: none }
 
   /* 迷你列出現時，把左下地圖操作區（縮放／羅盤／重置視角）跟版權列往上推，避免被迷你列
@@ -56,6 +56,15 @@
   body.sl-mini-open .cr-bar,
   body.sl-mini-open .leaflet-bottom.leaflet-right {
     transform: translateX(-50%) translateY(calc(-1 * var(--sl-mini-gap, 0px)))
+  }
+}
+
+@media (prefers-reduced-motion:reduce) {
+  .maplibregl-ctrl-bottom-left,
+  .leaflet-bottom.leaflet-left,
+  .cr-bar,
+  .leaflet-bottom.leaflet-right {
+    transition: none
   }
 }
 
@@ -260,6 +269,7 @@
   border-radius: var(--r-md);
   box-shadow: var(--sh-2);
   overflow: hidden;
+  touch-action: none;
   cursor: pointer
 }
 

@@ -43,6 +43,7 @@ return [
     'expand_panel'            => '展開成大卡片',
     'collapse_panel'          => '縮回小卡片',
     'reopen_player_aria'      => '展開目前播放的聲音內容',
+    'seek_audio_aria'         => '播放進度，方向鍵可調整',
     'embed_size_unit'         => '尺寸單位',
     'copy_link'               => '複製連結',
     'copy_entry_link'         => '複製此則連結',
