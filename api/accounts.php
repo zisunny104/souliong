@@ -253,7 +253,7 @@ function _account_migrate_check_legacy_pin(array $cfg, array $pending, string $p
     // 相容改名前（source 存 'master'）尚未過期的邀請連結，一併視為 primary 來源
     $list = in_array($pending['source'], ['master', 'primary'], true) ? pins_load($cfg)['primary'] : (pins_load($cfg)['projects'][$pending['project']] ?? []);
     foreach ($list as $e) {
-        if ((string)($e['id'] ?? '') === (string)$pending['legacy_id'] && hash_equals((string)($e['pin'] ?? ''), $pin)) return $e['perms'] ?? _account_default_perms();
+        if ((string)($e['id'] ?? '') === (string)$pending['legacy_id'] && isset($e['pin_hash']) && hash_equals((string)$e['pin_hash'], pin_hash_of($cfg, $pin))) return $e['perms'] ?? _account_default_perms();
     }
     return null;
 }

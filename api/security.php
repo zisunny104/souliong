@@ -121,7 +121,8 @@ function pins_load(array $cfg): array {
     $d = is_file(pins_file($cfg)) ? json_decode((string)@file_get_contents(pins_file($cfg)), true) : null;
     if (!is_array($d)) $d = [];
     $d['projects'] = $d['projects'] ?? [];
-    // 舊資料補齊 id/perms（一次性、自我修復），含 delegate_admin → grant_access、master → primary 改名搬遷
+    // 舊資料補齊 id/perms（一次性、自我修復），含 delegate_admin → grant_access、master → primary 改名搬遷、
+    // 明文 pin → pin_hash 雜湊搬遷（主 PIN／專案 PIN 清單皆適用）
     $dirty = false;
     if (array_key_exists('master', $d)) {
         $d['primary'] = $d['master'];
@@ -129,6 +130,11 @@ function pins_load(array $cfg): array {
         $dirty = true;
     }
     $d['primary'] = $d['primary'] ?? [];
+    foreach ($d['primary'] as &$e) {
+        if (empty($e['id'])) { $e['id'] = bin2hex(random_bytes(4)); $dirty = true; }
+        if (isset($e['pin'])) { $e['pin_hash'] = pin_hash_of($cfg, (string)$e['pin']); unset($e['pin']); $dirty = true; }
+    }
+    unset($e);
     foreach ($d['projects'] as $p => &$list) {
         foreach ($list as &$e) {
             if (empty($e['id'])) { $e['id'] = bin2hex(random_bytes(4)); $dirty = true; }
@@ -139,6 +145,7 @@ function pins_load(array $cfg): array {
                 unset($e['perms']['delegate_admin']);
                 $dirty = true;
             }
+            if (isset($e['pin'])) { $e['pin_hash'] = pin_hash_of($cfg, (string)$e['pin']); unset($e['pin']); $dirty = true; }
         }
         unset($e);
     }
@@ -152,20 +159,30 @@ function pins_save(array $cfg, array $d): void {
     }
     _pins_cache($d);
 }
-function _pin_in(array $list, string $pin): bool { foreach ($list as $e) { if (isset($e['pin']) && $pin !== '' && hash_equals((string)$e['pin'], $pin)) return true; } return false; }
+/** 落地儲存用的 PIN 雜湊（HMAC 帶 ip_salt 當 pepper）：pins.json 外流也不能直接查表反推明文 PIN。 */
+function pin_hash_of(array $cfg, string $pin): string {
+    return hash_hmac('sha256', 'souliong-pinval', $pin . '|' . (string)($cfg['ip_salt'] ?? ''));
+}
+function _pin_in(array $cfg, array $list, string $pin): bool {
+    if ($pin === '') return false;
+    $h = pin_hash_of($cfg, $pin);
+    foreach ($list as $e) { if (isset($e['pin_hash']) && hash_equals((string)$e['pin_hash'], $h)) return true; }
+    return false;
+}
 // 設定檔鍵名 primary_pin／primary_pin_label；沿用舊鍵名 admin_pin／admin_pin_label 的部署不用改 config.php 也能繼續動。
 function _cfg_primary_pin(array $cfg): string { return (string)($cfg['primary_pin'] ?? $cfg['admin_pin'] ?? ''); }
 function _cfg_primary_pin_label(array $cfg): string { return (string)($cfg['primary_pin_label'] ?? $cfg['admin_pin_label'] ?? ''); }
 function check_primary_pin(array $cfg, string $pin): bool {
     if ($pin === '') return false;
     if (_cfg_primary_pin($cfg) !== '' && hash_equals(_cfg_primary_pin($cfg), $pin)) return true;
-    return _pin_in(pins_load($cfg)['primary'], $pin);
+    return _pin_in($cfg, pins_load($cfg)['primary'], $pin);
 }
 /** 找出符合此 PIN 的專案 PIN 紀錄（含 id/perms），供登入時決定 cookie 要記哪把；不符合回傳 null。 */
 function project_pin_match(array $cfg, string $project, string $pin): ?array {
     if ($pin === '') return null;
+    $h = pin_hash_of($cfg, $pin);
     foreach (pins_load($cfg)['projects'][$project] ?? [] as $e) {
-        if (isset($e['pin']) && hash_equals((string)$e['pin'], $pin)) return $e;
+        if (isset($e['pin_hash']) && hash_equals((string)$e['pin_hash'], $h)) return $e;
     }
     return null;
 }
@@ -231,11 +248,11 @@ function pins_redeem(array $cfg, string $project, string $token, string $pin, ?s
     if ($invite === null) return ['ok' => false, 'error' => 'invalid'];
     if (!pins_check_and_bump($cfg, $project, (string)$invite['id'])) return ['ok' => false, 'error' => 'expired_or_used_up'];
     $d = pins_load($cfg);
-    if (_pin_in($d['projects'][$project] ?? [], $pin)) return ['ok' => false, 'error' => 'pin_taken'];
+    if (_pin_in($cfg, $d['projects'][$project] ?? [], $pin)) return ['ok' => false, 'error' => 'pin_taken'];
     $label = $label !== null ? substr(trim($label), 0, 80) : '';
     $entry = [
         'kind'       => 'pin',
-        'pin'        => $pin,
+        'pin_hash'   => pin_hash_of($cfg, $pin),
         'label'      => $label,
         'id'         => bin2hex(random_bytes(4)),
         'perms'      => pin_default_perms(),
@@ -249,8 +266,10 @@ function pins_redeem(array $cfg, string $project, string $token, string $pin, ?s
     pins_save($cfg, $d);
     return ['ok' => true, 'id' => $entry['id'], 'label' => $label];
 }
-function _label_in(array $list, string $pin): string {
-    foreach ($list as $e) { if (isset($e['pin']) && $pin !== '' && hash_equals((string)$e['pin'], $pin)) return trim((string)($e['label'] ?? '')); }
+function _label_in(array $cfg, array $list, string $pin): string {
+    if ($pin === '') return '';
+    $h = pin_hash_of($cfg, $pin);
+    foreach ($list as $e) { if (isset($e['pin_hash']) && hash_equals((string)$e['pin_hash'], $h)) return trim((string)($e['label'] ?? '')); }
     return '';
 }
 /** 登入用的這把 PIN 若有設定暱稱，回傳暱稱；bootstrap 主 PIN 對應 config['primary_pin_label']。供登入後帶入投稿身分。 */
@@ -258,10 +277,10 @@ function primary_pin_label(array $cfg, string $pin): string {
     if (_cfg_primary_pin($cfg) !== '' && hash_equals(_cfg_primary_pin($cfg), $pin)) {
         return trim(_cfg_primary_pin_label($cfg));
     }
-    return _label_in(pins_load($cfg)['primary'], $pin);
+    return _label_in($cfg, pins_load($cfg)['primary'], $pin);
 }
 function project_pin_label(array $cfg, string $project, string $pin): string {
-    return _label_in(pins_load($cfg)['projects'][$project] ?? [], $pin);
+    return _label_in($cfg, pins_load($cfg)['projects'][$project] ?? [], $pin);
 }
 
 /**

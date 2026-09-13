@@ -24,9 +24,6 @@ function clean_id($raw): string
 {
   return (string)preg_replace('/[^a-z0-9_-]/', '', (string)$raw);
 }
-// PIN／碼是唯一輸入憑證，後台一律預設遮罩、按眼睛才顯示（固定六點，不洩漏長度）；
-// 例外：常駐投稿碼與「剛建立」區塊屬於正在分享的內容，維持明碼。
-$secret = fn($v) => '<span class="secretwrap"><span class="mono secretval" data-val="' . $esc($v) . '">••••••</span><button type="button" class="eyebtn" title="' . $t('eye_toggle_title') . '"><i class="fa-solid fa-eye"></i></button></span>';
 
 // ── 登入（POST pin[, project]）→ 種 cookie ──
 $loginErr = '';
@@ -785,11 +782,10 @@ if (!$authed) {
             $np = trim((string)($_POST['pin_new'] ?? ''));
             $label = substr(trim((string)($_POST['label'] ?? '')), 0, 80);
             if ($np !== '') {
-              $entry = ['pin' => $np, 'label' => $label];
+              $entry = ['pin_hash' => pin_hash_of($cfg, $np), 'label' => $label, 'id' => bin2hex(random_bytes(4))];
               if ($scope === 'primary') {
                 $d['primary'][] = $entry;
               } elseif ($tp !== '') {
-                $entry['id'] = bin2hex(random_bytes(4));
                 $entry['perms'] = pin_default_perms();   // 新專案 PIN 一律從全關始，之後在下方一覽表逐項開啟
                 $d['projects'][$tp] = $d['projects'][$tp] ?? [];
                 $d['projects'][$tp][] = $entry;
@@ -809,8 +805,8 @@ if (!$authed) {
               unset($e);
             }
           } else {
-            $del = (string)($_POST['pin_del'] ?? '');
-            $filter = fn($list) => array_values(array_filter($list, fn($e) => !isset($e['pin']) || (string)$e['pin'] !== $del));
+            $delId = (string)($_POST['pin_id'] ?? '');
+            $filter = fn($list) => array_values(array_filter($list, fn($e) => (string)($e['id'] ?? '') !== $delId));
             if ($scope === 'primary') {
               $d['primary'] = $filter($d['primary']);
             } elseif ($tp !== '') {
@@ -2909,35 +2905,6 @@ if (!$authed) {
       margin-top: 0
     }
 
-    /* 遮罩的 PIN／碼：按眼睛切換顯示 */
-    .secretwrap {
-      display: inline-flex;
-      align-items: center;
-      gap: var(--sp-1)
-    }
-
-    .eyebtn {
-      background: var(--card);
-      border: 1px solid var(--line);
-      color: var(--muted);
-      cursor: pointer;
-      font-size: 0.75rem;
-      width: var(--tap);
-      height: var(--tap);
-      flex: none;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 999px;
-      padding: 0
-    }
-
-    .eyebtn:hover {
-      color: var(--fg);
-      border-color: var(--accent);
-      background: var(--line)
-    }
-
     /* pinchip 內的小型連結按鈕（複製邀請連結等）。原本 18×14px，點不到 */
     .chipbtn {
       background: var(--card);
@@ -3226,9 +3193,9 @@ if (!$authed) {
           <span class="pinchip"><?= $t('primary_config_label') ?> · <span class="mono">config</span>
             <form method="post" style="display:inline"><input type="hidden" name="csrf" value="<?= $esc_csrf ?>"><input type="hidden" name="action" value="migrate_create"><input type="hidden" name="source" value="bootstrap"><input type="hidden" name="label" value="<?= $esc($cfg['admin_pin_label'] ?? '') ?>"><button type="submit" class="chipbtn" title="<?= $t('migrate_to_account_title') ?>"><i class="fa-solid fa-right-left"></i></button></form>
           </span>
-          <?php foreach ($mpins as $e): ?><span class="pinchip"><?= $esc(($e['label'] ?? '') !== '' ? $e['label'] : $t('no_nickname_label')) ?> · <?= $secret($e['pin'] ?? '') ?>
+          <?php foreach ($mpins as $e): ?><span class="pinchip"><?= $esc(($e['label'] ?? '') !== '' ? $e['label'] : $t('no_nickname_label')) ?> · <span class="mono">••••••</span>
               <form method="post" style="display:inline"><input type="hidden" name="csrf" value="<?= $esc_csrf ?>"><input type="hidden" name="action" value="migrate_create"><input type="hidden" name="source" value="primary"><input type="hidden" name="legacy_id" value="<?= $esc($e['id'] ?? '') ?>"><input type="hidden" name="label" value="<?= $esc($e['label'] ?? '') ?>"><button type="submit" class="chipbtn" title="<?= $t('migrate_to_account_title') ?>"><i class="fa-solid fa-right-left"></i></button></form>
-              <form method="post"><input type="hidden" name="csrf" value="<?= $esc_csrf ?>"><input type="hidden" name="action" value="delpin"><input type="hidden" name="scope" value="primary"><input type="hidden" name="pin_del" value="<?= $esc($e['pin'] ?? '') ?>"><button class="x" title="<?= $t('remove_title') ?>">×</button></form>
+              <form method="post"><input type="hidden" name="csrf" value="<?= $esc_csrf ?>"><input type="hidden" name="action" value="delpin"><input type="hidden" name="scope" value="primary"><input type="hidden" name="pin_id" value="<?= $esc($e['id'] ?? '') ?>"><button class="x" title="<?= $t('remove_title') ?>">×</button></form>
             </span>
           <?php endforeach; ?>
         </div>
@@ -3867,12 +3834,12 @@ if (!$authed) {
                 <?php if ($primary):
                   foreach ($realPins as $e): $pid = (string)($e['id'] ?? ''); $perms = $e['perms'] ?? pin_default_perms(); ?>
                   <div class="pinchip pinchip-block">
-                    <div class="idline"><span><?= $esc(($e['label'] ?? '') !== '' ? $e['label'] : $t('no_nickname_label')) ?> · <?= $secret($e['pin'] ?? '') ?>
+                    <div class="idline"><span><?= $esc(($e['label'] ?? '') !== '' ? $e['label'] : $t('no_nickname_label')) ?> · <span class="mono">••••••</span>
                       <?php if (!empty($e['via_link'])): ?><span class="tag"><?= $t('invite_redeemed_tag') ?></span><?php endif; ?></span><span class="idacts">
                       <?php if ($pid !== ''): ?>
                       <form method="post" style="display:inline"><input type="hidden" name="csrf" value="<?= $esc_csrf ?>"><input type="hidden" name="action" value="migrate_create"><input type="hidden" name="source" value="project"><input type="hidden" name="project" value="<?= $esc($p) ?>"><input type="hidden" name="legacy_id" value="<?= $esc($pid) ?>"><input type="hidden" name="label" value="<?= $esc($e['label'] ?? '') ?>"><button type="submit" class="chipbtn" title="<?= $t('migrate_to_account_title') ?>"><i class="fa-solid fa-right-left"></i></button></form>
                       <?php endif; ?>
-                      <form method="post" style="display:inline"><input type="hidden" name="csrf" value="<?= $esc_csrf ?>"><input type="hidden" name="action" value="delpin"><input type="hidden" name="scope" value="project"><input type="hidden" name="project" value="<?= $esc($p) ?>"><input type="hidden" name="pin_del" value="<?= $esc($e['pin'] ?? '') ?>"><button class="x" title="<?= $t('remove_title') ?>">×</button></form>
+                      <form method="post" style="display:inline"><input type="hidden" name="csrf" value="<?= $esc_csrf ?>"><input type="hidden" name="action" value="delpin"><input type="hidden" name="scope" value="project"><input type="hidden" name="project" value="<?= $esc($p) ?>"><input type="hidden" name="pin_id" value="<?= $esc($pid) ?>"><button class="x" title="<?= $t('remove_title') ?>">×</button></form>
                     </span></div>
                     <?php if ($pid !== ''): ?>
                     <div class="permrow">
@@ -4506,17 +4473,6 @@ if (!$authed) {
           btn.innerHTML = '<i class="fa-solid fa-check"></i> ' + <?= json_encode(i18n_t($DICT, 'copied'), JSON_UNESCAPED_UNICODE) ?>;
           setTimeout(function() { btn.innerHTML = t; }, 1500);
         }).catch(function() { alert(v); });
-      });
-    });
-
-    // ── 遮罩的 PIN／碼：按眼睛切換顯示（預設隱藏，正在分享的區塊除外） ──
-    document.querySelectorAll('.eyebtn').forEach(function(btn) {
-      btn.addEventListener('click', function() {
-        var val = btn.parentElement.querySelector('.secretval');
-        if (!val) return;
-        var show = btn.classList.toggle('on');
-        val.textContent = show ? val.dataset.val : '••••••';
-        btn.innerHTML = show ? '<i class="fa-solid fa-eye-slash"></i>' : '<i class="fa-solid fa-eye"></i>';
       });
     });
 

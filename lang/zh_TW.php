@@ -614,7 +614,6 @@ return [
     'open_layermigrate_btn'            => '圖層設定遷移',
     'layermigrate_entry_hint'          => '把還沒明確設定圖層的舊專案，凍結成目前的預設圖層，之後改預設值才不會波及它們',
     'qr_click_hint'                    => '點一下全螢幕顯示，方便給人掃描',
-    'eye_toggle_title'                 => '顯示／隱藏',
 
     // 以下為維護工具頁（thumbfix.php／exiffix.php）用的翻譯 key
     'primary_login_required_msg'  => '需要主要管理者登入。請先到 <a href="{url}">後台</a> 登入後再回到這頁。',

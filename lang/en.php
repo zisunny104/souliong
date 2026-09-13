@@ -602,7 +602,6 @@ return [
     'open_layermigrate_btn'            => 'Layer settings migration',
     'layermigrate_entry_hint'          => 'Freeze old projects that still follow the site default layers, so a future default change won\'t affect them',
     'qr_click_hint'                    => 'Click to show fullscreen, easier to scan',
-    'eye_toggle_title'                 => 'Show/hide',
 
     // Keys below are for the maintenance tool pages (thumbfix.php / exiffix.php)
     'primary_login_required_msg'  => 'Main admin login required. Please <a href="{url}">log in to the backend</a> first, then come back to this page.',
