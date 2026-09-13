@@ -304,14 +304,25 @@ function codes_load(array $cfg, string $project): array {
     $d = is_file($f) ? json_decode((string)@file_get_contents($f), true) : null;
     $d = is_array($d) ? $d : [];
     // 一次性遷移：舊版常駐碼存在 code.txt，併入清單成一筆不限期不限次數的碼，避免已發出去的碼失效。
+    // 讀取／併入／刪舊檔三步用同一把鎖包住，避免併發請求重複併入或其中一邊看到半完成狀態。
     $legacy = project_dir($cfg, $project) . '/code.txt';
     if (is_file($legacy)) {
-        $c = trim((string)@file_get_contents($legacy));
-        if ($c !== '' && !array_filter($d, fn($e) => hash_equals((string)($e['code'] ?? ''), $c))) {
-            $d[] = ['code' => $c, 'label' => '', 'created' => gmdate('c'), 'expires_at' => null, 'max_uses' => null, 'used_count' => 0];
-            @file_put_contents($f, json_encode($d, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX);
+        $lockFp = @fopen($legacy, 'r+');
+        if ($lockFp && flock($lockFp, LOCK_EX)) {
+            clearstatcache(true, $legacy);
+            if (is_file($legacy)) {
+                $c = trim((string)@file_get_contents($legacy));
+                $d = is_file($f) ? json_decode((string)@file_get_contents($f), true) : null;
+                $d = is_array($d) ? $d : [];
+                if ($c !== '' && !array_filter($d, fn($e) => hash_equals((string)($e['code'] ?? ''), $c))) {
+                    $d[] = ['code' => $c, 'label' => '', 'created' => gmdate('c'), 'expires_at' => null, 'max_uses' => null, 'used_count' => 0];
+                    @file_put_contents($f, json_encode($d, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX);
+                }
+                @unlink($legacy);
+            }
+            flock($lockFp, LOCK_UN);
         }
-        @unlink($legacy);
+        if ($lockFp) fclose($lockFp);
     }
     return $d;
 }
@@ -455,6 +466,13 @@ function rate_limit(array $cfg, string $bucket = 'default'): void {
     $ip = preg_replace('/[^0-9a-f:.]/i', '', client_ip($cfg));
     $f = $dir . '/' . substr(hash('sha256', $bucket . '|' . $ip), 0, 32) . '.txt';
     $now = time();
+    // 機會式清除：每次呼叫約 1% 機率順手掃一次，刪掉超過一小時沒更新的 bucket 檔——遠大於現有任何
+    // window 設定，不會誤刪還在用的視窗。用機率取樣而非每次都掃整個目錄，避免高頻端點（如 upload）
+    // 每次請求都多付一次目錄掃描成本；不做也不影響功能，只是 state/.rate 檔案會無限累積。
+    if (random_int(1, 100) === 1) {
+        $stale = $now - 3600;
+        foreach ((glob($dir . '/*.txt') ?: []) as $old) { if ((int)@filemtime($old) < $stale) @unlink($old); }
+    }
     $fp = @fopen($f, 'c+');
     if (!$fp) return;                       // 開檔失敗 → 放行
     if (!flock($fp, LOCK_EX)) { fclose($fp); return; }
