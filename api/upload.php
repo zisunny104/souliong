@@ -34,7 +34,7 @@ if (is_blocked($cfg, $project, $blockOwnerHash, $blockContribId)) {
 // 能不能投稿完全看投稿碼（codes.json，各自可設到期/次數）：一組有效碼都沒有＝這張地圖現在沒開放投稿；
 // 有碼就一定要附碼，這裡順便計一次使用。
 $givenCode = preg_replace('/\D/', '', (string)($_POST['code'] ?? ''));
-if (!admin_can($cfg, $project)) {
+if (!perm_can($cfg, $project)) {
     if (!contrib_open($cfg, $project)) {
         json_out(['error' => '這張地圖目前未開放投稿'], 403);
     }

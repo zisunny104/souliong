@@ -23,7 +23,7 @@ require_once __DIR__ . '/../api/packs.php';
 require_once __DIR__ . '/../api/layers.php';
 require_once __DIR__ . '/../api/regions3d.php';
 $apiCfg    = require __DIR__ . '/../api/config.php';
-$isManager = admin_can($apiCfg, $proj);
+$isManager = perm_can($apiCfg, $proj);
 // 投稿開關＝有沒有還有效的投稿碼（真正的碼在伺服器端 codes.json，前端拿不到）。
 // APP.gated 因此變成「現在有碼可解鎖」：一組都沒有時前端連解鎖鈕都不出現。
 $gated = contrib_open($apiCfg, $proj);
@@ -34,7 +34,7 @@ $isPrimaryAuthed = primary_authed($apiCfg);
 $acctForCsrf    = ($isManager && !$isPrimaryAuthed) ? account_current($apiCfg) : null;
 $csrfTok   = !$isManager ? null : ($isPrimaryAuthed
     ? primary_derived($apiCfg)
-    : ($acctForCsrf !== null ? account_derived($apiCfg, (string)$acctForCsrf['id']) : padm_derived($apiCfg, $proj, (string)padm_pin_id($apiCfg, $proj))));
+    : ($acctForCsrf !== null ? account_derived($apiCfg, (string)$acctForCsrf['id']) : pin_derived($apiCfg, $proj, (string)pin_current_id($apiCfg, $proj))));
 [$LANG, $DICT] = i18n_init();
 $t = fn(string $key, array $vars = []): string => htmlspecialchars(i18n_t($DICT, $key, $vars), ENT_QUOTES);
 $mod = fn(string $key): bool => souliong_module_on($meta, $key);

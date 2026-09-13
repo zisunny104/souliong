@@ -290,8 +290,9 @@ window.MapApp = (() => {
     }
   }
 
-  // 管理 PIN 連結兌換：秘密只透過網址 fragment（#redeem=...&rmode=admin）傳遞，不落地在 query string／伺服器紀錄。
+  // 管理 PIN 連結兌換：秘密只透過網址 fragment（#redeem=...&rmode=grant）傳遞，不落地在 query string／伺服器紀錄。
   // 讀出後立刻用 history.replaceState 清掉，避免重新整理或分享網址時重複兌換／外流。
+  // rmode=admin 是改名前的舊值：舊連結可能沒有效期限制、早就分享出去了，因此永久相容，不能只認新值。
   let pendingRedeem = null; // {project, token}，等待使用者在 #adminRedeemDialog 自己輸入 PIN／暱稱後才送出
   async function handleRedeemFragment() {
     if (EMBED || !MOD('delegation')) return;
@@ -303,7 +304,7 @@ window.MapApp = (() => {
     hp.delete('redeem'); hp.delete('rmode');
     const rest = hp.toString();
     try { history.replaceState(null, '', location.pathname + location.search + (rest ? '#' + rest : '')); } catch (e) {}
-    if (!token || rmode !== 'admin') return;
+    if (!token || (rmode !== 'admin' && rmode !== 'grant')) return;
     pendingRedeem = { project: PROJECT, token };
     openAdminRedeem();
   }
@@ -325,7 +326,7 @@ window.MapApp = (() => {
     if (msg) { msg.style.color = ''; msg.textContent = t('unlocking_verifying'); }
     try {
       const fd = new FormData();
-      fd.append('action', 'admin_redeem'); fd.append('project', pendingRedeem.project);
+      fd.append('action', 'grant_redeem'); fd.append('project', pendingRedeem.project);
       fd.append('token', pendingRedeem.token); fd.append('pin', pin); fd.append('label', label);
       const res = await fetch(MANAGER_URL, { method: 'POST', body: fd });
       const j = await res.json().catch(() => ({}));

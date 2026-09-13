@@ -8,7 +8,7 @@
 //
 // 權限跟 editpoint.php 不同，是每張地圖自己決定的（meta.json 的 contrib.newPoint）：
 //   off（預設）  誰都不能建，端點直接 403——舊地圖不改設定檔就完全沒有這個功能
-//   admin        只有管理者，比照 editpoint.php（admin_perm + CSRF）
+//   admin        只有管理者，比照 editpoint.php（perm_check + CSRF）
 //   contributor  一般投稿者也能建，比照 upload.php 的停權與投稿碼把關
 require __DIR__ . '/store.php';
 require __DIR__ . '/security.php';
@@ -45,11 +45,11 @@ $ownerHash = !empty($_POST['owner']) ? hash('sha256', (string)$_POST['owner']) :
 $contribId = !empty($_POST['ctoken']) ? contrib_id_of((string)$_POST['ctoken']) : null;
 
 if ($who === 'admin') {
-    if (!admin_perm($cfg, $project, 'edit_points')) {
+    if (!perm_check($cfg, $project, 'edit_points')) {
         json_out(['error' => '這張地圖只有管理者能建立地點'], 403);
     }
     // CSRF：比照 editpoint.php，值＝同一支登入身分在 view.php 才拿得到的衍生值（見 $APP.csrf）
-    $csrfExpected = primary_authed($cfg) ? primary_derived($cfg) : padm_derived($cfg, $project, (string)padm_pin_id($cfg, $project));
+    $csrfExpected = primary_authed($cfg) ? primary_derived($cfg) : pin_derived($cfg, $project, (string)pin_current_id($cfg, $project));
     if (!hash_equals($csrfExpected, (string)($_POST['csrf'] ?? ''))) {
         json_out(['error' => '憑證失效，請重新整理頁面後再操作一次'], 403);
     }
@@ -58,7 +58,7 @@ if ($who === 'admin') {
     if (is_blocked($cfg, $project, $ownerHash, $contribId)) {
         json_out(['error' => '此身分已被主辦者停權，無法繼續投稿'], 403);
     }
-    if (!admin_can($cfg, $project)) {
+    if (!perm_can($cfg, $project)) {
         if (!contrib_open($cfg, $project)) {
             json_out(['error' => '這張地圖目前未開放投稿'], 403);
         }

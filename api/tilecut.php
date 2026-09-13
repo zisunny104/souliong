@@ -24,7 +24,7 @@ require __DIR__ . '/i18n.php';
 require_once __DIR__ . '/routes.php';   // 網址表：後台網址只有這一份定義（見 api/routes.php）
 require_once __DIR__ . '/layers.php';
 $cfg = require __DIR__ . '/config.php';
-rate_limit($cfg, 'admin');
+rate_limit($cfg, 'manage');
 [$LANG, $DICT] = i18n_init();
 $t  = fn(string $key, array $vars = []): string => htmlspecialchars(i18n_t($DICT, $key, $vars), ENT_QUOTES);
 $tr = fn(string $key, array $vars = []): string => i18n_t($DICT, $key, $vars);
@@ -40,17 +40,17 @@ $primary = primary_authed($cfg);
 $canProj = function (string $p) use ($cfg, $primary): bool {
     return $p !== '' && preg_match('/^[a-z0-9_-]+$/', $p) === 1
         && is_dir(project_dir($cfg, $p))
-        && ($primary || admin_can($cfg, $p));
+        && ($primary || perm_can($cfg, $p));
 };
-$auditWho = fn(string $p) => $primary ? 'primary' : (($acc = account_current($cfg)) !== null ? 'acct:' . $acc['id'] : 'pin:' . (string)padm_pin_id($cfg, $p));
+$auditWho = fn(string $p) => $primary ? 'primary' : (($acc = account_current($cfg)) !== null ? 'acct:' . $acc['id'] : 'pin:' . (string)pin_current_id($cfg, $p));
 // 依身份派生 CSRF token：primary 用 primary_derived()，帳號用 account_derived()，專案 PIN 用
-// padm_derived()。與 manager.php 的 $csrf 衍生邏輯同一套規則。
+// pin_derived()。與 manager.php 的 $csrf 衍生邏輯同一套規則。
 $csrfFor = function (string $p) use ($cfg, $primary): string {
     if ($primary) {
         return primary_derived($cfg);
     }
     $acc = account_current($cfg);
-    return $acc !== null ? account_derived($cfg, (string)$acc['id']) : padm_derived($cfg, $p, (string)padm_pin_id($cfg, $p));
+    return $acc !== null ? account_derived($cfg, (string)$acc['id']) : pin_derived($cfg, $p, (string)pin_current_id($cfg, $p));
 };
 
 /** 這個圖層在磁碟上的位置；專案不合法或 projects_dir 沒設回 null。 */
@@ -434,7 +434,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'finis
 }
 
 // ── 頁面 ──
-$allProjects = array_values(array_filter(store_projects($cfg), fn($p) => $primary || admin_can($cfg, $p)));
+$allProjects = array_values(array_filter(store_projects($cfg), fn($p) => $primary || perm_can($cfg, $p)));
 if (!$primary && !$allProjects) {
     http_response_code(401);
     header('Content-Type: text/html; charset=utf-8');
@@ -1808,7 +1808,7 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
      * （offset 對不上）得由呼叫端自己接手續傳，而不是把整個流程炸掉。
      */
     async function post(body, soft) {
-      // 磚很多時一定會撞到限流（admin bucket 120/分）：照 Retry-After 等一下再送，不放棄整批
+      // 磚很多時一定會撞到限流（manage bucket 120/分）：照 Retry-After 等一下再送，不放棄整批
       for (let attempt = 0; attempt < 6; attempt++) {
         const res = await fetch(BASE + '?api=tilecut', { method: 'POST', body });
         if (res.status !== 429) {

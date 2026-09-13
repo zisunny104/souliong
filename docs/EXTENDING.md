@@ -50,7 +50,7 @@ license, owner_hash, src_hash, contrib_id, contrib_hash, edit_of, created_at
 | `max_bytes` | 該種類的大小上限（沒寫就用 config 的預設） |
 
 **`postable` 是安全邊界，不是分類。** `point`／`newpoint` 都是 `false`：它們一旦可以直接 POST 到
-`upload.php`，任何人都能偽造一筆座標覆蓋紀錄，繞過 `editpoint.php` 的 `admin_perm()` 與 `newpoint.php`
+`upload.php`，任何人都能偽造一筆座標覆蓋紀錄，繞過 `editpoint.php` 的 `perm_check()` 與 `newpoint.php`
 自己的權限判斷。`upload.php` 的白名單因此改成檢查這個旗標，而不是「有沒有出現在註冊表裡」。
 之後新增 kind 時，這一格要先想清楚再填。
 
@@ -169,7 +169,7 @@ CSS 全部前綴 `.stat-card .col`，因為要蓋過同層的 `.stat-card .col o
 - **樣板**（`view.php`）：`$mod = fn($key) => souliong_module_on($meta, $key);`，模組關閉時直接不輸出對應的按鈕／彈窗 HTML（不是用 CSS 藏起來）。
 - **前端邏輯**（`viewer.core.js`）：`MOD(key)` 讀 `window.APP.meta.features[key]`（同樣「沒設定＝開」），`canPost()` 把 `MOD('upload')` 併進解鎖判斷；凡是對應 DOM 可能不存在的地方都要 `if (el)` 再綁事件，全域鍵盤快速鍵／Esc 關閉等會不分模組狀態一律觸發的路徑也要能安全跳過（見各 `close*()` 函式的 null 檢查）。
 
-`delegation`（管理者邀請登入）跟上面那些有專屬插件檔的模組不一樣（`homeLink` 也是，它只是核心模板裡的一顆連結），不是插件檔案，而是核心裡兩段既有 UI 的開關：地圖頁品牌區塊的彩蛋入口（連點六下開啟 `#pinDialog`，見 `setupBrandEgg()`）與邀請連結兌換彈窗 `#adminRedeemDialog`（見 `handleRedeemFragment()`）。關閉後這張地圖不會再讓人透過網址 fragment 兌換出新的專案 PIN，地圖頁上也不再有快速登入入口——但完全不影響 `config['admin_pin']`／`state/admin_pins.json` 的主 PIN：主 PIN 是全域權限，一律能從 `/manager` 直接登入任何專案，這條路由不經過 `view.php`，不受這個旗標影響（見 `api/security.php` 的「主 PIN／專案 PIN」兩層設計）。適合「僅檢視、只有超級管理者能更新內容，不需要專案 PIN 或邀請代理」的部署。**已知缺口**：目前只有 `view.php`／`viewer.core.js`／`api/features.php` 接上這個旗標；`manager.php` 後台的邀請連結建立介面、與 `security.php` 的 `admin_can()`/`pins_redeem()` 對「這個專案要不要接受專案 PIN」的判斷，尚未跟著收斂，待補。
+`delegation`（管理者邀請登入）跟上面那些有專屬插件檔的模組不一樣（`homeLink` 也是，它只是核心模板裡的一顆連結），不是插件檔案，而是核心裡兩段既有 UI 的開關：地圖頁品牌區塊的彩蛋入口（連點六下開啟 `#pinDialog`，見 `setupBrandEgg()`）與邀請連結兌換彈窗 `#adminRedeemDialog`（見 `handleRedeemFragment()`）。關閉後這張地圖不會再讓人透過網址 fragment 兌換出新的專案 PIN，地圖頁上也不再有快速登入入口——但完全不影響 `config['primary_pin']`／`state/pins.json` 的主 PIN：主 PIN 是全域權限，一律能從 `/manager` 直接登入任何專案，這條路由不經過 `view.php`，不受這個旗標影響（見 `api/security.php` 的「主 PIN／專案 PIN」兩層設計）。適合「僅檢視、只有超級管理者能更新內容，不需要專案 PIN 或邀請代理」的部署。**已知缺口**：目前只有 `view.php`／`viewer.core.js`／`api/features.php` 接上這個旗標；`manager.php` 後台的邀請連結建立介面、與 `security.php` 的 `perm_can()`/`pins_redeem()` 對「這個專案要不要接受專案 PIN」的判斷，尚未跟著收斂，待補。
 
 `personExplore`（依序探索）沿用原本的扁平旗標寫法（`meta.json` 直接存 `personExplore: true/false`），`souliong_module_on()` 對這個 key 特殊處理，行為與既有插件機制（見下一節）相容。
 

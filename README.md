@@ -22,7 +22,7 @@
 ## 快速開始（本機）
 
 ```bash
-cp api/config.example.php api/config.php   # 填 admin_pin、ip_salt
+cp api/config.example.php api/config.php   # 填 primary_pin、ip_salt
 # projects/、state/ 已隨 repo 建好（各含 .gitkeep），確認 PHP 執行者可寫即可
 php -S localhost:8000                      # 或掛你的 Nginx/PHP-FPM
 # 開 http://localhost:8000/
@@ -34,7 +34,7 @@ php -S localhost:8000                      # 或掛你的 Nginx/PHP-FPM
 
 | 鍵 | 說明 |
 |---|---|
-| `admin_pin` | 主管理 PIN（管理所有專案，請妥善保管） |
+| `primary_pin` | 主管理 PIN（管理所有專案，請妥善保管） |
 | `ip_salt` | 隨機鹽值（管理登入 cookie 與冒名鑑識用） |
 | `trust_forwarded` | 位於 Nginx 反代後設 `true` |
 | `debug` | 上線穩定後設 `false` |

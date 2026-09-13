@@ -4,7 +4,7 @@
  * 無外部相依；限流本身失敗時「放行」而非拒服務（避免自我 DoS）。
  * 位於 Nginx 反代後，需在 config 開 trust_forwarded 才會用 X-Forwarded-For。
  */
-require_once __DIR__ . '/accounts.php';   // primary_authed/admin_can/admin_perm 疊加帳號登入判斷，需要 account_current() 等函式
+require_once __DIR__ . '/accounts.php';   // primary_authed/perm_can/perm_check 疊加帳號登入判斷，需要 account_current() 等函式
 
 function client_ip(array $cfg): string {
     if (!empty($cfg['trust_forwarded']) && !empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
@@ -17,18 +17,20 @@ function client_ip(array $cfg): string {
 
 /**
  * 管理登入：多 PIN + 簡易權限管理。
- * - 主 PIN：config['admin_pin']（bootstrap）+ state/admin_pins.json 的 primary 清單，皆為全域權限。
- * - 各專案 PIN：state/admin_pins.json 的 projects[<id>] 清單，僅該專案。
+ * - 主 PIN：config['primary_pin']（bootstrap，向下相容舊鍵名 admin_pin）+ state/pins.json 的 primary 清單，皆為全域權限。
+ * - 各專案 PIN：state/pins.json 的 projects[<id>] 清單，僅該專案。
  * - 每把 PIN 可帶暱稱 label。
- * - cookie 由「鹽值」衍生（代表已通過某範圍），與特定 PIN 解耦；移除某 PIN 不影響既有登入，
- *   需全面登出可更換 ip_salt。
+ * - 主 PIN 的簽章不含特定 PIN id（所有主 PIN 共用同一把簽章），移除某把主 PIN 不會讓已登入的
+ *   cookie 失效，需全面登出得換 ip_salt——這是共用簽章架構下無法避免的限制。
+ * - 專案 PIN 的簽章有綁 pinId，perm_can()／perm_check() 都會即時核對 pins.json 是否還有這筆 id，
+ *   移除後下一次請求就失效，不必更換 ip_salt。
  */
 define('PRIMARY_COOKIE', 'souliong_primary');
 function primary_derived(array $cfg): string { return hash_hmac('sha256', 'souliong-primary', (string)($cfg['ip_salt'] ?? '')); }
-function padm_cookie_name(string $project): string { return 'souliong_padm_' . preg_replace('/[^a-z0-9_-]/', '', $project); }
+function pin_cookie_name(string $project): string { return 'souliong_pin_' . preg_replace('/[^a-z0-9_-]/', '', $project); }
 // cookie 值＝"<pinId>.<簽章>"：簽章綁定 project+pinId，讓 cookie 記得「用哪一把專案 PIN 登入」，
 // 才能做到權限旗標可個別下放到特定專案 PIN（而非只要有登入任一把就視為同權）。
-function padm_derived(array $cfg, string $project, string $pinId): string { return hash_hmac('sha256', 'souliong-padm', $project . '|' . $pinId . '|' . (string)($cfg['ip_salt'] ?? '')); }
+function pin_derived(array $cfg, string $project, string $pinId): string { return hash_hmac('sha256', 'souliong-padm', $project . '|' . $pinId . '|' . (string)($cfg['ip_salt'] ?? '')); }
 
 // PIN 登入與帳號登入（見檔尾「帳號系統」）並存：只要任一種通過就算通過，帳號是 PIN 之上疊加的
 // 一層，不取代——舊 PIN 在完成「轉換為帳號」前持續有效，不會有人被迫中斷登入。
@@ -38,23 +40,28 @@ function primary_authed(array $cfg): bool {
     return $acc !== null && ($acc['role'] ?? '') === 'primary';
 }
 
-/** 解析目前這個專案的 padm cookie，回傳驗證通過的 pinId；未登入或簽章不符回傳 null。 */
-function padm_pin_id(array $cfg, string $project): ?string {
-    $raw = (string)($_COOKIE[padm_cookie_name($project)] ?? '');
+/** 解析目前這個專案的專案 PIN cookie，回傳驗證通過的 pinId；未登入或簽章不符回傳 null。 */
+function pin_current_id(array $cfg, string $project): ?string {
+    $raw = (string)($_COOKIE[pin_cookie_name($project)] ?? '');
     $dot = strrpos($raw, '.');
     if ($dot === false) return null;
     $pinId = substr($raw, 0, $dot);
     $sig = substr($raw, $dot + 1);
-    if ($pinId === '' || !hash_equals(padm_derived($cfg, $project, $pinId), $sig)) return null;
+    if ($pinId === '' || !hash_equals(pin_derived($cfg, $project, $pinId), $sig)) return null;
     return $pinId;
 }
-function admin_can(array $cfg, string $project): bool {
+function perm_can(array $cfg, string $project): bool {
     if (primary_authed($cfg)) return true;
-    if (padm_pin_id($cfg, $project) !== null) return true;
+    $pinId = pin_current_id($cfg, $project);
+    if ($pinId !== null) {
+        foreach (pins_load($cfg)['projects'][$project] ?? [] as $e) {
+            if ((string)($e['id'] ?? '') === $pinId) return true;
+        }
+    }
     $acc = account_current($cfg);
-    return $acc !== null && project_admin_perms($cfg, $project, (string)$acc['id']) !== null;
+    return $acc !== null && project_account_perms($cfg, $project, (string)$acc['id']) !== null;
 }
-/** primary／primary 帳號在每個具名權限下皆視為開啟，供 admin_perm()／site_perm() 統一查表，
+/** primary／primary 帳號在每個具名權限下皆視為開啟，供 perm_check()／site_perm() 統一查表，
  *  而非各自硬編碼略過檢查——新權限鍵一律要在這裡明列才會對 primary 生效，不會無聲預設全開。 */
 function primary_perms(): array {
     return [
@@ -64,9 +71,9 @@ function primary_perms(): array {
     ];
 }
 /** 專案層級具名權限判斷：primary 查 primary_perms()；專案 PIN 或專案帳號則需 perms[$permKey] 已被開啟才通過。 */
-function admin_perm(array $cfg, string $project, string $permKey): bool {
+function perm_check(array $cfg, string $project, string $permKey): bool {
     if (primary_authed($cfg)) return !empty(primary_perms()[$permKey]);
-    $pinId = padm_pin_id($cfg, $project);
+    $pinId = pin_current_id($cfg, $project);
     if ($pinId !== null) {
         foreach (pins_load($cfg)['projects'][$project] ?? [] as $e) {
             if ((string)($e['id'] ?? '') === $pinId) return !empty($e['perms'][$permKey]);
@@ -74,7 +81,7 @@ function admin_perm(array $cfg, string $project, string $permKey): bool {
     }
     $acc = account_current($cfg);
     if ($acc !== null) {
-        $perms = project_admin_perms($cfg, $project, (string)$acc['id']);
+        $perms = project_account_perms($cfg, $project, (string)$acc['id']);
         if ($perms !== null) return !empty($perms[$permKey]);
     }
     return false;
@@ -85,17 +92,32 @@ function site_perm(array $cfg, string $permKey): bool {
 }
 function _cookie_opts(): array { return ['expires' => time() + 7 * 86400, 'path' => '/', 'httponly' => true, 'secure' => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'), 'samesite' => 'Lax']; }
 function primary_set_cookie(array $cfg): void { setcookie(PRIMARY_COOKIE, primary_derived($cfg), _cookie_opts()); }
-function padm_set_cookie(array $cfg, string $project, string $pinId): void { setcookie(padm_cookie_name($project), $pinId . '.' . padm_derived($cfg, $project, $pinId), _cookie_opts()); }
+function pin_set_cookie(array $cfg, string $project, string $pinId): void { setcookie(pin_cookie_name($project), $pinId . '.' . pin_derived($cfg, $project, $pinId), _cookie_opts()); }
 function primary_clear_cookie(): void {
     setcookie(PRIMARY_COOKIE, '', ['expires' => time() - 3600, 'path' => '/']);
-    foreach ($_COOKIE as $k => $v) { if (strpos($k, 'souliong_padm_') === 0) setcookie($k, '', ['expires' => time() - 3600, 'path' => '/']); }
+    foreach ($_COOKIE as $k => $v) { if (strpos($k, 'souliong_pin_') === 0 || strpos($k, 'souliong_padm_') === 0) setcookie($k, '', ['expires' => time() - 3600, 'path' => '/']); }
 }
 
-// ── PIN 清單（state/admin_pins.json） ──
-function pins_file(array $cfg): string { return rtrim($cfg['state_dir'], '/\\') . '/admin_pins.json'; }
+// ── PIN 清單（state/pins.json，舊檔名 admin_pins.json 首次讀取時自動搬遷） ──
+function pins_file(array $cfg): string {
+    $dir = rtrim($cfg['state_dir'], '/\\');
+    $new = $dir . '/pins.json';
+    $legacy = $dir . '/admin_pins.json';
+    if (!is_file($new) && is_file($legacy)) @rename($legacy, $new);
+    return $new;
+}
 /** 新專案 PIN 的預設權限：一律從全關始（等同僅主 PIN 才能動別人的東西），需主 PIN 逐項開啟下放。 */
 function pin_default_perms(): array { return ['delete_others' => false, 'edit_others' => false, 'edit_points' => false, 'grant_access' => false, 'edit_3d_regions' => false]; }
+// manager.php 單次頁面渲染常對同一專案連續呼叫多次 perm_check()，各自都會讀這份清單；
+// 用行程內靜態快取避免同一請求重複讀檔／解碼，pins_save() 寫入後會同步更新快取。
+function _pins_cache(?array $set = null): ?array {
+    static $cache = null;
+    if ($set !== null) $cache = $set;
+    return $cache;
+}
 function pins_load(array $cfg): array {
+    $cached = _pins_cache();
+    if ($cached !== null) return $cached;
     $d = is_file(pins_file($cfg)) ? json_decode((string)@file_get_contents(pins_file($cfg)), true) : null;
     if (!is_array($d)) $d = [];
     $d['projects'] = $d['projects'] ?? [];
@@ -122,13 +144,21 @@ function pins_load(array $cfg): array {
     }
     unset($list);
     if ($dirty) pins_save($cfg, $d);
-    return $d;
+    return _pins_cache($d);
 }
-function pins_save(array $cfg, array $d): void { @file_put_contents(pins_file($cfg), json_encode($d, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX); }
+function pins_save(array $cfg, array $d): void {
+    if (@file_put_contents(pins_file($cfg), json_encode($d, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX) === false) {
+        error_log('souliong: pins_save 寫入失敗：' . pins_file($cfg));
+    }
+    _pins_cache($d);
+}
 function _pin_in(array $list, string $pin): bool { foreach ($list as $e) { if (isset($e['pin']) && $pin !== '' && hash_equals((string)$e['pin'], $pin)) return true; } return false; }
+// 設定檔鍵名 primary_pin／primary_pin_label；沿用舊鍵名 admin_pin／admin_pin_label 的部署不用改 config.php 也能繼續動。
+function _cfg_primary_pin(array $cfg): string { return (string)($cfg['primary_pin'] ?? $cfg['admin_pin'] ?? ''); }
+function _cfg_primary_pin_label(array $cfg): string { return (string)($cfg['primary_pin_label'] ?? $cfg['admin_pin_label'] ?? ''); }
 function check_primary_pin(array $cfg, string $pin): bool {
     if ($pin === '') return false;
-    if (($cfg['admin_pin'] ?? '') !== '' && hash_equals((string)$cfg['admin_pin'], $pin)) return true;
+    if (_cfg_primary_pin($cfg) !== '' && hash_equals(_cfg_primary_pin($cfg), $pin)) return true;
     return _pin_in(pins_load($cfg)['primary'], $pin);
 }
 /** 找出符合此 PIN 的專案 PIN 紀錄（含 id/perms），供登入時決定 cookie 要記哪把；不符合回傳 null。 */
@@ -223,10 +253,10 @@ function _label_in(array $list, string $pin): string {
     foreach ($list as $e) { if (isset($e['pin']) && $pin !== '' && hash_equals((string)$e['pin'], $pin)) return trim((string)($e['label'] ?? '')); }
     return '';
 }
-/** 登入用的這把 PIN 若有設定暱稱，回傳暱稱；bootstrap 主 PIN 對應 config['admin_pin_label']。供登入後帶入投稿身分。 */
+/** 登入用的這把 PIN 若有設定暱稱，回傳暱稱；bootstrap 主 PIN 對應 config['primary_pin_label']。供登入後帶入投稿身分。 */
 function primary_pin_label(array $cfg, string $pin): string {
-    if (($cfg['admin_pin'] ?? '') !== '' && hash_equals((string)$cfg['admin_pin'], $pin)) {
-        return trim((string)($cfg['admin_pin_label'] ?? ''));
+    if (_cfg_primary_pin($cfg) !== '' && hash_equals(_cfg_primary_pin($cfg), $pin)) {
+        return trim(_cfg_primary_pin_label($cfg));
     }
     return _label_in(pins_load($cfg)['primary'], $pin);
 }
@@ -266,7 +296,11 @@ function codes_load(array $cfg, string $project): array {
     }
     return $d;
 }
-function codes_save(array $cfg, string $project, array $d): void { @file_put_contents(codes_file($cfg, $project), json_encode($d, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX); }
+function codes_save(array $cfg, string $project, array $d): void {
+    if (@file_put_contents(codes_file($cfg, $project), json_encode($d, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX) === false) {
+        error_log('souliong: codes_save 寫入失敗：' . codes_file($cfg, $project));
+    }
+}
 function codes_grant_create(array $cfg, string $project, ?string $code, ?string $label, ?string $expiresAt, ?int $maxUses): string {
     $code = $code !== null ? preg_replace('/\D/', '', $code) : '';
     if ($code === '') $code = gen_code();
@@ -336,7 +370,11 @@ function contrib_load(array $cfg, string $project): array {
     $d = is_file($f) ? json_decode((string)@file_get_contents($f), true) : null;
     return is_array($d) ? $d : [];
 }
-function contrib_save(array $cfg, string $project, array $d): void { @file_put_contents(contrib_file($cfg, $project), json_encode($d, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX); }
+function contrib_save(array $cfg, string $project, array $d): void {
+    if (@file_put_contents(contrib_file($cfg, $project), json_encode($d, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX) === false) {
+        error_log('souliong: contrib_save 寫入失敗：' . contrib_file($cfg, $project));
+    }
+}
 /** 註冊或取得投稿者；回傳 [id, label]。label 僅在首次或本人更新時寫入。 */
 function contrib_register(array $cfg, string $project, string $token, ?string $label): array {
     $id = contrib_id_of($token);
@@ -364,7 +402,11 @@ function blocked_load(array $cfg, string $project): array {
     $d['contribs'] = array_values(array_map('strval', $d['contribs'] ?? []));
     return $d;
 }
-function blocked_save(array $cfg, string $project, array $d): void { @file_put_contents(blocked_file($cfg, $project), json_encode($d, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX); }
+function blocked_save(array $cfg, string $project, array $d): void {
+    if (@file_put_contents(blocked_file($cfg, $project), json_encode($d, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX) === false) {
+        error_log('souliong: blocked_save 寫入失敗：' . blocked_file($cfg, $project));
+    }
+}
 function is_blocked(array $cfg, string $project, ?string $ownerHash, ?string $contribId): bool {
     $d = blocked_load($cfg, $project);
     if ($ownerHash !== null && in_array($ownerHash, $d['owners'], true)) return true;

@@ -26,7 +26,7 @@ require __DIR__ . '/i18n.php';
 require_once __DIR__ . '/routes.php';
 require_once __DIR__ . '/regions3d.php';
 $cfg = require __DIR__ . '/config.php';
-rate_limit($cfg, 'admin');
+rate_limit($cfg, 'manage');
 [$LANG, $DICT] = i18n_init();
 $t  = fn(string $key, array $vars = []): string => htmlspecialchars(i18n_t($DICT, $key, $vars), ENT_QUOTES);
 $tr = fn(string $key, array $vars = []): string => i18n_t($DICT, $key, $vars);
@@ -35,25 +35,25 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 $backProject = preg_replace('/[^a-z0-9_-]/', '', $_GET['project'] ?? '');
 $adminUrl = $esc(Route::abs(Route::manager($backProject, 'tools')));
 
-// 頁面可不可以打開：跟 tilecut.php 一樣看專案管理權（admin_can）。實際會動到資料的四個動作
+// 頁面可不可以打開：跟 tilecut.php 一樣看專案管理權（perm_can）。實際會動到資料的四個動作
 // （begin/srcput/finish/rescan）另外再擋一層 edit_3d_regions——這把鑰匙才是「可以下放給特定
 // 專案 PIN」的那一把（security.php 的 pin_default_perms()），單純打開頁面看現有區域不需要它。
 $primary = primary_authed($cfg);
 $canProj = function (string $p) use ($cfg, $primary): bool {
     return $p !== '' && preg_match('/^[a-z0-9_-]+$/', $p) === 1
         && is_dir(project_dir($cfg, $p))
-        && ($primary || admin_can($cfg, $p));
+        && ($primary || perm_can($cfg, $p));
 };
-$canEdit = fn(string $p): bool => admin_perm($cfg, $p, 'edit_3d_regions');
-$auditWho = fn(string $p) => $primary ? 'primary' : (($acc = account_current($cfg)) !== null ? 'acct:' . $acc['id'] : 'pin:' . (string)padm_pin_id($cfg, $p));
+$canEdit = fn(string $p): bool => perm_check($cfg, $p, 'edit_3d_regions');
+$auditWho = fn(string $p) => $primary ? 'primary' : (($acc = account_current($cfg)) !== null ? 'acct:' . $acc['id'] : 'pin:' . (string)pin_current_id($cfg, $p));
 // 依身份派生 CSRF token：primary 用 primary_derived()，帳號用 account_derived()，專案 PIN 用
-// padm_derived()。與 manager.php 的 $csrf 衍生邏輯同一套規則。
+// pin_derived()。與 manager.php 的 $csrf 衍生邏輯同一套規則。
 $csrfFor = function (string $p) use ($cfg, $primary): string {
     if ($primary) {
         return primary_derived($cfg);
     }
     $acc = account_current($cfg);
-    return $acc !== null ? account_derived($cfg, (string)$acc['id']) : padm_derived($cfg, $p, (string)padm_pin_id($cfg, $p));
+    return $acc !== null ? account_derived($cfg, (string)$acc['id']) : pin_derived($cfg, $p, (string)pin_current_id($cfg, $p));
 };
 
 /** GeoJSON Polygon 驗證：單一外環、經緯度範圍合理、點數有上限。回傳整理過（只留 [lon,lat]）的結構，不合法回 null。 */
@@ -281,7 +281,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'resca
 }
 
 // ── 頁面 ──
-$allProjects = array_values(array_filter(store_projects($cfg), fn($p) => $primary || admin_can($cfg, $p)));
+$allProjects = array_values(array_filter(store_projects($cfg), fn($p) => $primary || perm_can($cfg, $p)));
 if (!$primary && !$allProjects) {
     http_response_code(401);
     header('Content-Type: text/html; charset=utf-8');
@@ -892,7 +892,7 @@ window.maplibregl = maplibregl;
     };
 
     async function post(body, soft) {
-      // 跟 tilecut.php 同一套限流重試：admin bucket 撞到 429 時照 Retry-After 等一下再送
+      // 跟 tilecut.php 同一套限流重試：manage bucket 撞到 429 時照 Retry-After 等一下再送
       for (let attempt = 0; attempt < 6; attempt++) {
         const res = await fetch(BASE + '?api=region3d', { method: 'POST', body });
         if (res.status !== 429) {

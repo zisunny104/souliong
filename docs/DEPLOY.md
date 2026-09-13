@@ -12,7 +12,7 @@ Souliong 是 KoiLiSu 框架下的一個 app（`apps/souliong`）。純 PHP + 檔
 `projects/`、`state/` 底下的檔案，是網頁伺服器（Nginx）的責任，不是 PHP 應用程式的責任。換句話說：
 少了這段 Nginx 設定，任何人不用登入、不用密碼，直接在網址列打
 `https://你的網域/.../projects/100chairs/codes.json`，瀏覽器就會把投稿碼原原本本顯示出來
-（因為 Nginx 預設看到「檔案存在」就會直接送出檔案內容，完全不會經過 `index.php`）。`state/admin_pins.json`
+（因為 Nginx 預設看到「檔案存在」就會直接送出檔案內容，完全不會經過 `index.php`）。`state/pins.json`
 同理，會把每個專案的管理密碼全部曝光。
 
 在你的 Nginx **server 區塊**（跟 `listen`、`server_name`、`root` 同一層，通常是
@@ -31,10 +31,10 @@ sudo systemctl reload nginx   # 沒錯再套用（reload 不會中斷現有連�
 ```
 > **驗證（一定要實測，不要只看設定檔）**：瀏覽器開
 > `https://你的網域/.../projects/100chairs/codes.json`，應該看到 403 Forbidden 或 404，
-> 而不是投稿碼的 JSON 內容。`state/admin_pins.json` 也照樣測一次。
+> 而不是投稿碼的 JSON 內容。`state/pins.json` 也照樣測一次。
 
 ### 2. 改掉預設密鑰（`api/config.php`）
-- `admin_pin` → 一組不易猜的 PIN（管理頁登入用；驗證後種 httpOnly cookie，PIN 不進網址）。
+- `primary_pin` → 一組不易猜的 PIN（管理頁登入用；驗證後種 httpOnly cookie，PIN 不進網址）。
 - `ip_salt` → 一組隨機字串（鑑識 IP 雜湊用）。
 
 ### 3. 反代 IP 設定
@@ -72,9 +72,9 @@ Nginx：`client_max_body_size 70m;`　PHP：`upload_max_filesize=64M`、`post_ma
 ## 三、管理 / 審閱 / 分析
 
 - 管理頁：`<base>/manager`（全部地圖總覽）、`<base>/manager/<mapid>`（單張地圖），輸入 PIN 或帳號密碼登入（POST，httpOnly cookie 保持登入，PIN／密碼皆不進網址）。分頁、備份與匯出都是這底下的路徑（`/manager/<mapid>/records`、`/manager/backup.zip`…），完整清單見 [EXTENDING.md](EXTENDING.md) 第九節。舊網址 `?api=admin`、`/<mapid>/manager` 仍然有效，開啟時會自動導向上面的形式。
-  - **主 PIN**（`config.admin_pin`）：開所有專案。**專案 PIN**：只開該專案，由主 PIN 在後台新增/移除，可個別授權下列權限旗標（`admin_perm`，預設關閉）：`delete_others`（刪別人的投稿）、`edit_others`（改別人的投稿）、`edit_points`（改定位點）、`grant_access`（可建立「管理PIN」型分享連結）、`edit_3d_regions`（編 3D 模型排除區域）。
+  - **主 PIN**（`config.primary_pin`）：開所有專案。**專案 PIN**：只開該專案，由主 PIN 在後台新增/移除，可個別授權下列權限旗標（`perm_check`，預設關閉）：`delete_others`（刪別人的投稿）、`edit_others`（改別人的投稿）、`edit_points`（改定位點）、`grant_access`（可建立「管理PIN」型分享連結）、`edit_3d_regions`（編 3D 模型排除區域）。
   - 投稿者身分是**純自助**的：參與者用投稿碼進地圖後，在解鎖視窗自行設 PIN 建立身分；後台「身分管理」只顯示/撤銷，不能代為建立，身分本身也不帶到期／次數（那是投稿碼的事）。
-  - 「管理 PIN」同樣是**純自助**的：後台只建立**邀請連結**（可設到期時間／兌換次數上限），收到連結的人自行輸入 PIN／暱稱兌換；兌換出來的身分預設無任何權限，需由主 PIN 事後逐項授權（`admin_perm`）。連結的秘密只透過網址 fragment（`#redeem=...`）傳遞，不進伺服器紀錄。
+  - 「管理 PIN」同樣是**純自助**的：後台只建立**邀請連結**（可設到期時間／兌換次數上限），收到連結的人自行輸入 PIN／暱稱兌換；兌換出來的身分預設無任何權限，需由主 PIN 事後逐項授權（`perm_check`）。連結的秘密只透過網址 fragment（`#redeem=...`）傳遞，不進伺服器紀錄。
   - 帳號（userid＋密碼）是 PIN 之外的另一種登入方式，自助註冊預設**關閉**（「工具」分頁的「開放自助註冊」開關），關閉時只能靠上述邀請連結建立；不論哪種方式建立，新帳號預設無任何專案權限，一樣要主 PIN 逐項授權。平時建議維持關閉，避免被灌帳號。
   - 投稿碼／身分管理、看統計摘要、瀏覽與刪除投稿。
   - 每筆顯示 `owner`(同源可群組) 與 `src`(加鹽 IP 雜湊)：**同一 owner 出現多個不同 src ＝ 可能投稿碼外流/冒名**，可據此界定污染範圍後刪除。
@@ -93,7 +93,7 @@ worker-src  blob:;
 ```
 
 ## 五、備份
-只要備份 `apps/souliong/projects/`（每個專案的全部資料、照片、影音與專案專屬圖層）與 `apps/souliong/state/`（admin PIN 清單）兩個資料夾即為全部使用者資料；後台的「全部專案備份（ZIP）」打包的也是這兩個（`state/` 在 ZIP 裡的路徑沿用舊名 `data/`，匯入端認得）。
+只要備份 `apps/souliong/projects/`（每個專案的全部資料、照片、影音與專案專屬圖層）與 `apps/souliong/state/`（PIN 清單）兩個資料夾即為全部使用者資料；後台的「全部專案備份（ZIP）」打包的也是這兩個（`state/` 在 ZIP 裡的路徑沿用舊名 `data/`，匯入端認得）。
 
 > 例外：從後台匯入的**全站**圖層與主題包落在 `layers/`、`packs/`，不在上面兩個資料夾裡。這兩個目錄進版控，所以正常做法是把匯入的成果一併 commit，而不是靠備份。
 

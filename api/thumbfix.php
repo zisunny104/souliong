@@ -7,7 +7,7 @@ require __DIR__ . '/security.php';
 require __DIR__ . '/i18n.php';
 require_once __DIR__ . '/routes.php';   // 網址表：後台網址只有這一份定義（見 api/routes.php）
 $cfg = require __DIR__ . '/config.php';
-rate_limit($cfg, 'admin');
+rate_limit($cfg, 'manage');
 [$LANG, $DICT] = i18n_init();
 $t  = fn(string $key, array $vars = []): string => htmlspecialchars(i18n_t($DICT, $key, $vars), ENT_QUOTES);
 $tr = fn(string $key, array $vars = []): string => i18n_t($DICT, $key, $vars);

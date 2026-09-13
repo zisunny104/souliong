@@ -40,9 +40,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     json_out(['error' => 'method not allowed'], 405);
 }
-rate_limit($cfg, 'admin');
+rate_limit($cfg, 'manage');
 
-if (!admin_can($cfg, $project)) {
+if (!perm_can($cfg, $project)) {
     json_out(['error' => '沒有權限管理這張地圖的封面圖片'], 403);
 }
 
@@ -52,7 +52,7 @@ $isPrimary = primary_authed($cfg);
 $acctCsrf = $isPrimary ? null : account_current($cfg);
 $csrfExpected = $isPrimary
     ? primary_derived($cfg)
-    : ($acctCsrf !== null ? account_derived($cfg, (string)$acctCsrf['id']) : padm_derived($cfg, $project, (string)padm_pin_id($cfg, $project)));
+    : ($acctCsrf !== null ? account_derived($cfg, (string)$acctCsrf['id']) : pin_derived($cfg, $project, (string)pin_current_id($cfg, $project)));
 if (!hash_equals($csrfExpected, (string)($_POST['csrf'] ?? ''))) {
     json_out(['error' => '憑證失效，請重新整理頁面後再操作一次'], 403);
 }

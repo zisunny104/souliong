@@ -60,7 +60,7 @@ try {
     $contribStored = (string)($orig['contrib_hash'] ?? '');
     $ownerOk   = $owner !== '' && $ownerStored !== '' && hash_equals($ownerStored, hash('sha256', $owner));
     $contribOk = $ctoken !== '' && $contribStored !== '' && hash_equals($contribStored, contrib_hash_of($ctoken));
-    $isAdmin   = !$ownerOk && !$contribOk && admin_perm($cfg, $project, 'edit_others');
+    $isAdmin   = !$ownerOk && !$contribOk && perm_check($cfg, $project, 'edit_others');
     if (!$ownerOk && !$contribOk && !$isAdmin) {
         json_out(['error' => '沒有權限編輯這則（只有原投稿者本人或管理者可以）'], 403);
     }
@@ -71,7 +71,7 @@ try {
         $acctCsrf = $isPrimary ? null : account_current($cfg);
         $csrfExpected = $isPrimary
             ? primary_derived($cfg)
-            : ($acctCsrf !== null ? account_derived($cfg, (string)$acctCsrf['id']) : padm_derived($cfg, $project, (string)padm_pin_id($cfg, $project)));
+            : ($acctCsrf !== null ? account_derived($cfg, (string)$acctCsrf['id']) : pin_derived($cfg, $project, (string)pin_current_id($cfg, $project)));
         if (!hash_equals($csrfExpected, (string)($_POST['csrf'] ?? ''))) {
             json_out(['error' => '憑證失效，請重新整理頁面後再操作一次'], 403);
         }

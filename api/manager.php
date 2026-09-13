@@ -14,7 +14,7 @@ require_once __DIR__ . '/settings.php';   // packs.php 內部也會載它，兩�
 require __DIR__ . '/../pages/error.php';
 require_once __DIR__ . '/i18n.php';
 $cfg = require __DIR__ . '/config.php';
-rate_limit($cfg, 'admin');
+rate_limit($cfg, 'manage');
 [$LANG, $DICT] = i18n_init();
 $t  = fn(string $key, array $vars = []): string => htmlspecialchars(i18n_t($DICT, $key, $vars), ENT_QUOTES);
 $tr = fn(string $key, array $vars = []): string => i18n_t($DICT, $key, $vars);   // 內容含固定 HTML 標籤（非使用者輸入），此頁自行保證安全，不做二次跳脫
@@ -66,7 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'login
     if ($proj !== '' && is_dir($cfg['projects_dir'] . '/' . $proj)) $go = Route::manager($proj);
   } elseif ($proj !== '' && ($ppMatch = project_pin_match($cfg, $proj, $pin)) !== null) {
     if (pins_check_and_bump($cfg, $proj, (string)$ppMatch['id'])) {
-      padm_set_cookie($cfg, $proj, (string)$ppMatch['id']);
+      pin_set_cookie($cfg, $proj, (string)$ppMatch['id']);
       $ok = true;
       $go = Route::manager($proj);
       $label = project_pin_label($cfg, $proj, $pin);
@@ -123,7 +123,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'accou
 }
 
 // ── 舊 PIN 轉換為帳號（POST token, legacy_pin, userid, pw）→ 核對舊 PIN 證明本人後建立新帳號 ──
-// 公開端點（未登入者用，token 只透過網址 fragment 帶出），比照 admin_redeem：不做 CSRF，rate_limit($cfg,'admin') 已節流。
+// 公開端點（未登入者用，token 只透過網址 fragment 帶出），比照 grant_redeem：不做 CSRF，rate_limit($cfg,'manage') 已節流。
 $activateErr = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'account_activate') {
   $res = account_migrate_activate(
@@ -143,8 +143,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'accou
 
 // ── 管理 PIN 邀請兌換（POST project, token, pin[, label]）→ 收件人自己設 PIN／暱稱，成功即種 cookie ──
 // 公開端點（未登入者用），刻意不做 CSRF 檢查：跟 action=login 同一層級，呼叫端本來就沒有已登入頁面可嵌 token；
-// 最多只是幫別人兌換一個權限全關的身分，rate_limit($cfg,'admin')（見本檔開頭）已足以節流亂猜。
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'admin_redeem') {
+// 最多只是幫別人兌換一個權限全關的身分，rate_limit($cfg,'manage')（見本檔開頭）已足以節流亂猜。
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'grant_redeem') {
   header('Content-Type: application/json; charset=utf-8');
   $rProj = clean_id($_POST['project'] ?? '');
   $rToken = (string)($_POST['token'] ?? '');
@@ -157,7 +157,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'admin
   }
   $res = pins_redeem($cfg, $rProj, $rToken, $rPin, $rLabel);
   if ($res['ok']) {
-    padm_set_cookie($cfg, $rProj, (string)$res['id']);
+    pin_set_cookie($cfg, $rProj, (string)$res['id']);
   } else {
     http_response_code(403);
   }
@@ -189,7 +189,7 @@ $primary = primary_authed($cfg);
 $acct = $primary ? null : account_current($cfg);
 $acctProjects = $acct !== null ? account_project_list($cfg, (string)$acct['id']) : [];
 $authed = $primary
-  || ($reqProject !== '' && admin_can($cfg, $reqProject))
+  || ($reqProject !== '' && perm_can($cfg, $reqProject))
   || ($acct !== null && $acctProjects !== []);
 if (!$authed) {
   http_response_code(401);
@@ -586,7 +586,7 @@ if (!$authed) {
         $scopeProject = $reqProject;
         $csrf = $primary
           ? primary_derived($cfg)
-          : ($acct !== null ? account_derived($cfg, (string)$acct['id']) : padm_derived($cfg, $reqProject, (string)padm_pin_id($cfg, $reqProject)));
+          : ($acct !== null ? account_derived($cfg, (string)$acct['id']) : pin_derived($cfg, $reqProject, (string)pin_current_id($cfg, $reqProject)));
         $esc_csrf = $esc($csrf);
         function need_csrf(string $csrf): void
         {
@@ -596,9 +596,9 @@ if (!$authed) {
           }
         }
 
-        // 允許操作某專案？（主全通；專案管理者只能動自己的——admin_can() 本身已檢查 PIN／帳號授權，
+        // 允許操作某專案？（主全通；專案管理者只能動自己的——perm_can() 本身已檢查 PIN／帳號授權，
         // 不需要再比對 $reqProject，否則多專案帳號在非目前網址那個專案上會被誤擋）
-        $canProject = fn($p) => $primary || admin_can($cfg, $p);
+        $canProject = fn($p) => $primary || perm_can($cfg, $p);
 
         // 目前是否為「所有專案」總覽頁：全站專屬功能（工具分頁、主要管理 PIN）只在這裡顯示與生效
         $sitewideOnly = $primary && $scopeProject === '';
@@ -613,7 +613,7 @@ if (!$authed) {
         }
 
         // 稽核紀錄用的操作者識別：primary／帳號 id／PIN id 三選一，供事後追查憑證外洩時歸責
-        $auditWho = fn() => $primary ? 'primary' : ($acct !== null ? 'acct:' . $acct['id'] : 'pin:' . (string)padm_pin_id($cfg, $reqProject));
+        $auditWho = fn() => $primary ? 'primary' : ($acct !== null ? 'acct:' . $acct['id'] : 'pin:' . (string)pin_current_id($cfg, $reqProject));
 
         // 專案清單（供備份/檢視）
         $allProjects = store_projects($cfg);
@@ -628,7 +628,7 @@ if (!$authed) {
           $p = clean_id($_POST['project'] ?? '');
           $id = (string)($_POST['id'] ?? '');
           // 刪別人投稿預設僅限主 PIN；專案管理者只有在被授權 delete_others、且動的是自己已登入的專案時才可以
-          if ($p !== '' && $id !== '' && ($primary || admin_perm($cfg, $p, 'delete_others'))) {
+          if ($p !== '' && $id !== '' && ($primary || perm_check($cfg, $p, 'delete_others'))) {
             $removed = store_delete($cfg, $p, $id);
             if ($removed) audit_log($cfg, $auditWho(), 'delete_others', $p, $id);
             store_purge_files($cfg, $removed);   // 照片與影音的主檔＋縮圖一起清（見 store.php）
@@ -831,8 +831,9 @@ if (!$authed) {
           if ($p === '' || !$canProject($p)) {
             error_page(403, $t('no_permission_title'), $t('no_project_permission_msg'), Route::manager($scopeProject, 'access'), $t('back_to_admin'));
           }
-          $kind = in_array(($_POST['kind'] ?? ''), ['code', 'admin'], true) ? $_POST['kind'] : 'code';
-          if ($kind === 'admin' && !($primary || admin_perm($cfg, $p, 'grant_access'))) {
+          $kindIn = ($_POST['kind'] ?? '') === 'admin' ? 'grant' : ($_POST['kind'] ?? '');   // admin：改名前的舊表單值，相容
+          $kind = in_array($kindIn, ['code', 'grant'], true) ? $kindIn : 'code';
+          if ($kind === 'grant' && !($primary || perm_check($cfg, $p, 'grant_access'))) {
             error_page(403, $t('no_permission_title'), $t('admin_pin_share_permission_msg'), Route::manager($p, 'access'), $t('back_to_admin'));
           }
           $label = substr(trim((string)($_POST['label'] ?? '')), 0, 80);
@@ -850,7 +851,7 @@ if (!$authed) {
             $justCreatedShare = ['project' => $p, 'kind' => 'code', 'url' => $mapUrl($p) . '?code=' . $grantedCode, 'code' => $grantedCode];
           } else {
             [$grantedToken] = pins_invite_create($cfg, $p, $expiresAt, $maxUses);
-            $justCreatedShare = ['project' => $p, 'kind' => 'admin', 'url' => $mapUrl($p) . '#redeem=' . rawurlencode($grantedToken) . '&rmode=admin'];
+            $justCreatedShare = ['project' => $p, 'kind' => 'grant', 'url' => $mapUrl($p) . '#redeem=' . rawurlencode($grantedToken) . '&rmode=grant'];
           }
         }
         // 建立「舊 PIN → 帳號」轉換連結：primary（或已被授權 grant_access 的專案管理者，僅限 project 來源）
@@ -864,7 +865,7 @@ if (!$authed) {
           $mLegacyId = ($_POST['legacy_id'] ?? '') !== '' ? (string)$_POST['legacy_id'] : null;
           $mLabel = substr(trim((string)($_POST['label'] ?? '')), 0, 80);
           $canMigrate = $mSource === 'project'
-            ? ($mProject !== '' && ($primary || admin_perm($cfg, $mProject, 'grant_access')))
+            ? ($mProject !== '' && ($primary || perm_check($cfg, $mProject, 'grant_access')))
             : $primary;   // primary／bootstrap 兩種來源（全域身分）僅限主 PIN 本人操作
           if ($mSource === '' || !$canMigrate) {
             error_page(403, $t('no_permission_title'), $t('primary_only_pin_perm_msg'), Route::manager($scopeProject, 'access'), $t('back_to_admin'));
@@ -878,7 +879,7 @@ if (!$authed) {
           need_csrf($csrf);
           $p = clean_id($_POST['project'] ?? '');
           $iid = (string)($_POST['invite_id'] ?? '');
-          if ($p !== '' && $iid !== '' && ($primary || admin_perm($cfg, $p, 'grant_access'))) {
+          if ($p !== '' && $iid !== '' && ($primary || perm_check($cfg, $p, 'grant_access'))) {
             $d = pins_load($cfg);
             $d['projects'][$p] = array_values(array_filter($d['projects'][$p] ?? [], fn($e) => !(($e['kind'] ?? '') === 'invite' && (string)($e['id'] ?? '') === $iid)));
             pins_save($cfg, $d);
@@ -887,37 +888,37 @@ if (!$authed) {
           exit;
         }
         // 帳號型專案管理者：直接以既有帳號的 userid 指派／調整權限／移除。跟 PIN 權限管理同門檻——僅限主 PIN。
-        if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array(($_POST['action'] ?? ''), ['addacctadmin', 'delacctadmin', 'setacctperm'], true)) {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array(($_POST['action'] ?? ''), ['addacctperm', 'delacctperm', 'setacctperm'], true)) {
           need_csrf($csrf);
           if (!$primary) {
             error_page(403, $t('no_permission_title'), $t('primary_only_pin_perm_msg'), Route::manager($scopeProject, 'access'), $t('back_to_admin'));
           }
           $tp = clean_id($_POST['project'] ?? '');
           if ($tp !== '') {
-            if (($_POST['action']) === 'addacctadmin') {
+            if (($_POST['action']) === 'addacctperm') {
               $uid = account_userid_normalize((string)($_POST['userid'] ?? ''));
               $acc = $uid !== '' ? account_find_by_userid($cfg, $uid) : null;
-              if ($acc !== null && project_admin_perms($cfg, $tp, (string)$acc['id']) === null) {
-                project_admin_set($cfg, $tp, (string)$acc['id'], _account_default_perms());
-                audit_log($cfg, $auditWho(), 'acctadmin_add', $tp, (string)$acc['id']);
+              if ($acc !== null && project_account_perms($cfg, $tp, (string)$acc['id']) === null) {
+                project_account_set($cfg, $tp, (string)$acc['id'], _account_default_perms());
+                audit_log($cfg, $auditWho(), 'acctperm_add', $tp, (string)$acc['id']);
               }
             } elseif (($_POST['action']) === 'setacctperm') {
               $permKey = (string)($_POST['perm'] ?? '');
               $accountId = (string)($_POST['account_id'] ?? '');
               $on = ($_POST['on'] ?? '') === '1';
               if ($accountId !== '' && array_key_exists($permKey, _account_default_perms())) {
-                $d = project_admins_load($cfg, $tp);
+                $d = project_perms_load($cfg, $tp);
                 foreach ($d['members'] as &$m) {
                   if ((string)($m['account_id'] ?? '') === $accountId) { $m['perms'][$permKey] = $on; break; }
                 }
                 unset($m);
-                project_admins_save($cfg, $tp, $d);
+                project_perms_save($cfg, $tp, $d);
               }
             } else {
               $accountId = (string)($_POST['account_id'] ?? '');
               if ($accountId !== '') {
-                project_admin_remove($cfg, $tp, $accountId);
-                audit_log($cfg, $auditWho(), 'acctadmin_remove', $tp, $accountId);
+                project_account_remove($cfg, $tp, $accountId);
+                audit_log($cfg, $auditWho(), 'acctperm_remove', $tp, $accountId);
               }
             }
           }
@@ -966,7 +967,7 @@ if (!$authed) {
           $p = clean_id($_POST['project'] ?? '');
           $field = ($_POST['kind'] ?? '') === 'owner' ? 'owner_hash' : 'contrib_id';
           $key = (string)($_POST['key'] ?? '');
-          if ($p !== '' && $key !== '' && ($primary || admin_perm($cfg, $p, 'delete_others'))) {
+          if ($p !== '' && $key !== '' && ($primary || perm_check($cfg, $p, 'delete_others'))) {
             $removedList = store_delete_by($cfg, $p, $field, $key);
             foreach ($removedList as $removed) {
               store_purge_files($cfg, $removed);
@@ -1096,9 +1097,9 @@ if (!$authed) {
           $imported = 0;
           if (isset($_FILES['backup']) && $_FILES['backup']['error'] === UPLOAD_ERR_OK) {
             $mode = ($_POST['mode'] ?? 'merge') === 'replace' ? 'replace' : 'merge';
-            // 只接受 projects/、data/admin_pins.json 底下、無 .. 的安全路徑
+            // 只接受 projects/、data/pins.json 底下、無 .. 的安全路徑（data/admin_pins.json 是改名前的舊備份，相容）
             $accept = fn($nm) => strpos(str_replace('\\', '/', (string)$nm), '..') === false
-              && preg_match('#^(projects/[A-Za-z0-9_./-]+|data/admin_pins\.json)$#', str_replace('\\', '/', (string)$nm));
+              && preg_match('#^(projects/[A-Za-z0-9_./-]+|data/(?:admin_)?pins\.json)$#', str_replace('\\', '/', (string)$nm));
             $entries = zip_unpack($_FILES['backup']['tmp_name'], $accept);
             // 1) 資料（jsonl）
             foreach ($entries as $nm => $content) {
@@ -1126,7 +1127,7 @@ if (!$authed) {
             if ($mode === 'replace') {
               foreach ($entries as $nm => $content) {
                 if (preg_match('#^projects/([a-z0-9_-]+)/(stats\.json|code\.txt|codes\.json|contrib\.json)$#', str_replace('\\', '/', $nm), $mm)) @file_put_contents(project_dir($cfg, $mm[1]) . '/' . $mm[2], $content, LOCK_EX);
-                elseif ($nm === 'data/admin_pins.json') {
+                elseif ($nm === 'data/pins.json' || $nm === 'data/admin_pins.json') {
                   @file_put_contents(pins_file($cfg), $content, LOCK_EX);
                 }
               }
@@ -3573,7 +3574,7 @@ if (!$authed) {
                 // edit_3d_regions 預設關閉（跟 grant_access 等其他委派權限一樣），沒開的話這裡
                 // 整段不出現——存檔會被伺服器擋，與其讓人填完整個編輯流程才在最後一步撞牆，不如
                 // 一開始就不給入口。
-                $canEdit3d = $primary || admin_perm($cfg, $p, 'edit_3d_regions');
+                $canEdit3d = $primary || perm_check($cfg, $p, 'edit_3d_regions');
                 $projRegions = $canEdit3d ? souliong_region3d_list($cfg, $p) : [];
               ?>
               <?php if ($canEdit3d): ?>
@@ -3728,7 +3729,7 @@ if (!$authed) {
       </div>
 
       <?php if ($canProject($p)):
-        $canGrantAccess = $primary || admin_perm($cfg, $p, 'grant_access');
+        $canGrantAccess = $primary || perm_check($cfg, $p, 'grant_access');
         $permLabels = ['delete_others' => $t('perm_delete_others'), 'edit_others' => $t('perm_edit_others'), 'edit_points' => $t('perm_edit_points'), 'grant_access' => $t('perm_grant_access'), 'edit_3d_regions' => $t('perm_edit_3d_regions')];
         $cList = contrib_load($cfg, $p);
         $codesList = codes_load($cfg, $p);
@@ -3746,7 +3747,7 @@ if (!$authed) {
           $at = (string)($r['created_at'] ?? '');
           if ($at > $ownerGroups[$oh]['last_at']) { $ownerGroups[$oh]['last_at'] = $at; $ownerGroups[$oh]['last_name'] = (string)($r['name'] ?? ''); }
         }
-        $canDeleteOthers = $primary || admin_perm($cfg, $p, 'delete_others');
+        $canDeleteOthers = $primary || perm_check($cfg, $p, 'delete_others');
         // 剛建立的憑證：只在本次回應顯示一次，畫在所屬區塊內（屬「正在分享」，維持明碼）
         $justHere = fn(...$kinds) => $justCreatedShare && $justCreatedShare['project'] === $p && in_array($justCreatedShare['kind'], $kinds, true);
         $shareNew = function (array $s, string $kindLabel) use ($esc, $p, $meta, $t) { ?>
@@ -3900,7 +3901,7 @@ if (!$authed) {
             <?php if ($primary && $invites): ?>
               <div class="sechead"><i class="fa-solid fa-envelope-open-text"></i> <?= $t('pending_invites_heading') ?></div>
               <div class="pinlist">
-                <?php foreach ($invites as $e): $inviteId = (string)($e['id'] ?? ''); $inviteUrl = $mapUrl($p) . '#redeem=' . rawurlencode((string)($e['token'] ?? '')) . '&rmode=admin'; ?>
+                <?php foreach ($invites as $e): $inviteId = (string)($e['id'] ?? ''); $inviteUrl = $mapUrl($p) . '#redeem=' . rawurlencode((string)($e['token'] ?? '')) . '&rmode=grant'; ?>
                   <div class="pinchip pinchip-block">
                     <div class="idline"><span><?= $t('pending_invite_label') ?></span><span class="idacts">
                       <button type="button" class="chipbtn qr-trigger" data-url="<?= $esc($inviteUrl) ?>" data-title="<?= $esc($meta['title'] ?? $p) ?>" title="<?= $t('show_qr_title') ?>"><i class="fa-solid fa-qrcode"></i></button>
@@ -3919,7 +3920,7 @@ if (!$authed) {
               <details class="metaedit">
                 <summary class="btn"><i class="fa-solid fa-share-nodes"></i> <?= $t('create_invite_link_btn') ?></summary>
                 <form class="row expirywidget-row" method="post" style="flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)">
-                  <input type="hidden" name="csrf" value="<?= $esc_csrf ?>"><input type="hidden" name="action" value="sharelink"><input type="hidden" name="kind" value="admin"><input type="hidden" name="project" value="<?= $esc($p) ?>">
+                  <input type="hidden" name="csrf" value="<?= $esc_csrf ?>"><input type="hidden" name="action" value="sharelink"><input type="hidden" name="kind" value="grant"><input type="hidden" name="project" value="<?= $esc($p) ?>">
                   <label class="fieldlabel"><?= $t('expiry_time_label') ?>
                     <div class="expirywidget">
                       <div class="expirychips">
@@ -3936,12 +3937,12 @@ if (!$authed) {
                 </form>
               </details>
             <?php endif; ?>
-            <?php if ($justHere('admin')) $shareNew($justCreatedShare, $t('admin_pin_invite_share_label')); ?>
+            <?php if ($justHere('grant')) $shareNew($justCreatedShare, $t('admin_pin_invite_share_label')); ?>
             <?php if ($justCreatedMigrate && $justCreatedMigrate['project'] === $p) $shareNew($justCreatedMigrate, $t('migrate_to_account_title')); ?>
           </div>
           <?php endif; ?>
 
-          <?php if ($primary): $acctAdmins = project_admins_load($cfg, $p)['members']; ?>
+          <?php if ($primary): $acctAdmins = project_perms_load($cfg, $p)['members']; ?>
           <div class="idgroup">
             <div class="sechead"><i class="fa-solid fa-user-shield"></i> <?= $t('account_admins_heading') ?></div>
             <?php if ($acctAdmins): ?>
@@ -3954,7 +3955,7 @@ if (!$authed) {
                 ?>
                   <div class="pinchip pinchip-block">
                     <div class="idline"><span><?= $esc($accLabel) ?><?php if ($acc !== null): ?> · <span class="mono"><?= $esc($acc['userid']) ?></span><?php endif; ?></span><span class="idacts">
-                      <form method="post" style="display:inline"><input type="hidden" name="csrf" value="<?= $esc_csrf ?>"><input type="hidden" name="action" value="delacctadmin"><input type="hidden" name="project" value="<?= $esc($p) ?>"><input type="hidden" name="account_id" value="<?= $esc($accountId) ?>"><button class="x" title="<?= $t('remove_title') ?>">×</button></form>
+                      <form method="post" style="display:inline"><input type="hidden" name="csrf" value="<?= $esc_csrf ?>"><input type="hidden" name="action" value="delacctperm"><input type="hidden" name="project" value="<?= $esc($p) ?>"><input type="hidden" name="account_id" value="<?= $esc($accountId) ?>"><button class="x" title="<?= $t('remove_title') ?>">×</button></form>
                     </span></div>
                     <div class="permrow">
                       <?php foreach ($permLabels as $pk => $ptext): $on = !empty($perms[$pk]); ?>
@@ -3969,7 +3970,7 @@ if (!$authed) {
             <?php else: ?>
               <div class="emptystate"><i class="fa-solid fa-user-shield" aria-hidden="true"></i><?= $t('no_account_admins_msg') ?></div>
             <?php endif; ?>
-            <form class="row" method="post" style="flex-wrap:wrap;margin-top:8px"><input type="hidden" name="csrf" value="<?= $esc_csrf ?>"><input type="hidden" name="action" value="addacctadmin"><input type="hidden" name="project" value="<?= $esc($p) ?>">
+            <form class="row" method="post" style="flex-wrap:wrap;margin-top:8px"><input type="hidden" name="csrf" value="<?= $esc_csrf ?>"><input type="hidden" name="action" value="addacctperm"><input type="hidden" name="project" value="<?= $esc($p) ?>">
               <label class="fieldlabel"><?= $t('add_account_admin_label') ?><input name="userid" autocomplete="off" placeholder="<?= $t('add_account_admin_placeholder') ?>"></label>
               <button class="btn"><i class="fa-solid fa-plus"></i> <?= $t('add_account_admin_btn') ?></button>
             </form>

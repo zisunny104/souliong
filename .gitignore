@@ -2,7 +2,7 @@
 /state/*
 !/state/.gitkeep
 
-# 機密設定（含 admin PIN、鹽值）—— 部署時由 config.example.php 複製後填入
+# 機密設定（含主要 PIN、鹽值）—— 部署時由 config.example.php 複製後填入
 /api/config.php
 
 # 平台不含各專案內容（專案資料放伺服器/本機）

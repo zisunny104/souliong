@@ -1,6 +1,6 @@
 <?php
 // 平台全域設定（跨地圖，不屬於任何單一 project，所以不放 meta.json）。
-// 存在 state/settings.json，比照 security.php 的 admin_pins.json 讀寫模式。
+// 存在 state/settings.json，比照 security.php 的 pins.json 讀寫模式。
 // 目前唯一用到的旗標：首頁「隨機探索」按鈕（從所有地圖裡隨機挑一張跳轉，是首頁層級的功能）。
 
 function souliong_settings_file(array $cfg): string

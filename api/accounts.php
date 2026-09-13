@@ -2,7 +2,7 @@
 /**
  * 帳號系統（userid + 密碼），疊加在既有 PIN 機制之上、不取代它：
  * - 帳密本體只存一份：state/accounts.json（全域，換密碼不用同步多檔）。
- * - 各專案的授權只存 perms + account_id 參照：projects/<project>/admins.json——
+ * - 各專案的授權只存 perms + account_id 參照：projects/<project>/perms.json——
  *   不含密碼等任何機密，專案資料夾單獨備份/搬到別的部署也不會外流帳密；
  *   帳號在新部署的 accounts.json 裡若不存在，這份授權就自動失效（fail closed）。
  * - 舊 PIN 要「轉換為帳號」須先證明持有舊 PIN（見檔尾 account_migrate_*），
@@ -15,7 +15,17 @@ require_once __DIR__ . '/store.php';
 
 // ── state/accounts.json：{accounts:[...], pending:[...]（轉換/邀請 token）} ──
 function accounts_file(array $cfg): string { return rtrim($cfg['state_dir'], '/\\') . '/accounts.json'; }
+// account_current() 會在 perm_can()/perm_check() 內被逐專案呼叫（例如 manager.php 列出多個
+// 專案時），一次請求內用行程內靜態快取避免每個專案都重讀整份 accounts.json；accounts_save()
+// 寫入後同步更新快取。
+function _accounts_cache(?array $set = null): ?array {
+    static $cache = null;
+    if ($set !== null) $cache = $set;
+    return $cache;
+}
 function accounts_load(array $cfg): array {
+    $cached = _accounts_cache();
+    if ($cached !== null) return $cached;
     $d = is_file(accounts_file($cfg)) ? json_decode((string)@file_get_contents(accounts_file($cfg)), true) : null;
     if (!is_array($d)) $d = [];
     $d['accounts'] = $d['accounts'] ?? [];
@@ -27,9 +37,14 @@ function accounts_load(array $cfg): array {
     }
     unset($a);
     if ($dirty) accounts_save($cfg, $d);
-    return $d;
+    return _accounts_cache($d);
 }
-function accounts_save(array $cfg, array $d): void { @file_put_contents(accounts_file($cfg), json_encode($d, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX); }
+function accounts_save(array $cfg, array $d): void {
+    if (@file_put_contents(accounts_file($cfg), json_encode($d, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX) === false) {
+        error_log('souliong: accounts_save 寫入失敗：' . accounts_file($cfg));
+    }
+    _accounts_cache($d);
+}
 
 function account_find_by_userid(array $cfg, string $userid): ?array {
     $userid = strtolower(trim($userid));
@@ -83,10 +98,16 @@ function account_current(array $cfg): ?array {
 
 // ── 登入（含失敗鎖定，userid 常常等於公開暱稱、可預測，靠這個擋暴力破解）──
 function _account_default_perms(): array { return ['delete_others' => false, 'edit_others' => false, 'edit_points' => false, 'grant_access' => false, 'edit_3d_regions' => false]; }
+// 帳號不存在時仍跑一次 password_verify()（比對這組固定的假雜湊），耗時比照真的驗證，
+// 避免「帳號不存在」比「帳號存在但密碼錯」明顯更快，讓人用回應時間差猜中哪些 userid 有註冊。
+define('ACCOUNT_DUMMY_HASH', '$2y$10$dTLVeAjwEKpp0FwAqcPLUuP/YC2K5g4zJ/yQDyGTjXv8YDV/M9GEm');
 /** 回傳 ['ok'=>true,'account'=>...] 或 ['ok'=>false,'error'=>'invalid'|'locked']。 */
 function account_login(array $cfg, string $userid, string $pw): array {
     $a = account_find_by_userid($cfg, $userid);
-    if ($a === null || !empty($a['disabled']) || ($a['password_hash'] ?? '') === '') return ['ok' => false, 'error' => 'invalid'];
+    if ($a === null || !empty($a['disabled']) || ($a['password_hash'] ?? '') === '') {
+        password_verify($pw, ACCOUNT_DUMMY_HASH);
+        return ['ok' => false, 'error' => 'invalid'];
+    }
     if (!empty($a['locked_until']) && $a['locked_until'] > time()) return ['ok' => false, 'error' => 'locked'];
     $d = accounts_load($cfg);
     foreach ($d['accounts'] as $i => $e) {
@@ -130,10 +151,25 @@ function account_register(array $cfg, string $userid, string $pw, string $label)
     return ['ok' => true, 'account' => $acc];
 }
 
-// ── 各專案授權：projects/<project>/admins.json（只含 account_id + perms，無機密）──
-function project_admins_file(array $cfg, string $project): string { return project_dir($cfg, $project) . '/admins.json'; }
-function project_admins_load(array $cfg, string $project): array {
-    $f = project_admins_file($cfg, $project);
+// ── 各專案授權：projects/<project>/perms.json（只含 account_id + perms，無機密；舊檔名 admins.json 首次讀取時自動搬遷）──
+function project_perms_file(array $cfg, string $project): string {
+    $dir = project_dir($cfg, $project);
+    $new = $dir . '/perms.json';
+    $legacy = $dir . '/admins.json';
+    if (!is_file($new) && is_file($legacy)) @rename($legacy, $new);
+    return $new;
+}
+// perm_check() 對同一專案在單次請求內常被呼叫多次（例如 manager.php 逐一渲染多項權限旗標），
+// 依專案 id 分開快取，避免重複讀檔／解碼同一份 perms.json；project_perms_save() 寫入後同步更新。
+function _project_perms_cache(string $project, ?array $set = null): ?array {
+    static $cache = [];
+    if ($set !== null) $cache[$project] = $set;
+    return $cache[$project] ?? null;
+}
+function project_perms_load(array $cfg, string $project): array {
+    $cached = _project_perms_cache($project);
+    if ($cached !== null) return $cached;
+    $f = project_perms_file($cfg, $project);
     $d = is_file($f) ? json_decode((string)@file_get_contents($f), true) : null;
     $d = is_array($d) ? $d : [];
     $d['members'] = $d['members'] ?? [];
@@ -147,32 +183,37 @@ function project_admins_load(array $cfg, string $project): array {
         }
     }
     unset($m);
-    if ($dirty) project_admins_save($cfg, $project, $d);
-    return $d;
+    if ($dirty) project_perms_save($cfg, $project, $d);
+    return _project_perms_cache($project, $d);
 }
-function project_admins_save(array $cfg, string $project, array $d): void { @file_put_contents(project_admins_file($cfg, $project), json_encode($d, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX); }
+function project_perms_save(array $cfg, string $project, array $d): void {
+    if (@file_put_contents(project_perms_file($cfg, $project), json_encode($d, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX) === false) {
+        error_log('souliong: project_perms_save 寫入失敗：' . project_perms_file($cfg, $project));
+    }
+    _project_perms_cache($project, $d);
+}
 /** 該帳號在此專案的權限；未被授權回 null（跟「有授權但全關」不同，$viewProjects 用這個判斷看不看得到）。 */
-function project_admin_perms(array $cfg, string $project, string $accountId): ?array {
-    foreach (project_admins_load($cfg, $project)['members'] as $m) { if ((string)($m['account_id'] ?? '') === $accountId) return $m['perms'] ?? _account_default_perms(); }
+function project_account_perms(array $cfg, string $project, string $accountId): ?array {
+    foreach (project_perms_load($cfg, $project)['members'] as $m) { if ((string)($m['account_id'] ?? '') === $accountId) return $m['perms'] ?? _account_default_perms(); }
     return null;
 }
-function project_admin_set(array $cfg, string $project, string $accountId, array $perms): void {
-    $d = project_admins_load($cfg, $project);
+function project_account_set(array $cfg, string $project, string $accountId, array $perms): void {
+    $d = project_perms_load($cfg, $project);
     $found = false;
     foreach ($d['members'] as &$m) { if ((string)($m['account_id'] ?? '') === $accountId) { $m['perms'] = $perms; $found = true; break; } }
     unset($m);
     if (!$found) $d['members'][] = ['account_id' => $accountId, 'perms' => $perms, 'added_at' => gmdate('c')];
-    project_admins_save($cfg, $project, $d);
+    project_perms_save($cfg, $project, $d);
 }
-function project_admin_remove(array $cfg, string $project, string $accountId): void {
-    $d = project_admins_load($cfg, $project);
+function project_account_remove(array $cfg, string $project, string $accountId): void {
+    $d = project_perms_load($cfg, $project);
     $d['members'] = array_values(array_filter($d['members'], fn($m) => (string)($m['account_id'] ?? '') !== $accountId));
-    project_admins_save($cfg, $project, $d);
+    project_perms_save($cfg, $project, $d);
 }
-/** 此帳號有權限的專案清單；primary 角色不會用到（對所有專案永遠通過，見 admin_can()）。 */
+/** 此帳號有權限的專案清單；primary 角色不會用到（對所有專案永遠通過，見 perm_can()）。 */
 function account_project_list(array $cfg, string $accountId): array {
     $out = [];
-    foreach (store_projects($cfg) as $p) { if (project_admin_perms($cfg, $p, $accountId) !== null) $out[] = $p; }
+    foreach (store_projects($cfg) as $p) { if (project_account_perms($cfg, $p, $accountId) !== null) $out[] = $p; }
     return $out;
 }
 
@@ -207,7 +248,7 @@ function account_migrate_find(array $cfg, string $token): ?array {
 /** 核對 pending 指向的舊 PIN 是否等於使用者輸入；同時回傳原本的 perms（僅 project 來源有意義）。 */
 function _account_migrate_check_legacy_pin(array $cfg, array $pending, string $pin): ?array {
     if ($pending['source'] === 'bootstrap') {
-        return (($cfg['admin_pin'] ?? '') !== '' && hash_equals((string)$cfg['admin_pin'], $pin)) ? [] : null;
+        return (_cfg_primary_pin($cfg) !== '' && hash_equals(_cfg_primary_pin($cfg), $pin)) ? [] : null;
     }
     // 相容改名前（source 存 'master'）尚未過期的邀請連結，一併視為 primary 來源
     $list = in_array($pending['source'], ['master', 'primary'], true) ? pins_load($cfg)['primary'] : (pins_load($cfg)['projects'][$pending['project']] ?? []);
@@ -244,7 +285,7 @@ function account_migrate_activate(array $cfg, string $token, string $legacyPin, 
     unset($p);
     accounts_save($cfg, $d);
 
-    if ($pending['source'] === 'project') { project_admin_set($cfg, (string)$pending['project'], $acc['id'], $perms); }
+    if ($pending['source'] === 'project') { project_account_set($cfg, (string)$pending['project'], $acc['id'], $perms); }
     audit_log($cfg, 'acct:' . $acc['id'], 'migrate_activate', $pending['source'] === 'project' ? (string)$pending['project'] : null, $pending['source'] . ' -> ' . $acc['role']);
     return ['ok' => true, 'account' => $acc];
 }
@@ -254,7 +295,7 @@ function audit_log(array $cfg, string $who, string $action, ?string $project = n
     $f = rtrim($cfg['state_dir'], '/\\') . '/audit.log';
     $line = json_encode(['at' => gmdate('c'), 'who' => $who, 'action' => $action, 'project' => $project, 'detail' => $detail, 'ip' => client_ip($cfg)], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     $fp = @fopen($f, 'ab');
-    if (!$fp) return;
+    if (!$fp) { error_log('souliong: audit_log 開檔失敗，本筆稽核紀錄遺失：' . $line); return; }
     flock($fp, LOCK_EX);
     fwrite($fp, $line . "\n");
     flock($fp, LOCK_UN);
