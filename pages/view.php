@@ -243,7 +243,7 @@ if ($pack) {
   <div class="dialog-box">
     <div class="dialog-head"><b><?= $t('unlock_contrib') ?></b><button class="icon-btn" onclick="MapApp.closeUnlock()" aria-label="<?= $t('close') ?>"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>
     <div class="hint"><?= $t('unlock_hint') ?></div>
-    <input id="unlockCodeInput" class="name-in" style="width:100%;letter-spacing:8px;text-align:center;font-size:1.375rem" placeholder="<?= $t('six_digits') ?>" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" maxlength="8" data-pin-toggle data-pin-slots="6" aria-label="<?= $t('contrib_code') ?>">
+    <input id="unlockCodeInput" class="name-in" style="width:100%;letter-spacing:8px;text-align:center;font-size:1.375rem" placeholder="<?= $t('six_digits') ?>" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" maxlength="8" data-pin-toggle data-pin-slots="6" data-pin-digits-only aria-label="<?= $t('contrib_code') ?>">
     <div id="unlockMsg" class="hint" role="status"></div>
     <?php if ($mod('identity')): ?>
     <div style="margin-top:10px">

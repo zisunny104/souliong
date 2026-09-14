@@ -3763,7 +3763,7 @@ if (!$authed) {
           <summary class="btn"><i class="fa-solid fa-plus"></i> <?= $t('add_code_btn') ?></summary>
           <form class="row expirywidget-row" method="post" style="flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)">
             <input type="hidden" name="csrf" value="<?= $esc_csrf ?>"><input type="hidden" name="action" value="sharelink"><input type="hidden" name="kind" value="code"><input type="hidden" name="project" value="<?= $esc($p) ?>">
-            <label class="fieldlabel"><?= $t('contrib_code') ?><input name="pin_new" autocomplete="off" placeholder="<?= $t('code_field_placeholder') ?>" data-pin-toggle></label>
+            <label class="fieldlabel"><?= $t('contrib_code') ?><input name="pin_new" autocomplete="off" placeholder="<?= $t('code_field_placeholder') ?>" data-pin-toggle data-pin-digits-only></label>
             <label class="fieldlabel"><?= $t('col_nickname') ?><input name="label" autocomplete="off" placeholder="<?= $t('optional_placeholder') ?>"></label>
             <label class="fieldlabel"><?= $t('expiry_time_label') ?>
               <div class="expirywidget">

@@ -133,6 +133,11 @@
     input.setAttribute('inputmode', pad ? 'none' : 'numeric');
     input.setAttribute('pattern', '[0-9]*');
 
+    // data-pin-digits-only：後端會把非數字字元濾掉的欄位（投稿代碼），打英數字沒有意義，
+    // 不出「切換成一般鍵盤」鈕，讓它固定呼叫系統數字鍵盤就好。PIN 欄位後端沒有格式限制
+    // （可能設英數混合），保留切換鈕。
+    if (input.dataset.pinDigitsOnly != null) return;
+
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'pin-toggle-btn';
