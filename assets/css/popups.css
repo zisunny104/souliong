@@ -53,7 +53,7 @@
   }
 }
 
-/* ---------- 對話框（嵌入碼） ---------- */
+/* ---------- 對話框（嵌入代碼） ---------- */
 .dialog {
   position: fixed;
   inset: 0;
@@ -230,7 +230,7 @@
 
 /* 數字鍵盤／一般鍵盤切換輸入（見 pin-input.js） */
 /* pin-input.js 會在欄位外面包一層這個 wrap。display 用區塊級的 flex、不是 inline-flex：
-   對話框裡的 PIN／投稿碼欄位都寫 width:100%，而 inline-flex 的寬度是被內容撐出來的，
+   對話框裡的 PIN／投稿代碼欄位都寫 width:100%，而 inline-flex 的寬度是被內容撐出來的，
    於是變成「欄位問外框有多寬、外框問欄位有多寬」，最後欄位只縮成內容寬度、撐不滿對話框。
    （manager.php 那份同名樣式本來就寫 display:block，沒有這個問題，這裡是補齊一致性。） */
 .pin-toggle-wrap {
@@ -244,7 +244,7 @@
 
 /* 遮罩層會把欄位文字設成 transparent（見 pin-input.js），而 placeholder 沒自己的顏色時
    是跟著 color 走的，會一起變透明、整個看不見，所以這裡一定要明講一次顏色。
-   letter-spacing 歸零：投稿碼欄位為了讓數字排得開有加字距，那個字距套到中文 placeholder
+   letter-spacing 歸零：投稿代碼欄位為了讓數字排得開有加字距，那個字距套到中文 placeholder
    上會把「6 位數字」拉成一個字一個字散開。 */
 .pin-toggle-wrap .name-in::placeholder {
   color: var(--muted);

@@ -34,13 +34,13 @@
   }
 
   // 真正輸入仍走原生欄位（含數字鍵盤/切換），只是把看得見的字換成幾何圖案疊層。
-  // 掛了 data-pin-toggle 的欄位一律套用——這些欄位就是 PIN／投稿碼，本來就該遮起來，
+  // 掛了 data-pin-toggle 的欄位一律套用——這些欄位就是 PIN／投稿代碼，本來就該遮起來，
   // 不再只認 type="password"：view.php 裡除了管理者 PIN 之外的幾個欄位都是 type="text"，
   // 只認 password 的話那幾個欄位會直接把碼明碼顯示，遮罩形同沒做。
   // 個別欄位若真的需要看見原文，加 data-pin-mask="off" 就好。
   function buildMaskOverlay(input, wrap) {
     if (input.dataset.pinMask === 'off') return;
-    // data-pin-slots="6"：長度固定的欄位（例如投稿碼）先用空心圓點把 6 格位置預告出來，
+    // data-pin-slots="6"：長度固定的欄位（例如投稿代碼）先用空心圓點把 6 格位置預告出來，
     // 每輸入一位就把該格換成實心幾何圖案，看得出「還差幾位」。長度不固定的欄位（管理者 PIN）
     // 不宣告這個屬性，就維持「打幾位長幾個圖案」，不會謊報一個其實不存在的位數。
     const slots = Math.min(parseInt(input.dataset.pinSlots || '', 10) || 0, MASK_MAX);
@@ -126,11 +126,12 @@
     input.parentNode.insertBefore(wrap, input);
     wrap.appendChild(input);
 
-    input.setAttribute('inputmode', 'numeric');
-    input.setAttribute('pattern', '[0-9]*');
-
     buildMaskOverlay(input, wrap);
     const pad = buildKeypad(input, wrap);
+    // 有畫面鍵盤（pad）的欄位改用 inputmode="none" 擋掉手機原生鍵盤，改用畫面鍵盤輸入；
+    // 沒有畫面鍵盤的欄位（投稿代碼／專案 PIN 等）沒有別的輸入方式，還是要呼叫原生數字鍵盤。
+    input.setAttribute('inputmode', pad ? 'none' : 'numeric');
+    input.setAttribute('pattern', '[0-9]*');
 
     const btn = document.createElement('button');
     btn.type = 'button';
@@ -154,7 +155,7 @@
         input.setAttribute('inputmode', 'text');
         input.removeAttribute('pattern');
       } else {
-        input.setAttribute('inputmode', 'numeric');
+        input.setAttribute('inputmode', pad ? 'none' : 'numeric');
         input.setAttribute('pattern', '[0-9]*');
       }
       render();

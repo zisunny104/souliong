@@ -284,7 +284,7 @@ function project_pin_label(array $cfg, string $project, string $pin): string {
 }
 
 /**
- * 產生投稿碼：純數字，方便手機數字鍵盤輸入、避免自動大寫/自動更正把英數碼改壞。
+ * 產生投稿代碼：純數字，方便手機數字鍵盤輸入、避免自動大寫/自動更正把英數碼改壞。
  * 純數字＋速率限制（每分鐘上限）對「社群上傳閘門」這類低風險場景足夠；碼本就以連結/QR 公開分享。
  */
 function gen_code(int $len = 6): string {
@@ -294,7 +294,7 @@ function gen_code(int $len = 6): string {
 }
 
 /**
- * 投稿碼：可建多組，各自可設到期時間／次數上限（皆留空＝不限期不限次數），
+ * 投稿代碼：可建多組，各自可設到期時間／次數上限（皆留空＝不限期不限次數），
  * 達到即失效；存 projects/<project>/codes.json = [{code, label, created, expires_at, max_uses, used_count}]。
  * 有沒有還有效的碼就是這張地圖的投稿開關（見 contrib_open）。
  */
@@ -346,7 +346,7 @@ function codes_grant_create(array $cfg, string $project, ?string $code, ?string 
     codes_save($cfg, $project, $d);
     return $code;
 }
-/** 驗證附加投稿碼；$bump=true（實際上傳）時計一次使用。到期／用罄／不存在回 false。 */
+/** 驗證附加投稿代碼；$bump=true（實際上傳）時計一次使用。到期／用罄／不存在回 false。 */
 function code_check(array $cfg, string $project, string $given, bool $bump): bool {
     if ($given === '') return false;
     $d = codes_load($cfg, $project);
@@ -365,10 +365,10 @@ function code_check(array $cfg, string $project, string $given, bool $bump): boo
 }
 
 /**
- * 投稿開關＝有沒有還有效的投稿碼。碼是唯一的開關：
+ * 投稿開關＝有沒有還有效的投稿代碼。碼是唯一的開關：
  *   一組有效碼都沒有 → 這張地圖現在未開放投稿（管理者不受限，方便主辦者自己補資料）
  *   有 → 要碼才能投稿，且各碼自己的到期／次數上限照常生效
- * 舊版的 meta.gated 已停用：那個旗標後台沒有任何地方能設，等於投稿碼形同虛設。
+ * 舊版的 meta.gated 已停用：那個旗標後台沒有任何地方能設，等於投稿代碼形同虛設。
  */
 function codes_active(array $cfg, string $project): array {
     $now = gmdate('c');
@@ -393,7 +393,7 @@ function contrib_id_of(string $token): string { return substr(hash('sha256', 'ci
 function contrib_hash_of(string $token): string { return hash('sha256', $token); }
 
 // 投稿者名冊：projects/<project>/contrib.json = { <contrib_id>: {label, created} }
-// 純自助：身分只在使用者自己於解鎖視窗設 PIN 時建立，不帶配額——能不能投稿只看當次用的投稿碼。
+// 純自助：身分只在使用者自己於解鎖視窗設 PIN 時建立，不帶配額——能不能投稿只看當次用的投稿代碼。
 function contrib_file(array $cfg, string $project): string { return project_dir($cfg, $project) . '/contrib.json'; }
 function contrib_load(array $cfg, string $project): array {
     $f = contrib_file($cfg, $project);

@@ -203,7 +203,7 @@ window.MapApp = (() => {
     } catch (e) {}
   }
 
-  // 上傳權限：能不能投稿完全看投稿碼。APP.gated＝這張地圖現在有還有效的碼（見 api/security.php contrib_open）；
+  // 上傳權限：能不能投稿完全看投稿代碼。APP.gated＝這張地圖現在有還有效的碼（見 api/security.php contrib_open）；
   // 一組都沒有＝目前未開放投稿，解鎖鈕也不出現。已用管理 PIN 登入者一律視為已解鎖。EMBED 一律不可上傳。
   function storedCode() { try { return localStorage.getItem('uploadCode_' + PROJECT) || ''; } catch (e) { return ''; } }
   function isUnlocked() { return !!APP.isManager || (!!APP.gated && !!storedCode()); }
@@ -420,7 +420,7 @@ window.MapApp = (() => {
   const photoFilters = [];     // fn(photoEntry, currentPoint) => bool；renderEntries() 的照片清單要 AND 全部通過
   const entriesHintFns = [];   // fn(currentPoint) => HTMLElement|null；renderEntries() 會把回傳的節點插進卡片內容
   const entryActionFns = [];   // fn(entry) => HTMLElement|null；renderEntries() 會把回傳的節點接在每張投稿卡的操作列（編輯／刪除按鈕）後面
-  const scopeParamFns = [];    // fn() => {key: value}|null；插件自己在分享連結／嵌入碼網址上帶的額外參數，讀取時插件自己讀 location.search，不需要核心知道
+  const scopeParamFns = [];    // fn() => {key: value}|null；插件自己在分享連結／嵌入代碼網址上帶的額外參數，讀取時插件自己讀 location.search，不需要核心知道
   const shortcuts = [];        // {key, label}；key 顯示鍵名（例："Esc"／"R"），label 是 i18n 過的說明字串——鍵盤快捷鍵提示彈窗（見 openShortcuts()）照登記順序列出，各檔案自己知道自己註冊了哪個鍵，核心不需要另外維護一份對照表
   function registerPhotoFilter(fn) { photoFilters.push(fn); }
   function registerEntriesHint(fn) { entriesHintFns.push(fn); }
@@ -1599,7 +1599,7 @@ window.MapApp = (() => {
   setTimeout(hideSkeleton, 9000);   // 保險：即使載入卡住也移除骨架
 
   // 目前畫面的篩選狀態（投稿者／分類，再加上插件透過 registerScopeParam() 註冊的額外參數），
-  // 供分享連結／嵌入碼帶入範圍限制；沒有特別篩選時回傳空字串
+  // 供分享連結／嵌入代碼帶入範圍限制；沒有特別篩選時回傳空字串
   function currentScopeParams() {
     const sp = new URLSearchParams();
     if (photoLayerOn && filterPerson) sp.set('contributor', filterPerson);

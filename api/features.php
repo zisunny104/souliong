@@ -165,7 +165,7 @@ function souliong_modules(): array
         'categoryLegend' => ['label' => '分類圖例', 'desc' => '地圖控制卡上的分類色塊清單（可點擊切換各分類顯示／隱藏）。分類只有一種、或不想讓訪客切換顯示範圍時可關閉，地標本身與點開的內容不受影響。', 'default' => true],
         'pointList' => ['label' => '點位列表', 'desc' => '地圖控制卡上直接列出可點擊的點位清單，取代「跳到地點」下拉選單。開啟後下拉選單只在投稿者篩選模式（見 contribBrowse）才會出現。', 'default' => false],
         'story'  => ['label' => '地點故事編輯', 'desc' => '訪客可送出新版地點故事文字（關閉後地點故事唯讀）。', 'default' => true],
-        'upload' => ['label' => '上傳投稿', 'desc' => '訪客上傳照片／文字紀錄；關閉後整張地圖唯讀，投稿碼與解鎖流程一併隱藏。', 'default' => true],
+        'upload' => ['label' => '上傳投稿', 'desc' => '訪客上傳照片／文字紀錄；關閉後整張地圖唯讀，投稿代碼與解鎖流程一併隱藏。', 'default' => true],
         'embed'  => ['label' => '嵌入載入', 'desc' => '產生可嵌入其他網站的 iframe 碼。', 'default' => true],
         'share'  => ['label' => '分享', 'desc' => '分享連結／QR Code 彈窗。', 'default' => true],
         'homeLink' => ['label' => '回平台首頁', 'desc' => '右上角回到地圖清單的房子鈕。單獨對外掛一張地圖、不想讓訪客看到平台上其他地圖時可關閉（頁尾的來源標示不受影響）。', 'default' => true],

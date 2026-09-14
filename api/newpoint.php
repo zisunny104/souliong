@@ -9,7 +9,7 @@
 // 權限跟 editpoint.php 不同，是每張地圖自己決定的（meta.json 的 contrib.newPoint）：
 //   off（預設）  誰都不能建，端點直接 403——舊地圖不改設定檔就完全沒有這個功能
 //   admin        只有管理者，比照 editpoint.php（perm_check + CSRF）
-//   contributor  一般投稿者也能建，比照 upload.php 的停權與投稿碼把關
+//   contributor  一般投稿者也能建，比照 upload.php 的停權與投稿代碼把關
 require __DIR__ . '/store.php';
 require __DIR__ . '/security.php';
 require __DIR__ . '/features.php';
@@ -54,7 +54,7 @@ if ($who === 'admin') {
         json_out(['error' => '憑證失效，請重新整理頁面後再操作一次'], 403);
     }
 } else {
-    // contributor：跟投稿走同一組把關（停權名單 + 投稿碼），管理者一樣直接放行
+    // contributor：跟投稿走同一組把關（停權名單 + 投稿代碼），管理者一樣直接放行
     if (is_blocked($cfg, $project, $ownerHash, $contribId)) {
         json_out(['error' => '此身分已被主辦者停權，無法繼續投稿'], 403);
     }
@@ -63,10 +63,10 @@ if ($who === 'admin') {
             json_out(['error' => '這張地圖目前未開放投稿'], 403);
         }
         // 跟 upload.php 一樣計一次使用次數：建點跟投稿是等價的寫入行為，
-        // 沒理由讓限次的投稿碼可以無限建點。
+        // 沒理由讓限次的投稿代碼可以無限建點。
         $givenCode = preg_replace('/\D/', '', (string)($_POST['code'] ?? ''));
         if (!code_check($cfg, $project, $givenCode, true)) {
-            json_out(['error' => '需要正確的投稿碼才能建立地點（碼可能已到期或用完次數）'], 403);
+            json_out(['error' => '需要正確的投稿代碼才能建立地點（碼可能已到期或用完次數）'], 403);
         }
     }
 }

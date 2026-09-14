@@ -13,7 +13,7 @@ We collect as little as possible, keep it de-identified, and use no third-party 
 
 ## 存在你裝置上的資料 / Stored on your device
 
-以瀏覽器 `localStorage` 儲存（僅在你的裝置，可自行清除）：主題偏好、你輸入的暱稱、投稿權限（解鎖後記住的投稿碼）、一個**有期限**的「擁有者標記」（用來讓你在原裝置刪除自己的投稿），以及——若你自選了 PIN 建立可跨裝置延續的投稿者身分——一組由該 PIN 衍生的識別權杖（可用來在其他裝置編輯/刪除同一身分投稿過的內容；若此身分是由分享連結建立，管理者可為其設到期時間或使用次數上限，僅影響「新增投稿」，不影響既有內容的編輯/刪除）。
+以瀏覽器 `localStorage` 儲存（僅在你的裝置，可自行清除）：主題偏好、你輸入的暱稱、投稿權限（解鎖後記住的投稿代碼）、一個**有期限**的「擁有者標記」（用來讓你在原裝置刪除自己的投稿），以及——若你自選了 PIN 建立可跨裝置延續的投稿者身分——一組由該 PIN 衍生的識別權杖（可用來在其他裝置編輯/刪除同一身分投稿過的內容；若此身分是由分享連結建立，管理者可為其設到期時間或使用次數上限，僅影響「新增投稿」，不影響既有內容的編輯/刪除）。
 
 公開地圖頁**不設 Cookie**；只有後台登入（PIN 或帳號）使用功能性的 `httpOnly` Cookie 維持登入，並非追蹤用途。
 
@@ -54,7 +54,7 @@ Map via Leaflet, default tiles © CARTO, data © OpenStreetMap contributors (ODb
    You agree your content is shown publicly and non-exclusively. The licence is chosen at upload time: **CC0 by default** (public domain dedication); if you have created a contributor identity, you may tick the box in the upload dialog to use **CC BY** instead — copyright remains yours and reusers must credit your nickname.
 3. 禁止上傳違法、仇恨、猥褻、廣告或含他人敏感個資之內容。
    No illegal, hateful, obscene, advertising, or sensitive-personal-data content.
-4. 站方得於必要時移除不當內容或更換投稿碼。
+4. 站方得於必要時移除不當內容或更換投稿代碼。
    The site may remove inappropriate content or rotate the contribution code when necessary.
 5. 本服務按「現狀」提供，不保證不中斷或無錯誤。
    The service is provided "as is", without warranty of uninterrupted or error-free operation.

@@ -263,7 +263,7 @@
 }
 
 /* 嵌入模式：右上群組只留「主題切換」；身分、漢堡收合都藏起來
-   （回列表／分享／嵌入碼／語言選單本身就有 .hide-in-embed）。theme 鈕直接顯示，不收進漢堡 */
+   （回列表／分享／嵌入代碼／語言選單本身就有 .hide-in-embed）。theme 鈕直接顯示，不收進漢堡 */
 body.embed .tr-group .idchip,
 body.embed .tr-group .tr-toggle {
   display: none !important

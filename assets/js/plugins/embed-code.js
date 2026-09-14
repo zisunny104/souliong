@@ -1,6 +1,6 @@
-/* 選用插件：嵌入碼（見 souliong/docs/EXTENDING.md 第七節）
+/* 選用插件：嵌入代碼（見 souliong/docs/EXTENDING.md 第七節）
    只在該地圖 meta.json 的 features.embed 為 true 時，view.php 才會載入這個檔案。
-   讓訪客產生一段 <iframe> 嵌入碼，可調整寬高與單位，複製貼到自己的網站。 */
+   讓訪客產生一段 <iframe> 嵌入代碼，可調整寬高與單位，複製貼到自己的網站。 */
 (() => {
   const I18N = window.I18N || {};
   const t = (key, vars) => {
@@ -86,7 +86,7 @@
       // 選完仍要反推一次——選單本身沒有獨立記憶，欄位數值才是唯一事實來源：
       // 就算剛選了「自訂」，只要欄位仍剛好等於某個預設值，就該改顯示那個預設，而不是自訂
       dlg.querySelector('#embedSizePreset').onchange = () => { this.applyPreset(); this.syncPresetFromFields(); this.buildCode(); };
-      // 切單位時把寬高換成該單位下合理的值域（% 是 10–100、px 維持原本 200 起跳），再重組嵌入碼
+      // 切單位時把寬高換成該單位下合理的值域（% 是 10–100、px 維持原本 200 起跳），再重組嵌入代碼
       dlg.querySelector('#embedSizeUnit').onchange = () => {
         const pct = dlg.querySelector('#embedSizeUnit').value === 'pct';
         ['embedWidth', 'embedHeight'].forEach((id, i) => {

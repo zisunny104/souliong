@@ -82,5 +82,5 @@ Licensed under the MIT license: http://www.opensource.org/licenses/mit-license.p
 | Leaflet               | 地圖顯示 Map rendering  | BSD-2-Clause |
 | exifr                 | 讀取 EXIF/GPS           | MIT |
 | heic2any              | HEIC → WebP             | MIT |
-| jsQR                  | 掃描投稿碼 QR scanning  | Apache-2.0 |
+| jsQR                  | 掃描投稿代碼 QR scanning  | Apache-2.0 |
 | Font Awesome (Free)   | 圖示 Icons              | Icons CC BY 4.0 / Fonts SIL OFL 1.1 / Code MIT |

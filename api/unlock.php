@@ -1,5 +1,5 @@
 <?php
-// 驗證投稿碼（限特定人上傳）。POST project, code → ok / 403。
+// 驗證投稿代碼（限特定人上傳）。POST project, code → ok / 403。
 require __DIR__ . '/store.php';
 require __DIR__ . '/security.php';
 $cfg = require __DIR__ . '/config.php';
@@ -15,7 +15,7 @@ if (!contrib_open($cfg, $project)) { json_out(['error' => '這張地圖目前未
 $given = preg_replace('/\D/', '', (string)($_POST['code'] ?? ''));   // 純數字碼：容忍空白/貼上
 // 只驗證不計次（次數在實際上傳時才扣，見 upload.php）
 if (!code_check($cfg, $project, $given, false)) {
-    json_out(['error' => '投稿碼不正確（或已到期、用完次數）'], 403);
+    json_out(['error' => '投稿代碼不正確（或已到期、用完次數）'], 403);
 }
 
 // 可選：以投稿者 PIN 建立跨裝置身分（cpin），並可帶暱稱（cname）。匿名則不帶。

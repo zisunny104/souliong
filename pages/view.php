@@ -15,7 +15,7 @@ $meta    = is_file($metaF) ? json_decode(file_get_contents($metaF), true) : null
 $ptsF    = $meta ? __DIR__ . '/../projects/' . $proj . '/' . ($meta['points'] ?? 'points.json') : null;
 $points  = ($ptsF && is_file($ptsF)) ? json_decode(file_get_contents($ptsF), true) : [];
 
-// 已用管理 PIN 登入者（主 PIN 或此專案的 PIN）直接視為已解鎖投稿身分，不受投稿碼限制
+// 已用管理 PIN 登入者（主 PIN 或此專案的 PIN）直接視為已解鎖投稿身分，不受投稿代碼限制
 require __DIR__ . '/../api/security.php';
 require __DIR__ . '/../api/i18n.php';
 require __DIR__ . '/../api/features.php';
@@ -24,7 +24,7 @@ require_once __DIR__ . '/../api/layers.php';
 require_once __DIR__ . '/../api/regions3d.php';
 $apiCfg    = require __DIR__ . '/../api/config.php';
 $isManager = perm_can($apiCfg, $proj);
-// 投稿開關＝有沒有還有效的投稿碼（真正的碼在伺服器端 codes.json，前端拿不到）。
+// 投稿開關＝有沒有還有效的投稿代碼（真正的碼在伺服器端 codes.json，前端拿不到）。
 // APP.gated 因此變成「現在有碼可解鎖」：一組都沒有時前端連解鎖鈕都不出現。
 $gated = contrib_open($apiCfg, $proj);
 // 定位點編輯（editpoint.php）走的是這個公開頁面而非後台頁，因此比照 manager.php 的作法，

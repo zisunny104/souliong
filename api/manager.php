@@ -921,7 +921,7 @@ if (!$authed) {
           header('Location: ' . Route::manager($tp, 'access'));
           exit;
         }
-        // 移除附加投稿碼（立即失效；常駐碼另走 rotate）
+        // 移除附加投稿代碼（立即失效；常駐碼另走 rotate）
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delcode') {
           need_csrf($csrf);
           $p = clean_id($_POST['project'] ?? '');
@@ -1119,7 +1119,7 @@ if (!$authed) {
                 }
               }
             }
-            // 2) 統計 / 投稿碼（僅覆蓋模式才蓋掉）
+            // 2) 統計 / 投稿代碼（僅覆蓋模式才蓋掉）
             if ($mode === 'replace') {
               foreach ($entries as $nm => $content) {
                 if (preg_match('#^projects/([a-z0-9_-]+)/(stats\.json|code\.txt|codes\.json|contrib\.json)$#', str_replace('\\', '/', $nm), $mm)) @file_put_contents(project_dir($cfg, $mm[1]) . '/' . $mm[2], $content, LOCK_EX);
@@ -1684,7 +1684,7 @@ if (!$authed) {
       box-shadow: var(--sh)
     }
 
-    /* 投稿碼：一碼一張卡，排成 grid。用 auto-fill 不用 auto-fit——只有一張卡時
+    /* 投稿代碼：一碼一張卡，排成 grid。用 auto-fill 不用 auto-fit——只有一張卡時
        auto-fit 會把它撐滿整列，QR 縮在左邊、右邊一大片空白。 */
     .code-grid {
       display: grid;
@@ -1693,7 +1693,7 @@ if (!$authed) {
       margin-top: var(--sp-2)
     }
 
-    /* 投稿碼是要唸給人聽、打進欄位的，所以碼本身放大當主角；
+    /* 投稿代碼是要唸給人聽、打進欄位的，所以碼本身放大當主角；
        QR 只有真的要給人掃時才需要，收進「分享」按鈕展開全螢幕（.qr-trigger） */
     .codecard {
       display: flex;
@@ -1876,7 +1876,7 @@ if (!$authed) {
       display: contents
     }
 
-    /* display:contents 之下 summary 直接落在父層流裡，沒有這行就會緊貼上一塊（投稿碼列表／空狀態） */
+    /* display:contents 之下 summary 直接落在父層流裡，沒有這行就會緊貼上一塊（投稿代碼列表／空狀態） */
     .metaedit>summary {
       list-style: none;
       margin-top: var(--sp-3)
@@ -2832,8 +2832,8 @@ if (!$authed) {
       border-color: var(--accent)
     }
 
-    /* 存取與權限：投稿碼卡片 grid + 身分管理（投稿者／管理PIN）grid，見上方 .code-grid / .idgrid */
-    /* 用 block 不用 flex：flex 之下「投稿碼」這種短標題會被後面的補充說明擠成一字一行 */
+    /* 存取與權限：投稿代碼卡片 grid + 身分管理（投稿者／管理PIN）grid，見上方 .code-grid / .idgrid */
+    /* 用 block 不用 flex：flex 之下「投稿代碼」這種短標題會被後面的補充說明擠成一字一行 */
     .sechead {
       display: block;
       font-size: 0.8125rem;
@@ -3324,7 +3324,7 @@ if (!$authed) {
       // 的包——跟 $layerAdminRow 一樣，差別只在多帶一個 project 參數，權限與路徑解析都由
       // 後端的 action=packdelete 決定。沒有設定對話框（材質變數目前只靠 pack.css 本身調），
       // 所以不像圖層另開一層 dialog，直接把兩顆按鈕放進清單列。
-      $packAdminRow = function (string $pid, array $pinfo, string $pp) use ($t, $esc, $esc_csrf, $DICT, $storageCache, $fmtBytes) {
+      $packAdminRow = function (string $pid, string $pp) use ($t, $esc, $esc_csrf, $DICT, $storageCache, $fmtBytes) {
         $delMsg = i18n_t($DICT, 'pack_delete_confirm', ['id' => $pid]);
         $pBytes = $storageCache['packs'][$pp][$pid] ?? null;
     ?>
@@ -3345,7 +3345,7 @@ if (!$authed) {
     <h2><?= $t('project_access_heading') ?></h2>
     <?php foreach ($viewProjects as $p):
       $meta = json_decode((string)@file_get_contents($cfg['projects_dir'] . '/' . $p . '/meta.json'), true);
-      $contribOpen = contrib_open($cfg, $p);   // 有沒有還有效的投稿碼＝這張地圖現在開不開放投稿
+      $contribOpen = contrib_open($cfg, $p);   // 有沒有還有效的投稿代碼＝這張地圖現在開不開放投稿
       $ppinsAll = $pinsAllData['projects'][$p] ?? [];
       $realPins = array_values(array_filter($ppinsAll, fn($e) => ($e['kind'] ?? 'pin') !== 'invite'));
       $invites = array_values(array_filter($ppinsAll, fn($e) => ($e['kind'] ?? 'pin') === 'invite'));
@@ -3672,7 +3672,7 @@ if (!$authed) {
                 <div class="lyrow">
                   <span style="flex:1 1 auto;min-width:0;font-size:0.8125rem"><b><?= $esc($pinfo['label'] ?? $pid) ?></b>
                     <span class="hint mono"><?= $esc($pid) ?></span></span>
-                  <?php $packAdminRow($pid, $pinfo, $p); ?>
+                  <?php $packAdminRow($pid, $p); ?>
                 </div>
                 <?php endforeach; ?>
               </div>
@@ -3726,14 +3726,13 @@ if (!$authed) {
                 <div class="invite"><?= $esc($s['url']) ?></div>
                 <div class="row"><button type="button" class="btn" data-copy="<?= $esc($s['url']) ?>"><i class="fa-solid fa-copy"></i> <?= $t('copy_link') ?></button></div>
                 <?php if (isset($s['code'])): ?><div class="hint" style="margin-top:6px"><?= $t('share_code_hint', ['code' => $s['code']]) ?></div><?php endif; ?>
-                <?php if (isset($s['pin'])): ?><div class="hint" style="margin-top:6px"><?= $t('share_pin_hint', ['pin' => $s['pin']]) ?></div><?php endif; ?>
                 <?php if (isset($s['note'])): ?><div class="hint" style="margin-top:6px"><?= $s['note'] ?></div><?php endif; ?>
               </div>
             </div>
           </div>
         <?php };
       ?>
-        <!-- 投稿碼：一碼一張卡，連結／QR／限制／用量都在同一張卡上 -->
+        <!-- 投稿代碼：一碼一張卡，連結／QR／限制／用量都在同一張卡上 -->
         <div class="sechead"><i class="fa-solid fa-ticket"></i> <?= $t('contrib_code') ?><span class="sechint"><?= $contribOpen ? $t('codes_gated_hint') : $t('codes_none_hint') ?></span></div>
         <?php if ($codesList): ?>
           <div class="code-grid">
@@ -4314,7 +4313,7 @@ if (!$authed) {
           <?php foreach ($installedPacks as $pid => $pinfo): ?>
           <div style="display:flex;align-items:center;gap:8px;justify-content:space-between">
             <span><b><?= $esc($pinfo['label'] ?? $pid) ?></b> <span class="hint mono"><?= $esc($pid) ?></span></span>
-            <?php $packAdminRow($pid, $pinfo, ""); ?>
+            <?php $packAdminRow($pid, ""); ?>
           </div>
           <?php endforeach; ?>
         </div>
