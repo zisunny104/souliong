@@ -634,6 +634,7 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
   <title><?= $t('tilecut_title') ?></title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.6.0/dist/maplibre-gl.css">
   <style>
     :root {
       --bg: #f6f5f2;
@@ -832,6 +833,23 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
       display: none
     }
 
+    .expreview {
+      display: block;
+      max-width: 100%;
+      max-height: 240px;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      margin-bottom: var(--sp-2)
+    }
+
+    #exmap {
+      height: 16rem;
+      border-radius: 0.75rem;
+      border: 1px solid var(--line);
+      margin-bottom: var(--sp-2);
+      background: var(--bg)
+    }
+
     .filebtn {
       display: inline-flex;
       align-items: center;
@@ -991,6 +1009,11 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
       overflow-wrap: anywhere
     }
 
+    .pcauto {
+      color: var(--accent);
+      flex: none
+    }
+
     .pcsize {
       color: var(--muted)
     }
@@ -1063,7 +1086,33 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
     <div class="warn"><?= $t('tilecut_warn') ?></div>
 
     <div class="card">
-      <h2><i class="fa-solid fa-1"></i> <?= $t('tilecut_step_source') ?></h2>
+      <h2><i class="fa-solid fa-1"></i> <?= $t('tilecut_step_export') ?></h2>
+      <div class="hint" style="margin-bottom:var(--sp-3)"><?= $t('tilecut_export_hint') ?></div>
+      <div id="exmap"></div>
+      <div class="hint" id="exzoomhint" style="margin-bottom:var(--sp-2)"></div>
+      <div class="grid">
+        <div><label for="exn"><?= $t('tilecut_north') ?></label><input type="number" id="exn" step="0.000001"></div>
+        <div><label for="exs"><?= $t('tilecut_south') ?></label><input type="number" id="exs" step="0.000001"></div>
+        <div><label for="exw"><?= $t('tilecut_west') ?></label><input type="number" id="exw" step="0.000001"></div>
+        <div><label for="exe"><?= $t('tilecut_east') ?></label><input type="number" id="exe" step="0.000001"></div>
+        <div><label for="exz"><?= $t('tilecut_export_zoom_label') ?></label><input type="number" id="exz" min="0" max="15" step="1" value="15"></div>
+      </div>
+      <div class="row" style="margin-bottom:var(--sp-3)">
+        <button type="button" class="ghost" id="exview"><i class="fa-solid fa-crop-simple"></i> <?= $t('tilecut_use_view_btn') ?></button>
+      </div>
+      <div class="hint" id="exdim" style="margin-bottom:var(--sp-3)"></div>
+      <div class="row" style="margin-bottom:var(--sp-3)">
+        <button type="button" class="ghost" id="exblankpng"><i class="fa-solid fa-file-image"></i> <?= $t('tilecut_export_blank_png_btn') ?></button>
+        <button type="button" class="ghost" id="exblanksvg"><i class="fa-solid fa-file-image"></i> <?= $t('tilecut_export_blank_svg_btn') ?></button>
+        <button type="button" class="ghost" id="exsnapshot"><i class="fa-solid fa-camera"></i> <?= $t('tilecut_export_snapshot_btn') ?></button>
+      </div>
+      <img id="exsnapPreview" class="expreview" alt="<?= $t('tilecut_export_snapshot_btn') ?>" style="display:none">
+      <div class="hint" id="exmsg"></div>
+      <div class="hint" style="margin-top:var(--sp-2)"><?= $t('tilecut_export_filename_hint') ?></div>
+    </div>
+
+    <div class="card">
+      <h2><i class="fa-solid fa-2"></i> <?= $t('tilecut_step_source') ?></h2>
       <div class="grid">
         <div>
           <label for="project"><?= $t('tool_select_project_label') ?></label>
@@ -1102,7 +1151,7 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
     </div>
 
     <div class="card">
-      <h2><i class="fa-solid fa-2"></i> <?= $t('tilecut_step_place') ?></h2>
+      <h2><i class="fa-solid fa-3"></i> <?= $t('tilecut_step_place') ?></h2>
       <div class="hint" style="margin-bottom:var(--sp-3)"><?= $t('tilecut_place_hint') ?></div>
       <div id="map"></div>
       <div class="row" style="margin-bottom:var(--sp-3)">
@@ -1126,7 +1175,7 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
     </div>
 
     <div class="card">
-      <h2><i class="fa-solid fa-3"></i> <?= $t('tilecut_step_output') ?></h2>
+      <h2><i class="fa-solid fa-4"></i> <?= $t('tilecut_step_output') ?></h2>
       <div class="row" id="vecrow" style="display:none;margin-bottom:var(--sp-3)">
         <label class="chk"><input type="checkbox" id="vecmode"> <?= $t('tilecut_vector_label') ?></label>
       </div>
@@ -1177,6 +1226,12 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- MapLibre v6 只出 ESM 版，比照 pages/view.php 的作法：匯入後手動掛回 window.maplibregl，
+       讓底下的傳統 script 仍能用全域變數呼叫它（用於「目前底圖截圖」離屏擷圖，見 exportBasemapSnapshot）。 -->
+  <script type="module">
+    import * as maplibregl from 'https://unpkg.com/maplibre-gl@6.6.0/dist/maplibre-gl.mjs';
+    window.maplibregl = maplibregl;
+  </script>
   <script>
     // 未套變數的原始字串（含 {var} 佔位符），前端用 fmt() 自行代換——進度與計數只有 JS 迴圈裡才知道
     const I18N = <?= json_encode([
@@ -1212,6 +1267,12 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
       'vector_bad_source' => i18n_t($DICT, 'tilecut_vector_bad_source_msg'),
       'recon_progress'    => i18n_t($DICT, 'tilecut_recon_progress_msg'),
       'recon_done'        => i18n_t($DICT, 'tilecut_recon_done_msg'),
+      'export_dim'        => i18n_t($DICT, 'tilecut_export_dim_msg'),
+      'export_zoom_cap'   => i18n_t($DICT, 'tilecut_export_zoom_cap_msg'),
+      'export_snap_progress' => i18n_t($DICT, 'tilecut_export_snapshot_progress_msg'),
+      'maplibre_unready'  => i18n_t($DICT, 'tilecut_export_maplibre_unready_msg'),
+      'export_done'       => i18n_t($DICT, 'tilecut_export_done_msg'),
+      'fromname_title'    => i18n_t($DICT, 'tilecut_export_fromname_title'),
     ], JSON_UNESCAPED_UNICODE) ?>;
     const fmt = (str, vars) => str.replace(/\{(\w+)\}/g, (_, k) => (vars[k] != null ? vars[k] : ''));
     const csrf = <?= json_encode($csrf) ?>;
@@ -1289,6 +1350,7 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
         this.opacity = 1;
         this.on = true;
         this.overlay = null;
+        this.fromFilename = false;               // true = bounds 是從檔名讀出來的，不是預設帶入的
       }
 
       /** 四邊在 Web Mercator 單位世界座標裡的位置；對位與切磚都在這個空間算。 */
@@ -1604,7 +1666,14 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
         const sz = document.createElement('span');
         sz.className = 'pcsize mono';
         sz.textContent = p.w + ' x ' + p.h + (p.opacity < 1 ? ' · ' + p.opacity : '');
-        pick.append(nm, sz);
+        if (p.fromFilename) {
+          const badge = document.createElement('i');
+          badge.className = 'fa-solid fa-crosshairs pcauto';
+          badge.title = I18N.fromname_title;
+          pick.append(badge, nm, sz);
+        } else {
+          pick.append(nm, sz);
+        }
         pick.addEventListener('click', () => select(i));
         row.appendChild(pick);
 
@@ -1676,6 +1745,18 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
       return applyAspect({ n, s, w, e }, 'sw', p);
     }
 
+    /**
+     * 從檔名尾端讀座標：`..._s<south>_w<west>_n<north>_e<east>_z<zoom>.<ext>`，zoom 可省略。
+     * 只認副檔名前的固定後綴，前面畫師想加什麼描述文字都不影響比對，也不受檔名裡
+     * 本來就有的底線／連字號干擾——從字串尾端往回匹配，不是照底線切割計數。
+     */
+    function boundsFromFilename(name) {
+      const m = /_s(-?\d+(?:\.\d+)?)_w(-?\d+(?:\.\d+)?)_n(-?\d+(?:\.\d+)?)_e(-?\d+(?:\.\d+)?)(?:_z(\d+))?\.[a-zA-Z0-9]+$/.exec(name);
+      if (!m) return null;
+      const b = { s: parseFloat(m[1]), w: parseFloat(m[2]), n: parseFloat(m[3]), e: parseFloat(m[4]) };
+      return validBounds(b) ? { bounds: b, z: m[5] ? parseInt(m[5], 10) : null } : null;
+    }
+
     // ── 事件 ──
     ['north', 'south', 'west', 'east'].forEach(k => $(k).addEventListener('input', () => {
       const p = pieces[sel], b = readFields();
@@ -1717,6 +1798,302 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
       if (p && $('lockar').checked && validBounds(p.bounds)) commit(p, applyAspect(p.bounds, 'sw', p));
     });
 
+    // ── 匯出範圍底稿 ──
+    // 這裡選的是「要匯出的範圍」本身，不是任何一張 Piece，跟對位把手（selRect／swM／neM／mvM）
+    // 完全分開；地圖也不共用主地圖（那張是 CARTO 光柵，高 zoom 會糊/馬賽克，不適合拿來當
+    // 「畫面上看到的就是匯出結果」的依據）——另開一張向量圖磚地圖，見下方 exMap。
+    const exmsgEl = $('exmsg');
+    const exPreviewEl = $('exsnapPreview');
+    const exZoomHintEl = $('exzoomhint');
+    let exPreviewUrl = null;
+    // 選取範圍或 zoom 一變，舊的截圖預覽就不再對應目前的框，先收掉避免看起來像是新框的結果
+    function hideExportPreview() {
+      if (exPreviewUrl) { URL.revokeObjectURL(exPreviewUrl); exPreviewUrl = null; }
+      exPreviewEl.style.display = 'none';
+      exPreviewEl.src = '';
+    }
+    function showExportPreview(blob) {
+      hideExportPreview();
+      exPreviewUrl = URL.createObjectURL(blob);
+      exPreviewEl.src = exPreviewUrl;
+      exPreviewEl.style.display = '';
+    }
+
+    function readExportFields() {
+      const b = {
+        n: parseFloat($('exn').value), s: parseFloat($('exs').value),
+        w: parseFloat($('exw').value), e: parseFloat($('exe').value)
+      };
+      return validBounds(b) ? b : null;
+    }
+    function writeExportFields(b) {
+      $('exn').value = b.n.toFixed(6); $('exs').value = b.s.toFixed(6);
+      $('exw').value = b.w.toFixed(6); $('exe').value = b.e.toFixed(6);
+    }
+    /** 目前選取範圍在指定 zoom 下對應的像素尺寸，跟切磚共用同一套 Web Mercator 換算。 */
+    function exportPixelSize() {
+      const b = readExportFields();
+      const z = parseInt($('exz').value, 10);
+      if (!b || !isFinite(z)) return null;
+      const worldPx = (1 << z) * TILE;
+      const w = Math.round((wx(b.e) - wx(b.w)) * worldPx);
+      const h = Math.round((wy(b.s) - wy(b.n)) * worldPx);
+      return (w > 0 && h > 0) ? { w, h, b, z } : null;
+    }
+
+    // ── 選區地圖（MapLibre）──
+    // 跟目前底圖截圖共用同一份 style：畫面上看起來多細，匯出就是多細，不會有「數字打上去才發現
+    // 太模糊」的落差。也因此拿 openfreemap-liberty 這份向量資料本身的 maxzoom 當縮放上限——
+    // 超過那一級只是把同一批幾何放大畫，不會有更多細節，畫面就會開始糊/馬賽克。
+    const MAPLIBRE_STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
+    const VECTOR_SOURCE_MAXZOOM = 14; // openfreemap 目前的實測值（MapLibre 512px 基準），讀不到時的退回值
+    function waitForMapLibre() {
+      if (window.maplibregl) return Promise.resolve();
+      return new Promise((resolve, reject) => {
+        let tries = 0;
+        const timer = setInterval(() => {
+          if (window.maplibregl) { clearInterval(timer); resolve(); }
+          else if (++tries > 100) { clearInterval(timer); reject(new Error(I18N.maplibre_unready)); }
+        }, 50);
+      });
+    }
+
+    let exMap = null, exSW = null, exNE = null, exMV = null, exReady = false;
+
+    function exHandleEl(cls, html) {
+      const el = document.createElement('div');
+      el.className = cls;
+      if (html) el.innerHTML = html;
+      return el;
+    }
+    function exRectFeature(b) {
+      return { type: 'Feature', geometry: { type: 'Polygon', coordinates: [[[b.w, b.n], [b.e, b.n], [b.e, b.s], [b.w, b.s], [b.w, b.n]]] } };
+    }
+    /** 把手歸位。skip 是正在被拖的那一顆——重設它的位置會跟滑鼠搶，比照 placeHandles() 的邏輯。 */
+    function exPlaceHandles(b, skip) {
+      if (skip !== exSW) exSW.setLngLat([b.w, b.s]);
+      if (skip !== exNE) exNE.setLngLat([b.e, b.n]);
+      if (skip !== exMV) exMV.setLngLat([(b.w + b.e) / 2, latOf((wy(b.n) + wy(b.s)) / 2)]);
+    }
+    /** b 無效時只隱藏把手／收攏矩形，不整組移除——避免打字打到一半（例如剛清空）時把手閃爍。 */
+    function exUpdateRect(b, skip) {
+      if (!exReady) return;
+      const src = exMap.getSource('exrect');
+      if (!b) {
+        [exSW, exNE, exMV].forEach(m => { m.getElement().style.visibility = 'hidden'; });
+        return;
+      }
+      [exSW, exNE, exMV].forEach(m => { m.getElement().style.visibility = ''; });
+      if (src) src.setData(exRectFeature(b));
+      exPlaceHandles(b, skip);
+    }
+    function exCommit(b, skip) {
+      writeExportFields(b);
+      exUpdateRect(b, skip);
+      hideExportPreview();
+      refreshExportDims();
+    }
+    // 拖角落：對角的另一顆角落固定住，這顆決定另外兩邊——不像 Piece 那組要維持圖片長寬比，
+    // 這裡純粹是矩形，兩顆角落互相決定四個邊即可。
+    function exCornerDrag(m, live) {
+      return () => {
+        const a = exSW.getLngLat(), c = exNE.getLngLat();
+        const b = { s: Math.min(a.lat, c.lat), n: Math.max(a.lat, c.lat), w: Math.min(a.lng, c.lng), e: Math.max(a.lng, c.lng) };
+        if (!validBounds(b)) return;
+        exCommit(b, live ? m : null);
+      };
+    }
+    // 平移：位移算在投影空間，整個選區的形狀才不會隨著往南北走而變形，跟 Piece 的 move() 同一套算法。
+    function exMoveDrag(live) {
+      return () => {
+        const b0 = readExportFields();
+        if (!b0) return;
+        const dx = wx(b0.e) - wx(b0.w), dy = wy(b0.s) - wy(b0.n);
+        if (!(dx > 0 && dx <= 1 && dy > 0 && dy <= 1)) return;
+        const ll = exMV.getLngLat();
+        const cx = Math.min(1 - dx / 2, Math.max(dx / 2, wx(ll.lng)));
+        const cy = Math.min(1 - dy / 2, Math.max(dy / 2, wy(ll.lat)));
+        exCommit({
+          w: lngOf(cx - dx / 2), e: lngOf(cx + dx / 2),
+          n: latOf(cy - dy / 2), s: latOf(cy + dy / 2)
+        }, live ? exMV : null);
+      };
+    }
+    /** 地圖剛載入、欄位還是空的時候，給一個看得到、可以直接拖的預設選區：目前視野內縮一半。 */
+    function exInsetBounds(m, frac) {
+      const b = m.getBounds();
+      const n = b.getNorth(), s = b.getSouth(), w = b.getWest(), e = b.getEast();
+      const dn = (n - s) * (1 - frac) / 2, de = (e - w) * (1 - frac) / 2;
+      return { n: n - dn, s: s + dn, w: w + de, e: e - de };
+    }
+    /** 向量圖磚來源實際的 maxzoom（MapLibre 512px 基準）；讀不到就退回目前已知的實測值。 */
+    function exVectorMaxZoom() {
+      const srcs = exMap.getStyle().sources || {};
+      let mz = null;
+      for (const id of Object.keys(srcs)) {
+        const s = exMap.getSource(id);
+        if (srcs[id].type === 'vector' && s && typeof s.maxzoom === 'number') mz = (mz === null) ? s.maxzoom : Math.max(mz, s.maxzoom);
+      }
+      return mz !== null ? mz : VECTOR_SOURCE_MAXZOOM;
+    }
+
+    (async () => {
+      try { await waitForMapLibre(); } catch (e) { exmsgEl.textContent = I18N.error_prefix + e.message; return; }
+      exMap = new maplibregl.Map({
+        container: 'exmap', style: MAPLIBRE_STYLE_URL, center: [120.69, 23.95], zoom: 13,
+        attributionControl: { compact: true }, dragRotate: false, pitchWithRotate: false, touchPitch: false, maxPitch: 0
+      });
+      exMap.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+      exSW = new maplibregl.Marker({ element: exHandleEl('pchandle'), draggable: true, anchor: 'center' });
+      exNE = new maplibregl.Marker({ element: exHandleEl('pchandle'), draggable: true, anchor: 'center' });
+      exMV = new maplibregl.Marker({
+        element: exHandleEl('pchandle pcmove', '<i class="fa-solid fa-arrows-up-down-left-right"></i>'),
+        draggable: true, anchor: 'center'
+      });
+      [exSW, exNE, exMV].forEach(m => m.setLngLat([0, 0]).addTo(exMap));
+      exSW.on('drag', exCornerDrag(exSW, true));
+      exSW.on('dragend', exCornerDrag(exSW, false));
+      exNE.on('drag', exCornerDrag(exNE, true));
+      exNE.on('dragend', exCornerDrag(exNE, false));
+      exMV.on('drag', exMoveDrag(true));
+      exMV.on('dragend', exMoveDrag(false));
+      exMap.on('load', () => {
+        exMap.addSource('exrect', { type: 'geojson', data: exRectFeature({ n: 1, s: 0, w: 0, e: 1 }) });
+        exMap.addLayer({ id: 'exrect-fill', type: 'fill', source: 'exrect', paint: { 'fill-color': '#2e7db5', 'fill-opacity': 0.18 } });
+        exMap.addLayer({ id: 'exrect-line', type: 'line', source: 'exrect', paint: { 'line-color': '#2e7db5', 'line-width': 2 } });
+        const capZ = exVectorMaxZoom();
+        exMap.setMaxZoom(capZ);
+        if (exMap.getZoom() > capZ) exMap.setZoom(capZ);
+        const capCodebaseZ = capZ + 1;
+        $('exz').max = String(capCodebaseZ);
+        if (parseInt($('exz').value, 10) > capCodebaseZ) $('exz').value = capCodebaseZ;
+        exZoomHintEl.textContent = fmt(I18N.export_zoom_cap, { z: capCodebaseZ });
+        exReady = true;
+        let b = readExportFields();
+        if (!b) { b = exInsetBounds(exMap, 0.5); writeExportFields(b); }
+        exUpdateRect(b);
+        refreshExportDims();
+      });
+      exMap.on('zoom', () => {
+        const z = Math.round(exMap.getZoom() + 1);
+        if (String(z) !== $('exz').value) { $('exz').value = z; hideExportPreview(); refreshExportDims(); }
+      });
+    })();
+
+    function refreshExportDims() {
+      const d = exportPixelSize();
+      $('exdim').textContent = d ? fmt(I18N.export_dim, { w: d.w, h: d.h }) : '';
+      ['exblankpng', 'exblanksvg', 'exsnapshot'].forEach(id => { $(id).disabled = !d; });
+    }
+    function refreshExportUI() {
+      exUpdateRect(readExportFields());
+      refreshExportDims();
+    }
+    ['exn', 'exs', 'exw', 'exe'].forEach(id => $(id).addEventListener('input', () => { hideExportPreview(); refreshExportUI(); }));
+    $('exz').addEventListener('input', () => {
+      if (exReady) {
+        let z = parseInt($('exz').value, 10);
+        const capCodebaseZ = exMap.getMaxZoom() + 1;
+        if (isFinite(z) && z > capCodebaseZ) { z = capCodebaseZ; $('exz').value = z; }
+        if (isFinite(z)) exMap.setZoom(z - 1);
+      }
+      hideExportPreview();
+      refreshExportDims();
+    });
+    $('exview').addEventListener('click', () => {
+      if (!exReady) return;
+      const bb = exMap.getBounds();
+      exCommit({ n: bb.getNorth(), s: bb.getSouth(), w: bb.getWest(), e: bb.getEast() });
+    });
+
+    function exportSlug() {
+      return (($('lid').value || '').trim().toLowerCase().match(/[a-z0-9_-]+/g) || ['ref']).join('');
+    }
+    /** 三個匯出按鈕共用同一套檔名後綴，跟 boundsFromFilename() 的正則對得上。 */
+    function exportFilename(d, suffix, ext) {
+      const b = d.b;
+      return exportSlug() + suffix
+        + '_s' + b.s.toFixed(6) + '_w' + b.w.toFixed(6) + '_n' + b.n.toFixed(6) + '_e' + b.e.toFixed(6)
+        + '_z' + d.z + '.' + ext;
+    }
+    function downloadBlob(blob, name) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      exmsgEl.textContent = fmt(I18N.export_done, { name });
+    }
+
+    $('exblankpng').addEventListener('click', async () => {
+      const d = exportPixelSize();
+      if (!d) return;
+      const c = document.createElement('canvas');
+      c.width = d.w; c.height = d.h;
+      const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+      downloadBlob(blob, exportFilename(d, '', 'png'));
+    });
+
+    $('exblanksvg').addEventListener('click', () => {
+      const d = exportPixelSize();
+      if (!d) return;
+      const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + d.w + '" height="' + d.h
+        + '" viewBox="0 0 ' + d.w + ' ' + d.h + '"></svg>';
+      downloadBlob(new Blob([svg], { type: 'image/svg+xml' }), exportFilename(d, '', 'svg'));
+    });
+
+    /**
+     * 用站內既有的向量圖磚引擎（MapLibre GL + openfreemap-liberty，跟選區地圖 exMap 同一份 style，
+     * MAPLIBRE_STYLE_URL／waitForMapLibre() 見上方選區地圖那段）離屏渲染這塊範圍——不用 CARTO
+     * 光柵圖磚：那組免費圖磚會蓋「REQUIRED」浮水印，拿來描圖底稿會失真。離屏容器要接在 DOM 上
+     * 才有真實版面（display:none 不會觸發渲染），preserveDrawingBuffer 開起來 toBlob() 才讀得到
+     * 畫面；等 idle 事件（圖磚全部載完、渲染完成）才擷圖，最長等 20 秒，逾時當失敗處理。
+     */
+    async function exportBasemapSnapshot(d) {
+      await waitForMapLibre();
+      exmsgEl.textContent = I18N.export_snap_progress;
+      const b = d.b;
+      // MapLibre 的 zoom 是 512px 圖磚基準（世界像素寬 = 512*2^z），這支工具其餘的像素換算
+      // 全部是 256px 基準（TILE=256），兩者剛好差一級，這裡換算成 MapLibre 的等效 zoom。
+      const mlZoom = d.z - 1;
+      // 經度中心是線性平均；緯度在麥卡托投影下不是線性的，要靠 wy()/latOf() 換算才準確，
+      // 不能直接取南北緯度的算術平均。
+      const center = [(b.w + b.e) / 2, latOf((wy(b.n) + wy(b.s)) / 2)];
+      const holder = document.createElement('div');
+      holder.style.cssText = 'position:fixed;left:-99999px;top:-99999px;width:' + d.w + 'px;height:' + d.h + 'px';
+      document.body.appendChild(holder);
+      let mlMap;
+      try {
+        mlMap = new maplibregl.Map({
+          container: holder, style: MAPLIBRE_STYLE_URL, center, zoom: mlZoom,
+          pixelRatio: 1, interactive: false, attributionControl: false, preserveDrawingBuffer: true,
+        });
+        await new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error(I18N.conn_failed)), 20000);
+          mlMap.once('idle', () => { clearTimeout(timeout); resolve(); });
+        });
+        return await new Promise(res => mlMap.getCanvas().toBlob(res, 'image/png'));
+      } finally {
+        if (mlMap) mlMap.remove();
+        holder.remove();
+      }
+    }
+
+    $('exsnapshot').addEventListener('click', async () => {
+      const d = exportPixelSize();
+      if (!d) return;
+      $('exsnapshot').disabled = true;
+      try {
+        const blob = await exportBasemapSnapshot(d);
+        showExportPreview(blob);
+        downloadBlob(blob, exportFilename(d, '-basemap', 'png'));
+      } catch (e) {
+        exmsgEl.textContent = I18N.error_prefix + (e && e.message ? e.message : I18N.conn_failed);
+      }
+      refreshExportUI();
+    });
+    refreshExportUI();
+
     // ── 加入圖片 ──
     $('src').addEventListener('change', async ev => {
       const files = Array.from(ev.target.files || []);
@@ -1724,7 +2101,7 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
       if (!files.length) return;
       const wasEmpty = !pieces.length;
       const failed = [];
-      let firstName = '';
+      let firstName = '', firstZ = null;
       for (const f of files) {
         const url = URL.createObjectURL(f);
         let img;
@@ -1736,14 +2113,21 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
           continue;
         }
         const p = new Piece(f.name, img, url, f);
-        p.bounds = defaultBounds(p);
+        const fromName = boundsFromFilename(f.name);
+        p.bounds = fromName ? fromName.bounds : defaultBounds(p);
+        p.fromFilename = !!fromName;
+        if (fromName && fromName.z !== null && firstZ === null) firstZ = fromName.z;
         pieces.unshift(p);         // 後加的蓋在前面加的上面，跟繪圖軟體「置入」的行為一致
         if (!firstName) firstName = f.name;
       }
       statusEl.textContent = failed.map(n => fmt(I18N.img_failed, { name: n })).join(' ');
       if (firstName && !$('llabel').value) $('llabel').value = firstName.replace(/\.[^.]+$/, '');
-      // zoom 只在「從空清單開始」時自動帶，之後再加圖不覆蓋使用者調過的值
-      if (wasEmpty) applyNativeZoom();
+      // zoom 只在「從空清單開始」時自動帶，之後再加圖不覆蓋使用者調過的值；
+      // 檔名帶 z 就直接用它（畫師存檔時就知道要對應的解析度），沒有才退回估算
+      if (wasEmpty) {
+        if (firstZ !== null) { $('zmax').value = firstZ; $('zmin').value = Math.max(0, firstZ - 5); estimate(); }
+        else applyNativeZoom();
+      }
       select(0);
     });
 
