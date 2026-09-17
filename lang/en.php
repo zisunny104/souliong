@@ -164,6 +164,7 @@ return [
     'photos_empty'           => 'No submissions yet — waiting for a traveler\'s first one.',
     'contrib_photo_alt'      => 'Contributed item',
     'anon_fallback'          => 'Anonymous',
+    'og_entry_fallback'      => '{kind} shared by {name}',
     'edited_tag'             => 'Edited',
     'edit'                   => 'Edit',
     'delete'                 => 'Delete',

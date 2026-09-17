@@ -61,6 +61,11 @@ $bg = [
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= $t('app_title') ?></title>
+<meta property="og:type" content="website">
+<meta property="og:title" content="<?= $t('app_title') ?>">
+<meta property="og:description" content="<?= $t('app_tagline') ?>">
+<meta property="og:url" content="<?= $esc(Route::abs(Route::base())) ?>">
+<meta name="twitter:card" content="summary">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.6.0/dist/maplibre-gl.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <style>

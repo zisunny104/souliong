@@ -112,12 +112,49 @@ $assetUrl = function (string $rel) use ($esc): string {
     $abs = __DIR__ . '/../' . $rel;
     return $esc(Route::api('appasset', ['f' => $rel, 'v' => (string)(@filemtime($abs) ?: 0)]));
 };
+
+// 社群分享預覽卡（OG/Twitter Card）：三層（專案預設／?spot=/?entry=）共用同一組輸出，
+// 依 entry > spot > 專案預設 優先序決定，跟 $mod('share') 開關無關——網址列本來就能複製。
+require_once __DIR__ . '/../api/oglib.php';
+$ogTitle = $meta['title'] ?? i18n_t($DICT, 'app_title');
+$ogDesc  = $meta['desc'] ?? $meta['subtitle'] ?? i18n_t($DICT, 'app_tagline');
+$ogImage = cover_file_of(project_dir($apiCfg, $proj) . '/cover') !== null
+    ? Route::abs(Route::api('cover', ['project' => $proj]))
+    : null;
+$ogUrl   = Route::abs(Route::map($proj));
+
+$entryId = preg_replace('/[^0-9a-f]/', '', (string)($_GET['entry'] ?? ''));
+$spotNum = ctype_digit((string)($_GET['spot'] ?? '')) ? (int)$_GET['spot'] : null;
+
+if ($entryId !== '' && ($entry = souliong_og_resolve_entry($apiCfg, $proj, $entryId))) {
+    $sp = isset($entry['item_num']) ? souliong_og_resolve_spot($apiCfg, $proj, (int)$entry['item_num']) : null;
+    $ogTitle = $sp ? souliong_og_spot_title(souliong_og_spot_name($sp), (int)$entry['item_num'], $meta['numbering'] ?? 'suffix') : $ogTitle;
+    $kindKey = ['photo' => 'tab_photo', 'video' => 'tab_video', 'audio' => 'tab_audio'][$entry['kind'] ?? ''] ?? 'tab_text';
+    $ogDesc  = ($entry['comment'] ?? '') !== ''
+        ? souliong_og_truncate((string)$entry['comment'])
+        : i18n_t($DICT, 'og_entry_fallback', ['name' => $entry['name'] ?: i18n_t($DICT, 'anon_fallback'), 'kind' => i18n_t($DICT, $kindKey)]);
+    if ($qs = souliong_og_entry_image_qs($entry)) $ogImage = Route::abs(Route::api($qs[0], $qs[1]));
+    $ogUrl = Route::abs(Route::map($proj) . '?entry=' . rawurlencode($entryId));
+} elseif ($spotNum !== null && ($sp = souliong_og_resolve_spot($apiCfg, $proj, $spotNum))) {
+    $ogTitle = souliong_og_spot_title(souliong_og_spot_name($sp), $spotNum, $meta['numbering'] ?? 'suffix');
+    $ogDesc  = souliong_og_truncate((string)($sp['story'] ?: ($meta['desc'] ?? i18n_t($DICT, 'app_tagline'))));
+    if (!empty($sp['feature']) && ($fe = souliong_og_resolve_entry($apiCfg, $proj, $sp['feature'])) && ($qs = souliong_og_entry_image_qs($fe))) {
+        $ogImage = Route::abs(Route::api($qs[0], $qs[1]));
+    }
+    $ogUrl = Route::abs(Route::map($proj) . '?spot=' . $spotNum);
+}
 ?><!DOCTYPE html>
 <html lang="<?= $LANG === 'en' ? 'en' : 'zh-Hant' ?>">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title><?= $t('app_title') ?></title>
+<meta property="og:type" content="website">
+<meta property="og:title" content="<?= $esc($ogTitle) ?>">
+<meta property="og:description" content="<?= $esc($ogDesc) ?>">
+<meta property="og:url" content="<?= $esc($ogUrl) ?>">
+<?php if ($ogImage): ?><meta property="og:image" content="<?= $esc($ogImage) ?>"><?php endif; ?>
+<meta name="twitter:card" content="<?= $ogImage ? 'summary_large_image' : 'summary' ?>">
 <?php if ($primaryEngine === 'leaflet'): ?>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <?php endif; ?>
