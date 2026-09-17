@@ -20,7 +20,7 @@
     media:    { icon: 'fa-photo-film',       label: 'tab_media',    pick: 'pick_media_btn',  hint: 'pick_media_hint' },
     audio:    { icon: 'fa-microphone-lines', label: 'tab_audio',    pick: 'pick_audio_btn',  hint: 'pick_audio_hint' },
     text:     { icon: 'fa-align-left',       label: 'tab_text',     add:  'write_text_btn',  hint: 'write_text_hint' },
-    newpoint: { icon: 'fa-map-pin',          label: 'tab_newpoint', add:  'new_point_btn',   hint: 'new_point_hint' },
+    newspot:  { icon: 'fa-map-pin',          label: 'tab_newspot',  add:  'new_spot_btn',    hint: 'new_spot_hint' },
   };
 
   // 遇到伺服器限流（429）時倒數等待再自動重試，而不是直接判定失敗、丟掉這一則
@@ -46,14 +46,11 @@
     }
 
     // ---- 分頁 ----
-    // 有哪些分頁＝已載入的型別檔涵蓋到哪些分頁，但主要內容型別（primaryKind，例如聲音地圖的
-    // audio）除外——那個型別已經是點位本身的主要內容（見故事區的專屬編輯外掛 sound-editor.js），
-    // 不該又出現在這個通用投稿對話框裡讓人重複投稿。順序依 TABS 的宣告順序，不依載入順序，
+    // 有哪些分頁＝已載入的型別檔涵蓋到哪些分頁。順序依 TABS 的宣告順序，不依載入順序，
     // 這樣不同地圖的分頁排列才一致（跟 souliong_contrib_cfg() 依註冊表排序是同一個道理）。
     initTabs() {
       const cfg = this.mapApp.contribCfg() || {};
-      const primary = cfg.primaryKind || '';
-      const have = SL.kinds.filter(k => k.key !== primary).map(k => k.tab);
+      const have = SL.kinds.map(k => k.tab);
       this.tabs = Object.keys(TABS).filter(tb => have.includes(tb));
       this.tab = this.tabs.includes(cfg.default) ? cfg.default : this.tabs[0];
     }
@@ -126,7 +123,7 @@
     mount() {
       this.initTabs();
       this.injectDom();
-      this.mapApp.registerEntriesHint(point => this.entriesUploadButton(point));
+      this.mapApp.registerEntriesHint(spot => this.entriesUploadButton(spot));
       this.mapApp.onHook('closeAll', () => this.closeModal());
       this.mapApp.onHook('identityUploadShortcut', () => {
         this.resetQueue();
@@ -175,23 +172,24 @@
         const tag = (e.target && e.target.tagName) || '';
         if (/^(INPUT|TEXTAREA|SELECT)$/.test(tag) || e.metaKey || e.ctrlKey || e.altKey) return;
         if (e.key.toLowerCase() !== 'u' || this.mapApp.isEmbedMode()) return;
-        if (this.mapApp.isUnlocked()) { this.resetQueue(); this.openModal(this.mapApp.getCurrentPoint()); }
+        if (this.mapApp.isUnlocked()) { this.resetQueue(); this.openModal(this.mapApp.getCurrentSpot()); }
         else if (window.APP && window.APP.gated) this.mapApp.openUnlock();
       });
     }
 
     // 「投稿到這個點」鈕：放在故事底下、第一則投稿之前（核心 renderEntries() 在故事區塊後、投稿牆前呼叫這裡）。
-    // 沒有任何分頁可投（例如整張地圖只開放了 primaryKind 那一種型別）時，通用投稿對話框沒有東西好顯示，不出現這顆鈕。
-    entriesUploadButton(point) {
+    // 沒有任何分頁可投（例如地圖 meta.json 的 contrib.kinds 只設了 spot 以外零種型別，理論上不會發生）
+    // 時，通用投稿對話框沒有東西好顯示，不出現這顆鈕。
+    entriesUploadButton(spot) {
       if (!this.tabs.length) return null;
       const upBtn = document.createElement('button');
       upBtn.className = 'btn primary upload-only'; upBtn.style.width = '100%';
-      upBtn.innerHTML = '<i class="fa-solid fa-plus"></i> ' + esc(t('upload_to_point'));
-      upBtn.onclick = () => { this.resetQueue(); this.openModal(point); };
+      upBtn.innerHTML = '<i class="fa-solid fa-plus"></i> ' + esc(t('upload_to_spot'));
+      upBtn.onclick = () => { this.resetQueue(); this.openModal(spot); };
       return upBtn;
     }
 
-    openModal(contextPoint) {
+    openModal(contextSpot) {
       // 沒有分頁可投時整個對話框沒有內容（見 initTabs()），所有入口（FAB、快捷鍵 U、身分鈕）共用這道保險
       if (!this.tabs.length) return;
       document.getElementById('modalName').value = document.getElementById('myName').value || localStorage.getItem('myName') || '';
@@ -204,7 +202,7 @@
       if (ccByChk) ccByChk.checked = localStorage.getItem('prefCcBy') === '1';
       if (wikidataChk) wikidataChk.checked = localStorage.getItem('prefWikidata') === '1';
       document.getElementById('contribModal').classList.add('open');
-      this.modalContext = contextPoint || null;
+      this.modalContext = contextSpot || null;
     }
     closeModal() {
       const m = document.getElementById('contribModal');
@@ -297,7 +295,7 @@
         const dev = await this.getDeviceLoc();
         if (dev) return { lat: dev.lat, lon: dev.lon, source: 'device' };
       }
-      if (kind.needsPoint() && this.modalContext) return { lat: this.modalContext.lat, lon: this.modalContext.lon, source: 'chair' };
+      if (kind.needsSpot() && this.modalContext) return { lat: this.modalContext.lat, lon: this.modalContext.lon, source: 'chair' };
       const c = this.mapApp.getEngine().getCenter();
       return { lat: c.lat, lon: c.lon, source: 'default' };
     }
@@ -310,10 +308,10 @@
           (kind.needsFile() ? '<div class="time">' + esc(t('loading')) + '</div>' : '') +
           '<input type="text" class="c-name" placeholder="' + anon + '">' +
           kind.extraTopHtml() +
-          '<textarea class="c-cmt" placeholder="' + esc(t(kind.key === 'newpoint' ? 'newpoint_story_placeholder' : 'write_something_placeholder')) + '"></textarea>' +
-          (kind.needsPoint()
-            ? '<label class="c-lab">' + esc(t('related_point_label_multi')) + '</label>' +
-              '<div class="row"><select class="c-chair"></select><button class="btn small c-nearest" type="button">' + esc(t('nearest_btn')) + '</button></div>'
+          '<textarea class="c-cmt" placeholder="' + esc(t(kind.key === 'newspot' ? 'newspot_story_placeholder' : 'write_something_placeholder')) + '"></textarea>' +
+          (kind.needsSpot()
+            ? '<label class="c-lab">' + esc(t('related_spot_label_multi')) + '</label>' +
+              '<div class="row"><select class="c-spot"></select><button class="btn small c-nearest" type="button">' + esc(t('nearest_btn')) + '</button></div>'
             : '') +
           (kind.needsLocation()
             ? '<div class="mini"></div><div class="loc"></div>' +
@@ -360,14 +358,14 @@
         state.ref = ref;   // 只用來算「最近的地點」，不會被送出
       }
 
-      if (kind.needsPoint()) {
+      if (kind.needsSpot()) {
         const at = state.loc || state.ref;
-        const defChair = (kind.key !== 'newpoint' && this.modalContext) ? this.modalContext.num : (this.mapApp.nearestPoint(at.lat, at.lon) || {}).num;
-        const sel = card.querySelector('.c-chair');
-        sel.innerHTML = this.mapApp.chairOptionsHtml(defChair);
+        const defSpot = (kind.key !== 'newspot' && this.modalContext) ? this.modalContext.num : (this.mapApp.nearestSpot(at.lat, at.lon) || {}).num;
+        const sel = card.querySelector('.c-spot');
+        sel.innerHTML = this.mapApp.spotOptionsHtml(defSpot);
         card.querySelector('.c-nearest').onclick = () => {
           const p = state.loc || state.ref;
-          const np = this.mapApp.nearestPoint(p.lat, p.lon);
+          const np = this.mapApp.nearestSpot(p.lat, p.lon);
           if (np) sel.value = String(np.num);
         };
       }
@@ -424,11 +422,11 @@
       btn.disabled = true; if (cancelBtn) cancelBtn.disabled = true;
       statusEl.textContent = t('uploading'); statusEl.className = 'status';
       try {
-        const chairSel = card.querySelector('.c-chair');
-        const chairNum = chairSel ? parseInt(chairSel.value, 10) : NaN;
+        const spotSel = card.querySelector('.c-spot');
+        const spotNum = spotSel ? parseInt(spotSel.value, 10) : NaN;
         const common = {
           kind: kind.key,
-          item_num: isNaN(chairNum) ? undefined : chairNum,
+          item_num: isNaN(spotNum) ? undefined : spotNum,
           name: card.querySelector('.c-name').value.trim() || this.mapApp.displayName(),
           comment: card.querySelector('.c-cmt').value.trim(),
           lat: state.loc ? state.loc.lat : undefined,
@@ -446,11 +444,11 @@
           maxRetry: MAX_RATE_RETRY,
           onRetry: (wait, attempt, maxAttempt) => waitCountdown(statusEl, wait, attempt, maxAttempt),
         });
-        this.mapApp.trackFeature(kind.key === 'newpoint' ? 'newpoint' : 'upload');
+        this.mapApp.trackFeature(kind.key === 'newspot' ? 'newspot' : 'upload');
         // 成功：鎖定卡片
         state.done = true;
         // 建立地點會改變點位清單與圖例，批次模式那套「只更新計數」不夠用，一律整個重繪
-        if (opts.bulk && kind.key !== 'newpoint') { this.mapApp.refreshCounts(); } else { this.mapApp.refreshAll(); }
+        if (opts.bulk && kind.key !== 'newspot') { this.mapApp.refreshCounts(); } else { this.mapApp.refreshAll(); }
         card.classList.add('done');
         card.querySelectorAll('input,textarea,button,select').forEach(el => el.disabled = true);
         if (state.picker) state.picker.setDraggable(false);

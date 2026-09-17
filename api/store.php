@@ -1,15 +1,24 @@
 <?php
 /**
  * 純 PHP 檔案儲存（零擴充依賴，取代 SQLite）。
- * 每個項目一個 JSON-Lines 檔：projects/<project>/data.jsonl，一行一筆記錄。
+ * 每個專案兩個 JSON-Lines 檔：projects/<project>/spots.jsonl（kind:'spot'，點位本身）與
+ * projects/<project>/entries.jsonl（其餘所有投稿），一行一筆記錄，依 kind 分流見 store_file()。
  * 寫入用 LOCK_EX 附加、讀取用 LOCK_SH，append-only。
+ *
+ * 舊專案目錄下可能還留著遷移前的 data.jsonl：那是遷移腳本讀完之後刻意留下的唯讀存底，
+ * 從這裡開始的所有函式都不會再讀寫它。
+ *
+ * 已淘汰、只留給舊資料相容用的舊機制：data.jsonl 本身、kind 值 point／newpoint（已併入 spot，
+ * 見 store_file()）、primaryKind（已由 spot 記錄的 feature 欄位取代）。退場判準與流程見
+ * docs/EXTENDING.md「舊機制淘汰與退場」一節，判準腳本見 tools/retirecheck.php。
  */
 
 function project_dir(array $cfg, string $project): string {
     return rtrim($cfg['projects_dir'], '/\\') . '/' . $project;
 }
-function store_file(array $cfg, string $project): string {
-    return project_dir($cfg, $project) . '/data.jsonl';
+function store_file(array $cfg, string $project, ?string $kind = null): string {
+    $name = $kind === 'spot' ? 'spots.jsonl' : 'entries.jsonl';
+    return project_dir($cfg, $project) . '/' . $name;
 }
 
 /** 把 jsonl 裡存的 "<project>/<檔名>" 解析成照片實際檔案路徑；格式不符回 null */
@@ -48,8 +57,8 @@ function store_purge_files(array $cfg, ?array $record): void {
     }
 }
 
-function store_all(array $cfg, string $project): array {
-    $f = store_file($cfg, $project);
+/** 讀單一 jsonl 檔案的全部記錄（LOCK_SH）；檔案不存在回空陣列。 */
+function _store_read_lines(string $f): array {
     if (!is_file($f)) return [];
     $fp = fopen($f, 'rb');
     if (!$fp) return [];
@@ -66,8 +75,15 @@ function store_all(array $cfg, string $project): array {
     return $out;
 }
 
+function store_all(array $cfg, string $project): array {
+    return array_merge(
+        _store_read_lines(store_file($cfg, $project, 'spot')),
+        _store_read_lines(store_file($cfg, $project, null))
+    );
+}
+
 function store_append(array $cfg, string $project, array $record): array {
-    $f = store_file($cfg, $project);
+    $f = store_file($cfg, $project, $record['kind'] ?? null);
     $fp = fopen($f, 'ab');
     if (!$fp) throw new RuntimeException('cannot open store file');
     flock($fp, LOCK_EX);
@@ -87,9 +103,10 @@ function store_append(array $cfg, string $project, array $record): array {
  *
  * $build(array $records): array —— 收到目前檔案裡的全部記錄，回傳要附加的那一筆。
  * 想中止就在 $build 裡丟例外（此時什麼都不會寫入）。
+ * $kind 決定鎖的是哪個實體檔案（見 store_file()）；$build 收到的 $records 只有該檔案裡的記錄。
  */
-function store_append_locked(array $cfg, string $project, callable $build): array {
-    $f = store_file($cfg, $project);
+function store_append_locked(array $cfg, string $project, callable $build, string $kind): array {
+    $f = store_file($cfg, $project, $kind);
     $fp = fopen($f, 'c+b'); // c+：不存在就建、存在也不截斷（'a+' 在部分平台讀取位置不可靠）
     if (!$fp) throw new RuntimeException('cannot open store file');
     flock($fp, LOCK_EX);
@@ -113,35 +130,18 @@ function store_append_locked(array $cfg, string $project, callable $build): arra
     return $record;
 }
 
-function store_delete(array $cfg, string $project, string $id): ?array {
-    $f = store_file($cfg, $project);
-    if (!is_file($f)) return null;
-    $fp = fopen($f, 'c+b');
-    if (!$fp) return null;
-    flock($fp, LOCK_EX);
-    $keep = [];
-    $removed = null;
-    while (($line = fgets($fp)) !== false) {
-        $t = trim($line);
-        if ($t === '') continue;
-        $rec = json_decode($t, true);
-        if (is_array($rec) && (string)($rec['id'] ?? '') === (string)$id) { $removed = $rec; continue; }
-        $keep[] = $t;
-    }
-    ftruncate($fp, 0);
-    rewind($fp);
-    foreach ($keep as $l) fwrite($fp, $l . "\n");
-    fflush($fp);
-    flock($fp, LOCK_UN);
-    fclose($fp);
-    return $removed;
+/** 在毀滅性覆寫（刪除重寫、ZIP 還原）前，把即將被改的檔案複製成同名 .bak（單一滾動快照，覆蓋上一份）。 */
+function store_backup(string $path): void {
+    if (is_file($path)) @copy($path, $path . '.bak');
 }
 
-/** 依欄位值批次刪除（例如某個 contrib_id 或 owner_hash 的全部投稿）；回傳被刪除的記錄陣列供呼叫端清照片檔。 */
-function store_delete_by(array $cfg, string $project, string $field, string $value): array {
-    $f = store_file($cfg, $project);
-    if (!is_file($f) || $value === '') return [];
-    $fp = fopen($f, 'c+b');
+/**
+ * 整檔重寫、跳過符合 $shouldRemove() 的那些行（store_delete()／store_delete_by() 共用）。
+ * 回傳被移除的記錄陣列；檔案不存在就什麼都不做。
+ */
+function _store_rewrite(string $path, callable $shouldRemove): array {
+    if (!is_file($path)) return [];
+    $fp = fopen($path, 'c+b');
     if (!$fp) return [];
     flock($fp, LOCK_EX);
     $keep = [];
@@ -150,16 +150,51 @@ function store_delete_by(array $cfg, string $project, string $field, string $val
         $t = trim($line);
         if ($t === '') continue;
         $rec = json_decode($t, true);
-        if (is_array($rec) && (string)($rec[$field] ?? '') === $value) { $removed[] = $rec; continue; }
+        if (is_array($rec) && $shouldRemove($rec)) { $removed[] = $rec; continue; }
         $keep[] = $t;
     }
-    ftruncate($fp, 0);
-    rewind($fp);
-    foreach ($keep as $l) fwrite($fp, $l . "\n");
-    fflush($fp);
+    if ($removed) {
+        store_backup($path);
+        ftruncate($fp, 0);
+        rewind($fp);
+        foreach ($keep as $l) fwrite($fp, $l . "\n");
+        fflush($fp);
+    }
     flock($fp, LOCK_UN);
     fclose($fp);
     return $removed;
+}
+
+/** 依 id 找一筆記錄；不論它落在 spots.jsonl 或 entries.jsonl 都找得到。 */
+function store_find(array $cfg, string $project, string $id): ?array {
+    foreach (store_all($cfg, $project) as $r) {
+        if ((string)($r['id'] ?? '') === $id) return $r;
+    }
+    return null;
+}
+
+function store_delete(array $cfg, string $project, string $id): ?array {
+    foreach ([store_file($cfg, $project, 'spot'), store_file($cfg, $project, null)] as $f) {
+        $removed = _store_rewrite($f, fn($rec) => (string)($rec['id'] ?? '') === (string)$id);
+        if ($removed) return $removed[0];
+    }
+    return null;
+}
+
+/**
+ * 依欄位值批次刪除（例如某個 contrib_id 或 owner_hash 的全部投稿）；回傳被刪除的記錄陣列供呼叫端清照片檔。
+ * $excludeKinds：即使符合條件也不刪、留在檔案裡不動的 kind 清單（見 manager.php 的 edit_spots 分流）。
+ */
+function store_delete_by(array $cfg, string $project, string $field, string $value, array $excludeKinds = []): array {
+    if ($value === '') return [];
+    $shouldRemove = function ($rec) use ($field, $value, $excludeKinds) {
+        if ((string)($rec[$field] ?? '') !== $value) return false;
+        return !in_array($rec['kind'] ?? null, $excludeKinds, true);
+    };
+    return array_merge(
+        _store_rewrite(store_file($cfg, $project, 'spot'), $shouldRemove),
+        _store_rewrite(store_file($cfg, $project, null), $shouldRemove)
+    );
 }
 
 /**

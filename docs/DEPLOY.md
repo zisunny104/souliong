@@ -72,7 +72,7 @@ Nginx：`client_max_body_size 70m;`　PHP：`upload_max_filesize=64M`、`post_ma
 ## 三、管理 / 審閱 / 分析
 
 - 管理頁：`<base>/manager`（全部地圖總覽）、`<base>/manager/<mapid>`（單張地圖），輸入 PIN 或帳號密碼登入（POST，httpOnly cookie 保持登入，PIN／密碼皆不進網址）。分頁、備份與匯出都是這底下的路徑（`/manager/<mapid>/records`、`/manager/backup.zip`…），完整清單見 [EXTENDING.md](EXTENDING.md) 第九節。舊網址 `?api=admin`、`/<mapid>/manager` 仍然有效，開啟時會自動導向上面的形式。
-  - **主 PIN**（`config.primary_pin`）：開所有專案。**專案 PIN**：只開該專案，由主 PIN 在後台新增/移除，可個別授權下列權限旗標（`perm_check`，預設關閉）：`delete_others`（刪別人的投稿）、`edit_others`（改別人的投稿）、`edit_points`（改定位點）、`grant_access`（可建立「管理PIN」型分享連結）、`edit_3d_regions`（編 3D 模型排除區域）。
+  - **主 PIN**（`config.primary_pin`）：開所有專案。**專案 PIN**：只開該專案，由主 PIN 在後台新增/移除，可個別授權下列權限旗標（`perm_check`，預設關閉）：`delete_others`（刪別人的投稿）、`edit_others`（改別人的投稿）、`edit_spots`（改定位點）、`grant_access`（可建立「管理PIN」型分享連結）、`edit_3d_regions`（編 3D 模型排除區域）。
   - 投稿者身分是**純自助**的：參與者用投稿代碼進地圖後，在解鎖視窗自行設 PIN 建立身分；後台「身分管理」只顯示/撤銷，不能代為建立，身分本身也不帶到期／次數（那是投稿代碼的事）。
   - 「管理 PIN」同樣是**純自助**的：後台只建立**邀請連結**（可設到期時間／兌換次數上限），收到連結的人自行輸入 PIN／暱稱兌換；兌換出來的身分預設無任何權限，需由主 PIN 事後逐項授權（`perm_check`）。連結的秘密只透過網址 fragment（`#redeem=...`）傳遞，不進伺服器紀錄。
   - 帳號（userid＋密碼）是 PIN 之外的另一種登入方式，自助註冊預設**關閉**（「工具」分頁的「開放自助註冊」開關），關閉時只能靠上述邀請連結建立；不論哪種方式建立，新帳號預設無任何專案權限，一樣要主 PIN 逐項授權。平時建議維持關閉，避免被灌帳號。

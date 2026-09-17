@@ -191,7 +191,7 @@ window.LeafletEngine = (() => {
       mk.on('dragend', ev => { const ll = ev.target.getLatLng(); emit(ll.lat, ll.lng); });
       mini.on('click', ev => { mk.setLatLng(ev.latlng); emit(ev.latlng.lat, ev.latlng.lng); });
       // 小地圖大多裝在剛展開、還在跑進場動畫的面板裡：容器當下的量測尺寸不可靠，
-      // 這組 rAF＋分段 timeout 是從原本 togglePointEditor()/buildPhotoEditorPanel() 原封不動搬來的修正。
+      // 這組 rAF＋分段 timeout 是從原本 toggleSpotEditor()/buildPhotoEditorPanel() 原封不動搬來的修正。
       const fix = () => { try { mini.invalidateSize(false); } catch (e) {} };
       requestAnimationFrame(fix);
       const timers = [150, 500, 1200].map(ms => setTimeout(fix, ms));

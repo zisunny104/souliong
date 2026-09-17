@@ -18,7 +18,7 @@
   border-image-source: var(--pack-frame-src, none);
   border-image-slice: 24 fill;
   border-image-width: 13px;
-  /* 材質上的文字要用材質自己定義的墨色，理由同 #panel（point-panel.css）。
+  /* 材質上的文字要用材質自己定義的墨色，理由同 #panel（spot-panel.css）。
      color 是繼承屬性，只改 --fg 這個變數不會讓底下沒自己宣告 color 的文字重新對到新值，
      一定要在這裡明講一次 color: var(--fg)，子層繼承才會是新值。 */
   --fg: var(--pack-ink, var(--fg-base));
@@ -43,7 +43,7 @@
   z-index: 1;
 }
 
-/* 主題包外框覆蓋層：理由同 #panel（point-panel.css），這層疊在內容最上面、角標外掛在
+/* 主題包外框覆蓋層：理由同 #panel（spot-panel.css），這層疊在內容最上面、角標外掛在
    右下角並超出容器輪廓，預設 none 不畫東西，pointer-events:none 不擋點擊。
    一樣不能寫 border-radius: inherit，寫了角標探出輪廓的部分就會被裁掉；這個容器本身
    沒有 overflow，不需要像 #panel 那樣另外開 overflow-clip-margin。
@@ -63,7 +63,7 @@
   background-repeat: no-repeat;
 }
 
-/* 語言選單清單自己是不透明的 --panel 底色，墨色維持一般主題色，理由同 #panel（point-panel.css） */
+/* 語言選單清單自己是不透明的 --panel 底色，墨色維持一般主題色，理由同 #panel（spot-panel.css） */
 .tr-group .lang-list,
 .tr-group .sl-idmenu-list {
   --fg: var(--fg-base);
@@ -299,7 +299,7 @@ body.embed .tr-group .tr-toggle {
 
   /* 手機把 .tr-items 拆成獨立浮出的下拉卡片，背景是這裡自己的 --glass，不是 .tr-group
      的主題包材質——墨色要跟著重設回一般主題色，理由同 .lang-list（上面）／#panel
-     （point-panel.css）：不重設的話，繼承來的 --pack-ink（例如包覆材質配的白字）疊在
+     （spot-panel.css）：不重設的話，繼承來的 --pack-ink（例如包覆材質配的白字）疊在
      這片跟材質無關的淺色玻璃底上，字幾乎看不見。 */
   .tr-items {
     display: none;

@@ -12,8 +12,6 @@ $embed   = (($_GET['embed'] ?? '') === '1');
 $proj    = preg_replace('/[^a-z0-9_-]/', '', $_GET['p'] ?? ($cfg['default_project'] ?? 'chairs'));
 $metaF   = __DIR__ . '/../projects/' . $proj . '/meta.json';
 $meta    = is_file($metaF) ? json_decode(file_get_contents($metaF), true) : null;
-$ptsF    = $meta ? __DIR__ . '/../projects/' . $proj . '/' . ($meta['points'] ?? 'points.json') : null;
-$points  = ($ptsF && is_file($ptsF)) ? json_decode(file_get_contents($ptsF), true) : [];
 
 // 已用管理 PIN 登入者（主 PIN 或此專案的 PIN）直接視為已解鎖投稿身分，不受投稿代碼限制
 require __DIR__ . '/../api/security.php';
@@ -23,11 +21,24 @@ require_once __DIR__ . '/../api/packs.php';
 require_once __DIR__ . '/../api/layers.php';
 require_once __DIR__ . '/../api/regions3d.php';
 $apiCfg    = require __DIR__ . '/../api/config.php';
+require_once __DIR__ . '/../api/spotlib.php';
+// 自動升級：這個專案的靜態點位底稿如果還有 num 沒併入 spots.jsonl（新加入的專案、還原自舊備份、
+// 或當初手動遷移漏跑），開頁時就地補上，不必仰賴後台手動點「點位資料遷移」——spotmigrate_needed()
+// 是不加鎖的輕量預檢，已遷移過的專案（絕大多數請求）幾乎不花成本，只有真的偵測到落差才會呼叫
+// spotmigrate_run()（見 api/spotlib.php）去加鎖改寫。
+if ($meta && spotmigrate_needed($apiCfg, $proj)) {
+    spotmigrate_run($apiCfg, $proj);
+}
+// 點位：spots.jsonl 裡的起點記錄（一定有 num、無 edit_of），含上面自動遷移與 api/spotmigrate.php
+// 從靜態底稿併入的、api/newspot.php 動態建立的——spots.jsonl 是點位唯一的真相來源，跟 assets/js/
+// viewer.core.js 的 effectiveSpots() 同一套判斷式。位置編輯疊加交給前端讀 CONTRIB 做，這裡只給
+// 原始起點座標。
+$spots     = $meta ? array_values(array_filter(store_all($apiCfg, $proj), fn($r) => ($r['kind'] ?? null) === 'spot' && empty($r['edit_of']) && isset($r['num']))) : [];
 $isManager = perm_can($apiCfg, $proj);
 // 投稿開關＝有沒有還有效的投稿代碼（真正的碼在伺服器端 codes.json，前端拿不到）。
 // APP.gated 因此變成「現在有碼可解鎖」：一組都沒有時前端連解鎖鈕都不出現。
 $gated = contrib_open($apiCfg, $proj);
-// 定位點編輯（editpoint.php）走的是這個公開頁面而非後台頁，因此比照 manager.php 的作法，
+// 定位點編輯（editspot.php）走的是這個公開頁面而非後台頁，因此比照 manager.php 的作法，
 // 帶一份「同源才讀得到」的 CSRF 驗證值，只在已登入管理者時計算並輸出。
 // 管理者三種登入方式都要各自對應到正確的衍生值，否則其中一種身分送出的請求會被誤判成 CSRF 失效。
 $isPrimaryAuthed = primary_authed($apiCfg);
@@ -60,7 +71,7 @@ $contribCfg = souliong_contrib_cfg($meta);
 // 建立地點是權限而非型別：設成 admin 時只有已登入的管理者拿得到那支檔案。
 $contribFiles = $mod('upload') ? $contribCfg['kinds'] : [];
 if ($contribFiles && ($contribCfg['newPoint'] === 'contributor' || ($contribCfg['newPoint'] === 'admin' && $isManager))) {
-    $contribFiles[] = 'newpoint';
+    $contribFiles[] = 'newspot';
 }
 // 3D 模式關掉時整個 key 是 null，前端 map3d.js 本身也不會被載入(見下方 $mod('map3d') 輸出)，
 // 兩邊一起判斷、不是只看其中一邊，plugin 缺席時 APP.map3d 也沒有殘留資料可用。
@@ -80,7 +91,7 @@ $APP = [
     'embed'       => $embed,
     'gated'       => $gated,
     'meta'        => $meta,
-    'points'      => $points,
+    'spots'       => $spots,
     'isManager'   => $isManager,
     'csrf'        => $csrfTok,
     'moduleState' => $moduleState,
@@ -129,13 +140,16 @@ $assetUrl = function (string $rel) use ($esc): string {
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <?php
 // 依 style.css 原本的層疊順序列出各檔（見 assets/css/），新增樣式分類時在陣列加檔名即可。
-$cssFiles = ['theme', 'control-card', 'popups', 'map-markers', 'point-panel', 'map-controls', 'lightbox', 'page-frame'];
+$cssFiles = ['theme', 'control-card', 'popups', 'map-markers', 'spot-panel', 'map-controls', 'lightbox', 'page-frame'];
 // 投稿對話框的樣式跟著它的外掛走：唯讀地圖根本不會有 #contribModal，沒必要送這段 CSS
 if ($mod('upload')) {
     $cssFiles[] = 'contrib';
 }
-// 播放器／點位卡片的中卡、全卡、迷你列樣式只有「聲音地圖」用得到（見 sound-player.js）
-if (($contribCfg['primaryKind'] ?? '') === 'audio') {
+// 播放器／點位卡片的中卡、全卡、迷你列樣式只有開放 audio 投稿的地圖用得到（見 sound-player.js）：
+// 點位精選內容（feature）是動態的，任何一個點位都可能被設成一則 audio 投稿，只要這張地圖
+// 有開放 audio 種類就先備好這組樣式，不必等到真的有點位設了精選才知道。
+$hasAudioKind = in_array('audio', $contribCfg['kinds'], true);
+if ($hasAudioKind) {
     $cssFiles[] = 'sound-player';
 }
 foreach ($cssFiles as $f) {
@@ -184,15 +198,15 @@ if ($pack) {
     <?php endif; ?>
     <?php if ($mod('contribBrowse')): ?>
     <div class="ctl-row">
-      <button class="btn" id="allPointsBtn" title="<?= $t('show_all_points') ?>"><i class="fa-solid fa-layer-group"></i> <?= $t('all') ?></button>
+      <button class="btn" id="allSpotsBtn" title="<?= $t('show_all_spots') ?>"><i class="fa-solid fa-layer-group"></i> <?= $t('all') ?></button>
       <button class="btn" id="photoLayerBtn" title="<?= $t('filter_by_contrib') ?>"><i class="fa-solid fa-photo-film"></i> <?= $t('contrib') ?></button>
     </div>
     <?php endif; ?>
     <div class="ctl-row" id="personFilterRow">
       <select id="personFilter" title="<?= $t('filter_person') ?>"><option value=""><?= $t('all_contributors') ?></option></select>
     </div>
-    <?php if ($mod('pointList')): ?>
-    <div class="sl-point-list" id="pointList"></div>
+    <?php if ($mod('spotList')): ?>
+    <div class="sl-spot-list" id="spotList"></div>
     <?php endif; ?>
     <div class="ctl-foot" id="foot"></div>
   </div>
@@ -230,8 +244,8 @@ if ($pack) {
     <div class="cat" id="pCat"></div>
     <h2 id="pTitle"></h2>
     <div class="sub" id="pSub"></div>
-    <button class="btn small" id="pointEditBtn" type="button" style="display:none"><i class="fa-solid fa-location-dot"></i> <?= $t('adjust_location') ?></button>
-    <div class="photo-editor point-editor" id="pointEditor" style="display:none"></div>
+    <button class="btn small" id="spotEditBtn" type="button" style="display:none"><i class="fa-solid fa-location-dot"></i> <?= $t('adjust_location') ?></button>
+    <div class="photo-editor spot-editor" id="spotEditor" style="display:none"></div>
   </div>
   <div class="p-body">
     <div id="entries"></div>
@@ -243,7 +257,7 @@ if ($pack) {
   <div class="dialog-box">
     <div class="dialog-head"><b><?= $t('unlock_contrib') ?></b><button class="icon-btn" onclick="MapApp.closeUnlock()" aria-label="<?= $t('close') ?>"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>
     <div class="hint"><?= $t('unlock_hint') ?></div>
-    <input id="unlockCodeInput" class="name-in" style="width:100%;letter-spacing:8px;text-align:center;font-size:1.375rem" placeholder="<?= $t('six_digits') ?>" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" maxlength="8" data-pin-toggle data-pin-slots="6" data-pin-digits-only aria-label="<?= $t('contrib_code') ?>">
+    <input id="unlockCodeInput" class="name-in" style="width:100%;letter-spacing:8px;text-align:center;font-size:1.375rem" placeholder="<?= $t('six_digits') ?>" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" maxlength="6" data-pin-toggle data-pin-slots="6" data-pin-digits-only aria-label="<?= $t('contrib_code') ?>">
     <div id="unlockMsg" class="hint" role="status"></div>
     <?php if ($mod('identity')): ?>
     <div style="margin-top:10px">
@@ -375,7 +389,7 @@ window.maplibregl = maplibregl;
 <?php if ($mod('soundEdit')): ?>
 <script src="<?= $assetUrl('assets/js/plugins/sound-editor.js') ?>"></script>
 <?php endif; ?>
-<?php if (($contribCfg['primaryKind'] ?? '') === 'audio'): ?>
+<?php if ($hasAudioKind): ?>
 <script src="<?= $assetUrl('assets/js/plugins/sound-player.js') ?>"></script>
 <?php endif; ?>
 <?php if ($mod('personExplore')): ?>

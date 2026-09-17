@@ -7,8 +7,8 @@
 //   label    後台投稿列表的種類標籤
 //   tab      投稿對話框的分頁代號；null＝不出現在對話框（由專屬流程產生）
 //   postable upload.php 是否接受前端直接 POST 這個 kind。**這個旗標是安全邊界，不是分類**：
-//            point（定位點版本）只能由 editpoint.php 在 perm_check() 把關後寫入，newpoint
-//            由 newpoint.php 依專案設定把關；若讓它們 postable，任何人都能 POST 到
+//            spot（點位本身，含建立與搬移）只能由 newspot.php／editspot.php 在
+//            perm_check() 把關後寫入；若讓它 postable，任何人都能 POST 到
 //            upload.php 偽造一筆座標覆蓋紀錄，繞過整個權限檢查。新增 kind 時預設要想清楚。
 //   file     要收的 $_FILES 欄位名；null＝純文字投稿。photo 沿用歷史欄位名 'photo' 且存進
 //            projects/<id>/photos/，讓 exiffix.php／thumbfix.php／editentry.php／前端的
@@ -57,11 +57,8 @@ function souliong_kinds(): array
             'label' => '地點故事版本', 'tab' => null, 'postable' => true,
             'file' => null, 'thumb' => false,
         ],
-        'point' => [
-            'label' => '定位點版本', 'tab' => null, 'postable' => false,
-        ],
-        'newpoint' => [
-            'label' => '新增地點', 'tab' => 'newpoint', 'postable' => false,
+        'spot' => [
+            'label' => '地點', 'tab' => 'newspot', 'postable' => false,
         ],
     ];
 }
@@ -77,12 +74,12 @@ function souliong_kind_postable(string $kind): bool
     return (bool)(souliong_kinds()[$kind]['postable'] ?? false);
 }
 
-/** 可以出現在投稿對話框、由使用者自己選擇要投什麼的內容種類（newpoint 不算，它是建立地點不是投內容）。 */
+/** 可以出現在投稿對話框、由使用者自己選擇要投什麼的內容種類（spot 不算，它是建立/搬移地點不是投內容）。 */
 function souliong_contrib_kinds(): array
 {
     $out = [];
     foreach (souliong_kinds() as $k => $info) {
-        if (($info['tab'] ?? null) !== null && $k !== 'newpoint') $out[] = $k;
+        if (($info['tab'] ?? null) !== null && $k !== 'spot') $out[] = $k;
     }
     return $out;
 }
@@ -95,14 +92,7 @@ function souliong_contrib_kinds(): array
  * 完全一樣的行為，既有地圖不改設定檔就零變化。
  *
  * 回傳：kinds（依註冊表順序的啟用型別）、tabs（由 kinds 推導、去重後的分頁）、
- *       default（初始分頁，保證在 tabs 內）、newPoint（off｜admin｜contributor）、
- *       primaryKind（該點位的主要內容型別，見下方說明）。
- *
- * primaryKind：這個型別的內容不是投稿牆上平行的一則，而是點位本身的主要內容——如聲音地圖
- * 裡的錄音，取代原本「故事文字」的角色。設定後：
- *   - 前端一般投稿對話框不再出現這個型別的分頁（改由專屬編輯外掛提供入口，見 sound-editor.js）
- *   - editentry.php 不接受修改這個型別既有的紀錄（要換內容就整筆重新送出一筆新的）
- * 必須是 kinds 允許的型別之一，否則視為未設定（空字串）。
+ *       default（初始分頁，保證在 tabs 內）、newPoint（off｜admin｜contributor）。
  */
 function souliong_contrib_cfg(?array $meta): array
 {
@@ -127,10 +117,7 @@ function souliong_contrib_cfg(?array $meta): array
     $newPoint = (string)($meta['contrib']['newPoint'] ?? 'off');
     if (!in_array($newPoint, ['off', 'admin', 'contributor'], true)) $newPoint = 'off';
 
-    $primaryKind = (string)($meta['contrib']['primaryKind'] ?? '');
-    if (!in_array($primaryKind, $kinds, true)) $primaryKind = '';
-
-    return ['kinds' => $kinds, 'tabs' => $tabs, 'default' => $default, 'newPoint' => $newPoint, 'primaryKind' => $primaryKind];
+    return ['kinds' => $kinds, 'tabs' => $tabs, 'default' => $default, 'newPoint' => $newPoint];
 }
 
 // 功能使用統計：key => 後台「數字說明」區塊要顯示的中文說明
@@ -147,7 +134,7 @@ function souliong_features(): array
         'theme'  => '主題切換',
         'info'   => '照片資訊',
         'share'  => '分享',
-        'newpoint' => '建立地點',
+        'newspot' => '建立地點',
         'sound'  => '聲音錄製',
     ];
 }
@@ -163,7 +150,7 @@ function souliong_modules(): array
         'route'  => ['label' => '路線導覽', 'desc' => '依編號的路徑導覽，及連點路線鈕的時間軸動畫彩蛋。', 'default' => true],
         'contribBrowse' => ['label' => '投稿瀏覽切換', 'desc' => '地圖控制卡上的「全部／投稿」切換鈕與投稿者篩選下拉。關閉後只保留單一檢視、點地標一樣看得到內容，適合每個地點內容是策展而非群眾投稿的地圖。', 'default' => true],
         'categoryLegend' => ['label' => '分類圖例', 'desc' => '地圖控制卡上的分類色塊清單（可點擊切換各分類顯示／隱藏）。分類只有一種、或不想讓訪客切換顯示範圍時可關閉，地標本身與點開的內容不受影響。', 'default' => true],
-        'pointList' => ['label' => '點位列表', 'desc' => '地圖控制卡上直接列出可點擊的點位清單，取代「跳到地點」下拉選單。開啟後下拉選單只在投稿者篩選模式（見 contribBrowse）才會出現。', 'default' => false],
+        'spotList' => ['label' => '點位列表', 'desc' => '地圖控制卡上直接列出可點擊的點位清單，取代「跳到地點」下拉選單。開啟後下拉選單只在投稿者篩選模式（見 contribBrowse）才會出現。', 'default' => false],
         'story'  => ['label' => '地點故事編輯', 'desc' => '訪客可送出新版地點故事文字（關閉後地點故事唯讀）。', 'default' => true],
         'upload' => ['label' => '上傳投稿', 'desc' => '訪客上傳照片／文字紀錄；關閉後整張地圖唯讀，投稿代碼與解鎖流程一併隱藏。', 'default' => true],
         'embed'  => ['label' => '嵌入載入', 'desc' => '產生可嵌入其他網站的 iframe 碼。', 'default' => true],
@@ -173,7 +160,7 @@ function souliong_modules(): array
         'personExplore' => ['label' => '依序探索（插件）', 'desc' => '選了投稿者後，可依序探索他的地標／零散照片時間軸。', 'default' => false, 'dependsOn' => 'identity'],
         'delegation' => ['label' => '管理者邀請登入', 'desc' => '地圖頁上的管理者登入／邀請兌換彈窗。關閉後這張地圖不再產生新的專案 PIN 或邀請連結，只能用主 PIN 從後台網址（/manager）登入管理，適合純檢視、僅超級管理者更新內容的部署。', 'default' => true],
         'map3d'  => ['label' => '3D 地圖模式', 'desc' => '訪客可切換到 MapLibre 3D 檢視（公用建物擠出＋自訂模型）。關閉後只有既有 Leaflet 2D 地圖，不載入 MapLibre。', 'default' => false],
-        'soundEdit' => ['label' => '聲音主要內容編輯', 'desc' => '在地點故事區提供錄音／上傳按鈕，直接產生這個地點的主要聲音內容（取代故事文字）。需搭配 meta.json 的 contrib.primaryKind 設為對應的音訊型別才會生效。', 'default' => false, 'dependsOn' => 'upload'],
+        'soundEdit' => ['label' => '聲音主要內容編輯', 'desc' => '在地點故事區提供錄音／上傳按鈕，送出後成為一則普通音訊投稿（照樣出現在投稿牆上）；要不要設為該地點的精選內容需另由具備 edit_spots 權限的人操作，不會送出時自動設定。', 'default' => false, 'dependsOn' => 'upload'],
     ];
 }
 

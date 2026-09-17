@@ -16,18 +16,18 @@
     constructor() { super('story'); }
 
     mount() {
-      this.mapApp.registerEntriesHint(point => { this.injectEditButton(point); return null; });
+      this.mapApp.registerEntriesHint(spot => { this.injectEditButton(spot); return null; });
     }
 
     // #storyActions 是核心 renderEntries() 每次重建 #entries 時一定會重畫的容器，藉 registerEntriesHint 的時機掛上編輯鈕
-    injectEditButton(point) {
+    injectEditButton(spot) {
       const actions = document.getElementById('storyActions');
       if (!actions) return;
       if (!this.mapApp.isUnlocked() || this.mapApp.isEmbedMode()) return;
       const btn = document.createElement('button');
       btn.className = 'btn small'; btn.id = 'editDescBtn';
       btn.innerHTML = '<i class="fa-solid fa-pen"></i> ' + esc(t('edit_story_btn'));
-      btn.onclick = () => this.toggleEditor(point.num);
+      btn.onclick = () => this.toggleEditor(spot.num);
       actions.insertBefore(btn, actions.firstChild);
     }
 

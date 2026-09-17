@@ -189,9 +189,9 @@ window.MapLibreEngine = (() => {
     getCanvasDataURL(mime, quality) {
       try {
         const src = this.map.getCanvas();
-        const chairs = (this._markerSpecs && this._markerSpecs.chairs) || [];
-        if (!chairs.length) return src.toDataURL(mime || 'image/png', quality);
-        // 疊繪簡化圓點：chairs 標記是 DOM 覆蓋層，不在 WebGL canvas 的繪圖緩衝區裡，
+        const spots = (this._markerSpecs && this._markerSpecs.spots) || [];
+        if (!spots.length) return src.toDataURL(mime || 'image/png', quality);
+        // 疊繪簡化圓點：spots 標記是 DOM 覆蓋層，不在 WebGL canvas 的繪圖緩衝區裡，
         // 直接 toDataURL() 擷不到，改成另開一張同尺寸的 2D canvas，先貼底圖再手動畫點。
         const out = document.createElement('canvas');
         out.width = src.width;
@@ -206,7 +206,7 @@ window.MapLibreEngine = (() => {
         const r = 5 * Math.min(sx, sy);
         ctx.lineWidth = Math.max(1, 1.5 * Math.min(sx, sy));
         ctx.strokeStyle = '#fff';
-        chairs.forEach(spec => {
+        spots.forEach(spec => {
           const pt = this.map.project([spec.lon, spec.lat]);
           ctx.beginPath();
           ctx.arc(pt.x * sx, pt.y * sy, r, 0, Math.PI * 2);

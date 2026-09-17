@@ -624,8 +624,12 @@ if (!$authed) {
           need_csrf($csrf);
           $p = clean_id($_POST['project'] ?? '');
           $id = (string)($_POST['id'] ?? '');
-          // 刪別人投稿預設僅限主 PIN；專案管理者只有在被授權 delete_others、且動的是自己已登入的專案時才可以
-          if ($p !== '' && $id !== '' && ($primary || perm_check($cfg, $p, 'delete_others'))) {
+          // 刪別人投稿預設僅限主 PIN；專案管理者只有在被授權 delete_others、且動的是自己已登入的專案時才可以。
+          // 刪點位本身（kind:'spot'）另外還要有 edit_spots——delete_others 管的是別人的投稿，不等於能動點位識別記錄。
+          $rec = ($p !== '' && $id !== '') ? store_find($cfg, $p, $id) : null;
+          $canDelete = $primary || (perm_check($cfg, $p, 'delete_others')
+            && (!$rec || ($rec['kind'] ?? '') !== 'spot' || perm_check($cfg, $p, 'edit_spots')));
+          if ($p !== '' && $id !== '' && $canDelete) {
             $removed = store_delete($cfg, $p, $id);
             if ($removed) audit_log($cfg, $auditWho(), 'delete_others', $p, $id);
             store_purge_files($cfg, $removed);   // 照片與影音的主檔＋縮圖一起清（見 store.php）
@@ -690,14 +694,14 @@ if (!$authed) {
           // 所以靠 hidden 旗標分辨「這次有送出這一區」與「這張表單根本沒有這一區」。
           if (isset($_POST['contrib_submitted'])) {
             $want = is_array($_POST['contrib_kinds'] ?? null) ? array_keys($_POST['contrib_kinds']) : [];
-            // 依註冊表順序過濾，順便擋掉表單送來的任何非法 key（tab 為 null 的 desc／point 不在其中）
+            // 依註冊表順序過濾，順便擋掉表單送來的任何非法 key（desc／spot 不在 souliong_contrib_kinds() 裡）
             $kinds = array_values(array_intersect(souliong_contrib_kinds(), $want));
             if (!$kinds) $kinds = ['photo'];   // 一種都不留＝這張地圖不能投稿，那是「上傳投稿」模組的職責，不是這裡
-            // 這張表單沒有 primaryKind 欄位；用合併而非整包覆寫，才不會把既有值（如 soundspace 的 'audio'）洗掉
+            // 用合併而非整包覆寫，避免日後這裡再加簽表單沒涵蓋到的 contrib 子欄位時被整包洗掉
             $meta['contrib'] = array_merge($meta['contrib'] ?? [], [
               'kinds' => $kinds,
               'default' => (string)($_POST['contrib_default'] ?? ''),
-              'newPoint' => (string)($_POST['contrib_newpoint'] ?? 'off'),
+              'newPoint' => (string)($_POST['contrib_newspot'] ?? 'off'),
             ]);
             // 存檔前先讓 souliong_contrib_cfg() 收斂一次：預設分頁若不在啟用型別的分頁裡會被換掉、
             // 權限值不在白名單裡會退回 off。寫進 meta.json 的就是前端實際拿到的東西，不留對不上的設定。
@@ -964,7 +968,9 @@ if (!$authed) {
           $field = ($_POST['kind'] ?? '') === 'owner' ? 'owner_hash' : 'contrib_id';
           $key = (string)($_POST['key'] ?? '');
           if ($p !== '' && $key !== '' && ($primary || perm_check($cfg, $p, 'delete_others'))) {
-            $removedList = store_delete_by($cfg, $p, $field, $key);
+            // 沒有 edit_spots 就略過這批裡的 spot 記錄（點位本身），留著不刪、其餘照常整批刪除
+            $excludeKinds = ($primary || perm_check($cfg, $p, 'edit_spots')) ? [] : ['spot'];
+            $removedList = store_delete_by($cfg, $p, $field, $key, $excludeKinds);
             foreach ($removedList as $removed) {
               store_purge_files($cfg, $removed);
             }
@@ -1097,12 +1103,15 @@ if (!$authed) {
             $accept = fn($nm) => strpos(str_replace('\\', '/', (string)$nm), '..') === false
               && preg_match('#^(projects/[A-Za-z0-9_./-]+|data/(?:admin_)?pins\.json)$#', str_replace('\\', '/', (string)$nm));
             $entries = zip_unpack($_FILES['backup']['tmp_name'], $accept);
-            // 1) 資料（jsonl）
+            // 1) 資料（jsonl）：spots.jsonl／entries.jsonl 各自獨立比對、各自寫回對應路徑
+            // （見 store.php 的 store_file()——備份的匯出本來就是整目錄打包，兩個檔名都會在 zip 裡）。
             foreach ($entries as $nm => $content) {
-              if (!preg_match('#^projects/([a-z0-9_-]+)/data\.jsonl$#', str_replace('\\', '/', $nm), $mm)) continue;
+              if (!preg_match('#^projects/([a-z0-9_-]+)/(spots|entries)\.jsonl$#', str_replace('\\', '/', $nm), $mm)) continue;
               $proj = $mm[1];
               if ($mode === 'replace') {
-                @file_put_contents(project_dir($cfg, $proj) . '/data.jsonl', $content, LOCK_EX);
+                $dest = project_dir($cfg, $proj) . '/' . $mm[2] . '.jsonl';
+                store_backup($dest);
+                @file_put_contents($dest, $content, LOCK_EX);
               } else {
                 $ids = [];
                 foreach (store_all($cfg, $proj) as $r) {
@@ -3506,14 +3515,14 @@ if (!$authed) {
                   </select>
                 </label>
                 <div class="hint"><?= $t('contrib_default_tab_hint') ?></div>
-                <label><?= $t('contrib_newpoint_label') ?>
-                  <select name="contrib_newpoint">
+                <label><?= $t('contrib_newspot_label') ?>
+                  <select name="contrib_newspot">
                     <?php foreach (['off', 'admin', 'contributor'] as $np): ?>
-                    <option value="<?= $np ?>" <?= $ccur['newPoint'] === $np ? 'selected' : '' ?>><?= $t('contrib_newpoint_' . $np) ?></option>
+                    <option value="<?= $np ?>" <?= $ccur['newPoint'] === $np ? 'selected' : '' ?>><?= $t('contrib_newspot_' . $np) ?></option>
                     <?php endforeach; ?>
                   </select>
                 </label>
-                <div class="hint"><?= $t('contrib_newpoint_hint') ?></div>
+                <div class="hint"><?= $t('contrib_newspot_hint') ?></div>
               </div>
               <div class="dlgactions">
                 <button type="button" class="btn" onclick="this.closest('dialog').close()"><?= $t('cancel') ?></button>
@@ -3697,7 +3706,7 @@ if (!$authed) {
 
       <?php if ($canProject($p)):
         $canGrantAccess = $primary || perm_check($cfg, $p, 'grant_access');
-        $permLabels = ['delete_others' => $t('perm_delete_others'), 'edit_others' => $t('perm_edit_others'), 'edit_points' => $t('perm_edit_points'), 'grant_access' => $t('perm_grant_access'), 'edit_3d_regions' => $t('perm_edit_3d_regions')];
+        $permLabels = ['delete_others' => $t('perm_delete_others'), 'edit_others' => $t('perm_edit_others'), 'edit_spots' => $t('perm_edit_spots'), 'grant_access' => $t('perm_grant_access'), 'edit_3d_regions' => $t('perm_edit_3d_regions')];
         $cList = contrib_load($cfg, $p);
         $codesList = codes_load($cfg, $p);
         $blocked = blocked_load($cfg, $p);
@@ -3993,10 +4002,10 @@ if (!$authed) {
     ?>
     <?php foreach ($viewProjects as $p): $s = stats_read($cfg, $p);
       if (!$s) continue;
-      $s['points'] = $s['points'] ?? [];
+      $s['spots'] = $s['spots'] ?? [];
       $s['cameras'] = $s['cameras'] ?? [];
       $s['kinds'] = $s['kinds'] ?? [];
-      arsort($s['points']);
+      arsort($s['spots']);
       arsort($s['cameras']);
       arsort($s['kinds']);
       $top = function ($arr, $n = 5) {
@@ -4101,22 +4110,22 @@ if (!$authed) {
             <div class="d"><?= $t('stat_storage_desc') ?></div>
           </div>
         </div>
-        <?php if ($s['points'] || $s['cameras']): ?>
-        <div class="break"><?= $t('top_points_label') ?><b><?= $esc($top($s['points'])) ?></b><br><?= $t('top_cameras_label') ?><b><?= $esc($top($s['cameras'])) ?></b></div>
+        <?php if ($s['spots'] || $s['cameras']): ?>
+        <div class="break"><?= $t('top_spots_label') ?><b><?= $esc($top($s['spots'])) ?></b><br><?= $t('top_cameras_label') ?><b><?= $esc($top($s['cameras'])) ?></b></div>
         <?php endif; ?>
         <?php
           // 每一欄都是「有資料才畫」：尚無資料的排行／分布不再顯示空卡片或佔位文字。
           // 全部欄位都沒資料時（例如剛上線還沒人來過）連 .cols 外框（虛線分隔＋留白）都不畫，
           // 不然會留一段看起來像版面壞掉的空白。
-          $hasAnyCol = $s['points'] || $s['kinds'] || $s['cameras'] || $feats || $browsers || $oses || $byHour;
+          $hasAnyCol = $s['spots'] || $s['kinds'] || $s['cameras'] || $feats || $browsers || $oses || $byHour;
         ?>
         <?php if ($hasAnyCol): ?>
         <div class="cols">
-          <?php if ($s['points']): ?>
+          <?php if ($s['spots']): ?>
           <div class="col">
-            <h4><?= $t('points_rank_heading') ?></h4>
-            <p class="colnote"><?= $t('points_rank_note') ?></p>
-            <?= $statBars($s['points'], fn($k) => i18n_t($DICT, 'point_short_label', ['k' => $k])) ?>
+            <h4><?= $t('spots_rank_heading') ?></h4>
+            <p class="colnote"><?= $t('spots_rank_note') ?></p>
+            <?= $statBars($s['spots'], fn($k) => i18n_t($DICT, 'spot_short_label', ['k' => $k])) ?>
           </div>
           <?php endif; ?>
           <?php if ($s['kinds']): ?>
@@ -4170,7 +4179,7 @@ if (!$authed) {
         <tr>
           <th><?= $t('col_num') ?></th>
           <th><?= $t('col_project') ?></th>
-          <th><?= $t('col_point') ?></th>
+          <th><?= $t('col_spot') ?></th>
           <th><?= $t('col_type') ?></th>
           <th><?= $t('col_photo') ?></th>
           <th><?= $t('col_nickname') ?></th>
@@ -4303,6 +4312,7 @@ if (!$authed) {
         <div class="row" style="margin-top:8px"><a class="btn" href="<?= $esc(Route::tool('exiffix', $scopeProject)) ?>"><i class="fa-solid fa-kit-medical"></i> <?= $t('open_exiffix_btn') ?></a>
           <a class="btn" href="<?= $esc(Route::tool('thumbfix', $scopeProject)) ?>"><i class="fa-solid fa-images"></i> <?= $t('open_thumbfix_btn') ?></a>
           <a class="btn" href="<?= $esc(Route::tool('tilecut', $scopeProject)) ?>"><i class="fa-solid fa-scissors"></i> <?= $t('open_tilecut_btn') ?></a>
+          <a class="btn" href="<?= $esc(Route::tool('spotmigrate', $scopeProject)) ?>"><i class="fa-solid fa-chair"></i> <?= $t('open_spotmigrate_btn') ?></a>
           <a class="btn" href="<?= $esc(Route::backupAll()) ?>"><i class="fa-solid fa-download"></i> <?= $t('backup_all_btn') ?></a></div>
       </div>
       <div class="card section-card">

@@ -33,7 +33,7 @@ function num_or_null_ee($v) {
 
 try {
     // 找出原始紀錄：只能編輯「排在投稿牆上的那幾種」（照片／影片／音訊／文字）。
-    // desc（地點故事版本）有自己的版本機制；point／newpoint 是地點本身，走 editpoint.php／newpoint.php。
+    // desc（地點故事版本）有自己的版本機制；spot 是地點本身，走 editspot.php／newspot.php。
     $orig = null;
     foreach (store_all($cfg, $project) as $r) {
         if ((string)($r['id'] ?? '') === $editOf) { $orig = $r; break; }
@@ -44,12 +44,6 @@ try {
     $origKind = (string)($orig['kind'] ?? 'photo');   // 多型別之前的舊記錄沒有 kind，一律是照片
     $hasBody  = !empty($orig['photo']) || !empty($orig['media']) || ($origKind === 'text' && !empty($orig['comment']));
     if (!in_array($origKind, souliong_contrib_kinds(), true) || !$hasBody) {
-        json_out(['error' => 'not found'], 404);
-    }
-    // 主要內容型別（如聲音地圖的錄音）是點位本身的內容，不是可局部修改的投稿——
-    // 要換內容就整筆重新送出一筆新的（見 sound-editor.js），這裡比照 desc 的精神直接擋掉。
-    $meta = json_decode((string)@file_get_contents($cfg['projects_dir'] . '/' . $project . '/meta.json'), true);
-    if ($origKind === souliong_contrib_cfg($meta)['primaryKind']) {
         json_out(['error' => 'not found'], 404);
     }
 
@@ -65,7 +59,7 @@ try {
         json_out(['error' => '沒有權限編輯這則（只有原投稿者本人或管理者可以）'], 403);
     }
     // CSRF：owner／ctoken 是跨站讀不到的 bearer 秘密，本身就有等同 CSRF token 的防偽效果，不需再檢查；
-    // 但管理者是靠 cookie 驗證，跨站請求會自動夾帶 cookie，比照 editpoint.php 另加一道 CSRF 驗證。
+    // 但管理者是靠 cookie 驗證，跨站請求會自動夾帶 cookie，比照 editspot.php 另加一道 CSRF 驗證。
     if ($isAdmin) {
         $isPrimary = primary_authed($cfg);
         $acctCsrf = $isPrimary ? null : account_current($cfg);

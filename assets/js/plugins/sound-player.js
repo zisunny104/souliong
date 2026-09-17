@@ -1,5 +1,6 @@
 /* 選用插件：聲音地圖的播放器／點位卡片（見 souliong/docs/EXTENDING.md 第七節）
-   只在該地圖 meta.json 的 contrib.primaryKind 是 audio 時，view.php 才會載入這個檔案。
+   只在該地圖 meta.json 的 contrib.kinds 有開放 audio 種類時，view.php 才會載入這個檔案——
+   任何一個點位都可能被設成精選 audio 投稿，不看是不是「聲音地圖」，看的是有沒有 audio 內容。
    不碰 viewer.core.js 一行程式碼——全靠 registerEntriesHint()（每次 renderEntries() 都會呼叫，
    可以動任何 DOM，不限於 #entries）跟 panelReset 這個既有 hook 來擴充既有的 #panel，
    .p-close/.p-expand 的 onclick 完全沿用核心預設，這裡不重新綁定。
@@ -22,7 +23,7 @@
       this.audioEl = null;
       this.hasAudio = false;
       this.lastNum = null;
-      this.miniPoint = null;
+      this.miniSpot = null;
       this.miniCatText = '';
       this.miniCatColor = '';
       this.miniTitleText = '';
@@ -40,7 +41,7 @@
       this.attachMediumGesture(this.medium);
       this.attachCollapseGesture(this.head);
       this.buildMini();
-      this.mapApp.registerEntriesHint(point => { this.onRender(point); return null; });
+      this.mapApp.registerEntriesHint(spot => { this.onRender(spot); return null; });
       this.mapApp.onHook('panelReset', () => this.onPanelReset());
     }
 
@@ -105,7 +106,11 @@
             '<div class="sl-mp-sub"></div>' +
           '</div>' +
         '</div>' +
-        '<button class="sl-play-btn sl-mp-medium-play" type="button" aria-label="' + esc(t('play_audio_btn')) + '"><i class="fa-solid fa-play" aria-hidden="true"></i></button>' +
+        '<div class="sl-mp-medium-controls">' +
+          '<button class="sl-mp-side-btn sl-mp-medium-loop" type="button"><i class="fa-solid fa-repeat" aria-hidden="true"></i></button>' +
+          '<button class="sl-play-btn sl-mp-medium-play" type="button" aria-label="' + esc(t('play_audio_btn')) + '"><i class="fa-solid fa-play" aria-hidden="true"></i></button>' +
+          '<button class="sl-mp-side-btn sl-mp-medium-mute" type="button"><i class="fa-solid fa-volume-high" aria-hidden="true"></i></button>' +
+        '</div>' +
         '<div class="sl-mp-medium-bar"><div class="sl-mp-medium-fill"></div></div>' +
         '<div class="sl-mp-medium-time"><span class="sl-mp-medium-cur">0:00</span><span class="sl-mp-medium-dur"></span></div>';
       const body = panel.querySelector('.p-body');
@@ -116,11 +121,15 @@
       this.mediumSub = el.querySelector('.sl-mp-sub');
       this.mediumCover = el.querySelector('.sl-mp-medium-cover');
       this.mediumBtn = el.querySelector('.sl-mp-medium-play');
+      this.mediumLoopBtn = el.querySelector('.sl-mp-medium-loop');
+      this.mediumMuteBtn = el.querySelector('.sl-mp-medium-mute');
       this.mediumBar = el.querySelector('.sl-mp-medium-bar');
       this.mediumFill = el.querySelector('.sl-mp-medium-fill');
       this.mediumCur = el.querySelector('.sl-mp-medium-cur');
       this.mediumDur = el.querySelector('.sl-mp-medium-dur');
       this.mediumBtn.onclick = () => this.togglePlay();
+      this.mediumLoopBtn.onclick = () => this.toggleLoop();
+      this.mediumMuteBtn.onclick = () => this.toggleMute();
       this.initSeekAria(this.mediumBar);
       this.attachSeek(this.mediumBar);
     }
@@ -153,7 +162,7 @@
        點擊收合易誤觸）。只在手機＋有聲音投稿時生效：.p-head 電腦版也一直顯示，若不擋住
        會跟核心 togglePanelSize() 的 .wide／.p-expand 圖示互相覆寫，顯示狀態對不上。 */
     attachCollapseGesture(el) {
-      const IGNORE = 'button, a, input, select, textarea, .point-editor';
+      const IGNORE = 'button, a, input, select, textarea, .spot-editor';
       const panel = document.getElementById('panel');
       let startY = null, startT = 0;
       el.addEventListener('pointerdown', ev => {
@@ -236,15 +245,48 @@
 
     /* ---------- 每次 renderEntries() 都會重跑一次 ---------- */
 
-    onRender(point) {
+    onRender(spot) {
       const panel = document.getElementById('panel');
       const audio = document.querySelector('#entries .story .sl-aplay audio');
       this.hasAudio = !!(audio && audio.getAttribute('src'));
       this.audioEl = this.hasAudio ? audio : null;
+      // <audio> 吃 preload="none"（見 viewer.core.js audioPlayerHtml() 註解，避免捲過卡片牆就整批下載），
+      // duration 要等按下播放才會有值；.sl-aplay-dur 是同一顆音訊的「故事」版播放器，用投稿時存的
+      // 秒數欄位直接填字，不用等瀏覽器讀檔，借來當作播放前的預顯示值，播放後才換成 audio.duration 現測值。
+      const durEl = this.hasAudio ? document.querySelector('#entries .story .sl-aplay .sl-aplay-dur') : null;
+      this.knownDurText = durEl ? durEl.textContent : '';
 
-      const isNewPoint = point.num !== this.lastNum;
-      this.lastNum = point.num;
-      if (isNewPoint) panel.classList.remove('sl-full');
+      // 故事區的大播放器（.sl-aplay-lg）是電腦版跟手機全卡共用的同一顆，核心 audioPlayerHtml()
+      // 沒有循環／靜音鍵，時間跟播放鍵各自佔一列太鬆。這裡把時間搬進按鈕列兩端（時間仍左右
+      // 分居），按鈕居中一組，進度條獨立一列在下面；.sl-aplay-time 淨空後隱藏。只搬動既有節點＋
+      // 插入新按鈕，核心 wireAudioPlayer() 靠 class 選取＋事件監聽都不受影響。
+      const bigWrap = this.hasAudio ? document.querySelector('#entries .story .sl-aplay-lg') : null;
+      const bigPlayBtn = bigWrap ? bigWrap.querySelector('.sl-aplay-btn') : null;
+      const bigCurEl = bigWrap ? bigWrap.querySelector('.sl-aplay-cur') : null;
+      const bigDurEl = bigWrap ? bigWrap.querySelector('.sl-aplay-dur') : null;
+      if (bigWrap && bigPlayBtn) {
+        const controls = document.createElement('div');
+        controls.className = 'sl-mp-big-controls';
+        bigWrap.insertBefore(controls, bigPlayBtn);
+
+        const btns = document.createElement('div');
+        btns.className = 'sl-mp-big-btns';
+        btns.insertAdjacentHTML('beforeend', '<button class="sl-mp-side-btn sl-mp-big-loop" type="button"><i class="fa-solid fa-repeat" aria-hidden="true"></i></button>');
+        btns.appendChild(bigPlayBtn);
+        btns.insertAdjacentHTML('beforeend', '<button class="sl-mp-side-btn sl-mp-big-mute" type="button"><i class="fa-solid fa-volume-high" aria-hidden="true"></i></button>');
+
+        if (bigCurEl) controls.appendChild(bigCurEl);
+        controls.appendChild(btns);
+        if (bigDurEl) controls.appendChild(bigDurEl);
+      }
+      this.bigLoopBtn = bigWrap ? bigWrap.querySelector('.sl-mp-big-loop') : null;
+      this.bigMuteBtn = bigWrap ? bigWrap.querySelector('.sl-mp-big-mute') : null;
+      if (this.bigLoopBtn) this.bigLoopBtn.onclick = () => this.toggleLoop();
+      if (this.bigMuteBtn) this.bigMuteBtn.onclick = () => this.toggleMute();
+
+      const isNewSpot = spot.num !== this.lastNum;
+      this.lastNum = spot.num;
+      if (isNewSpot) panel.classList.remove('sl-full');
       panel.classList.toggle('sl-has-audio', this.hasAudio);
 
       const catEl = document.getElementById('pCat');
@@ -259,14 +301,14 @@
       this.mediumTitle.textContent = titleText;
       this.mediumSub.textContent = subText;
 
-      const url = this.coverUrlFor(point);
+      const url = this.coverUrlFor(spot);
       panel.classList.toggle('sl-has-cover', !!url);
       this.paintCover(this.headCover, url);
       this.paintCover(this.mediumCover, url);
 
       this.syncExpandIcon(panel.classList.contains('wide'));
 
-      this.miniPoint = point;
+      this.miniSpot = spot;
       this.miniCatText = catText;
       this.miniCatColor = catColor;
       this.miniTitleText = titleText;
@@ -284,8 +326,8 @@
 
     /* ---------- 封面圖：點位自己的 photo/thumb 欄位，沒有就用分類色＋唱片圖示頂替 ---------- */
 
-    coverUrlFor(point) {
-      return this.mapApp.entryThumbUrl(point) || null;
+    coverUrlFor(spot) {
+      return this.mapApp.entryThumbUrl(spot) || null;
     }
 
     paintCover(el, url) {
@@ -321,7 +363,7 @@
     /* ---------- 迷你列：退到探索地圖但音訊繼續播 ---------- */
 
     showMini() {
-      if (!this.miniPoint) return;
+      if (!this.miniSpot) return;
       this.miniCatEl.textContent = this.miniCatText;
       this.miniCatEl.style.color = this.miniCatColor;
       this.miniTitleEl.textContent = this.miniTitleText;
@@ -346,11 +388,11 @@
     }
 
     reopen() {
-      if (!this.miniPoint) return;
+      if (!this.miniSpot) return;
       const panel = document.getElementById('panel');
-      const cur = this.mapApp.getCurrentPoint();
-      if (cur && cur.num === this.miniPoint.num) panel.classList.add('open');
-      else this.mapApp.openPanel(this.miniPoint);
+      const cur = this.mapApp.getCurrentSpot();
+      if (cur && cur.num === this.miniSpot.num) panel.classList.add('open');
+      else this.mapApp.openPanel(this.miniSpot);
       this.hideMini();
     }
 
@@ -410,12 +452,31 @@
       if (a.paused) a.play().catch(() => {}); else a.pause();
     }
 
+    // 循環／靜音只作用在中卡（迷你列本來就沒有這兩顆鍵），狀態直接讀寫同一顆 <audio>，
+    // 不另外存一份旗標——renderEntries() 每次都重建 <audio>，換點位時自然重置回預設值。
+    toggleLoop() {
+      const a = this.audioEl;
+      if (!a) return;
+      a.loop = !a.loop;
+      this.syncLoopIcon(a.loop);
+    }
+
+    toggleMute() {
+      const a = this.audioEl;
+      if (!a) return;
+      a.muted = !a.muted;
+      this.syncMuteIcon(a.muted);
+    }
+
     onAudioChanged() {
       const a = this.audioEl;
       this.syncPlayIcon(!!a && !a.paused);
+      this.syncLoopIcon(!!a && a.loop);
+      this.syncMuteIcon(!!a && a.muted);
+      this.syncInvite(!!a);
       this.syncProgress();
       if (!a) return;
-      a.addEventListener('play', () => this.syncPlayIcon(true));
+      a.addEventListener('play', () => { this.syncPlayIcon(true); this.syncInvite(false); });
       a.addEventListener('pause', () => this.syncPlayIcon(false));
       a.addEventListener('ended', () => this.syncPlayIcon(false));
       a.addEventListener('timeupdate', () => this.syncProgress());
@@ -428,13 +489,44 @@
       this.miniBtn.querySelector('i').className = cls;
     }
 
+    // 邀請點擊脈衝（spot-panel.css .sl-invite）：每次換點位／renderEntries() 都是全新的
+    // <audio>，一律先當作沒播過；一按下播放（見上面 play 監聽）就整個頁面生命週期內不再回來。
+    syncInvite(on) {
+      this.mediumBtn.classList.toggle('sl-invite', on);
+      this.miniBtn.classList.toggle('sl-invite', on);
+    }
+
+    syncLoopIcon(on) {
+      const label = t(on ? 'loop_off_btn' : 'loop_on_btn');
+      [this.mediumLoopBtn, this.bigLoopBtn].forEach(btn => {
+        if (!btn) return;
+        btn.classList.toggle('on', on);
+        btn.title = label;
+        btn.setAttribute('aria-label', label);
+        btn.setAttribute('aria-pressed', String(on));
+      });
+    }
+
+    syncMuteIcon(on) {
+      const label = t(on ? 'mute_off_btn' : 'mute_on_btn');
+      const iconCls = 'fa-solid ' + (on ? 'fa-volume-xmark' : 'fa-volume-high');
+      [this.mediumMuteBtn, this.bigMuteBtn].forEach(btn => {
+        if (!btn) return;
+        btn.classList.toggle('on', on);
+        btn.title = label;
+        btn.setAttribute('aria-label', label);
+        btn.setAttribute('aria-pressed', String(on));
+        btn.querySelector('i').className = iconCls;
+      });
+    }
+
     syncProgress() {
       const a = this.audioEl;
       const pct = (a && a.duration) ? (a.currentTime / a.duration * 100) : 0;
       this.mediumFill.style.width = pct + '%';
       this.miniFill.style.width = pct + '%';
       this.mediumCur.textContent = a ? this.mapApp.fmtDur(a.currentTime) : '0:00';
-      this.mediumDur.textContent = (a && a.duration) ? this.mapApp.fmtDur(a.duration) : '';
+      this.mediumDur.textContent = (a && a.duration) ? this.mapApp.fmtDur(a.duration) : this.knownDurText;
       const dur = (a && a.duration) ? a.duration : 0;
       const cur = a ? a.currentTime : 0;
       const valuetext = (a && a.duration)

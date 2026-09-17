@@ -14,7 +14,7 @@ exif{make,model,lens,f,exp,iso,focal,sw},
 license, owner_hash, src_hash, contrib_id, contrib_hash, edit_of, created_at
 ```
 `kind` 目前有：`photo`（照片投稿）、`video`／`audio`（影音投稿）、`text`（純文字的一則紀錄）、
-`desc`（地點說明版本）、`point`（定位點版本，見 `editpoint.php`）、`newpoint`（新建立的地點，見 `newpoint.php`）。
+`desc`（地點說明版本）、`spot`（點位本身：建立／搬移／設精選，見 3.6 節）。
 完整定義在 `api/features.php` 的 `souliong_kinds()`，見第三節。
 `edit_of` 指向被編輯的原始投稿 id（版本化：不覆寫，新增一筆版本紀錄，前端取最新版本蓋過原始值）。
 `contrib_id`/`contrib_hash` 是可選的投稿者身分（自選 PIN 才有）：前者對外可見（分組顯示用），後者僅供伺服器驗證「本人編輯/刪除」，不外流。
@@ -27,7 +27,7 @@ license, owner_hash, src_hash, contrib_id, contrib_hash, edit_of, created_at
 3. 進入方式：`/koilisu/souliong/<新id>`；`souliong/` 首頁會自動列出它。
 
 點位 JSON 每筆：`num, theme, area, chair, material, lat, lon, cat, catLabel, color, story`
-（非椅子主題可自訂欄位；`pointSub()` 會退回 `sub` 欄位。）
+（非椅子主題可自訂欄位；`spotSub()` 會退回 `sub` 欄位。）
 
 ## 三、投稿型別（kind）：一個殼 ＋ 一組型別檔
 
@@ -49,8 +49,8 @@ license, owner_hash, src_hash, contrib_id, contrib_hash, edit_of, created_at
 | `mimes` | 允許的 MIME ⇒ 副檔名（取代原本只服務照片的 `allowed_mime`） |
 | `max_bytes` | 該種類的大小上限（沒寫就用 config 的預設） |
 
-**`postable` 是安全邊界，不是分類。** `point`／`newpoint` 都是 `false`：它們一旦可以直接 POST 到
-`upload.php`，任何人都能偽造一筆座標覆蓋紀錄，繞過 `editpoint.php` 的 `perm_check()` 與 `newpoint.php`
+**`postable` 是安全邊界，不是分類。** `spot` 是 `false`：它一旦可以直接 POST 到
+`upload.php`，任何人都能偽造一筆座標覆蓋紀錄，繞過 `editspot.php` 的 `perm_check()` 與 `newspot.php`
 自己的權限判斷。`upload.php` 的白名單因此改成檢查這個旗標，而不是「有沒有出現在註冊表裡」。
 之後新增 kind 時，這一格要先想清楚再填。
 
@@ -85,7 +85,7 @@ license, owner_hash, src_hash, contrib_id, contrib_hash, edit_of, created_at
 | `kind-video.js` | 原檔直傳；`<video>` + canvas 抽第一幀當封面；讀長度 |
 | `kind-audio.js` | 選檔 ＋ MediaRecorder 現場錄音；無縮圖 |
 | `kind-text.js` | 無檔案、無座標的一則文字 |
-| `kind-newpoint.js` | 標題／分類／故事／小地圖選點，送 `api/newpoint.php` |
+| `kind-newspot.js` | 標題／分類／故事／小地圖選點，送 `api/newspot.php` |
 
 三個當時想清楚的決定：
 
@@ -120,17 +120,67 @@ license, owner_hash, src_hash, contrib_id, contrib_hash, edit_of, created_at
 不進投稿對話框；`text` 是「我留下的一則紀錄」，跟照片一樣平行排在投稿牆上、可以沒有座標。合併它們會讓
 「留一句話」變成「改寫別人寫的故事」。
 
-### 3.6 建立地點（`newpoint`）
+### 3.6 點位本身（`spot`）：建立、搬移、設精選是同一個 kind
 
-`api/newpoint.php` 比照 `editpoint.php` 的版本化精神：不改寫匯入來源的 `points.json`，而是往 `data.jsonl`
-附加一筆 `kind:'newpoint'`。`effectivePoints()` 先把這些新點併進點位清單，再套 `point` 的座標覆蓋——
-建立出來的點之後一樣能被管理者搬位置，因為那條路徑是照 `num` 覆蓋的，不管這個 `num` 從哪來。
-權限由該地圖的 `contrib.newPoint` 決定：`off`（預設，端點直接 403）／`admin`（比照 `editpoint.php`）／
+點位識別（這是哪個點、在哪裡、要不要精選內容）跟投稿內容（掛在點位底下的一則則貢獻）是兩回事，
+物理上也分開存放：`spot` 記錄只進 `spots.jsonl`，其餘所有 kind 都進 `entries.jsonl`
+（`store_file()` 依 `kind` 分流，見 `api/store.php`）。原本各專案的 `data.jsonl` 是遷移前的唯讀存底，
+之後不會再被任何程式碼讀寫。
+
+`spot` 套用跟內容型別完全相同的 `edit_of` 鏈狀版本化，不是另開一套機制：
+
+- **起點**：`api/newspot.php` 附加一筆 `kind:'spot'`、帶 `title`、無 `edit_of`——這是「建立地點」事件。
+- **後續搬移／設精選**：`api/editspot.php` 附加一筆 `kind:'spot'`、帶 `edit_of` 指回起點的 `id`，
+  可以帶新的 `lat`/`lon`（搬移）與／或 `feature`（指向某筆既有投稿 id，設為這個點的精選內容）。
+  寫入前會掃 `spots.jsonl` 找同 `item_num` 的起點記錄來解析 `edit_of`；找不到（點位來自靜態底稿
+  `chairs.json`／`points.json`，從沒被建立過 `spot` 記錄）就把 `edit_of` 留空，退回用 `item_num`
+  取最新一筆覆蓋——這是唯一沒辦法納入 `edit_of` 鏈的情況，因為靜態底稿的點位天生沒有 jsonl id 可指。
+- **`effectiveSpots()`**（`viewer.core.js`，即原本的 `effectivePoints()`）比照 `effectiveEntries()`
+  的 origins/edits 分組演算法：有 `title` 的是起點，`edit_of` 指向它的是版本鏈，取最新一筆疊加顯示；
+  沒有起點可循的（`item_num` 覆蓋那批）疊到靜態底稿對應 `num` 上。
+
+**`feature` 取代舊的 `primaryKind` 機制**：以前是「同型別最新一筆投稿自動變成點位主要內容」，會把
+較早的投稿默默打入隱藏歷史；現在精選內容是點位記錄自帶的明確欄位，只有具備 `edit_spots` 權限的人
+能設定，設定後那筆投稿**照常留在投稿牆上**，不會因為被精選就消失或被排除。投稿本身（例如
+`sound-editor.js` 錄音送出）跟設精選是兩個獨立動作，不綁在同一次送出——任何已解鎖的投稿者都能送出
+一筆普通投稿，但只有 `edit_spots` 權限才能決定要不要放大顯示成故事區的精選內容。
+
+權限由該地圖的 `contrib.newPoint` 決定：`off`（預設，端點直接 403）／`admin`（比照 `editspot.php`）／
 `contributor`（比照 `upload.php` 的停權與投稿代碼把關）。配號在 `store_append_locked()` 的 `LOCK_EX` 內完成，
-避免兩人同時建點撞號。
+避免兩人同時建點撞號。`spot` 記錄不可透過 `upload.php` 直接 POST（`postable:false`，見 3.1 節），
+也不能被一般刪除動作清掉：`delete.php` 直接拒絕自刪 `kind==='spot'` 的記錄，`manager.php` 的刪除動作
+需要額外具備 `edit_spots` 權限才能刪點位。
 
 > 主機端提醒：影片上傳會先撞到 PHP 自己的 `upload_max_filesize`／`post_max_size`（常見預設 2M／8M），
 > 那是 php.ini 的事，程式改不掉。要開放影片投稿前得先確認部署主機放行到多大。
+
+### 3.7 舊機制淘汰與退場
+
+`spot`／`entries.jsonl` 這次重構留下三個已淘汰、只為相容舊資料而存在的機制，不會再有新資料寫入：
+
+- **`data.jsonl`**：各專案目錄下遷移前的唯讀存底，見 3.6 節。`store.php` 從這次重構開始所有函式都不讀寫它。
+- **`kind` 值 `point`／`newpoint`**：已併入 `spot`，見 3.6 節。舊資料裡不會再新增這兩個值。
+- **`primaryKind`**：已由 `spot` 記錄的 `feature` 欄位取代，見 3.6 節。
+
+**退場判準**：一個專案的 `data.jsonl` 可以安全刪除，若且唯若 `spots.jsonl`＋`entries.jsonl`
+完整涵蓋 `data.jsonl` 的每一筆記錄（同一個 `id` 都找得到），且除了下列刻意改動之外，其餘欄位逐一相符：
+`kind`（`point`／`newpoint` 改寫為 `spot`）、`edit_of`（遷移時對這些記錄新增的欄位，原本沒有）、
+`feature`（部分專案遷移時對 `spot` 起點記錄回填的精選內容指標，原本沒有這個欄位）。
+
+**程序**：執行 `php tools/retirecheck.php <project_dir>`（唯讀、CLI only，不寫入也不刪除任何東西）。
+報告 PASS 才手動刪除該專案的 `data.jsonl`——刪除動作永遠由人工執行，這支工具不會替你刪。
+
+**範圍**：這裡列的三項只涵蓋這次 `spot`／`entries` 重構本身淘汰的機制。專案裡其他既有的相容／
+遷移代碼（例如帳號系統的 PIN→帳號遷移、管理 PIN 檔案首次使用時改名、投稿代碼檔案格式一次性遷移）
+是各自獨立的既有設計，不在這個退場判準的範圍內。
+
+**後續的「Point → Spot 全面改名」計畫已完成**：檔名（`api/newspot.php`／`api/editspot.php`／
+`assets/css/spot-panel.css`／`assets/js/contrib/kind-newspot.js`）、投稿 kind registry 的
+`newspot` key、`?spot=` URL 參數（不留 `?point=` 相容別名）、`edit_points`→`edit_spots` 權限 key、
+JS 函式（`spotTitle()`／`nearestSpot()`／`getCurrentSpot()`／`submitNewSpot()` 等）與對應的 CSS
+class／i18n key 都已統一改成 `spot`。目前程式碼裡仍看得到的 `newPoint`（`meta.json` 的
+`contrib.newPoint` 欄位、`CONTRIB_CFG.newPoint`）是刻意保留的例外，屬於獨立的資料欄位改名問題，
+不在這次改名範圍內。
 
 ## 四、多地圖「重疊」呈現（未來）
 
@@ -142,7 +192,7 @@ license, owner_hash, src_hash, contrib_id, contrib_hash, edit_of, created_at
 
 統計記在 `projects/<project>/stats.json`（由 `api/stat.php` 累加），後台「總覽」分頁已經在畫。原始 JSON 也可以自己取用：`GET ?api=stat&project=<id>&read=1`（需已用管理 PIN 登入）。
 
-欄位分三種形狀：`views`／`sessions`／`uploads` 是純計數；`points`（點位熱門度）、`cameras`、`features`、`browser`、`os` 是「key ⇒ 次數」的排行；`by_hour`（0–23）、`by_dow`（0–6）、`device`（`mobile`／`desktop`）是固定格數的分布。
+欄位分三種形狀：`views`／`sessions`／`uploads` 是純計數；`spots`（點位熱門度）、`cameras`、`features`、`browser`、`os` 是「key ⇒ 次數」的排行；`by_hour`（0–23）、`by_dow`（0–6）、`device`（`mobile`／`desktop`）是固定格數的分布。
 
 圖表是**伺服器端就把寬高算好的純 CSS**——沒有圖表函式庫、沒有 `<canvas>`、沒有多一支 CDN。後台是一支自足的 PHP 檔，多一個外部相依就多一個「離線或 CDN 掛掉就只剩空白」的理由。
 
@@ -191,8 +241,8 @@ CSS 全部前綴 `.stat-card .col`，因為要蓋過同層的 `.stat-card .col o
 
 - **基底類別**：`MapApp.Plugin`（`class SouliongPlugin { constructor(key); init(MapApp); mount(); }`，`mount()` 留給子類別覆寫）。
 - **事件**：`MapApp.onHook(name, fn)` 訂閱、核心內部用 `emitHook(name, ...)` 發送。目前有 `'stateChange'`（投稿新增／刪除／編輯、投稿者篩選、全部-投稿模式切換、資料重新整理等任何「顯示內容可能變了」的時機都會發送一次，插件不需要知道確切原因，收到就重新算自己要畫什麼）、`'panelReset'`（有其他管道直接開/關地點面板時發送，插件若有自己的「聚焦」狀態應在這裡清掉）、`'closeAll'`（全域 Esc 鍵或其他「全部關閉」時機發送；插件若有自己的浮層／對話框應在這裡關閉——核心不需要知道插件的對話框 id）、`'identityUploadShortcut'`（訪客點擊身分小標籤且已有投稿權限時發送；核心自己不認得「打開上傳批次視窗」這件事，改由上傳模組訂閱這個事件自己決定要做什麼——模組關閉時核心呼叫 `emitHook` 也只是發到空氣中，不會出錯）、`'identityChanged'`（顯示用的身分狀態可能變了——長按換匿名名、或解鎖狀態改變時發送；核心自己不畫身分小標籤，改由身分插件訂閱重繪）、`'identityReroll'`（專門給「換了一個新匿名名」這個更窄的時機，跟 `'identityChanged'` 分開是因為上傳模組批次視窗的暱稱欄位只需要在真的換名時重設 placeholder，不需要每次身分狀態變動就重設，否則會把使用者已經打的字清掉）。
-- **延伸點（有回傳值）**：`MapApp.registerPhotoFilter(fn)`（`fn(photoEntry, currentPoint) => bool`，篩掉不想顯示的照片，AND 疊加）、`MapApp.registerEntriesHint(fn)`（`fn(currentPoint) => HTMLElement|null`，插進地點卡片內容裡的提示區塊，插件自己建節點、自己綁事件）、`MapApp.registerScopeParam(fn)`（`fn() => {key: value}|null`，插件自己想在分享連結／嵌入代碼網址上多帶的參數，會併進 `currentScopeParams()` 的輸出；讀回來則不用核心幫忙——插件自己在 `mount()` 裡 `new URLSearchParams(location.search)` 讀自己定義的 key 即可，核心不需要知道有這個參數存在）。
-- **資料／動作**：`MapApp.personTimeline(name)`、`MapApp.pointTitle(p)`、`MapApp.photoFullUrl(item)`、`MapApp.openPanel(point)`、`MapApp.openLightbox(entry, url)`、`MapApp.openUnlock()`（跳出投稿代碼／解鎖視窗）、`MapApp.refreshEntries()`（＝目前地點卡片重繪一次，通常在插件自己改了篩選狀態之後呼叫）、`MapApp.trackFeature(name)`（記一筆功能使用統計，寫進該地圖的 `stats.json`）、`MapApp.currentScopeParams()`（目前的投稿者／分類篩選狀態，序列化成 querystring 片段，分享連結／嵌入代碼都靠這個帶入範圍限制）、`MapApp.effectiveEntries()`（合併「原始投稿」與其編輯紀錄後的目前有效清單，**所有型別**都在裡面，是投稿資料的單一事實來源）、`MapApp.effectivePhotos()`（同一份清單只留有照片的那些；`route-tour`／`person-explore` 這種畫面只處理得了 `<img>` 的插件用這個，不要為了「支援新型別」把它們改成吃 `effectiveEntries()`）、`MapApp.entryFullUrl(entry)` / `MapApp.entryThumbUrl(entry)`（依型別給出主檔／縮圖網址，照片走 `?api=photo`、影音走 `?api=media`，插件不需要自己判斷 kind）、`MapApp.kindOf(entry)`（一筆投稿的 kind，舊記錄沒有這個欄位時退回 `photo`）、`MapApp.contribCfg()`（這張地圖的投稿設定，見第三節的 `souliong_contrib_cfg()`）、`MapApp.fmtDur(sec)`（影音長度的顯示格式化）、`MapApp.effectivePoints()`（併入 `newpoint` 並套上 `point` 座標覆蓋後的目前點位清單）、`MapApp.getCats()`（目前地圖的分類清單）、`MapApp.submitNewPoint(fields)`（送出一筆新地點，走 `api/newpoint.php` 而非投稿端點）、`MapApp.personColor(name)`（某投稿者的固定配色，跟篩選角標同一份快取，同一頁內顏色不會兜不起來）、`MapApp.toast(html)`（畫面上方跳出的短暫提示訊息）、`MapApp.displayName()`（目前裝置設定的暱稱，沒設定就退回本次隨機匿名名）、`MapApp.anonName()`（純粹讀本次隨機匿名名，不管暱稱欄位有沒有填——輸入框 placeholder 要用這個而非 `displayName()`）、`MapApp.submitContribution(fields)`（送出一筆新投稿的共用管道；`project`/`owner`/`code`/`ctoken` 這些每筆投稿都要帶的欄位由核心統一補上，插件只要給業務欄位，例如 `{kind:'desc', item_num, name, comment, photo_time}`）、`MapApp.refreshPersonFilter()`（投稿者篩選下拉重新計算一次，新增投稿可能帶入新名字時要呼叫）、`MapApp.refreshCounts()`（只重算統計數字，不重繪地圖圖層／卡片——批次上傳中途每張都呼叫這個即可，比全套 `refreshAll()` 省事）、`MapApp.refreshAll()`（資料異動後的完整重繪：統計、地圖圖層、投稿者篩選、`'stateChange'` 事件、目前地點卡片，一次呼叫涵蓋所有連動，插件不需要自己記得哪些要重繪）、`MapApp.fmtTime(date)`（統一的時間顯示格式化）、`MapApp.getMeta()`（目前地圖的 `meta.json` 內容；用函式而非直接暴露屬性，是因為部分欄位可能是非同步取得，插件不該假設它在 `mount()` 當下就是最終值）、`MapApp.getCurrentPoint()`（目前面板開著的地點物件，沒開面板則為 `null`——例如上傳快速鍵要「以目前地點為預設脈絡」開啟批次視窗時要用這個，而不是自己記一份）、`MapApp.nearestPoint(lat, lon)`（找離某座標最近的地點，EXIF GPS 定位配對用）、`MapApp.chairOptionsHtml(selectedNum)`（地點下拉選單的 `<option>` HTML，批次卡片讓使用者手動指定/修正地點用）、`MapApp.srcTone(src)` / `MapApp.locNote(src)`（照片定位來源的顯示文字與樣式，核心的照片編輯面板與上傳模組的批次卡片共用同一份判斷邏輯，避免兩處各自維護一份、日後兜不起來）、`MapApp.rerollAnon()`（換一個新的本次匿名名；會依序發送 `'identityChanged'` 與 `'identityReroll'`，實際換算 `SESSION_ANON` 這個私有狀態的邏輯留在核心，插件只管觸發時機，例如長按身分小標籤）、`MapApp.identityChipClick()`（身分小標籤被點擊時該做什麼——已有投稿權限就發 `'identityUploadShortcut'`、被鎖住就開解鎖視窗、上傳模組整個關閉則什麼都不做；這個判斷要用到 `MOD('upload')`/`canPost()` 等核心私有狀態，所以決策邏輯留在核心，身分插件只負責把點擊事件轉呼叫過來）。
+- **延伸點（有回傳值）**：`MapApp.registerPhotoFilter(fn)`（`fn(photoEntry, currentSpot) => bool`，篩掉不想顯示的照片，AND 疊加）、`MapApp.registerEntriesHint(fn)`（`fn(currentSpot) => HTMLElement|null`，插進地點卡片內容裡的提示區塊，插件自己建節點、自己綁事件）、`MapApp.registerScopeParam(fn)`（`fn() => {key: value}|null`，插件自己想在分享連結／嵌入代碼網址上多帶的參數，會併進 `currentScopeParams()` 的輸出；讀回來則不用核心幫忙——插件自己在 `mount()` 裡 `new URLSearchParams(location.search)` 讀自己定義的 key 即可，核心不需要知道有這個參數存在）。
+- **資料／動作**：`MapApp.personTimeline(name)`、`MapApp.spotTitle(p)`、`MapApp.photoFullUrl(item)`、`MapApp.openPanel(spot)`、`MapApp.openLightbox(entry, url)`、`MapApp.openUnlock()`（跳出投稿代碼／解鎖視窗）、`MapApp.refreshEntries()`（＝目前地點卡片重繪一次，通常在插件自己改了篩選狀態之後呼叫）、`MapApp.trackFeature(name)`（記一筆功能使用統計，寫進該地圖的 `stats.json`）、`MapApp.currentScopeParams()`（目前的投稿者／分類篩選狀態，序列化成 querystring 片段，分享連結／嵌入代碼都靠這個帶入範圍限制）、`MapApp.effectiveEntries()`（合併「原始投稿」與其編輯紀錄後的目前有效清單，**所有型別**都在裡面，是投稿資料的單一事實來源）、`MapApp.effectivePhotos()`（同一份清單只留有照片的那些；`route-tour`／`person-explore` 這種畫面只處理得了 `<img>` 的插件用這個，不要為了「支援新型別」把它們改成吃 `effectiveEntries()`）、`MapApp.entryFullUrl(entry)` / `MapApp.entryThumbUrl(entry)`（依型別給出主檔／縮圖網址，照片走 `?api=photo`、影音走 `?api=media`，插件不需要自己判斷 kind）、`MapApp.kindOf(entry)`（一筆投稿的 kind，舊記錄沒有這個欄位時退回 `photo`）、`MapApp.contribCfg()`（這張地圖的投稿設定，見第三節的 `souliong_contrib_cfg()`）、`MapApp.fmtDur(sec)`（影音長度的顯示格式化）、`MapApp.effectiveSpots()`（併入新建立點位並套上搬移／設精選記錄後的目前點位清單，見 3.6 節的 `spot` 版本鏈）、`MapApp.getCats()`（目前地圖的分類清單）、`MapApp.submitNewSpot(fields)`（送出一筆新地點，走 `api/newspot.php` 而非投稿端點）、`MapApp.personColor(name)`（某投稿者的固定配色，跟篩選角標同一份快取，同一頁內顏色不會兜不起來）、`MapApp.toast(html)`（畫面上方跳出的短暫提示訊息）、`MapApp.displayName()`（目前裝置設定的暱稱，沒設定就退回本次隨機匿名名）、`MapApp.anonName()`（純粹讀本次隨機匿名名，不管暱稱欄位有沒有填——輸入框 placeholder 要用這個而非 `displayName()`）、`MapApp.submitContribution(fields)`（送出一筆新投稿的共用管道；`project`/`owner`/`code`/`ctoken` 這些每筆投稿都要帶的欄位由核心統一補上，插件只要給業務欄位，例如 `{kind:'desc', item_num, name, comment, photo_time}`）、`MapApp.refreshPersonFilter()`（投稿者篩選下拉重新計算一次，新增投稿可能帶入新名字時要呼叫）、`MapApp.refreshCounts()`（只重算統計數字，不重繪地圖圖層／卡片——批次上傳中途每張都呼叫這個即可，比全套 `refreshAll()` 省事）、`MapApp.refreshAll()`（資料異動後的完整重繪：統計、地圖圖層、投稿者篩選、`'stateChange'` 事件、目前地點卡片，一次呼叫涵蓋所有連動，插件不需要自己記得哪些要重繪）、`MapApp.fmtTime(date)`（統一的時間顯示格式化）、`MapApp.getMeta()`（目前地圖的 `meta.json` 內容；用函式而非直接暴露屬性，是因為部分欄位可能是非同步取得，插件不該假設它在 `mount()` 當下就是最終值）、`MapApp.getCurrentSpot()`（目前面板開著的地點物件，沒開面板則為 `null`——例如上傳快速鍵要「以目前地點為預設脈絡」開啟批次視窗時要用這個，而不是自己記一份）、`MapApp.nearestSpot(lat, lon)`（找離某座標最近的地點，EXIF GPS 定位配對用）、`MapApp.spotOptionsHtml(selectedNum)`（地點下拉選單的 `<option>` HTML，批次卡片讓使用者手動指定/修正地點用）、`MapApp.srcTone(src)` / `MapApp.locNote(src)`（照片定位來源的顯示文字與樣式，核心的照片編輯面板與上傳模組的批次卡片共用同一份判斷邏輯，避免兩處各自維護一份、日後兜不起來）、`MapApp.rerollAnon()`（換一個新的本次匿名名；會依序發送 `'identityChanged'` 與 `'identityReroll'`，實際換算 `SESSION_ANON` 這個私有狀態的邏輯留在核心，插件只管觸發時機，例如長按身分小標籤）、`MapApp.identityChipClick()`（身分小標籤被點擊時該做什麼——已有投稿權限就發 `'identityUploadShortcut'`、被鎖住就開解鎖視窗、上傳模組整個關閉則什麼都不做；這個判斷要用到 `MOD('upload')`/`canPost()` 等核心私有狀態，所以決策邏輯留在核心，身分插件只負責把點擊事件轉呼叫過來）。
 - **唯讀狀態**：`MapApp.getEngine()`（**新插件的正式地圖介面**，回傳 `MapEngine` 抽象基底的實例——`LeafletEngine` 或 `MapLibreEngine`，依這張地圖的主引擎而定，見第八節 8.4。插件需要碰地圖（畫 marker、畫路線、鏡頭移動、開一顆小地圖選點器…）一律呼叫這個拿到的物件上的方法，不分辨底下是哪個引擎——`route-tour.js`／`person-explore.js`／`contribution.js`／`map3d.js` 都已經是這個寫法，可以直接參考）、`MapApp.getFilterPerson()`、`MapApp.isPhotoLayerOn()`、`MapApp.isUnlocked()`（裝置是否已解鎖投稿權限——核心原生的權限判斷，見上面第 5 點）、`MapApp.hasIdentity()`（這台裝置有沒有建立跨裝置的投稿者身分；跟 `isUnlocked()` 是兩件事——能投稿不代表具名，CC BY 選項就是靠這個決定顯不顯示）、`MapApp.isEmbedMode()`（這個頁面是不是以 `?embed=1` 嵌入模式載入）、`MapApp.getProjectId()`（目前地圖的 project id，已做過安全字元過濾）。
 
 參考實作：
@@ -200,7 +250,7 @@ CSS 全部前綴 `.stat-card .col`，因為要蓋過同層的 `.stat-card .col o
 - `assets/js/plugins/share-link.js`（`share` 旗標——全螢幕分享卡片＋QR code；`class ShareLinkPlugin extends MapApp.Plugin` 寫法。連帶的 vendor 函式庫 `qrcode-generator.js` 也一併只在 `share` 開啟時由 `view.php` 條件載入，避免關閉時仍多載一支用不到的腳本）。
 - `assets/js/plugins/route-tour.js`（`route` 旗標——多投稿者路徑／單人路徑／連點彩蛋動畫；`class RouteTourPlugin extends MapApp.Plugin` 寫法。這個模組原本跟核心主渲染流程（新增／刪除／編輯／篩選）交纏最深，改法是把核心那些散落各處的 `drawRoute()`/`drawPersonRoute()` 呼叫全部收斂成統一的 `'stateChange'` 事件——資料或篩選狀態一變就發送一次，插件訂閱這個事件自己決定要不要重繪，核心不用再認得「路徑」這個概念。`#routeBtn` 也已改為插件自己在 `mount()` 建立並插入 `#ctlBody` 第一個 `.ctl-row`，`view.php` 不再輸出這顆按鈕）。
 - `assets/js/plugins/story-editor.js`（`story` 旗標——地點故事「新增一則版本」；`class StoryEditorPlugin extends MapApp.Plugin` 寫法。故事的顯示與「歷史版本」查看／刪除仍留在核心（唯讀、一律開放，不受此旗標影響），只有「編輯」按鈕與送出表單移進插件。順便修掉一個既有 bug：舊版編輯鈕誤判成要 `MOD('upload')` 也開著才顯示（複製貼上上傳模組的 `canPost()` 判斷式），現在單純看 `isUnlocked()`，`story` 與 `upload` 各自獨立開關就名副其實了。插件透過 `registerEntriesHint` 掛勾，純粹借用它「每次 `renderEntries()` 重繪都會呼叫」的時機，把按鈕插進核心模板裡固定的 `#storyActions` 容器，而不是用它「回傳元素插進去」的字面用法）。
-- `assets/js/plugins/contribution.js`（`upload` 旗標——目前最大的一個插件：投稿按鈕、分頁式批次投稿視窗、每張卡片的小地圖／定位來源／地點下拉、送出（含 429 限流自動重試）。型別專屬的知識（EXIF、WebP 轉檔、抽影格、錄音、建立地點表單）全都不在這個檔案裡，而在 `assets/js/contrib/kind-*.js`，見第三節。`#uploadBtn`/`#unlockFab`/`#pickImages`（插在 `#resetBtn` 之後）與批次投稿彈窗 `#contribModal`（插在 `#panel` 之後）都已改為插件自己在 `mount()` 的 `injectDom()` 建立並插入固定位置，`view.php` 不再輸出這幾段 HTML。解鎖對話框（掃碼／投稿代碼／PIN）與 `?code=` 網址參數自動解鎖仍留在核心，完全不受此旗標影響——「能不能寫入」是核心原生功能，「怎麼上傳」才是這個模組的範圍，見上面第 5 點規則。身分小標籤點擊快速開啟批次視窗改用 `'identityUploadShortcut'` 事件（核心不再直接呼叫插件內部函式），`u` 鍵快速鍵與地點卡片裡的「投稿到這個點」按鈕都用 `MapApp.getCurrentPoint()`／`MapApp.isUnlocked()` 等核心原生功能拿到需要的狀態，不假設自己知道核心內部變數）。
+- `assets/js/plugins/contribution.js`（`upload` 旗標——目前最大的一個插件：投稿按鈕、分頁式批次投稿視窗、每張卡片的小地圖／定位來源／地點下拉、送出（含 429 限流自動重試）。型別專屬的知識（EXIF、WebP 轉檔、抽影格、錄音、建立地點表單）全都不在這個檔案裡，而在 `assets/js/contrib/kind-*.js`，見第三節。`#uploadBtn`/`#unlockFab`/`#pickImages`（插在 `#resetBtn` 之後）與批次投稿彈窗 `#contribModal`（插在 `#panel` 之後）都已改為插件自己在 `mount()` 的 `injectDom()` 建立並插入固定位置，`view.php` 不再輸出這幾段 HTML。解鎖對話框（掃碼／投稿代碼／PIN）與 `?code=` 網址參數自動解鎖仍留在核心，完全不受此旗標影響——「能不能寫入」是核心原生功能，「怎麼上傳」才是這個模組的範圍，見上面第 5 點規則。身分小標籤點擊快速開啟批次視窗改用 `'identityUploadShortcut'` 事件（核心不再直接呼叫插件內部函式），`u` 鍵快速鍵與地點卡片裡的「投稿到這個點」按鈕都用 `MapApp.getCurrentSpot()`／`MapApp.isUnlocked()` 等核心原生功能拿到需要的狀態，不假設自己知道核心內部變數）。
 - `assets/js/plugins/contributor-identity.js`（`identity` 旗標——右上角身分小標籤的渲染（暱稱／管理者／匿名預覽名、解鎖狀態圖示）、點擊與長按換名的事件綁定、解鎖對話框裡「建立身分」PIN／暱稱欄位的展開收合按鈕。`#identity` 小標籤已改為插件自己在 `mount()` 建立並插入 `#trItems` 的最前面，`view.php` 不再輸出這段 HTML；旗標關閉時整個檔案不會被載入，`#identity` 自然不存在。`#idToggleBtn`/`#idFields` 仍是 `view.php` 在 `#unlockDialog` 裡輸出的既有 HTML（原因見下段），解鎖對話框其餘部分（投稿代碼輸入、QR 掃描）不受影響，純代碼解鎖照常可用。PIN／暱稱欄位本身的讀取（送出解鎖時）與重置（對話框重開時）仍留在核心——它們跟純代碼解鎖共用同一個對話框與送出按鈕，沒有乾淨的切點，且已對 DOM 是否存在做防呆（`if (el)`），旗標關閉時安全略過；`contribToken`/`contribInfo`/`myContribId` 這些「有無設定過 PIN」的實際存取也留在核心，因為 `submitContribution`／刪除／照片編輯等核心自身送出流程都要用到，且沒設 PIN 時它們本來就是無害的空字串，不受這個模組開關影響。`personExplore` 透過 `dependsOn` 相依這個模組，見下一節）。
 - `assets/js/plugins/person-explore.js`（`personExplore` 旗標——選了投稿者後可依序探索他的地標／零散照片時間軸；這個檔案早於 `MapApp.Plugin` 基底類別存在，尚未改寫成 `extends` 寫法，但其餘規則——旗標自我檢查、`<style>` 自己注入、DOM 自己插入 `#ctlBody`——仍是有效範例）。
 

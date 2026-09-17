@@ -57,8 +57,8 @@ function num_or_null($v) {
     return is_numeric($v) ? (float)$v : null;
 }
 
-// kind 白名單看的是 postable 而不是「註冊表裡有沒有這個 key」——point／newpoint 也在註冊表裡，
-// 但它們只能由 editpoint.php／newpoint.php 在權限檢查後寫入，放行等於開後門讓任何人偽造
+// kind 白名單看的是 postable 而不是「註冊表裡有沒有這個 key」——spot 也在註冊表裡，
+// 但它只能由 editspot.php／newspot.php 在權限檢查後寫入，放行等於開後門讓任何人偽造
 // 座標覆蓋紀錄（詳見 features.php 的 souliong_kinds() 說明）。
 // 沒送 kind ＝照片（多型別上線前的客戶端就是這樣送的，維持相容）；送了但不可 POST 或根本不認識，
 // 直接 400 擋掉——不要默默改判成照片存一筆進去，那會把「被拒絕的請求」變成一筆真的紀錄。

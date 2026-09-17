@@ -22,7 +22,7 @@ window.MapApp = (() => {
 
   // 這張地圖的投稿設定（由 view.php 依 souliong_contrib_cfg() 算好塞進 APP.contrib）。
   // 舊部署或獨立部署可能沒有這個欄位，退回「只有照片、不能建點」——跟加入多型別之前一樣。
-  const CONTRIB_CFG = Object.assign({ kinds: ['photo'], tabs: ['media'], default: 'media', newPoint: 'off', primaryKind: '' }, APP.contrib || {});
+  const CONTRIB_CFG = Object.assign({ kinds: ['photo'], tabs: ['media'], default: 'media', newPoint: 'off' }, APP.contrib || {});
 
   // 投稿型別在**呈現端**的中繼資料。刻意跟 api/features.php 的註冊表分開：那份管的是
   // 「怎麼收檔案」（受 upload 模組控制、關掉就整套不存在），這份管的是「怎麼顯示」——
@@ -38,10 +38,6 @@ window.MapApp = (() => {
     // 只會出現在所屬地點的投稿牆上。
     text:  { icon: 'fa-align-left',       layer: false, box: 'text'  },
   };
-  // 主要內容型別（如聲音地圖的錄音）：這個型別不進投稿牆，而是取代故事文字、直接當成
-  // 點位本身的主要內容顯示（見 renderEntries() 的 .story 區塊），比照 desc 的角色但換成媒體型別。
-  const PRIMARY_KIND = CONTRIB_CFG.primaryKind || '';
-  const PRIMARY_BOX = PRIMARY_KIND && KINDS[PRIMARY_KIND] ? KINDS[PRIMARY_KIND].box : null;
   // 沒有 kind 的舊記錄一律當照片（多型別上線前所有投稿都是照片）
   const kindOf = (e) => (e && KINDS[e.kind] ? e.kind : 'photo');
   const kindDef = (e) => KINDS[kindOf(e)];
@@ -143,10 +139,10 @@ window.MapApp = (() => {
     const err = new Error(t('failed_rate_limited_retry_manually')); err.rateLimited = true; throw err;
   }
 
-  // 建立新地點：身分欄位比照 submitContribution 統一在這裡補齊，但打的是 api/newpoint.php——
+  // 建立新地點：身分欄位比照 submitContribution 統一在這裡補齊，但打的是 api/newspot.php——
   // 建點的權限是每張地圖自己設定的（meta.json 的 contrib.newPoint），由那支端點把關，
-  // 所以管理者模式下要一併帶上 csrf（見 api/newpoint.php 的 admin 分支）。
-  async function submitNewPoint(fields) {
+  // 所以管理者模式下要一併帶上 csrf（見 api/newspot.php 的 admin 分支）。
+  async function submitNewSpot(fields) {
     const fd = new FormData();
     fd.append('project', PROJECT);
     fd.append('owner', ownerToken());
@@ -158,7 +154,7 @@ window.MapApp = (() => {
       if (v === undefined || v === null) continue;
       fd.append(k, v);
     }
-    const res = await fetch(apiUrl('newpoint'), { method: 'POST', body: fd });
+    const res = await fetch(apiUrl('newspot'), { method: 'POST', body: fd });
     const j = await res.json().catch(() => ({ error: 'HTTP ' + res.status }));
     if (!res.ok || j.error) throw new Error((j.error || ('HTTP ' + res.status)) + (j.detail ? '：' + j.detail : ''));
     CONTRIB.push(j.item);
@@ -393,7 +389,7 @@ window.MapApp = (() => {
     const box = document.getElementById('scanBox'); if (box) box.style.display = 'none';
   }
 
-  let META = null, POINTS = [], CATS = [], active = {}, CONTRIB = [], counts = {}, audioPoints = new Set(), playingPoints = new Set();
+  let META = null, SPOTS = [], CATS = [], active = {}, CONTRIB = [], counts = {}, audioSpots = new Set(), playingSpots = new Set();
   let engine = null, photoLayerOn = false;
   let filterPerson = '';
 
@@ -417,8 +413,8 @@ window.MapApp = (() => {
   const hookListeners = {};
   function onHook(name, fn) { (hookListeners[name] = hookListeners[name] || []).push(fn); }
   function emitHook(name, ...args) { (hookListeners[name] || []).forEach(fn => { try { fn(...args); } catch (err) { console.error('[hook:' + name + ']', err); } }); }
-  const photoFilters = [];     // fn(photoEntry, currentPoint) => bool；renderEntries() 的照片清單要 AND 全部通過
-  const entriesHintFns = [];   // fn(currentPoint) => HTMLElement|null；renderEntries() 會把回傳的節點插進卡片內容
+  const photoFilters = [];     // fn(photoEntry, currentSpot) => bool；renderEntries() 的照片清單要 AND 全部通過
+  const entriesHintFns = [];   // fn(currentSpot) => HTMLElement|null；renderEntries() 會把回傳的節點插進卡片內容
   const entryActionFns = [];   // fn(entry) => HTMLElement|null；renderEntries() 會把回傳的節點接在每張投稿卡的操作列（編輯／刪除按鈕）後面
   const scopeParamFns = [];    // fn() => {key: value}|null；插件自己在分享連結／嵌入代碼網址上帶的額外參數，讀取時插件自己讀 location.search，不需要核心知道
   const shortcuts = [];        // {key, label}；key 顯示鍵名（例："Esc"／"R"），label 是 i18n 過的說明字串——鍵盤快捷鍵提示彈窗（見 openShortcuts()）照登記順序列出，各檔案自己知道自己註冊了哪個鍵，核心不需要另外維護一份對照表
@@ -451,32 +447,32 @@ window.MapApp = (() => {
   }
   // 點位的顯示名稱。欄位名稱依資料來源而異（100chairs 是 theme／chair，一般地圖是 title，
   // 訪客建立的地點也是 title），下拉選單與標題都走這一個函式，加新來源時只要改這裡。
-  const pointName = (p) => p.theme || p.title || p.chair || '';
-  function pointTitle(p) {
-    const base = pointName(p);
+  const spotName = (p) => p.theme || p.title || p.chair || '';
+  function spotTitle(p) {
+    const base = spotName(p);
     if (META.numbering === 'disable') return base;
     if (META.numbering === 'prefix') return (p.num != null ? pad2(p.num) + ' ' : '') + base;
     return base + (p.num != null ? ' ' + pad2(p.num) : '');
   }
   // 點位列表／跳轉選單共用的「編號｜名稱」標籤（回傳值已 HTML 跳脫，可直接接進 innerHTML）
-  function pointNumLabel(p) {
-    const name = esc(pointName(p));
+  function spotNumLabel(p) {
+    const name = esc(spotName(p));
     return META.numbering === 'disable' ? name : pad2(p.num) + '｜' + name;
   }
-  function pointSub(p) {
+  function spotSub(p) {
     const bits = [];
     if (p.area || p.chair) bits.push(esc([p.area, p.chair].filter(Boolean).join(' ・ ')));
     else if (p.sub) bits.push(esc(p.sub));
     if (p.material) bits.push(esc(p.material));
     return bits.join('<br>');
   }
-  function chairOptionsHtml(selNum) {
-    const none = '<option value=""' + (selNum == null ? ' selected' : '') + '>' + esc(t('point_none_option')) + '</option>';
-    // 用 effectivePoints() 而非 POINTS：訪客建立的地點也要能被選成「這則投稿屬於哪個點」
-    return none + effectivePoints().sort((a, b) => a.num - b.num).map(p =>
+  function spotOptionsHtml(selNum) {
+    const none = '<option value=""' + (selNum == null ? ' selected' : '') + '>' + esc(t('spot_none_option')) + '</option>';
+    // 用 effectiveSpots() 而非 SPOTS：訪客建立的地點也要能被選成「這則投稿屬於哪個點」
+    return none + effectiveSpots().sort((a, b) => a.num - b.num).map(p =>
       '<option value="' + p.num + '"' + (p.num === selNum ? ' selected' : '') +
       (p.color ? ' style="color:' + esc(p.color) + '"' : '') + '>' +
-      '● ' + pad2(p.num) + '｜' + esc(pointName(p)) + (p.area ? '（' + esc(p.area) + '）' : '') + '</option>').join('');
+      '● ' + pad2(p.num) + '｜' + esc(spotName(p)) + (p.area ? '（' + esc(p.area) + '）' : '') + '</option>').join('');
   }
   function haversine(aLat, aLon, bLat, bLon) {
     const R = 6371000, r = Math.PI / 180;
@@ -484,9 +480,9 @@ window.MapApp = (() => {
     const s = Math.sin(dLat / 2) ** 2 + Math.cos(aLat * r) * Math.cos(bLat * r) * Math.sin(dLon / 2) ** 2;
     return 2 * R * Math.asin(Math.sqrt(s));
   }
-  function nearestPoint(lat, lon) {
+  function nearestSpot(lat, lon) {
     let best = null, bd = Infinity;
-    for (const p of effectivePoints()) {
+    for (const p of effectiveSpots()) {
       const d = haversine(lat, lon, p.lat, p.lon);
       if (d < bd) { bd = d; best = p; }
     }
@@ -513,17 +509,16 @@ window.MapApp = (() => {
   }
 
   // 哪些記錄是「排在投稿牆上的一則投稿」。desc（地點故事版本）不算，它顯示在故事區；
-  // primaryKind（如聲音地圖的錄音）同理不算，它也顯示在故事區、取代 desc 的角色；
-  // point／newpoint 也不算，它們是地點本身而不是掛在地點底下的內容。
-  const isEntry = (e) => !!(e && (KINDS[e.kind] || (!e.kind && e.photo)) && e.kind !== 'desc' && (!PRIMARY_KIND || e.kind !== PRIMARY_KIND));
+  // spot 也不算，它是地點本身而不是掛在地點底下的內容。每一種投稿型別（含音訊）一律算，
+  // 是否放大顯示在故事區是 current.feature 的事，不影響它算不算一則投稿。
+  const isEntry = (e) => !!(e && (KINDS[e.kind] || (!e.kind && e.photo)) && e.kind !== 'desc');
 
   // 合併「原始投稿」與其 edit_of 編輯紀錄，算出目前應顯示的內容：
   // 留言/關聯地點/定位取最新一筆編輯，但檔案本身與原始拍攝時間永遠沿用原始那筆（編輯不能換照片/影音檔）。
   function effectiveEntries() {
     const originals = {}, edits = {};
     CONTRIB.forEach(e => {
-      if (e.kind === 'desc' || e.kind === 'point' || e.kind === 'newpoint') return;
-      if (PRIMARY_KIND && e.kind === PRIMARY_KIND) return;
+      if (e.kind === 'desc' || e.kind === 'spot') return;
       if (e.edit_of) (edits[e.edit_of] = edits[e.edit_of] || []).push(e);
       // photo 記錄要有圖才算（純留言的照片投稿沿用舊行為不上牆）；其餘型別各有自己的成立條件
       else if (isEntry(e) && (e.photo || e.media || (e.kind === 'text' && e.comment))) originals[e.id] = e;
@@ -551,27 +546,29 @@ window.MapApp = (() => {
   // 所以這裡維持照片語意不變，核心自己的呈現才改吃 effectiveEntries()。
   function effectivePhotos() { return effectiveEntries().filter(e => !!e.photo); }
 
-  // 合併「定位點（椅子）原始座標」與管理者的位置編輯紀錄：同一 item_num 底下只留最新一筆 kind:'point' 覆蓋座標。
-  // origLat/origLon 一律保留 chairs.json 的原始座標，供編輯面板「還原初始位置」使用。
-  function effectivePoints() {
-    const latest = {};
+  // 合併「地點本身」的建立與後續編輯：起點（api/newspot.php 或 api/spotmigrate.php 寫入的
+  // kind:'spot'，一定帶 num、無 edit_of）疊上指向它的 edit_of 鏈最新一筆（api/editspot.php
+  // 寫入的搬移／設精選紀錄）。spots.jsonl 是點位唯一的真相來源（含匯入的靜態底稿，見
+  // api/spotmigrate.php），這裡不再另外處理 SPOTS 靜態陣列。origLat/origLon 一律保留起點
+  // 原始座標，供編輯面板「還原初始位置」使用。
+  function effectiveSpots() {
+    const origins = {}, edits = {};
     CONTRIB.forEach(e => {
-      if (e.kind !== 'point' || e.item_num == null) return;
-      const cur = latest[e.item_num];
-      if (!cur || new Date(e.created_at) > new Date(cur.created_at)) latest[e.item_num] = e;
+      if (e.kind !== 'spot') return;
+      if (e.edit_of) (edits[e.edit_of] = edits[e.edit_of] || []).push(e);
+      else if (e.num != null) origins[e.id] = e;   // 有 num = 起點（見 api/newspot.php／api/spotmigrate.php）
     });
-    // 訪客／管理者建立的地點（api/newpoint.php 寫的 kind:'newpoint'）先併進清單，再一起套座標覆蓋——
-    // 順序不能反過來：建立出來的點之後也要能被管理者搬位置，那條路徑走的同樣是 kind:'point'。
-    const added = CONTRIB.filter(e => e.kind === 'newpoint' && e.num != null).map(e => ({
-      num: e.num, title: e.title, cat: e.cat || 'new', catLabel: e.catLabel, color: e.color || '#7a7f87',
-      lat: e.lat, lon: e.lon, story: e.story, area: e.area, addedBy: e.name, addedAt: e.created_at, userAdded: true,
-      photo: e.photo || null, thumb: e.thumb || null,
-    }));
-    return POINTS.concat(added).map(p => {
-      const ed = latest[p.num];
-      return ed
-        ? { ...p, lat: ed.lat, lon: ed.lon, posEdited: true, origLat: p.lat, origLon: p.lon }
-        : { ...p, origLat: p.lat, origLon: p.lon };
+    return Object.keys(origins).map(id => {
+      const o = origins[id];
+      const list = edits[id];
+      const latest = list && list.length ? list.slice().sort((a, b) => new Date(a.created_at) - new Date(b.created_at)).pop() : null;
+      return {
+        ...o, cat: o.cat || 'new', color: o.color || '#7a7f87',
+        lat: latest ? latest.lat : o.lat, lon: latest ? latest.lon : o.lon,
+        addedBy: o.name, addedAt: o.created_at,
+        feature: latest ? latest.feature : o.feature,
+        posEdited: !!latest, origLat: o.lat, origLon: o.lon,
+      };
     });
   }
 
@@ -597,13 +594,13 @@ window.MapApp = (() => {
   const PIN_MARK_IMAGE_URL = apiUrl('pinmark') + '&project=' + encodeURIComponent(PROJECT);
   // pinSize：圓點直徑——sm/lg 對應 CSS 的 .sl-sz-sm/.sl-sz-lg 修飾類別，沒設或非白名單值就是預設 24px
   const PIN_SIZE_PX = { sm: 18, lg: 32 };
-  function chairIcon(c, count, badgeColor) {
+  function spotIcon(c, count, badgeColor) {
     const badge = count ? '<div class="badge"' + (badgeColor ? ' style="background:' + badgeColor + '"' : '') + '>' + count + '</div>' : '';
     const sizeCls = META.pinSize === 'sm' ? ' sl-sz-sm' : META.pinSize === 'lg' ? ' sl-sz-lg' : '';
     // pinBorder：白色外框開關，沒設過（舊專案）預設為 true，跟改版前的固定外框行為一致
     const borderCls = META.pinBorder === false ? ' sl-noborder' : '';
     // has-audio：這個地點掛了聲音；is-playing：其中一則正在播放，脈衝光暈只在播放中顯示（見 map-markers.css）
-    const cls = 'dot-pin' + sizeCls + borderCls + (count ? ' has-contrib' : '') + (audioPoints.has(c.num) ? ' has-audio' : '') + (playingPoints.has(c.num) ? ' is-playing' : '');
+    const cls = 'dot-pin' + sizeCls + borderCls + (count ? ' has-contrib' : '') + (audioSpots.has(c.num) ? ' has-audio' : '') + (playingSpots.has(c.num) ? ' is-playing' : '');
     // pinMark：地圖上圓點裡要放什麼——number（預設，顯示編號）／blank（留空）／shape（依 num 固定配一個幾何圖形）／image（自訂圖片取代整個標記）
     const isImage = META.pinMark === 'image';
     const pinMark = isImage || META.pinMark === 'blank' ? '' : META.pinMark === 'shape' ? '<span>' + pinShapeSvg(c.num) + '</span>' : '<span>' + c.num + '</span>';
@@ -615,21 +612,21 @@ window.MapApp = (() => {
     };
   }
   // 音訊播放狀態切換：只有播放中的地點才顯示標記脈衝，切換時才需要重畫標記層
-  function setPointPlaying(num, playing) {
+  function setSpotPlaying(num, playing) {
     if (num == null) return;
-    const had = playingPoints.has(num);
-    if (playing) playingPoints.add(num); else playingPoints.delete(num);
-    if (had !== playing) renderChairs();
+    const had = playingSpots.has(num);
+    if (playing) playingSpots.add(num); else playingSpots.delete(num);
+    if (had !== playing) renderSpots();
   }
   // 一則 <audio> 元素綁定播放狀態事件；卸除時（面板重繪／關閉）要先呼叫 pause() 才會確實觸發 pause 事件
   function bindAudioPlayState(audioEl, itemNum) {
-    audioEl.addEventListener('play', () => setPointPlaying(itemNum, true));
-    audioEl.addEventListener('pause', () => setPointPlaying(itemNum, false));
-    audioEl.addEventListener('ended', () => setPointPlaying(itemNum, false));
+    audioEl.addEventListener('play', () => setSpotPlaying(itemNum, true));
+    audioEl.addEventListener('pause', () => setSpotPlaying(itemNum, false));
+    audioEl.addEventListener('ended', () => setSpotPlaying(itemNum, false));
   }
-  // 引擎無關的 chairs marker spec 陣列——2D 主地圖跟 map3d.js 的 3D 模式共用同一份，
+  // 引擎無關的 spots marker spec 陣列——2D 主地圖跟 map3d.js 的 3D 模式共用同一份，
   // 不要各刻一份（3D 之前自己重畫過一次簡化圓點，見 Part D 整併紀錄）。
-  function chairMarkerSpecs() {
+  function spotMarkerSpecs() {
     // 篩選單一投稿者時：角標改顯示「這個人在這個點的張數」，並跟路徑同色（同一個 personColor 快取）
     let personCounts = null, badgeColor = null;
     if (filterPerson) {
@@ -638,10 +635,10 @@ window.MapApp = (() => {
       badgeColor = personColor(filterPerson);
     }
     const specs = [];
-    effectivePoints().forEach(c => {
+    effectiveSpots().forEach(c => {
       if (active[c.cat] === false) return;
       const count = personCounts ? (personCounts[c.num] || 0) : (counts[c.num] || 0);
-      const icon = chairIcon(c, count, badgeColor);
+      const icon = spotIcon(c, count, badgeColor);
       specs.push({
         id: c.num, lat: c.lat, lon: c.lon, html: icon.html, size: icon.size, anchor: icon.anchor,
         color: c.color || '#888',
@@ -650,8 +647,8 @@ window.MapApp = (() => {
     });
     return specs;
   }
-  function renderChairs() {
-    engine.setMarkerLayer('chairs', chairMarkerSpecs());
+  function renderSpots() {
+    engine.setMarkerLayer('spots', spotMarkerSpecs());
   }
   const THUMB_ZOOM = 15;   // ≥ 此縮放顯示縮圖，較遠只顯示小方塊
   // 一則投稿在地圖上的標記。照片與影片有縮圖就鋪成方塊（影片右下角補一個播放角標）；
@@ -704,7 +701,7 @@ window.MapApp = (() => {
     const stops = Object.keys(groups).map(numStr => {
       const num = +numStr;
       const photos = groups[numStr].sort((a, b) => tv(a) - tv(b));
-      return { type: 'point', num: num, point: effectivePoints().find(p => p.num === num), photos: photos, time: tv(photos[0]) };
+      return { type: 'spot', num: num, spot: effectiveSpots().find(p => p.num === num), photos: photos, time: tv(photos[0]) };
     });
     loose.forEach(e => stops.push({ type: 'loose', entry: e, time: tv(e) }));
     return stops.sort((a, b) => a.time - b.time);
@@ -716,13 +713,13 @@ window.MapApp = (() => {
     if (!personColorCache[name]) personColorCache[name] = 'hsl(' + Math.floor(Math.random() * 360) + ', 70%, 45%)';
     return personColorCache[name];
   }
-  // 依目前「全部／投稿」模式切換下拉選單的用途：投稿模式列投稿者（跟 pointList 模組開關無關，
-  // 一定要用下拉選單，因為選了要記住、重新整理不會跑掉）；全部模式列地點標籤，開了 pointList
-  // 模組時改交給左上角卡片的點位列表（見 renderPointList()），下拉選單本身隱藏。
+  // 依目前「全部／投稿」模式切換下拉選單的用途：投稿模式列投稿者（跟 spotList 模組開關無關，
+  // 一定要用下拉選單，因為選了要記住、重新整理不會跑掉）；全部模式列地點標籤，開了 spotList
+  // 模組時改交給左上角卡片的點位列表（見 renderSpotList()），下拉選單本身隱藏。
   function rebuildPersonFilter() {
     const sel = document.getElementById('personFilter');
     const selRow = document.getElementById('personFilterRow');
-    const listBox = document.getElementById('pointList');
+    const listBox = document.getElementById('spotList');
     if (!sel && !listBox) return;
     if (photoLayerOn) {
       if (listBox) listBox.style.display = 'none';
@@ -737,45 +734,45 @@ window.MapApp = (() => {
       sel.value = names.includes(filterPerson) ? filterPerson : '';
     } else if (listBox) {
       if (selRow) selRow.style.display = 'none';
-      renderPointList(listBox);
+      renderSpotList(listBox);
     } else {
-      sel.title = t('jump_to_point');
-      const pts = effectivePoints().sort((a, b) => a.num - b.num);
-      sel.innerHTML = '<option value="">' + esc(t('jump_to_point_option', { n: pts.length })) + '</option>' +
+      sel.title = t('jump_to_spot');
+      const pts = effectiveSpots().sort((a, b) => a.num - b.num);
+      sel.innerHTML = '<option value="">' + esc(t('jump_to_spot_option', { n: pts.length })) + '</option>' +
         pts.map(p =>
-          '<option value="' + p.num + '">' + pointNumLabel(p) + (p.area ? '（' + esc(p.area) + '）' : '') + '</option>'
+          '<option value="' + p.num + '">' + spotNumLabel(p) + (p.area ? '（' + esc(p.area) + '）' : '') + '</option>'
         ).join('');
     }
   }
-  // pointList 模組：左上角卡片直接列出可點擊的點位，取代「跳到地點」下拉選單（見上方 rebuildPersonFilter()）
-  function renderPointList(box) {
-    const pts = effectivePoints().sort((a, b) => a.num - b.num);
+  // spotList 模組：左上角卡片直接列出可點擊的點位，取代「跳到地點」下拉選單（見上方 rebuildPersonFilter()）
+  function renderSpotList(box) {
+    const pts = effectiveSpots().sort((a, b) => a.num - b.num);
     box.style.display = '';
-    box.innerHTML = '<div class="sl-point-list-heading">' + esc(t('point_list_heading', { n: pts.length })) + '</div>' +
+    box.innerHTML = '<div class="sl-spot-list-heading">' + esc(t('spot_list_heading', { n: pts.length })) + '</div>' +
       pts.map(p =>
-        '<button type="button" class="sl-point-list-item" data-num="' + p.num + '">' +
-          '<span class="sl-point-list-dot" style="background:' + esc(p.color || '#888') + '"></span>' +
-          '<span class="sl-point-list-label">' + pointNumLabel(p) + '</span>' +
-          (p.area ? '<span class="sl-point-list-area">' + esc(p.area) + '</span>' : '') +
+        '<button type="button" class="sl-spot-list-item" data-num="' + p.num + '">' +
+          '<span class="sl-spot-list-dot" style="background:' + esc(p.color || '#888') + '"></span>' +
+          '<span class="sl-spot-list-label">' + spotNumLabel(p) + '</span>' +
+          (p.area ? '<span class="sl-spot-list-area">' + esc(p.area) + '</span>' : '') +
         '</button>'
       ).join('');
-    box.querySelectorAll('.sl-point-list-item').forEach(btn => {
+    box.querySelectorAll('.sl-spot-list-item').forEach(btn => {
       btn.onclick = () => {
-        const pt = effectivePoints().find(p => p.num === +btn.dataset.num);
+        const pt = effectiveSpots().find(p => p.num === +btn.dataset.num);
         if (pt) { emitHook('panelReset'); openPanel(pt); engine.panTo(pt.lat, pt.lon, { animate: true }); }
       };
     });
   }
 
   /* ---------- legend ---------- */
-  // 圖例的分類清單。用 effectivePoints() 而非 POINTS：訪客建立的地點可能帶了一個這張地圖
-  // 原本沒有的分類（newpoint.php 已把 catLabel／color 存進記錄），不從這裡推導的話，
+  // 圖例的分類清單。用 effectiveSpots() 而非 SPOTS：訪客建立的地點可能帶了一個這張地圖
+  // 原本沒有的分類（newspot.php 已把 catLabel／color 存進記錄），不從這裡推導的話，
   // 那些點會畫在地圖上、圖例卻沒有對應的一格可以開關。投稿載入後會再跑一次。
   const urlCats = (params.get('cat') || '').split(',').map(s => s.trim()).filter(Boolean);
   const catDefaulted = {};   // ?cat= 的預設只對「第一次出現」的分類套用，不覆蓋使用者後來按過的開關
   function rebuildCats() {
     const seen = {};
-    effectivePoints().forEach(c => { if (c.cat && !seen[c.cat]) seen[c.cat] = { key: c.cat, label: c.catLabel || c.cat, color: c.color }; });
+    effectiveSpots().forEach(c => { if (c.cat && !seen[c.cat]) seen[c.cat] = { key: c.cat, label: c.catLabel || c.cat, color: c.color }; });
     const order = (META && META.categoryOrder) || catOrder;
     CATS = order.filter(k => seen[k]).map(k => seen[k]);
     Object.keys(seen).forEach(k => { if (!CATS.find(c => c.key === k)) CATS.push(seen[k]); });
@@ -791,7 +788,7 @@ window.MapApp = (() => {
     CATS.forEach(c => {
       const el = document.createElement('div'); el.className = 'chip' + (active[c.key] === false ? ' off' : '');
       el.innerHTML = '<span class="dot" style="background:' + esc(c.color) + '"></span>' + esc(c.label);
-      el.onclick = () => { active[c.key] = active[c.key] === false ? true : false; el.classList.toggle('off', active[c.key] === false); renderChairs(); };
+      el.onclick = () => { active[c.key] = active[c.key] === false ? true : false; el.classList.toggle('off', active[c.key] === false); renderSpots(); };
       legend.appendChild(el);
     });
   }
@@ -803,16 +800,16 @@ window.MapApp = (() => {
     const cat = CATS.find(x => x.key === c.cat) || { label: '', color: '' };
     document.getElementById('pCat').textContent = cat.label;
     document.getElementById('pCat').style.color = cat.color;
-    document.getElementById('pTitle').textContent = pointTitle(c);
-    document.getElementById('pSub').innerHTML = pointSub(c);
+    document.getElementById('pTitle').textContent = spotTitle(c);
+    document.getElementById('pSub').innerHTML = spotSub(c);
     document.getElementById('panel').classList.add('open');
-    const peBtn = document.getElementById('pointEditBtn');
+    const peBtn = document.getElementById('spotEditBtn');
     if (peBtn) peBtn.style.display = (!EMBED && APP.isManager) ? '' : 'none';
-    resetPointEditor();
+    resetSpotEditor();
     renderEntries();
-    statSend('point', c.num);
+    statSend('spot', c.num);
   }
-  function closePanel() { document.getElementById('panel').classList.remove('open'); resetPointEditor(); current = null; emitHook('panelReset'); }
+  function closePanel() { document.getElementById('panel').classList.remove('open'); resetSpotEditor(); current = null; emitHook('panelReset'); }
   // 電腦版：地點卡片在「預設寬度」與「接近全螢幕的大卡片」之間切換（狀態保留到下次開啟）
   function togglePanelSize() {
     const p = document.getElementById('panel');
@@ -826,18 +823,18 @@ window.MapApp = (() => {
     // 寬度動畫結束後觸發 resize，讓卡片內的迷你地圖（Leaflet trackResize）重算尺寸
     setTimeout(() => window.dispatchEvent(new Event('resize')), 320);
   }
-  function resetPointEditor() {
-    const el = document.getElementById('pointEditor');
+  function resetSpotEditor() {
+    const el = document.getElementById('spotEditor');
     if (!el) return;
     const p = el._picker; if (p) p.destroy();
     el._picker = null; el.style.display = 'none'; el.innerHTML = '';
   }
   // 定位點（椅子）位置微調面板：僅管理者可見，比照 buildPhotoEditorPanel 的迷你地圖模式，
-  // 但不需要留言/關聯地點欄位，多了「還原初始位置」讓管理者在儲存前能隨時退回 chairs.json 的原始座標。
-  function togglePointEditor() {
-    const el = document.getElementById('pointEditor');
+  // 但不需要留言/關聯地點欄位，多了「還原初始位置」讓管理者在儲存前能隨時退回起點的原始座標。
+  function toggleSpotEditor() {
+    const el = document.getElementById('spotEditor');
     if (!el || !current) return;
-    if (el.style.display !== 'none') { resetPointEditor(); return; }
+    if (el.style.display !== 'none') { resetSpotEditor(); return; }
     el.style.display = 'block';
     const c = current;
     const lat0 = c.lat, lon0 = c.lon;
@@ -858,10 +855,10 @@ window.MapApp = (() => {
       picker.setPosition({ lat: c.origLat, lon: c.origLon }, { pan: true });
       state.lat = c.origLat; state.lon = c.origLon;
     };
-    el.querySelector('.pt-cancel').onclick = () => resetPointEditor();
-    el.querySelector('.pt-save').onclick = () => submitPointEdit(c, state, el, picker);
+    el.querySelector('.pt-cancel').onclick = () => resetSpotEditor();
+    el.querySelector('.pt-save').onclick = () => submitSpotEdit(c, state, el, picker);
   }
-  async function submitPointEdit(orig, state, panel, picker) {
+  async function submitSpotEdit(orig, state, panel, picker) {
     const btn = panel.querySelector('.pt-save'); const status = panel.querySelector('.pt-status');
     btn.disabled = true; status.textContent = t('saving');
     try {
@@ -870,19 +867,22 @@ window.MapApp = (() => {
       fd.append('item_num', orig.num);
       fd.append('lat', state.lat);
       fd.append('lon', state.lon);
+      // feature 沒有要改就原樣重送，跟 lat/lon 一樣由前端負責帶齊目前有效值——
+      // 後端不會替沒送的欄位做狀態合併，漏送等於把目前的精選內容清空。
+      if (orig.feature) fd.append('feature', orig.feature);
       fd.append('name', displayName());
       fd.append('csrf', APP.csrf || '');
-      const res = await fetch(apiUrl('editpoint'), { method: 'POST', body: fd });
+      const res = await fetch(apiUrl('editspot'), { method: 'POST', body: fd });
       const j = await res.json();
       if (!res.ok || j.error) throw new Error(j.error || ('HTTP ' + res.status));
       CONTRIB.push(j.item);
-      resetPointEditor();
-      renderChairs(); rebuildPersonFilter();
-      const updated = effectivePoints().find(p => p.num === orig.num);
+      resetSpotEditor();
+      renderSpots(); rebuildPersonFilter();
+      const updated = effectiveSpots().find(p => p.num === orig.num);
       if (updated) {
         current = updated;
-        document.getElementById('pTitle').textContent = pointTitle(updated);
-        document.getElementById('pSub').innerHTML = pointSub(updated);
+        document.getElementById('pTitle').textContent = spotTitle(updated);
+        document.getElementById('pSub').innerHTML = spotSub(updated);
         renderEntries();
       }
     } catch (err) {
@@ -896,20 +896,20 @@ window.MapApp = (() => {
     // 重繪前先暫停舊的播放器：光把節點丟掉不保證觸發 pause 事件，標記的播放脈衝會卡住不消失
     box.querySelectorAll('audio').forEach(el => { try { el.pause(); } catch (err) {} });
     box.innerHTML = '';
-    // 版本種類：一般地圖是 desc（改寫故事文字）；設了 primaryKind 的地圖（如聲音地圖）
-    // 改成那個型別本身（如 audio），取代故事文字變成點位的主要內容，兩者共用同一套版本化機制。
-    const versionKind = PRIMARY_KIND || 'desc';
-    const descs = CONTRIB.filter(e => e.item_num === current.num && e.kind === versionKind && !e.edit_of && (e.comment || e.media)).sort((a, b) => tv(a) - tv(b));
+    const descs = CONTRIB.filter(e => e.item_num === current.num && e.kind === 'desc' && !e.edit_of && e.comment).sort((a, b) => tv(a) - tv(b));
     const entries = effectiveEntries().filter(e => e.item_num === current.num && photoFilters.every(f => f(e, current))).sort((a, b) => tv(a) - tv(b));
-    // 版本序列：原始（資料來源為專案自訂的 META.source，例如 StoryMaps）在最舊，之後接使用者送出的版本。
-    // 這個「原始」只對文字故事有意義——設了 primaryKind 後點位內容本身就是媒體，沒有等價的純文字原始版本。
+    // 版本序列：原始（story 欄位——一般地圖是匯入資料的 META.source，訪客建立地點時則是當場輸入的
+    // 說明文字）在最舊，之後接使用者送出的 desc 版本。
     const versions = [];
-    if (!PRIMARY_KIND && current.story) versions.push({ name: t('original_source_tag'), comment: current.story, created_at: null, baseline: true });
+    if (current.story) versions.push({ name: t('original_source_tag'), comment: current.story, created_at: null, baseline: true });
     descs.forEach(d => versions.push(d));
     const latest = versions[versions.length - 1];
-    const hasPrimary = !!PRIMARY_KIND;
-    const isPrimaryAudio = PRIMARY_BOX === 'audio';
-    const byLine = (!hasPrimary && latest)
+    // 精選內容：地點記錄若帶 feature（見 editspot.php），指向投稿牆上某一則投稿的 id；只要
+    // 那則投稿還在（effectiveEntries() 找得到、沒被刪），就放大顯示在故事區——它本身照常留在
+    // 投稿牆上，不做任何排除。沒有 feature 就照一般地圖的 desc 版本顯示故事文字。
+    const featured = current.feature ? entries.find(e => e.id === current.feature) : null;
+    const isFeaturedAudio = !!(featured && featured.media && kindOf(featured) === 'audio');
+    const byLine = (!featured && latest)
       ? (latest.baseline ? esc(t('source_label', { src: META.source || META.credit || '' })) : '— ' + esc(latest.name || t('anon_fallback')) + '・' + fmtTime(latest.photo_time || latest.created_at))
       : '';
     const sourceLic = latest && latest.source_license === 'cc-by' ? 'CC BY' : (latest && latest.source_license === 'cc0' ? 'CC0' : '');
@@ -922,22 +922,22 @@ window.MapApp = (() => {
         '</div>';
     }
 
-    // 主要內容本身：一般地圖是故事文字；設了 primaryKind 且型別是音訊時，改成大播放鍵＋進度條的
-    // 自訂播放器（不用瀏覽器原生介面），文字說明（如果有）放在播放器下方當作附註。
+    // 主要內容本身：一般是故事文字；有精選音訊投稿時，改成大播放鍵＋進度條的自訂播放器
+    // （不用瀏覽器原生介面），投稿本身的文字說明（如果有）放在播放器下方當作附註。
     let bodyHtml;
-    if (isPrimaryAudio && latest && latest.media) {
-      bodyHtml = audioPlayerHtml(entryFullUrl(latest), latest.duration, { big: true }) +
-        (latest.comment ? '<div class="story-caption">' + esc(latest.comment) + '</div>' : '');
+    if (isFeaturedAudio) {
+      bodyHtml = audioPlayerHtml(entryFullUrl(featured), featured.duration, { big: true }) +
+        (featured.comment ? '<div class="story-caption">' + esc(featured.comment) + '</div>' : '');
     } else if (latest) {
       bodyHtml = esc(latest.comment);
     } else {
-      bodyHtml = '<span class="empty">' + esc(t(isPrimaryAudio ? 'sound_story_empty' : 'story_empty')) + '</span>';
+      bodyHtml = '<span class="empty">' + esc(t('story_empty')) + '</span>';
     }
 
     // 故事 / 說明（版本化，預設只顯示最新版）
     const story = document.createElement('div'); story.className = 'story';
     story.innerHTML =
-      (hasPrimary ? '' : '<div class="story-head">' + esc(t('location_story_title')) + '</div>') +
+      (featured ? '' : '<div class="story-head">' + esc(t('location_story_title')) + '</div>') +
       '<div class="story-body">' + bodyHtml + '</div>' +
       (byLine ? '<div class="story-by">' + byLine + '</div>' : '') +
       sourceLine +
@@ -945,48 +945,44 @@ window.MapApp = (() => {
       (!EMBED && versions.length > 1 ? '<button class="btn small" id="histBtn">' + esc(t('history_versions', { n: versions.length })) + '</button>' : '') +
       '</div><div id="descHistory" style="display:none"></div>';
     box.appendChild(story);
-    if (PRIMARY_BOX === 'audio' && latest && latest.media) wireAudioPlayer(story, current.num);
+    if (isFeaturedAudio) wireAudioPlayer(story, current.num);
     const hb = story.querySelector('#histBtn'); if (hb) hb.onclick = () => toggleHistory(versions);
 
     // 插件掛勾點：讓插件（例如上傳、依序探索）在照片牆前面插入自己的提示區塊或按鈕（如「上傳照片到這個點」「僅顯示 X 的照片・顯示全部」）
     entriesHintFns.forEach(fn => { const el = fn(current); if (el) box.appendChild(el); });
 
-    // 投稿牆：只有這張地圖除了主要內容型別外還能投其他型別時才顯示（比照 contribution.js
-    // initTabs() 的判斷方式）——否則投稿牆永遠不會有內容，不該固定顯示「還沒有投稿」空狀態
-    const hasExtraKinds = CONTRIB_CFG.kinds.some(k => k !== PRIMARY_KIND);
-    if (hasExtraKinds) {
-      const gwrap = document.createElement('div');
-      gwrap.className = 'gallery';   // 大卡片模式時靠這個 class 排成多欄
-      if (!entries.length) gwrap.innerHTML = '<div class="empty" style="margin-top:12px">' + esc(t('photos_empty')) + '</div>';
-      entries.forEach(e => {
-        const d = document.createElement('div'); d.className = 'entry sl-kind-' + kindOf(e); d.dataset.entryId = e.id;
-        const alt = esc(e.comment || (current.chair || current.theme || t('contrib_photo_alt')));
-        const canEdit = canPost() && (isMine(e) || APP.isManager);
-        // 只有預覽區依型別換掉，底下的 meta／編輯／刪除／歷史四段所有型別完全共用
-        d.innerHTML = entryPreviewHtml(e, alt) + '<div class="meta"><div class="who">' + esc(e.name || t('anon_fallback')) +
-          (e.edited ? ' <span class="edited-tag">' + esc(t('edited_tag')) + '</span>' : '') + '</div>' +
-          '<div class="time">' + fmtTime(e.photo_time || e.created_at) + '</div>' +
-          (e.comment ? '<div class="txt">' + esc(e.comment) + '</div>' : '') +
-          '<div class="entry-actions">' +
-          (canEdit ? '<button class="btn small edit-btn" type="button"><i class="fa-solid fa-pen"></i> ' + esc(t('edit')) + '</button>' : '') +
-          (!EMBED && e.editHistory && e.editHistory.length > 1 ? '<button class="btn small hist-btn" type="button">' + esc(t('history_versions', { n: e.editHistory.length })) + '</button>' : '') +
-          (!EMBED && isMine(e) ? '<button class="del-btn" type="button"><i class="fa-solid fa-trash"></i> ' + esc(t('delete')) + '</button>' : '') + '</div>' +
-          '</div><div class="photo-editor" style="display:none"></div><div class="photo-history" style="display:none"></div>';
-        const open = d.querySelector('.sl-open');   // 文字與音訊沒有這個元素：文字不開燈箱，音訊直接在卡片上聽
-        if (open) {
-          open.onclick = () => openLightbox(e);
-          open.onkeydown = (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openLightbox(e); } };
-        }
-        if (d.querySelector('.sl-aplay')) wireAudioPlayer(d, e.item_num);
-        const del = d.querySelector('.del-btn'); if (del) del.onclick = () => deleteEntry(e.id);
-        const edbtn = d.querySelector('.edit-btn'); if (edbtn) edbtn.onclick = () => togglePhotoEditor(e, d);
-        const hbtn = d.querySelector('.hist-btn'); if (hbtn) hbtn.onclick = () => togglePhotoEditHistory(e, d);
-        const actions = d.querySelector('.entry-actions');
-        if (actions) entryActionFns.forEach(fn => { const el = fn(e); if (el) actions.appendChild(el); });
-        gwrap.appendChild(d);
-      });
-      box.appendChild(gwrap);
-    }
+    // 投稿牆：每一筆投稿一律出現在這裡，即使其中一筆已被設為上面的精選內容也不排除
+    const gwrap = document.createElement('div');
+    gwrap.className = 'gallery';   // 大卡片模式時靠這個 class 排成多欄
+    if (!entries.length) gwrap.innerHTML = '<div class="empty" style="margin-top:12px">' + esc(t('photos_empty')) + '</div>';
+    entries.forEach(e => {
+      const d = document.createElement('div'); d.className = 'entry sl-kind-' + kindOf(e); d.dataset.entryId = e.id;
+      const alt = esc(e.comment || (current.chair || current.theme || t('contrib_photo_alt')));
+      const canEdit = canPost() && (isMine(e) || APP.isManager);
+      // 只有預覽區依型別換掉，底下的 meta／編輯／刪除／歷史四段所有型別完全共用
+      d.innerHTML = entryPreviewHtml(e, alt) + '<div class="meta"><div class="who">' + esc(e.name || t('anon_fallback')) +
+        (e.edited ? ' <span class="edited-tag">' + esc(t('edited_tag')) + '</span>' : '') + '</div>' +
+        '<div class="time">' + fmtTime(e.photo_time || e.created_at) + '</div>' +
+        (e.comment ? '<div class="txt">' + esc(e.comment) + '</div>' : '') +
+        '<div class="entry-actions">' +
+        (canEdit ? '<button class="btn small edit-btn" type="button"><i class="fa-solid fa-pen"></i> ' + esc(t('edit')) + '</button>' : '') +
+        (!EMBED && e.editHistory && e.editHistory.length > 1 ? '<button class="btn small hist-btn" type="button">' + esc(t('history_versions', { n: e.editHistory.length })) + '</button>' : '') +
+        (!EMBED && isMine(e) ? '<button class="del-btn" type="button"><i class="fa-solid fa-trash"></i> ' + esc(t('delete')) + '</button>' : '') + '</div>' +
+        '</div><div class="photo-editor" style="display:none"></div><div class="photo-history" style="display:none"></div>';
+      const open = d.querySelector('.sl-open');   // 文字與音訊沒有這個元素：文字不開燈箱，音訊直接在卡片上聽
+      if (open) {
+        open.onclick = () => openLightbox(e);
+        open.onkeydown = (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openLightbox(e); } };
+      }
+      if (d.querySelector('.sl-aplay')) wireAudioPlayer(d, e.item_num);
+      const del = d.querySelector('.del-btn'); if (del) del.onclick = () => deleteEntry(e.id);
+      const edbtn = d.querySelector('.edit-btn'); if (edbtn) edbtn.onclick = () => togglePhotoEditor(e, d);
+      const hbtn = d.querySelector('.hist-btn'); if (hbtn) hbtn.onclick = () => togglePhotoEditHistory(e, d);
+      const actions = d.querySelector('.entry-actions');
+      if (actions) entryActionFns.forEach(fn => { const el = fn(e); if (el) actions.appendChild(el); });
+      gwrap.appendChild(d);
+    });
+    box.appendChild(gwrap);
   }
   // 卡片牆的預覽區。`.sl-open` 是「點了會開燈箱」的標記，只有需要放大／播放的型別才給。
   function entryPreviewHtml(e, alt) {
@@ -1016,7 +1012,7 @@ window.MapApp = (() => {
     opts = opts || {};
     return '<div class="sl-aplay' + (opts.big ? ' sl-aplay-lg' : '') + '">' +
       '<audio preload="none" src="' + esc(src || '') + '"></audio>' +
-      '<button class="sl-play-btn sl-aplay-btn" type="button" aria-label="' + esc(t('play_audio_btn')) + '"><i class="fa-solid fa-play"></i></button>' +
+      '<button class="sl-play-btn sl-aplay-btn sl-invite" type="button" aria-label="' + esc(t('play_audio_btn')) + '"><i class="fa-solid fa-play"></i></button>' +
       '<div class="sl-aplay-main">' +
         '<div class="sl-aplay-bar"><div class="sl-aplay-fill"></div></div>' +
         '<div class="sl-aplay-time"><span class="sl-aplay-cur">0:00</span><span class="sl-aplay-dur">' + esc(dur ? fmtDur(dur) : '') + '</span></div>' +
@@ -1034,7 +1030,7 @@ window.MapApp = (() => {
     const curEl = wrap.querySelector('.sl-aplay-cur');
     const durEl = wrap.querySelector('.sl-aplay-dur');
     btn.onclick = () => { if (audio.paused) audio.play().catch(() => {}); else audio.pause(); };
-    audio.addEventListener('play', () => { icon.className = 'fa-solid fa-pause'; });
+    audio.addEventListener('play', () => { icon.className = 'fa-solid fa-pause'; btn.classList.remove('sl-invite'); });
     audio.addEventListener('pause', () => { icon.className = 'fa-solid fa-play'; });
     audio.addEventListener('ended', () => { icon.className = 'fa-solid fa-play'; });
     audio.addEventListener('timeupdate', () => {
@@ -1058,7 +1054,7 @@ window.MapApp = (() => {
     return audio;
   }
   const tv = (e) => new Date(e.photo_time || e.created_at).getTime() || 0;
-  function chairColorOf(num) { const p = POINTS.find(x => x.num === num); return p ? p.color : '#888'; }
+  function spotColorOf(num) { const p = SPOTS.find(x => x.num === num); return p ? p.color : '#888'; }
 
   // 編輯照片的留言/關聯地點/定位共用的面板內容建構（原始照片檔案本身不可更換）。
   // opts.onCancel / opts.onSaved 讓呼叫端（照片卡片 vs. 單張檢視）各自決定取消/儲存完成後要做什麼。
@@ -1066,13 +1062,13 @@ window.MapApp = (() => {
     opts = opts || {};
     panel.innerHTML =
       '<textarea class="pe-cmt" placeholder="' + esc(t('write_something_placeholder')) + '">' + esc(e.comment || '') + '</textarea>' +
-      '<label class="c-lab">' + esc(t('related_point_label')) + '</label>' +
-      '<select class="pe-chair"></select>' +
+      '<label class="c-lab">' + esc(t('related_spot_label')) + '</label>' +
+      '<select class="pe-spot"></select>' +
       '<div class="mini pe-mini"></div>' +
       '<div class="loc pe-loc"></div>' +
       '<div class="row"><button class="btn small pe-cancel" type="button">' + esc(t('cancel')) + '</button><button class="btn primary small pe-save" type="button">' + esc(t('save')) + '</button><span class="status pe-status"></span></div>';
-    const sel = panel.querySelector('.pe-chair');
-    sel.innerHTML = chairOptionsHtml(e.item_num);
+    const sel = panel.querySelector('.pe-spot');
+    sel.innerHTML = spotOptionsHtml(e.item_num);
     const miniDiv = panel.querySelector('.pe-mini');
     const lat0 = typeof e.lat === 'number' ? e.lat : META.center[0];
     const lon0 = typeof e.lon === 'number' ? e.lon : META.center[1];
@@ -1081,7 +1077,7 @@ window.MapApp = (() => {
     const state = { lat: lat0, lon: lon0, source: e.loc_source || 'manual' };
     const locEl = panel.querySelector('.pe-loc');
     locEl.innerHTML = locNote(state.source) + ' <span class="loc-hint">' + esc(t('drag_to_fix_hint')) + '</span>';
-    const setBorder = () => { miniDiv.style.borderColor = chairColorOf(sel.value ? +sel.value : null); };
+    const setBorder = () => { miniDiv.style.borderColor = spotColorOf(sel.value ? +sel.value : null); };
     setBorder();
     sel.onchange = setBorder;
     const updLoc = (pos) => {
@@ -1149,7 +1145,7 @@ window.MapApp = (() => {
       CONTRIB.push(j.item);
       picker.destroy(); panel._picker = null;
       panel.style.display = 'none'; panel.innerHTML = '';
-      recount(); renderChairs(); renderContribLayer(); rebuildPersonFilter(); emitHook('stateChange');
+      recount(); renderSpots(); renderContribLayer(); rebuildPersonFilter(); emitHook('stateChange');
       if (current) renderEntries();
       if (onSaved) onSaved(j.item);
     } catch (err) {
@@ -1294,7 +1290,7 @@ window.MapApp = (() => {
   const SRC_META = {
     exif:    { key: 'loc_src_exif',    tone: 'ok',    icon: 'fa-location-dot' },
     device:  { key: 'loc_src_device',  tone: 'warn',  icon: 'fa-location-crosshairs' },
-    chair:   { key: 'loc_src_chair',   tone: 'muted', icon: 'fa-location-dot' },
+    chair:   { key: 'loc_src_spot',    tone: 'muted', icon: 'fa-location-dot' },
     manual:  { key: 'loc_src_manual',  tone: 'info',  icon: 'fa-hand-pointer' },
     default: { key: 'loc_src_default', tone: 'muted', icon: 'fa-location-dot' },
   };
@@ -1307,23 +1303,19 @@ window.MapApp = (() => {
   // 地圖標記角標與「投稿」鈕的數字：所有型別一起算（文字投稿也是一則投稿）
   let contribTotal = 0;
   function recount() {
-    counts = {}; contribTotal = 0; audioPoints = new Set();
+    counts = {}; contribTotal = 0; audioSpots = new Set();
     effectiveEntries().forEach(e => {
       contribTotal++;
       if (e.item_num != null) {
         counts[e.item_num] = (counts[e.item_num] || 0) + 1;
-        if (kindOf(e) === 'audio') audioPoints.add(e.item_num);
+        if (kindOf(e) === 'audio') audioSpots.add(e.item_num);
       }
     });
-    // 主要內容型別若是音訊（如聲音地圖的錄音），不算進投稿數，但地圖標記仍要標示「這個點有聲音」
-    if (PRIMARY_BOX === 'audio') {
-      CONTRIB.forEach(e => { if (e.kind === PRIMARY_KIND && e.item_num != null) audioPoints.add(e.item_num); });
-    }
     updatePhotoBtn();
   }
   // 供插件在自己完成一次會影響地圖/清單顯示的動作（例如上傳、建立地點）後，一次重繪所有受影響的畫面。
-  // rebuildCats() 要排在 renderChairs() 之前：新建立的地點可能帶來一個新分類，圖例得先有那一格。
-  function refreshAll() { rebuildCats(); buildLegend(); recount(); renderChairs(); renderContribLayer(); rebuildPersonFilter(); emitHook('stateChange'); renderEntries(); }
+  // rebuildCats() 要排在 renderSpots() 之前：新建立的地點可能帶來一個新分類，圖例得先有那一格。
+  function refreshAll() { rebuildCats(); buildLegend(); recount(); renderSpots(); renderContribLayer(); rebuildPersonFilter(); emitHook('stateChange'); renderEntries(); }
   // 「投稿」鈕顯示投稿總則數；有投稿的地點數移到 title 提示裡
   function updatePhotoBtn() {
     const btn = document.getElementById('photoLayerBtn');
@@ -1331,7 +1323,7 @@ window.MapApp = (() => {
     const nPts = Object.keys(counts).length;
     btn.innerHTML = '<i class="fa-solid fa-photo-film"></i> ' + esc(t('contrib')) + (contribTotal ? ' <span class="cnt">' + contribTotal + '</span>' : '');
     btn.title = contribTotal
-      ? t('photo_layer_title_active', { n: contribTotal, a: nPts, b: effectivePoints().length })
+      ? t('photo_layer_title_active', { n: contribTotal, a: nPts, b: effectiveSpots().length })
       : t('photo_layer_title_inactive');
   }
 
@@ -1342,12 +1334,12 @@ window.MapApp = (() => {
       const j = await res.json();
       if (j.error) throw new Error(j.error + (j.detail ? '：' + j.detail : ''));
       CONTRIB = (j.items || []).map(x => ({ ...x, lat: x.lat != null ? +x.lat : null, lon: x.lon != null ? +x.lon : null }));
-      // 投稿裡可能含 kind:'newpoint'（訪客建立的地點），分類與圖例得重算一次才看得到那些點
+      // 投稿裡可能含 kind:'newspot'（訪客建立的地點），分類與圖例得重算一次才看得到那些點
       rebuildCats(); buildLegend();
-      recount(); renderChairs(); renderContribLayer(); rebuildPersonFilter(); emitHook('stateChange');
+      recount(); renderSpots(); renderContribLayer(); rebuildPersonFilter(); emitHook('stateChange');
       // 注意：這裡不因為 filterPerson 記得先前篩選就把地圖對焦過去——那樣專案層級的進站縮放
       // 會被投稿者自己散落各地的投稿點拉開，核心點位範圍反而被壓縮成一小塊。進站永遠維持
-      // boot() 那份只看 POINTS 的縮放；使用者自己從下拉選單「重新選取」投稿者時（見下方
+      // boot() 那份只看 SPOTS 的縮放；使用者自己從下拉選單「重新選取」投稿者時（見下方
       // #personFilter 的 onchange）才會對焦到那個人的範圍，這是刻意保留的互動行為。
       document.getElementById('cloudWarn').style.display = 'none';
     } catch (e) {
@@ -1359,7 +1351,7 @@ window.MapApp = (() => {
   async function boot() {
     // 資料由 view.php 伺服器端內嵌（框架不供應靜態檔）；獨立部署時退回 fetch。
     META = APP.meta || await fetch(APP.base + 'projects/' + PROJECT + '/meta.json').then(r => r.json());
-    POINTS = APP.points || await fetch(APP.base + 'projects/' + PROJECT + '/' + (META.points || 'points.json')).then(r => r.json());
+    SPOTS = APP.spots || await fetch(APP.base + 'projects/' + PROJECT + '/' + (META.points || 'points.json')).then(r => r.json());
     document.title = (META.title || t('map_title_fallback')) + (META.subtitle ? '・' + META.subtitle : '');
     document.getElementById('titleTxt').textContent = META.title || t('map_title_fallback');
     document.getElementById('titleSub').textContent = META.subtitle ? '・' + META.subtitle : '';
@@ -1379,7 +1371,7 @@ window.MapApp = (() => {
       (META.credit ? '<div class="foot-src">' + esc(META.credit) + '</div>' : '') +
       '<div class="foot-note">' + esc(t('contrib_public_notice')) + '<a href="' + esc(APP.base) + 'privacy" target="_blank" rel="noopener">' + esc(t('privacy_link_text')) + '</a></div>';
 
-    rebuildCats();   // 此時 CONTRIB 還是空的，結果就是 POINTS 的分類；投稿載入後會再算一次
+    rebuildCats();   // 此時 CONTRIB 還是空的，結果就是 SPOTS 的分類；投稿載入後會再算一次
 
     // 主引擎依 APP.engine（view.php 依 layers 裡有沒有 type:vector 算出來的）選擇。
     // MapLibre 沒有 <script src> 吃得下去的全域版本（v6 只出 ESM），前面 <head> 那段
@@ -1399,8 +1391,8 @@ window.MapApp = (() => {
     engine.onZoomThresholdCross(THUMB_ZOOM, () => { if (photoLayerOn) renderContribLayer(); });
 
     buildLegend();
-    renderChairs();
-    if (POINTS.length) engine.fitBounds(POINTS.map(c => [c.lat, c.lon]), { pad: 0.08 });
+    renderSpots();
+    if (SPOTS.length) engine.fitBounds(SPOTS.map(c => [c.lat, c.lon]), { pad: 0.08 });
 
     // 封面快照要等圖磚真的畫完才擷圖，不然存到的是半載入的畫面；只有 MapLibre 引擎有 'idle' 事件
     // 可等（見 engine.supportsSnapshot），Leaflet 專案這裡什麼都不會發生。
@@ -1454,9 +1446,15 @@ window.MapApp = (() => {
 
     const controls = document.getElementById('controls');
     const chevron = (collapsed) => '<i class="fa-solid fa-chevron-' + (collapsed ? 'right' : 'down') + '"></i>';
-    // 沒存過使用者偏好時，手機版（同 CSS 斷點 640px）預設收合，桌機維持展開
+    // 網址帶 ?collapsed=1/0 時蓋過已存偏好與裝置預設（分享特定連結時可指定開合狀態）；
+    // 沒帶這個參數、也沒存過使用者偏好時，手機版（同 CSS 斷點 640px）預設收合，桌機維持展開。
+    // 只決定這次載入的初始狀態，使用者手動切換仍照舊存回 localStorage，不會被網址參數卡住。
+    const urlCollapsed = params.get('collapsed');
     const savedCollapsed = localStorage.getItem('ctlCollapsed');
-    const startCollapsed = savedCollapsed !== null ? savedCollapsed === '1' : window.matchMedia('(max-width:640px)').matches;
+    const startCollapsed = urlCollapsed === '1' ? true
+      : urlCollapsed === '0' ? false
+      : savedCollapsed !== null ? savedCollapsed === '1'
+      : window.matchMedia('(max-width:640px)').matches;
     if (startCollapsed) { controls.classList.add('collapsed'); document.getElementById('collapseBtn').innerHTML = chevron(true); }
     document.getElementById('collapseBtn').onclick = function () {
       const c = controls.classList.toggle('collapsed');
@@ -1465,13 +1463,13 @@ window.MapApp = (() => {
     };
 
     // 定位點微調（僅管理者，顯示與否由 openPanel() 依 APP.isManager 控制）
-    const peBtn = document.getElementById('pointEditBtn');
-    if (peBtn) peBtn.onclick = togglePointEditor;
+    const peBtn = document.getElementById('spotEditBtn');
+    if (peBtn) peBtn.onclick = toggleSpotEditor;
 
     // 全部點位／投稿：互斥的顯示模式，預設「全部」；?contrib=1（嵌入用）或曾記住的投稿者篩選可預設改成「投稿」
     // apb/plb 不存在＝這張地圖關了 contribBrowse 模組（見 api/features.php），photoLayerOn 永遠留在
     // 預設值 false，行為等同一直停在「全部」模式；#personFilter 仍會渲染，只是只剩「跳到地點」用途。
-    const apb = document.getElementById('allPointsBtn'), plb = document.getElementById('photoLayerBtn');
+    const apb = document.getElementById('allSpotsBtn'), plb = document.getElementById('photoLayerBtn');
     if (apb && plb) {
       function setContribMode(on, opts) {
         photoLayerOn = on;
@@ -1482,7 +1480,7 @@ window.MapApp = (() => {
         rebuildPersonFilter();
         renderContribLayer();
         if (on && !(opts && opts.silent)) feature('photos');
-        renderChairs(); emitHook('stateChange');
+        renderSpots(); emitHook('stateChange');
       }
       apb.onclick = function () { if (photoLayerOn) setContribMode(false); };
       plb.onclick = function () { if (!photoLayerOn) setContribMode(true); };
@@ -1504,14 +1502,14 @@ window.MapApp = (() => {
         filterPerson = pf.value;
         try { if (filterPerson) localStorage.setItem(personPrefKey, filterPerson); else localStorage.removeItem(personPrefKey); } catch (e) {}
         if (filterPerson) feature('filter');
-        renderContribLayer(); renderChairs(); emitHook('stateChange');
+        renderContribLayer(); renderSpots(); emitHook('stateChange');
         const pts = filterPerson ? personPoints(filterPerson).map(e => [e.lat, e.lon]) : [];
         if (pts.length) engine.fitBounds(pts, { pad: 0.25 });
       } else {
         const num = pf.value ? +pf.value : null;
         pf.value = '';
         if (num != null) {
-          const pt = effectivePoints().find(p => p.num === num);
+          const pt = effectiveSpots().find(p => p.num === num);
           if (pt) { emitHook('panelReset'); openPanel(pt); engine.panTo(pt.lat, pt.lon, { animate: true }); }
         }
       }
@@ -1587,6 +1585,17 @@ window.MapApp = (() => {
     await computeMyHash();       // 先算出本裝置擁有者雜湊（供「刪自己的」判斷）
     await computeContribId();    // 若已建立投稿者身分，算出對外可見的投稿者ID（供「刪自己的」判斷）
     await loadContributions();
+
+    // 網址帶 ?spot=<num> 時直接開啟該地點卡片並平移過去（QR／NFC／分享連結用，例如聲音地景現場掃碼）；
+    // 要排在 loadContributions() 之後：effectiveSpots() 疊的是 CONTRIB（spots.jsonl 的即時內容），
+    // 伺服器端內嵌的 SPOTS 只是進站當下的快照，剛建立或剛編輯的地點得等 CONTRIB 抓回來才找得到。
+    // 找不到對應地點（號碼錯誤或已刪除）就安靜略過，不擋其餘初始化。
+    const urlSpot = params.get('spot');
+    if (urlSpot) {
+      const pt = effectiveSpots().find(p => p.num === +urlSpot);
+      if (pt) { openPanel(pt); engine.panTo(pt.lat, pt.lon, { animate: true }); }
+    }
+
     statVisit();                 // 匿名累加瀏覽 / 工作階段 / 裝置別
     hideSkeleton();
   }
@@ -1616,7 +1625,7 @@ window.MapApp = (() => {
   // 重置地圖回初始視角（左下地圖操作）
   function resetView() {
     if (!engine) return;
-    if (POINTS && POINTS.length) engine.fitBounds(effectivePoints().map(c => [c.lat, c.lon]), { pad: 0.08 });
+    if (SPOTS && SPOTS.length) engine.fitBounds(effectiveSpots().map(c => [c.lat, c.lon]), { pad: 0.08 });
     else engine.setView(META.center || [23.9, 120.7], META.zoom || 14);
     feature('reset');
   }
@@ -1763,27 +1772,27 @@ window.MapApp = (() => {
     extLinkProceed, closeExtLinkDialog, openShortcuts, closeShortcuts,
     // ---- 選用插件掛勾點 API（見 souliong/docs/EXTENDING.md）----
     onHook, registerPhotoFilter, registerEntriesHint, registerEntryAction, registerScopeParam, registerShortcut,
-    personTimeline, pointTitle, photoFullUrl, openPanel, openUnlock, refreshEntries: renderEntries,
+    personTimeline, spotTitle, photoFullUrl, openPanel, openUnlock, refreshEntries: renderEntries,
     refreshPersonFilter: rebuildPersonFilter,
     // 正式的引擎存取介面，回傳 MapEngine 抽象基底的實例（見 docs/EXTENDING.md）。
     getEngine: () => engine,
     getFilterPerson: () => filterPerson, isPhotoLayerOn: () => photoLayerOn,
-    getCurrentPoint: () => current,
+    getCurrentSpot: () => current,
     isUnlocked, isEmbedMode: () => EMBED,
     canTogglePreview: () => REAL_IS_MANAGER, isPreviewMode: () => PREVIEW_MODE, setPreviewMode,
     hasIdentity: () => !!contribToken(),
     trackFeature: feature, currentScopeParams, getProjectId: () => PROJECT,
     // effectivePhotos／photoFullUrl 是「只有照片」的那份，route-tour／person-explore 兩個插件在用
     // （那些畫面只處理得了 <img>）；要拿到全部型別的投稿請用 effectiveEntries + entryFullUrl。
-    effectivePhotos, effectiveEntries, entryFullUrl, entryThumbUrl, effectivePoints, chairMarkerSpecs,
+    effectivePhotos, effectiveEntries, entryFullUrl, entryThumbUrl, effectiveSpots, spotMarkerSpecs,
     kindOf, contribCfg: () => CONTRIB_CFG, fmtDur,
     // 自訂聲音播放器元件（大播放鍵＋進度條，取代預設 <audio controls>）：故事區、投稿卡片預覽共用，
     // 供插件（如 sound-editor.js 錄音後的即時試聽）也能用同一套外觀，見 renderEntries() 內的用法。
     audioPlayerHtml, wireAudioPlayer,
     personColor, toast,
-    displayName, anonName: () => SESSION_ANON, submitContribution, submitNewPoint,
+    displayName, anonName: () => SESSION_ANON, submitContribution, submitNewSpot,
     rerollAnon, identityChipClick,
-    chairOptionsHtml, nearestPoint, locNote, srcTone, fmtTime,
+    spotOptionsHtml, nearestSpot, locNote, srcTone, fmtTime,
     getMeta: () => META, getCats: () => CATS.slice(),
     refreshCounts: recount, refreshAll,
     Plugin: SouliongPlugin,

@@ -65,9 +65,10 @@ function perm_can(array $cfg, string $project): bool {
  *  而非各自硬編碼略過檢查——新權限鍵一律要在這裡明列才會對 primary 生效，不會無聲預設全開。 */
 function primary_perms(): array {
     return [
-        'delete_others' => true, 'edit_others' => true, 'edit_points' => true,
+        'delete_others' => true, 'edit_others' => true, 'edit_spots' => true,
         'grant_access' => true, 'edit_3d_regions' => true,
         'manage_layers' => true, 'fix_exif' => true, 'fix_thumbnails' => true, 'view_stats' => true,
+        'migrate_spots' => true,
     ];
 }
 /** 專案層級具名權限判斷：primary 查 primary_perms()；專案 PIN 或專案帳號則需 perms[$permKey] 已被開啟才通過。 */
@@ -107,7 +108,7 @@ function pins_file(array $cfg): string {
     return $new;
 }
 /** 新專案 PIN 的預設權限：一律從全關始（等同僅主 PIN 才能動別人的東西），需主 PIN 逐項開啟下放。 */
-function pin_default_perms(): array { return ['delete_others' => false, 'edit_others' => false, 'edit_points' => false, 'grant_access' => false, 'edit_3d_regions' => false]; }
+function pin_default_perms(): array { return ['delete_others' => false, 'edit_others' => false, 'edit_spots' => false, 'grant_access' => false, 'edit_3d_regions' => false]; }
 // manager.php 單次頁面渲染常對同一專案連續呼叫多次 perm_check()，各自都會讀這份清單；
 // 用行程內靜態快取避免同一請求重複讀檔／解碼，pins_save() 寫入後會同步更新快取。
 function _pins_cache(?array $set = null): ?array {
@@ -121,7 +122,7 @@ function pins_load(array $cfg): array {
     $d = is_file(pins_file($cfg)) ? json_decode((string)@file_get_contents(pins_file($cfg)), true) : null;
     if (!is_array($d)) $d = [];
     $d['projects'] = $d['projects'] ?? [];
-    // 舊資料補齊 id/perms（一次性、自我修復），含 delegate_admin → grant_access、master → primary 改名搬遷、
+    // 舊資料補齊 id/perms（一次性、自我修復），含 delegate_admin → grant_access、edit_points → edit_spots、master → primary 改名搬遷、
     // 明文 pin → pin_hash 雜湊搬遷（主 PIN／專案 PIN 清單皆適用）
     $dirty = false;
     if (array_key_exists('master', $d)) {
@@ -143,6 +144,11 @@ function pins_load(array $cfg): array {
             if (array_key_exists('delegate_admin', $e['perms']) && !array_key_exists('grant_access', $e['perms'])) {
                 $e['perms']['grant_access'] = $e['perms']['delegate_admin'];
                 unset($e['perms']['delegate_admin']);
+                $dirty = true;
+            }
+            if (array_key_exists('edit_points', $e['perms']) && !array_key_exists('edit_spots', $e['perms'])) {
+                $e['perms']['edit_spots'] = $e['perms']['edit_points'];
+                unset($e['perms']['edit_points']);
                 $dirty = true;
             }
             if (isset($e['pin'])) { $e['pin_hash'] = pin_hash_of($cfg, (string)$e['pin']); unset($e['pin']); $dirty = true; }

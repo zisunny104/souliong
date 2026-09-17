@@ -45,12 +45,12 @@
       this.cfg = cfg;
       this.injectStyle();
       this.injectButton();
-      // 「原地重用」時 activeEngine 就是主引擎，stateChange 已經會驅動它自己的 renderChairs()，
+      // 「原地重用」時 activeEngine 就是主引擎，stateChange 已經會驅動它自己的 renderSpots()，
       // 這裡不用重畫；只有「另開一顆」的 standaloneEngine 是獨立於主流程的第二顆地圖，才需要
-      // 在這裡手動把它的 chairs 圖層跟著刷新。
+      // 在這裡手動把它的 spots 圖層跟著刷新。
       this.mapApp.onHook('stateChange', () => {
         if (this.active && this.activeEngine && this.activeEngine === this.standaloneEngine) {
-          this.activeEngine.setMarkerLayer('chairs', this.mapApp.chairMarkerSpecs());
+          this.activeEngine.setMarkerLayer('spots', this.mapApp.spotMarkerSpecs());
         }
       });
     }
@@ -117,7 +117,7 @@
         this.activeEngine = this.standaloneEngine;
       }
       this.activeEngine.enter3D(this.cfg);
-      this.activeEngine.setMarkerLayer('chairs', this.mapApp.chairMarkerSpecs());
+      this.activeEngine.setMarkerLayer('spots', this.mapApp.spotMarkerSpecs());
       this.active = true;
       this.btn.classList.add('on');
     }

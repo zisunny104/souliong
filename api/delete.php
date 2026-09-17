@@ -16,10 +16,7 @@ if ($project === '' || $id === '' || ($owner === '' && $ctoken === '') || strlen
 }
 
 try {
-    $rec = null;
-    foreach (store_all($cfg, $project) as $r) {
-        if ((string)($r['id'] ?? '') === $id) { $rec = $r; break; }
-    }
+    $rec = store_find($cfg, $project, $id);
     if (!$rec) { json_out(['error' => 'not found'], 404); }
     $ownerStored  = (string)($rec['owner_hash'] ?? '');
     $contribStored = (string)($rec['contrib_hash'] ?? '');
@@ -27,6 +24,11 @@ try {
     $contribOk = $ctoken !== '' && $contribStored !== '' && hash_equals($contribStored, contrib_hash_of($ctoken));
     if (!$ownerOk && !$contribOk) {
         json_out(['error' => '沒有權限刪除這則（可能是別人上傳的，或此裝置/身分的標記已更換）'], 403);
+    }
+    // 點位本身（kind:'spot'）不能自刪，即使 owner_hash 對得上：那是地點的識別記錄，
+    // 不是可各自撤回的投稿，要刪只能透過有 edit_spots 權限的後台管理。
+    if (($rec['kind'] ?? null) === 'spot') {
+        json_out(['error' => '不能刪除點位本身'], 403);
     }
     $removed = store_delete($cfg, $project, $id);
     store_purge_files($cfg, $removed);   // 照片與影音的主檔＋縮圖一起清（見 store.php）

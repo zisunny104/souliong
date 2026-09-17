@@ -97,7 +97,7 @@ function account_current(array $cfg): ?array {
 }
 
 // ── 登入（含失敗鎖定，userid 常常等於公開暱稱、可預測，靠這個擋暴力破解）──
-function _account_default_perms(): array { return ['delete_others' => false, 'edit_others' => false, 'edit_points' => false, 'grant_access' => false, 'edit_3d_regions' => false]; }
+function _account_default_perms(): array { return ['delete_others' => false, 'edit_others' => false, 'edit_spots' => false, 'grant_access' => false, 'edit_3d_regions' => false]; }
 // 帳號不存在時仍跑一次 password_verify()（比對這組固定的假雜湊），耗時比照真的驗證，
 // 避免「帳號不存在」比「帳號存在但密碼錯」明顯更快，讓人用回應時間差猜中哪些 userid 有註冊。
 define('ACCOUNT_DUMMY_HASH', '$2y$10$dTLVeAjwEKpp0FwAqcPLUuP/YC2K5g4zJ/yQDyGTjXv8YDV/M9GEm');
@@ -173,12 +173,17 @@ function project_perms_load(array $cfg, string $project): array {
     $d = is_file($f) ? json_decode((string)@file_get_contents($f), true) : null;
     $d = is_array($d) ? $d : [];
     $d['members'] = $d['members'] ?? [];
-    // 舊資料 delegate_admin → grant_access 改名搬遷（一次性、自我修復）
+    // 舊資料 delegate_admin → grant_access、edit_points → edit_spots 改名搬遷（一次性、自我修復）
     $dirty = false;
     foreach ($d['members'] as &$m) {
         if (isset($m['perms']) && is_array($m['perms']) && array_key_exists('delegate_admin', $m['perms']) && !array_key_exists('grant_access', $m['perms'])) {
             $m['perms']['grant_access'] = $m['perms']['delegate_admin'];
             unset($m['perms']['delegate_admin']);
+            $dirty = true;
+        }
+        if (isset($m['perms']) && is_array($m['perms']) && array_key_exists('edit_points', $m['perms']) && !array_key_exists('edit_spots', $m['perms'])) {
+            $m['perms']['edit_spots'] = $m['perms']['edit_points'];
+            unset($m['perms']['edit_points']);
             $dirty = true;
         }
     }

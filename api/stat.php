@@ -1,6 +1,6 @@
 <?php
 // 匿名聚合統計：只累加計數，不存 IP / 個資 / 逐筆事件。
-// 累加：POST project, type(view|point|session|device|feature)[, id, h, d]
+// 累加：POST project, type(view|spot|session|device|feature)[, id, h, d]
 // 讀取：GET  ?read=1&token=管理密碼  → 回傳統計 JSON（分析用）
 require __DIR__ . '/store.php';
 require __DIR__ . '/security.php';
@@ -31,8 +31,8 @@ stats_apply($cfg, $project, function (&$s) use ($type, $id, $h, $d, $FEATURES) {
             if ($h >= 0 && $h <= 23) stats_bump($s, 'by_hour', (string)$h, 24);
             if ($d >= 0 && $d <= 6)  stats_bump($s, 'by_dow', (string)$d, 7);
             break;
-        case 'point':
-            if (ctype_digit($id) && strlen($id) <= 5) stats_bump($s, 'points', $id, 3000);
+        case 'spot':
+            if (ctype_digit($id) && strlen($id) <= 5) stats_bump($s, 'spots', $id, 3000);
             break;
         case 'session':
             stats_bump($s, 'sessions');

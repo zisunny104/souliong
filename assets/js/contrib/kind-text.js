@@ -16,7 +16,7 @@
     needsFile() { return false; }
     needsLocation() { return false; }
     // 關聯地點留著：文字紀錄一定是留給某個地點的（upload.php 允許不指定，但這裡預設會選最近的）
-    needsPoint() { return true; }
+    needsSpot() { return true; }
 
     validate(state, card) {
       return card.querySelector('.c-cmt').value.trim() ? null : t('need_text_content');

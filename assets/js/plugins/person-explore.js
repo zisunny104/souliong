@@ -84,10 +84,10 @@
   /* ---------- state ---------- */
   let stops = [], idx = -1, focusName = null, started = false, lastPerson = null;
 
-  function stopKey(s) { return s.type === 'point' ? ('p' + s.num) : ('l' + s.entry.id); }
+  function stopKey(s) { return s.type === 'spot' ? ('p' + s.num) : ('l' + s.entry.id); }
   function stopLabel(s) {
-    if (s.type === 'point') {
-      return (s.point ? App.pointTitle(s.point) : t('explore_point_removed')) + '｜' + t('explore_photo_count', { n: s.photos.length });
+    if (s.type === 'spot') {
+      return (s.spot ? App.spotTitle(s.spot) : t('explore_spot_removed')) + '｜' + t('explore_photo_count', { n: s.photos.length });
     }
     const cmt = (s.entry.comment || '').trim();
     return esc(cmt ? (cmt.length > 24 ? cmt.slice(0, 24) + '…' : cmt) : t('explore_loose_photo'));
@@ -136,9 +136,9 @@
     }
 
     if (!on) return;
-    const nPoint = stops.filter(s => s.type === 'point').length;
-    const nLoose = stops.length - nPoint;
-    document.getElementById('pexpSummary').textContent = t('explore_summary', { points: nPoint, loose: nLoose });
+    const nSpot = stops.filter(s => s.type === 'spot').length;
+    const nLoose = stops.length - nSpot;
+    document.getElementById('pexpSummary').textContent = t('explore_summary', { spots: nSpot, loose: nLoose });
     startBtn.style.display = started ? 'none' : '';
     navEl.style.display = started ? '' : 'none';
     if (!started) return;   // 還沒按開始，不用算目前這站的位置文字
@@ -166,11 +166,11 @@
   function jumpToStop(s) {
     const engine = App.getEngine();
     // 兩種站型切換時，先關掉另一種疊層，避免舊的地點卡片／燈箱蓋住新內容（看起來像卡住或閃到舊資訊）
-    if (s.type === 'point' && s.point) {
+    if (s.type === 'spot' && s.spot) {
       App.closeLightbox();
       focusName = App.getFilterPerson();
-      engine.panTo(s.point.lat, s.point.lon, { animate: true });
-      App.openPanel(s.point);
+      engine.panTo(s.spot.lat, s.spot.lon, { animate: true });
+      App.openPanel(s.spot);
     } else if (s.type === 'loose') {
       const e = s.entry;
       App.closePanel();

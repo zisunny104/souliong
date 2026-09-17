@@ -14,17 +14,17 @@
   max-height: calc(100dvh - 28px);
   display: flex;
   flex-direction: column;
-  /* overflow:clip + overflow-clip-margin 而不是 hidden，理由同 #panel（point-panel.css）：
+  /* overflow:clip + overflow-clip-margin 而不是 hidden，理由同 #panel（spot-panel.css）：
      要放行外掛在右下角、超出圓角的主題包角標，而真正的捲動區是 .ctl-body 自己的
      overflow-y:auto，這裡的 overflow 只負責把內容裁在圓角內，換成 clip 不影響捲動。 */
   overflow: clip;
   overflow-clip-margin: 26px;
   /* 主題包外框：沒選包時 --pack-frame-src 退回 none，border-image 不生效，原本的 border 正常顯示。
-     理由同 #panel（point-panel.css） */
+     理由同 #panel（spot-panel.css） */
   border-image-source: var(--pack-frame-src, none);
   border-image-slice: 24 fill;
   border-image-width: 13px;
-  /* 材質上的文字要用材質自己定義的墨色，理由同 #panel（point-panel.css）。
+  /* 材質上的文字要用材質自己定義的墨色，理由同 #panel（spot-panel.css）。
      color 是繼承屬性，只改 --fg 這個變數不會讓底下沒自己宣告 color 的文字重新對到新值，
      一定要在這裡明講一次 color: var(--fg)，子層繼承才會是新值。 */
   --fg: var(--pack-ink, var(--fg-base));
@@ -32,7 +32,7 @@
   color: var(--fg);
 }
 
-/* 主題包底圖：獨立圖層放在內容後面，理由同 #panel（point-panel.css） */
+/* 主題包底圖：獨立圖層放在內容後面，理由同 #panel（spot-panel.css） */
 .floatcard::before {
   content: '';
   position: absolute;
@@ -50,7 +50,7 @@
   z-index: 1;
 }
 
-/* 主題包外框覆蓋層：理由同 #panel（point-panel.css），這層疊在內容最上面、角標外掛在
+/* 主題包外框覆蓋層：理由同 #panel（spot-panel.css），這層疊在內容最上面、角標外掛在
    右下角並超出圓角，預設 none 不畫東西，pointer-events:none 不擋點擊。
    inset/size/position/repeat 四行要跟 #panel::after 完全一致，改這裡就要一起改那邊；
    一樣不能寫 border-radius: inherit，寫了角標探出圓角的部分就會被裁掉。 */
@@ -67,7 +67,7 @@
 }
 
 /* 卡片內本來就是不透明表單控制項的區塊（自己有 --bg 底色），墨色維持一般主題色，
-   理由同 #panel（point-panel.css）。.btn 不在這份排除名單裡——按鈕改用專屬的
+   理由同 #panel（spot-panel.css）。.btn 不在這份排除名單裡——按鈕改用專屬的
    --pack-btn-bg/--pack-btn-ink 這組變數（見 .btn 規則），不跟著材質墨色走 */
 .floatcard .name-in,
 .floatcard .chip,
@@ -250,8 +250,8 @@
   text-decoration: line-through
 }
 
-/* ---------- 點位列表（pointList 模組，取代「跳到地點」下拉選單） ---------- */
-.sl-point-list {
+/* ---------- 點位列表（spotList 模組，取代「跳到地點」下拉選單） ---------- */
+.sl-spot-list {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -259,13 +259,13 @@
   overflow-y: auto
 }
 
-.sl-point-list-heading {
+.sl-spot-list-heading {
   font-size: 0.6875rem;
   color: var(--muted);
   padding: 0 2px
 }
 
-.sl-point-list-item {
+.sl-spot-list-item {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -281,18 +281,18 @@
   transition: background var(--t)
 }
 
-.sl-point-list-item:hover {
+.sl-spot-list-item:hover {
   background: var(--hover)
 }
 
-.sl-point-list-dot {
+.sl-spot-list-dot {
   width: 9px;
   height: 9px;
   border-radius: 50%;
   flex: none
 }
 
-.sl-point-list-label {
+.sl-spot-list-label {
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -300,7 +300,7 @@
   white-space: nowrap
 }
 
-.sl-point-list-area {
+.sl-spot-list-area {
   font-size: 0.6875rem;
   color: var(--muted);
   flex: none

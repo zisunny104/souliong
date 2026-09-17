@@ -1,14 +1,14 @@
 <?php
 // 建立新的定位點。POST project, name(建立者暱稱), title, cat, catLabel, color, story, lat, lon
 //
-// 比照 editpoint.php 的版本化精神：不改寫靜態的 points.json／chairs.json（那是匯入的來源資料），
-// 而是往 data.jsonl 附加一筆 kind:'newpoint'，前端讀取時把它併進點位清單
-// （見 viewer.core.js 的 effectivePoints()）。建立出來的點之後一樣能被管理者用 editpoint.php
-// 搬位置——因為那條路徑是照 num 去覆蓋座標的，不管這個 num 來自哪裡。
+// 點位資料只有 spots.jsonl 一個來源（靜態底稿已由 api/spotmigrate.php 併入）：往裡附加一筆
+// kind:'spot' 起點（無 edit_of，帶 num/title），前端讀取時把它併進點位清單（見 viewer.core.js
+// 的 effectiveSpots()）。建立出來的點之後一樣能被管理者用 editspot.php 搬位置——那條路徑會
+// 找到這筆當 edit_of 的鏈頭。
 //
-// 權限跟 editpoint.php 不同，是每張地圖自己決定的（meta.json 的 contrib.newPoint）：
+// 權限跟 editspot.php 不同，是每張地圖自己決定的（meta.json 的 contrib.newPoint）：
 //   off（預設）  誰都不能建，端點直接 403——舊地圖不改設定檔就完全沒有這個功能
-//   admin        只有管理者，比照 editpoint.php（perm_check + CSRF）
+//   admin        只有管理者，比照 editspot.php（perm_check + CSRF）
 //   contributor  一般投稿者也能建，比照 upload.php 的停權與投稿代碼把關
 require __DIR__ . '/store.php';
 require __DIR__ . '/security.php';
@@ -45,10 +45,10 @@ $ownerHash = !empty($_POST['owner']) ? hash('sha256', (string)$_POST['owner']) :
 $contribId = !empty($_POST['ctoken']) ? contrib_id_of((string)$_POST['ctoken']) : null;
 
 if ($who === 'admin') {
-    if (!perm_check($cfg, $project, 'edit_points')) {
+    if (!perm_check($cfg, $project, 'edit_spots')) {
         json_out(['error' => '這張地圖只有管理者能建立地點'], 403);
     }
-    // CSRF：比照 editpoint.php，值＝同一支登入身分在 view.php 才拿得到的衍生值（見 $APP.csrf）
+    // CSRF：比照 editspot.php，值＝同一支登入身分在 view.php 才拿得到的衍生值（見 $APP.csrf）
     $csrfExpected = primary_authed($cfg) ? primary_derived($cfg) : pin_derived($cfg, $project, (string)pin_current_id($cfg, $project));
     if (!hash_equals($csrfExpected, (string)($_POST['csrf'] ?? ''))) {
         json_out(['error' => '憑證失效，請重新整理頁面後再操作一次'], 403);
@@ -71,7 +71,7 @@ if ($who === 'admin') {
     }
 }
 
-function clean_str_np(?string $s, int $max): ?string {
+function clean_str_ns(?string $s, int $max): ?string {
     if ($s === null) return null;
     $s = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F]/u', '', $s);
     $s = trim($s);
@@ -85,26 +85,22 @@ $lon = is_numeric($_POST['lon'] ?? null) ? (float)$_POST['lon'] : null;
 if ($lat === null || $lon === null || $lat < -90 || $lat > 90 || $lon < -180 || $lon > 180) {
     json_out(['error' => 'bad request'], 400);
 }
-$title = clean_str_np($_POST['title'] ?? null, 80);
+$title = clean_str_ns($_POST['title'] ?? null, 80);
 if ($title === null) {
     json_out(['error' => '請給這個地點一個名稱'], 400);
 }
-$story = clean_str_np($_POST['story'] ?? null, $cfg['comment_max']);
-$by    = clean_str_np($_POST['name'] ?? null, $cfg['name_max']) ?? '匿名';
+$story = clean_str_ns($_POST['story'] ?? null, $cfg['comment_max']);
+$by    = clean_str_ns($_POST['name'] ?? null, $cfg['name_max']) ?? '匿名';
 
 // 分類：優先沿用這張地圖既有的分類（連 catLabel／color 一起繼承），圖例與篩選才對得上。
 // 送了不存在的分類就另外收下它的標籤與顏色，由前端的圖例自行補上這一類。
-$pointsF = $projDir . '/' . ($meta['points'] ?? 'points.json');
-$points  = is_file($pointsF) ? json_decode((string)file_get_contents($pointsF), true) : [];
-if (!is_array($points)) $points = [];
-
 $cat = preg_replace('/[^a-z0-9_-]/', '', strtolower((string)($_POST['cat'] ?? '')));
 $catLabel = null;
 $color    = null;
-foreach ($points as $p) {
-    if (is_array($p) && ($p['cat'] ?? null) === $cat) {
-        $catLabel = $p['catLabel'] ?? null;
-        $color    = $p['color'] ?? null;
+foreach (_store_read_lines(store_file($cfg, $project, 'spot')) as $r) {
+    if (empty($r['edit_of']) && isset($r['num']) && ($r['cat'] ?? null) === $cat) {
+        $catLabel = $r['catLabel'] ?? null;
+        $color    = $r['color'] ?? null;
         break;
     }
 }
@@ -121,20 +117,18 @@ if ($cat === '') {
 if ($color === null) $color = '#7a7f87';
 
 try {
-    // 配號要在鎖裡做：num 是從「現有點位 + 已建立的 newpoint」取 max+1，
-    // 用 store_all() 讀完再 store_append() 是兩段各自的鎖，兩個人同時建點會撞號。
-    $record = store_append_locked($cfg, $project, function (array $records) use ($points, $project, $title, $cat, $catLabel, $color, $story, $lat, $lon, $by, $ownerHash, $contribId) {
+    // 配號要在鎖裡做：num 是從「現有 spot 起點」取 max+1，用 store_all() 讀完再
+    // store_append() 是兩段各自的鎖，兩個人同時建點會撞號。
+    $record = store_append_locked($cfg, $project, function (array $records) use ($project, $title, $cat, $catLabel, $color, $story, $lat, $lon, $by, $ownerHash, $contribId) {
         $max = 0;
-        foreach ($points as $p) {
-            if (is_array($p) && isset($p['num'])) $max = max($max, (int)$p['num']);
-        }
         foreach ($records as $r) {
-            if (($r['kind'] ?? null) === 'newpoint' && isset($r['num'])) $max = max($max, (int)$r['num']);
+            // 只算起點（無 edit_of、有 num），搬移／設精選那幾筆沒有自己的 num 可算
+            if (empty($r['edit_of']) && isset($r['num'])) $max = max($max, (int)$r['num']);
         }
         return [
             'id'         => bin2hex(random_bytes(8)),
             'project'    => $project,
-            'kind'       => 'newpoint',
+            'kind'       => 'spot',
             'num'        => $max + 1,
             // item_num 跟 num 同值：投稿與座標編輯都是照 item_num 掛到點位上的，
             // 建立點自己也填一份，之後查「這個點底下有什麼」不用分兩種寫法。
@@ -151,10 +145,10 @@ try {
             'contrib_id' => $contribId,
             'created_at' => gmdate('c'),
         ];
-    });
+    }, 'spot');
 
     json_out(['ok' => true, 'item' => $record]);
 } catch (Throwable $e) {
-    error_log('souliong newpoint: ' . $e->getMessage());
+    error_log('souliong newspot: ' . $e->getMessage());
     json_out(['error' => 'server'] + (!empty($cfg['debug']) ? ['detail' => $e->getMessage()] : []), 500);
 }

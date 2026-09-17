@@ -36,7 +36,7 @@ final class Route
     public const PANES = ['overview', 'records', 'access', 'tools'];
 
     /** 後台維護工具（各自是 index.php 的一條路由） */
-    public const TOOLS = ['exiffix', 'thumbfix', 'tilecut', 'region3d', 'layermigrate'];
+    public const TOOLS = ['exiffix', 'thumbfix', 'tilecut', 'region3d', 'layermigrate', 'spotmigrate'];
 
     /** manager 路徑裡的保留字。地圖代號撞到這些字時，parseManager() 的 $isProject 會讓真實資料優先 */
     public const LOGOUT = 'logout';

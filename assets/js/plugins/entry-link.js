@@ -61,11 +61,11 @@
       this.handled = true;
       const entry = entries.find(e => e.id === id);
       if (!entry || entry.item_num == null) return;
-      const point = App.effectivePoints().find(p => p.num === entry.item_num);
-      if (!point) return;
-      App.openPanel(point);
+      const spot = App.effectiveSpots().find(p => p.num === entry.item_num);
+      if (!spot) return;
+      App.openPanel(spot);
       const engine = App.getEngine();
-      if (engine) engine.panTo(point.lat, point.lon, { animate: true });
+      if (engine) engine.panTo(spot.lat, spot.lon, { animate: true });
       requestAnimationFrame(() => {
         const card = document.querySelector('.entry[data-entry-id="' + CSS.escape(id) + '"]');
         if (!card) return;

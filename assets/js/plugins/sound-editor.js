@@ -1,9 +1,10 @@
 /* 選用插件：聲音主要內容編輯（見 souliong/docs/EXTENDING.md 第七節）
    只在該地圖 meta.json 的 features.soundEdit 為 true 時，view.php 才會載入這個檔案（依賴 upload 模組，
    因為要用到 isUnlocked()/openUnlock() 的解鎖流程與 kind-audio.js 的錄音機／選檔邏輯）。
-   跟 story-editor.js 是同一種角色：故事區「新增一則版本」的動作，只是這張地圖的主要內容
-   （meta.json 的 contrib.primaryKind）不是故事文字而是錄音——送出時走跟一般投稿相同的
-   api/upload.php，但不出現在 contribution.js 的通用投稿對話框裡（見該檔 initTabs() 的排除邏輯）。 */
+   跟 story-editor.js 是同一種角色：故事區「新增一則版本」的動作，只是送出的是錄音而非故事文字。
+   送出時走跟一般投稿相同的 api/upload.php，產生一筆普通 audio 投稿（照樣出現在投稿牆上）；
+   要不要把這筆設成點位的精選內容（feature），是另一件事，由具備 edit_spots 權限的人透過
+   點位編輯 UI 決定，兩者不綁在同一次送出。 */
 (() => {
   const I18N = window.I18N || {};
   const t = (key, vars) => {
@@ -17,11 +18,11 @@
     constructor() { super('soundEdit'); this.state = null; }
 
     mount() {
-      this.mapApp.registerEntriesHint(point => { this.injectRecordButton(point); return null; });
+      this.mapApp.registerEntriesHint(spot => { this.injectRecordButton(spot); return null; });
     }
 
     // #storyActions 是核心 renderEntries() 每次重建 #entries 時一定會重畫的容器，藉 registerEntriesHint 的時機掛上錄音鈕
-    injectRecordButton(point) {
+    injectRecordButton(spot) {
       const actions = document.getElementById('storyActions');
       if (!actions) return;
       if (!this.mapApp.isUnlocked() || this.mapApp.isEmbedMode()) return;
@@ -30,7 +31,7 @@
       const btn = document.createElement('button');
       btn.className = 'btn small'; btn.id = 'editSoundBtn';
       btn.innerHTML = '<i class="fa-solid fa-microphone"></i> ' + esc(t('record_sound_btn'));
-      btn.onclick = () => this.toggleEditor(point.num, audioKind);
+      btn.onclick = () => this.toggleEditor(spot.num, audioKind);
       actions.insertBefore(btn, actions.firstChild);
     }
 
@@ -56,7 +57,7 @@
       const sourceInput = document.getElementById('sndSource');
       const licRow = document.getElementById('sndLicRow');
       sourceInput.addEventListener('input', () => { licRow.style.display = sourceInput.value.trim() ? '' : 'none'; });
-      document.getElementById('sndSave').onclick = () => this.submit(num);
+      document.getElementById('sndSave').onclick = () => this.submit(num, audioKind);
       this.renderPicker(audioKind);
     }
 
@@ -96,7 +97,7 @@
       this.state = null;
     }
 
-    async submit(num) {
+    async submit(num, audioKind) {
       const st = this.state;
       if (!st || !st.blob) { alert(t('need_file_for_kind')); return; }
       let source = (document.getElementById('sndSource').value || '').trim();
@@ -105,7 +106,7 @@
       const btn = document.getElementById('sndSave'); btn.disabled = true; btn.textContent = t('submitting');
       try {
         const fields = {
-          kind: this.mapApp.contribCfg().primaryKind, item_num: num,
+          kind: audioKind.key, item_num: num,
           name: this.mapApp.displayName(),
           comment: caption || null, source_url: source || null,
           media: [st.blob, st.blob.name || 'audio'],

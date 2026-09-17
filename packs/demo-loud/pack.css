@@ -53,7 +53,7 @@
    * 是這包故意要修正的地方）。 */
   --pack-frame-src: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'%3E%3Crect x='2' y='2' width='92' height='92' fill='none' stroke='%23ffd400' stroke-width='3'/%3E%3Cg fill='none' stroke='%23ffffff' stroke-width='6' stroke-linecap='square'%3E%3Cpath d='M2,32 V26 H8 V20 H14 V14 H20 V8 H26 V2'/%3E%3Cpath d='M64,2 H70 V8 H76 V14 H82 V20 H88 V26 H94 V32'/%3E%3Cpath d='M94,64 V70 H88 V76 H82 V82 H76 V88 H70 V94 H64'/%3E%3Cpath d='M32,94 H26 V88 H20 V82 H14 V76 H8 V70 H2 V64'/%3E%3C/g%3E%3C/svg%3E");
 
-  /* 外框覆蓋層（疊在內容最上面的角標，跟上面的外框環是兩回事，見 point-panel.css 的
+  /* 外框覆蓋層（疊在內容最上面的角標，跟上面的外框環是兩回事，見 spot-panel.css 的
    * #panel::after 說明）——這包拿它示範「角標可以蓋到內容上」，而且四個容器各掛各的圖：
    * 地點卡＝黃色三角、控制卡＝青色像素階梯、對話框＝紫色圓形印章、右上資訊列＝白色方塊。
    * 形狀跟顏色兩個軸線都刻意錯開（只換形狀的話，小尺寸下四個角標還是容易看成同一張），
@@ -62,10 +62,10 @@
    * 退回 --pack-frame-overlay-src（這包不宣告，故意讓四個容器完全不共用），再沒有就不畫。
    *
    * 每張圖的 viewBox 都被圖案填滿、四周沒有留白，套用的地方才好用固定像素尺寸把它擺到
-   * 右下角（見 point-panel.css 的 #panel::after）：圖多大就等於角標多大，不會因為容器
+   * 右下角（見 spot-panel.css 的 #panel::after）：圖多大就等於角標多大，不會因為容器
    * 高寬比不同而變形，也不會有留白把圖案推離角落、飄到容器中間。
    * 四張圖都是「完整、獨立的一塊圖案」，不是靠容器邊界切一半來成形的半截圖形——套用時
-   * 角標是外掛在容器右下角、有一部分浮在容器輪廓外面的貼紙（見 point-panel.css 的
+   * 角標是外掛在容器右下角、有一部分浮在容器輪廓外面的貼紙（見 spot-panel.css 的
    * #panel::after），根本沒有邊界會幫忙裁形狀，靠切一半成形的畫法會直接露出斷面。
    * pointer-events:none 已經在套用的地方處理過，角標底下的文字、按鈕照常可以點，只是
    * 視覺上會被蓋住一塊——這正是這個機制要展示的效果。 */

@@ -75,11 +75,11 @@ switch ($action) {
     case 'editentry':
         require __DIR__ . '/api/editentry.php';
         return;
-    case 'editpoint':
-        require __DIR__ . '/api/editpoint.php';
+    case 'editspot':
+        require __DIR__ . '/api/editspot.php';
         return;
-    case 'newpoint':
-        require __DIR__ . '/api/newpoint.php';   // 訪客／管理者建立新地點（權限見 meta.json 的 contrib.newPoint）
+    case 'newspot':
+        require __DIR__ . '/api/newspot.php';   // 訪客／管理者建立新地點（權限見 meta.json 的 contrib.newPoint）
         return;
     case 'unlock':
         require __DIR__ . '/api/unlock.php';
@@ -98,6 +98,9 @@ switch ($action) {
         return;
     case 'layermigrate':
         require __DIR__ . '/api/layermigrate.php';  // 常駐工具：把跟隨全站預設的舊專案圖層設定凍結明確
+        return;
+    case 'spotmigrate':
+        require __DIR__ . '/api/spotmigrate.php';  // 一次性工具：把靜態底稿點位併入 spots.jsonl，收斂成單一真相來源
         return;
     case 'stat':
         require __DIR__ . '/api/stat.php';

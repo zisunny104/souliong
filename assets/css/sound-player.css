@@ -87,7 +87,7 @@
 
 /* 標題列：類別（分類色小字）＋標題（粗體）＋輔助標題（淺色），中卡、迷你列共用同一組
    class，不分情境各寫一套——跟 .p-head 的 .cat/h2/.sub 是同一套視覺語彙（見
-   point-panel.css），只是 .p-head 是核心渲染、這裡是外掛另外兩個卡片狀態，選取器接不到
+   spot-panel.css），只是 .p-head 是核心渲染、這裡是外掛另外兩個卡片狀態，選取器接不到
    核心那組，才另外開一組同語彙的規則。 */
 .sl-mp-cat {
   font-size: 0.75rem;
@@ -125,7 +125,7 @@
    justify-self:start），故意不用 stretch 撐滿列高——文字比封面矮，封面還是原尺寸浮在左上；
    文字比封面高，封面也不會被拉伸變形。
    封面擺左側，右側維持核心原本的 padding-right（給 .p-close/.p-expand 用），兩顆鈕不用
-   再跟封面搶位置。#pointEditBtn／.point-editor 這兩個編輯用元素固定跨滿兩欄（1/-1），
+   再跟封面搶位置。#spotEditBtn／.spot-editor 這兩個編輯用元素固定跨滿兩欄（1/-1），
    排到封面欄結束後的下一列，不會被硬擠進封面或文字的格子。
    #panel 開 inline-size containment，@container 量的是面板本身寬度：手機直式全卡或視窗
    很窄時兩欄會擠壓過頭，改用 @container 切回上下堆疊，不讓文字被硬壓縮到要換行。 */
@@ -155,8 +155,8 @@
   grid-column: 2
 }
 
-#panel.sl-audio.sl-has-cover .p-head #pointEditBtn,
-#panel.sl-audio.sl-has-cover .p-head .point-editor {
+#panel.sl-audio.sl-has-cover .p-head #spotEditBtn,
+#panel.sl-audio.sl-has-cover .p-head .spot-editor {
   grid-column: 1 / -1
 }
 
@@ -211,12 +211,80 @@
   height: 72px
 }
 
-/* 播放鍵本體樣式共用 point-panel.css 的 .sl-play-btn，這裡只疊尺寸變數＋卡片裡的排版位置 */
+.sl-mp-medium-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 32px
+}
+
+/* 播放鍵本體樣式共用 spot-panel.css 的 .sl-play-btn，這裡只疊尺寸變數 */
 .sl-mp-medium-play {
   --sl-play-size: 56px;
-  --sl-play-icon: 1.25rem;
-  align-self: center
+  --sl-play-icon: 1.25rem
 }
+
+/* 循環／靜音：次要控制，比主播放鍵小、底色也淡，開啟時才用強調色標出狀態 */
+.sl-mp-side-btn {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background var(--t), color var(--t)
+}
+
+.sl-mp-side-btn i { pointer-events: none }
+
+.sl-mp-side-btn:hover { background: var(--hover) }
+
+.sl-mp-side-btn.on { color: var(--accent) }
+
+/* 故事區大播放器（.sl-aplay-lg，電腦版／手機全卡共用）：原本橫向一列（播放鍵＋進度條）
+   改直向排列——時間搬進按鈕列兩端（時間仍左右分居、不換行、不被壓縮，避免文字跟按鈕擠在
+   一起時跑版），循環／靜音／播放鍵置中一組，進度條獨立一列在下面；時間淨空後的
+   .sl-aplay-time 藏起來，不留空殼。
+   按鈕列比時間文字高（44px 圓鈕 vs. 單行文字），align-items 改 flex-end 讓時間貼著
+   這列的底部，緊接 gap 之後就是進度條，視覺上兩者才像同一組，不會浮在按鈕群組中間；
+   左右各留一點內距，時間文字才不會跟進度條兩端切齊到看起來頂到最外面。 */
+.sl-aplay-lg {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px
+}
+
+.sl-mp-big-controls {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 4px;
+  font-size: 0.6875rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums
+}
+
+.sl-mp-big-controls .sl-aplay-cur,
+.sl-mp-big-controls .sl-aplay-dur {
+  flex: none;
+  white-space: nowrap
+}
+
+.sl-mp-big-btns {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: 24px
+}
+
+.sl-aplay-lg .sl-aplay-time { display: none }
 
 .sl-mp-medium-bar {
   position: relative;

@@ -35,7 +35,7 @@
 
     // ---- 卡片組成（殼依這幾個旗標決定要不要渲染對應區塊）----
     needsFile() { return true; }
-    needsPoint() { return true; }         // 關聯地點選單
+    needsSpot() { return true; }          // 關聯地點選單
     needsLocation() { return true; }      // 迷你地圖 + 定位來源
     hasPreview() { return this.needsFile(); }
     placeholderHtml() { return esc(t('processing')); }

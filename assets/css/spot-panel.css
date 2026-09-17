@@ -198,15 +198,15 @@
   line-height: 1.5
 }
 
-.p-head #pointEditBtn {
+.p-head #spotEditBtn {
   margin-top: 10px
 }
 
-.p-head .point-editor {
+.p-head .spot-editor {
   margin: 12px -18px 0;
 }
 
-.p-head .point-editor .pt-mini {
+.p-head .spot-editor .pt-mini {
   height: 160px;
   border-radius: var(--r-sm);
   overflow: hidden;
@@ -436,6 +436,20 @@
 
 .sl-play-btn i.fa-play {
   margin-left: 0.12em
+}
+
+/* 「邀請點擊」脈衝：有聲音但還沒按過播放時才顯示，開始播放後由 JS 拿掉 sl-invite（見
+   viewer.core.js wireAudioPlayer() 跟 sound-player.js 的 syncInvite()）。跟地圖標記播放中的
+   脈衝（map-markers.css .dot-pin.is-playing）用同一招：box-shadow 擴散半徑，不疊實色圖層，
+   不會蓋住按鈕中央的圖示。 */
+.sl-play-btn.sl-invite {
+  animation: sl-invite-pulse 2s ease-out infinite
+}
+
+@keyframes sl-invite-pulse {
+  0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent) }
+  70%  { box-shadow: 0 0 0 10px color-mix(in srgb, var(--accent) 0%, transparent) }
+  100% { box-shadow: 0 0 0 10px color-mix(in srgb, var(--accent) 0%, transparent) }
 }
 
 /* 自訂音訊播放器：大顆播放鍵＋進度條，取代瀏覽器原生 <audio controls>（不顯示音量／速度／
@@ -718,7 +732,7 @@
   font-weight: 600
 }
 
-.photo-editor .pe-chair {
+.photo-editor .pe-spot {
   width: 100%;
   border: 1px solid var(--line);
   border-radius: var(--r-sm);

@@ -82,7 +82,7 @@
   border-image-source: var(--pack-frame-src, none);
   border-image-slice: 24 fill;
   border-image-width: 13px;
-  /* 材質上的文字要用材質自己定義的墨色，理由同 #panel（point-panel.css）。
+  /* 材質上的文字要用材質自己定義的墨色，理由同 #panel（spot-panel.css）。
      color 是繼承屬性，只改 --fg 這個變數不會讓底下沒自己宣告 color 的文字重新對到新值，
      一定要在這裡明講一次 color: var(--fg)，子層繼承才會是新值。 */
   --fg: var(--pack-ink, var(--fg-base));
@@ -107,7 +107,7 @@
   z-index: 1;
 }
 
-/* 主題包外框覆蓋層：理由同 #panel（point-panel.css），這層疊在內容最上面、角標外掛在
+/* 主題包外框覆蓋層：理由同 #panel（spot-panel.css），這層疊在內容最上面、角標外掛在
    右下角並超出圓角，預設 none 不畫東西，pointer-events:none 不擋點擊。
    inset/size/position/repeat 四行要跟 #panel::after 完全一致，改這裡就要一起改那邊；
    一樣不能寫 border-radius: inherit，寫了角標探出圓角的部分就會被裁掉。
@@ -124,7 +124,7 @@
   background-repeat: no-repeat;
 }
 
-/* 對話框內本來就是不透明表單控制項的區塊，墨色維持一般主題色，理由同 #panel（point-panel.css）。
+/* 對話框內本來就是不透明表單控制項的區塊，墨色維持一般主題色，理由同 #panel（spot-panel.css）。
    .btn 不在這份排除名單裡——按鈕改用專屬的 --pack-btn-bg/--pack-btn-ink（見 control-card.css）。
    .shortcuts-list dt 也要算進來：鍵名徽章自己另外鋪了一層 var(--bg) 淺底（見下面 .shortcuts-list
    dt），不是直接坐在對話框材質上，套用材質的墨色（可能是白字）在自己這層淺底上會看不見。 */
@@ -271,7 +271,7 @@
 
 /* 還沒填的格子（見 pin-input.js 的 data-pin-slots）：壓淡當底線用，
    下一格要填的那個再提亮一點，取代被關掉的原生游標，指出現在填到哪。
-   class 名字一定要加 pin- 前綴，不能用 .empty/.next 這種通用字：point-panel.css 已經有
+   class 名字一定要加 pin- 前綴，不能用 .empty/.next 這種通用字：spot-panel.css 已經有
    一條沒有任何前綴的 .empty（面板「沒有資料」那種提示文字）在設 color: var(--muted)，
    而對話框裡的 --muted 是主題包的墨色（深色材質時是白的），空格子的圈圈會被染成白色、
    在白底輸入框上整個看不見。這裡的規則只設 opacity 不設 color，搶不回來。 */
