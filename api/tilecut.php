@@ -1171,6 +1171,10 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
           <div><label for="east"><?= $t('tilecut_east') ?></label><input type="number" id="east" step="0.000001"></div>
           <div><label for="popacity"><?= $t('tilecut_piece_opacity') ?> <span id="popacityval">100%</span></label><input type="range" id="popacity" min="0" max="1" step="0.01" value="1"></div>
         </div>
+        <div class="row" id="expandrow" style="margin-top:var(--sp-3)">
+          <button type="button" class="ghost" id="expandsel" disabled><i class="fa-solid fa-expand"></i> <?= $t('tilecut_expand_btn') ?></button>
+          <span class="hint" id="expandhint"><?= $t('tilecut_expand_hint') ?></span>
+        </div>
       </div>
     </div>
 
@@ -1273,6 +1277,8 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
       'maplibre_unready'  => i18n_t($DICT, 'tilecut_export_maplibre_unready_msg'),
       'export_done'       => i18n_t($DICT, 'tilecut_export_done_msg'),
       'fromname_title'    => i18n_t($DICT, 'tilecut_export_fromname_title'),
+      'expand_working'    => i18n_t($DICT, 'tilecut_expand_working_msg'),
+      'expand_failed'     => i18n_t($DICT, 'tilecut_expand_failed_msg'),
     ], JSON_UNESCAPED_UNICODE) ?>;
     const fmt = (str, vars) => str.replace(/\{(\w+)\}/g, (_, k) => (vars[k] != null ? vars[k] : ''));
     const csrf = <?= json_encode($csrf) ?>;
@@ -1347,6 +1353,7 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
         this.w = img.naturalWidth || img.width;
         this.h = img.naturalHeight || img.height;
         this.bounds = null;                      // {n,s,w,e}
+        this.baseBounds = null;                  // img 目前這批像素「原始未拉伸」對應的 bounds，供擴增選區當比例尺基準
         this.opacity = 1;
         this.on = true;
         this.overlay = null;
@@ -1366,8 +1373,16 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
       draw(ghost) {
         if (!validBounds(this.bounds)) return;
         const ll = this.latLngBounds();
-        if (!this.overlay) this.overlay = L.imageOverlay(this.url, ll, { interactive: false });
-        else this.overlay.setBounds(ll);
+        if (!this.overlay) {
+          this.overlay = L.imageOverlay(this.url, ll, { interactive: false });
+          this._overlayUrl = this.url;
+        } else {
+          this.overlay.setBounds(ll);
+          if (this._overlayUrl !== this.url) {
+            this.overlay.setUrl(this.url);
+            this._overlayUrl = this.url;
+          }
+        }
         this.overlay.setOpacity(this.opacity * (ghost ? 0.7 : 1));
         if (this.on) this.overlay.addTo(map);
         else map.removeLayer(this.overlay);
@@ -1483,6 +1498,7 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
       selRect.setBounds(ll);
       placeHandles(ll, opt.skip);
       estimate();
+      updateExpandBtn();
     }
 
     /**
@@ -1498,6 +1514,69 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
       return (anchor === 'sw')
         ? { w: b.w, s: b.s, e: b.e, n: latOf(y1 - need) }    // 西南固定，調北緣
         : { w: b.w, n: b.n, e: b.e, s: latOf(y0 + need) };   // 西北固定，調南緣
+    }
+
+    /** nb 是否單純比 cur 大（四邊都沒往內縮，至少一邊真的變大）。擴增選區的可用性判斷。 */
+    function isPureGrow(cur, nb) {
+      return validBounds(cur) && validBounds(nb)
+        && nb.n >= cur.n && nb.s <= cur.s && nb.w <= cur.w && nb.e >= cur.e
+        && (nb.n > cur.n || nb.s < cur.s || nb.w < cur.w || nb.e > cur.e);
+    }
+
+    /**
+     * 擴增選區：把範圍變大但原圖內容完全不拉伸——開一張新畫布，原圖用它「原始未拉伸」的
+     * 比例尺（p.baseBounds，不是 p.bounds——後者拖曳/打字當下就已經被 commit() 即時拉伸
+     * 顯示過，不能拿來當比例尺基準）貼在正確的相對位置，其餘部分維持透明。跟 draw()／
+     * cutTile() 的「整張塞進 bounds」是兩回事：這裡改的是 p.img 本身（連同 w/h/name），
+     * bounds 定下來之後，既有的疊圖與切磚邏輯看到的還是「一張圖剛好填滿它的 bounds」，
+     * 不用碰 commit() 以外的東西。
+     */
+    async function expandSelection(p) {
+      if (!p) return;
+      const nb = readFields();
+      if (!isPureGrow(p.baseBounds, nb)) return;
+      $('expandsel').disabled = true;
+      const prevMsg = statusEl.textContent;
+      statusEl.textContent = I18N.expand_working;
+      try {
+        const pr = { x0: wx(p.baseBounds.w), x1: wx(p.baseBounds.e), y0: wy(p.baseBounds.n), y1: wy(p.baseBounds.s) };
+        const scaleX = p.w / (pr.x1 - pr.x0), scaleY = p.h / (pr.y1 - pr.y0);
+        const nx0 = wx(nb.w), nx1 = wx(nb.e), ny0 = wy(nb.n), ny1 = wy(nb.s);
+        const newW = Math.round((nx1 - nx0) * scaleX), newH = Math.round((ny1 - ny0) * scaleY);
+        const offX = Math.round((pr.x0 - nx0) * scaleX), offY = Math.round((pr.y0 - ny0) * scaleY);
+        if (!(newW > 0 && newH > 0)) throw new Error('bad size');
+
+        const c = document.createElement('canvas');
+        c.width = newW; c.height = newH;
+        c.getContext('2d').drawImage(p.img, offX, offY, p.w, p.h);
+        const fmtInfo = await pickFormat();
+        const blob = await new Promise(r => c.toBlob(r, fmtInfo.mime, fmtInfo.q));
+        if (!blob) throw new Error('encode failed');
+
+        const z = Math.max(0, Math.min(22, Math.round(Math.log2(newW / ((nx1 - nx0) * TILE)))));
+        const slug = (p.name.replace(/\.[^.]+$/, '').toLowerCase().match(/[a-z0-9_-]+/g) || ['piece']).join('');
+        const name = exportFilename({ b: nb, z }, '', fmtInfo.ext, slug);
+
+        const url = URL.createObjectURL(blob);
+        const img = await loadImage(url);
+
+        URL.revokeObjectURL(p.url);
+        p.img = img; p.url = url; p.blob = blob; p.w = newW; p.h = newH; p.name = name;
+        p.baseBounds = nb;
+        p.fromFilename = true;
+        commit(p, nb);
+        renderList();
+        statusEl.textContent = prevMsg;
+      } catch (e) {
+        statusEl.textContent = I18N.expand_failed;
+      }
+      updateExpandBtn();
+    }
+
+    /** 依目前選取的圖跟欄位裡的值，決定「擴增選區」按鈕能不能按。 */
+    function updateExpandBtn() {
+      const p = pieces[sel];
+      $('expandsel').disabled = !p || !isPureGrow(p.baseBounds, readFields());
     }
 
     // ── 整疊的幾何 ──
@@ -1578,6 +1657,7 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
       $('zoomhint').style.display = vec ? 'none' : '';
       $('keepsrcrow').style.display = vec ? 'none' : '';
       $('keepsrchint').style.display = vec ? 'none' : '';
+      $('expandrow').style.display = vec ? 'none' : '';
       $('go').innerHTML = vec
         ? '<i class="fa-solid fa-vector-square"></i> ' + I18N.start_vector
         : '<i class="fa-solid fa-scissors"></i> ' + I18N.start_cut;
@@ -1711,6 +1791,7 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
         $('popacityval').textContent = Math.round(p.opacity * 100) + '%';
       }
       refresh();
+      updateExpandBtn();
     }
 
     function movePiece(i, d) {
@@ -1761,7 +1842,9 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
     ['north', 'south', 'west', 'east'].forEach(k => $(k).addEventListener('input', () => {
       const p = pieces[sel], b = readFields();
       if (p && b) commit(p, b, { fields: false });
+      updateExpandBtn();
     }));
+    $('expandsel').addEventListener('click', () => expandSelection(pieces[sel]));
     ['zmin', 'zmax'].forEach(k => $(k).addEventListener('input', estimate));
     $('usenativez').addEventListener('click', applyNativeZoom);
     $('keepsrc').addEventListener('change', estimate);
@@ -2009,10 +2092,13 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
     function exportSlug() {
       return (($('lid').value || '').trim().toLowerCase().match(/[a-z0-9_-]+/g) || ['ref']).join('');
     }
-    /** 三個匯出按鈕共用同一套檔名後綴，跟 boundsFromFilename() 的正則對得上。 */
-    function exportFilename(d, suffix, ext) {
+    /**
+     * 匯出按鈕與擴增選區共用同一套檔名後綴，跟 boundsFromFilename() 的正則對得上。
+     * slug 預設用層級的 #lid（匯出底稿用），擴增選區改傳圖片自己的名字，同層多張圖才不會撞檔名。
+     */
+    function exportFilename(d, suffix, ext, slug) {
       const b = d.b;
-      return exportSlug() + suffix
+      return (slug || exportSlug()) + suffix
         + '_s' + b.s.toFixed(6) + '_w' + b.w.toFixed(6) + '_n' + b.n.toFixed(6) + '_e' + b.e.toFixed(6)
         + '_z' + d.z + '.' + ext;
     }
@@ -2115,6 +2201,7 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
         const p = new Piece(f.name, img, url, f);
         const fromName = boundsFromFilename(f.name);
         p.bounds = fromName ? fromName.bounds : defaultBounds(p);
+        p.baseBounds = p.bounds;
         p.fromFilename = !!fromName;
         if (fromName && fromName.z !== null && firstZ === null) firstZ = fromName.z;
         pieces.unshift(p);         // 後加的蓋在前面加的上面，跟繪圖軟體「置入」的行為一致
@@ -2274,6 +2361,7 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
           const p = new Piece(it.name || it.file, await loadImage(url), url, blob);
           p.file = it.file;
           p.bounds = validBounds(it.bounds) ? it.bounds : defaultBounds(p);
+          p.baseBounds = p.bounds;
           p.opacity = isFinite(it.opacity) ? Math.max(0, Math.min(1, it.opacity)) : 1;
           p.on = it.on !== false;
           pieces.push(p);     // edit.json 存的就是「上層在前」，照順序接上去
@@ -2342,6 +2430,7 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
         const url = URL.createObjectURL(blob);
         const p = new Piece(RECON.id + '-tiles.png', await loadImage(url), url, blob);
         p.bounds = bounds;
+        p.baseBounds = bounds;
         pieces.unshift(p);
         applyNativeZoom();
         select(0);
