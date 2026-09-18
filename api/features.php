@@ -18,6 +18,9 @@
 //   max_bytes 該種類的大小上限；沒寫就用 config 的 max_bytes，config 也可用 max_bytes_<kind>
 //            單獨覆寫（部署主機的實際上限還是卡在 php.ini 的 upload_max_filesize／
 //            post_max_size，那是這裡改不到的）。
+//   spotContent 這個種類能不能被寫進點位自己的原生 content 陣列（api/spotcontent.php），
+//            跟 postable 是兩件不同的事：postable 管的是 entries.jsonl 投稿牆，spotContent
+//            管的是 spots.jsonl 點位覆寫紀錄本身，兩者互不影響。
 function souliong_kinds(): array
 {
     return [
@@ -32,7 +35,7 @@ function souliong_kinds(): array
             'mimes' => ['video/mp4' => 'mp4', 'video/webm' => 'webm', 'video/quicktime' => 'mov'],
         ],
         'audio' => [
-            'label' => '音訊', 'tab' => 'audio', 'postable' => true,
+            'label' => '音訊', 'tab' => 'audio', 'postable' => true, 'spotContent' => true,
             'file' => 'media', 'thumb' => false, 'max_bytes' => 24 * 1024 * 1024,
             // 這裡比對的是 finfo 從檔案內容判出來的 MIME，不是瀏覽器宣稱的 MIME，兩者常常不一樣：
             // 純音訊的 WebM／MP4 容器裡沒有視訊軌，但 finfo 只看容器格式，實測分別回報
@@ -72,6 +75,12 @@ function souliong_kind_label(string $kind): string
 function souliong_kind_postable(string $kind): bool
 {
     return (bool)(souliong_kinds()[$kind]['postable'] ?? false);
+}
+
+/** api/spotcontent.php 的白名單判斷（見 souliong_kinds() 的 spotContent 說明）。 */
+function souliong_kind_spot_content_postable(string $kind): bool
+{
+    return (bool)(souliong_kinds()[$kind]['spotContent'] ?? false);
 }
 
 /** 可以出現在投稿對話框、由使用者自己選擇要投什麼的內容種類（spot 不算，它是建立/搬移地點不是投內容）。 */
@@ -160,7 +169,7 @@ function souliong_modules(): array
         'personExplore' => ['label' => '依序探索（插件）', 'desc' => '選了投稿者後，可依序探索他的地標／零散照片時間軸。', 'default' => false, 'dependsOn' => 'identity'],
         'delegation' => ['label' => '管理者邀請登入', 'desc' => '地圖頁上的管理者登入／邀請兌換彈窗。關閉後這張地圖不再產生新的專案 PIN 或邀請連結，只能用主 PIN 從後台網址（/manager）登入管理，適合純檢視、僅超級管理者更新內容的部署。', 'default' => true],
         'map3d'  => ['label' => '3D 地圖模式', 'desc' => '訪客可切換到 MapLibre 3D 檢視（公用建物擠出＋自訂模型）。關閉後只有既有 Leaflet 2D 地圖，不載入 MapLibre。', 'default' => false],
-        'soundEdit' => ['label' => '聲音主要內容編輯', 'desc' => '在地點故事區提供錄音／上傳按鈕，送出後成為一則普通音訊投稿（照樣出現在投稿牆上）；要不要設為該地點的精選內容需另由具備 edit_spots 權限的人操作，不會送出時自動設定。', 'default' => false, 'dependsOn' => 'upload'],
+        'soundEdit' => ['label' => '聲音主要內容編輯', 'desc' => '在地點故事區提供錄音／上傳按鈕，送出後直接寫入該地點的原生內容（spots.jsonl 的 content 欄位），立即顯示，不需另外精選。點位內容屬點位權限軸，僅限具 edit_spots 權限的管理者寫入，與投稿代碼無關。', 'default' => false, 'dependsOn' => 'upload'],
     ];
 }
 

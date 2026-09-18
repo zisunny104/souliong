@@ -35,6 +35,10 @@ if ($meta && spotmigrate_needed($apiCfg, $proj)) {
 // 原始起點座標。
 $spots     = $meta ? array_values(array_filter(store_all($apiCfg, $proj), fn($r) => ($r['kind'] ?? null) === 'spot' && empty($r['edit_of']) && isset($r['num']))) : [];
 $isManager = perm_can($apiCfg, $proj);
+// perm_can() 只問「這個身份對這個專案有沒有任何權限」，跟「有沒有 edit_spots 這個具體權限」是
+// 兩回事——寫入點位內容（含定位、錄音）的顯示條件要用這個，不能用籠統的 $isManager（見
+// api/spotcontent.php／api/editspot.php 的權限鏈，兩者都只認 edit_spots，不是任一種管理者）。
+$canEditSpots = perm_check($apiCfg, $proj, 'edit_spots');
 // 投稿開關＝有沒有還有效的投稿代碼（真正的碼在伺服器端 codes.json，前端拿不到）。
 // APP.gated 因此變成「現在有碼可解鎖」：一組都沒有時前端連解鎖鈕都不出現。
 $gated = contrib_open($apiCfg, $proj);
@@ -93,6 +97,7 @@ $APP = [
     'meta'        => $meta,
     'spots'       => $spots,
     'isManager'   => $isManager,
+    'canEditSpots' => $canEditSpots,
     'csrf'        => $csrfTok,
     'moduleState' => $moduleState,
     'contrib'     => $contribCfg,
@@ -182,11 +187,12 @@ $cssFiles = ['theme', 'control-card', 'popups', 'map-markers', 'spot-panel', 'ma
 if ($mod('upload')) {
     $cssFiles[] = 'contrib';
 }
-// 播放器／點位卡片的中卡、全卡、迷你列樣式只有開放 audio 投稿的地圖用得到（見 sound-player.js）：
-// 點位精選內容（feature）是動態的，任何一個點位都可能被設成一則 audio 投稿，只要這張地圖
-// 有開放 audio 種類就先備好這組樣式，不必等到真的有點位設了精選才知道。
+// 播放器／點位卡片的中卡、全卡、迷你列樣式：有兩種來源都可能需要播音訊，任一種成立就要備好
+// 這組樣式——開放 audio 投稿（$hasAudioKind，投稿牆上的音訊）、開了 soundEdit（點位自己的
+// 原生音訊內容，見 api/spotcontent.php）。純顯示判斷，不查有沒有真的錄過內容：地圖錄過音訊
+// 後又把 soundEdit 關掉，播放器就不會載入，這種邊界情形本次接受不處理。
 $hasAudioKind = in_array('audio', $contribCfg['kinds'], true);
-if ($hasAudioKind) {
+if ($hasAudioKind || $mod('soundEdit')) {
     $cssFiles[] = 'sound-player';
 }
 foreach ($cssFiles as $f) {
@@ -423,10 +429,13 @@ window.maplibregl = maplibregl;
 <?php if ($mod('story')): ?>
 <script src="<?= $assetUrl('assets/js/plugins/story-editor.js') ?>"></script>
 <?php endif; ?>
-<?php if ($mod('soundEdit')): ?>
+<?php // soundEdit 只決定「要不要輸出錄音這個 UI 元件」，真正擋寫入的是 api/spotcontent.php
+      // 的 perm_check(edit_spots)；$canEditSpots 這裡只是不讓沒有該權限的人看到一個按了會
+      // 被 403 擋下的按鈕，純顯示邏輯，不是權限依據。 ?>
+<?php if ($mod('soundEdit') && $canEditSpots): ?>
 <script src="<?= $assetUrl('assets/js/plugins/sound-editor.js') ?>"></script>
 <?php endif; ?>
-<?php if ($hasAudioKind): ?>
+<?php if ($hasAudioKind || $mod('soundEdit')): ?>
 <script src="<?= $assetUrl('assets/js/plugins/sound-player.js') ?>"></script>
 <?php endif; ?>
 <?php if ($mod('personExplore')): ?>

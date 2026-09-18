@@ -54,7 +54,11 @@ if ($who === 'admin') {
         json_out(['error' => '憑證失效，請重新整理頁面後再操作一次'], 403);
     }
 } else {
-    // contributor：跟投稿走同一組把關（停權名單 + 投稿代碼），管理者一樣直接放行
+    // contributor：跟投稿走同一組把關（停權名單 + 投稿代碼）——這是待釐清的混用，不是範例：
+    // 點位軸（建立地點）跟投稿軸（entries.jsonl 的投稿代碼／contrib_open()）本應分開計算
+    // （見 docs/part4-coordination.md 血淚教訓 #1），這裡把兩者接在一起，只是現況尚未拆開；
+    // newPoint 全站目前皆為 off，等於沒在跑。之後要處理「訪客建點」的權限模型時再一併釐清，
+    // 這裡先維持行為不變，只留這個註記。
     if (is_blocked($cfg, $project, $ownerHash, $contribId)) {
         json_out(['error' => '此身分已被主辦者停權，無法繼續投稿'], 403);
     }

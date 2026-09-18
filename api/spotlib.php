@@ -172,3 +172,65 @@ function spotmigrate_run(array $cfg, string $proj): array {
 
     return ['project' => $proj, 'skipped' => false, 'reason' => null, 'static_file' => $staticName, 'added' => $added, 'repointed' => $repointed, 'backup' => $backupZip];
 }
+
+// ---------------------------------------------------------------------------
+// 點位「目前有效狀態」共用邏輯：起點＋edit_of 鏈疊加，供 api/oglib.php、api/editspot.php、
+// api/spotcontent.php 共用同一套算法，取代各自重寫一份（原本 oglib.php 自己疊一份、
+// editspot.php 完全不疊、直接要求前端每次帶齊全部欄位）。
+// ---------------------------------------------------------------------------
+
+/** 起點／編輯紀錄裡，哪些欄位是可被 edit_of 鏈覆寫的「有效狀態」欄位——spot_effective()／
+ *  spot_merge_forward() 與其呼叫端都以這份清單為準，不要各自硬編一份欄位名單。 */
+function spot_overridable_fields(): array
+{
+    return ['lat', 'lon', 'feature', 'content'];
+}
+
+/**
+ * 算出一個點位「目前有效」的狀態：起點（kind:'spot'、有 num、edit_of 留空）疊上 edit_of 鏈
+ * 裡 created_at 最新一筆覆寫。疊加用 array_key_exists() 而非 isset()——舊紀錄可能整個 key
+ * 都不存在（例如遷移前的底稿沒有 feature 欄位），isset() 會把「沒帶這個 key」誤判成「明確
+ * 覆寫成 null」，把起點原本的值蓋掉。找不到這個 item_num 的起點回傳 null。
+ */
+function spot_effective(array $cfg, string $project, int $itemNum): ?array
+{
+    $all = store_all($cfg, $project);
+    $origin = null;
+    $edits = [];
+    foreach ($all as $r) {
+        if (($r['kind'] ?? '') !== 'spot') continue;
+        if (empty($r['edit_of']) && isset($r['num'])) {
+            if ((int)$r['num'] === $itemNum) $origin = $r;
+        } elseif (!empty($r['edit_of'])) {
+            $edits[$r['edit_of']][] = $r;
+        }
+    }
+    if ($origin === null) return null;
+
+    $latest = null;
+    foreach ($edits[$origin['id']] ?? [] as $e) {
+        if ($latest === null || (string)($e['created_at'] ?? '') > (string)($latest['created_at'] ?? '')) $latest = $e;
+    }
+    if ($latest !== null) {
+        foreach (spot_overridable_fields() as $k) {
+            if (array_key_exists($k, $latest)) $origin[$k] = $latest[$k];
+        }
+    }
+    return $origin;
+}
+
+/**
+ * 把 $changes 疊到 $effective 上，只覆寫 $changes 裡「真的有出現」的可覆寫欄位（同樣用
+ * array_key_exists() 判斷，讓呼叫端能明確傳 null 清空一個欄位，跟「根本沒打算改」區分開）。
+ * 回傳完整一份可覆寫欄位（見 spot_overridable_fields()）；呼叫端寫新版本紀錄時要把這幾欄
+ * 都明確寫出去，不能只挑改到的那幾欄——否則下一次 spot_effective() 疊加時，沒寫出去的欄位
+ * 會被 array_key_exists() 誤判成「這筆紀錄明確覆寫成 null」，而不是「沒改」。
+ */
+function spot_merge_forward(array $effective, array $changes): array
+{
+    $out = [];
+    foreach (spot_overridable_fields() as $k) {
+        $out[$k] = array_key_exists($k, $changes) ? $changes[$k] : ($effective[$k] ?? null);
+    }
+    return $out;
+}

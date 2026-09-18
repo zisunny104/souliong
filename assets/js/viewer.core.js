@@ -567,6 +567,7 @@ window.MapApp = (() => {
         lat: latest ? latest.lat : o.lat, lon: latest ? latest.lon : o.lon,
         addedBy: o.name, addedAt: o.created_at,
         feature: latest ? latest.feature : o.feature,
+        content: latest ? latest.content : o.content,
         posEdited: !!latest, origLat: o.lat, origLon: o.lon,
       };
     });
@@ -804,7 +805,7 @@ window.MapApp = (() => {
     document.getElementById('pSub').innerHTML = spotSub(c);
     document.getElementById('panel').classList.add('open');
     const peBtn = document.getElementById('spotEditBtn');
-    if (peBtn) peBtn.style.display = (!EMBED && APP.isManager) ? '' : 'none';
+    if (peBtn) peBtn.style.display = (!EMBED && APP.canEditSpots) ? '' : 'none';
     resetSpotEditor();
     renderEntries();
     statSend('spot', c.num);
@@ -867,9 +868,9 @@ window.MapApp = (() => {
       fd.append('item_num', orig.num);
       fd.append('lat', state.lat);
       fd.append('lon', state.lon);
-      // feature 沒有要改就原樣重送，跟 lat/lon 一樣由前端負責帶齊目前有效值——
-      // 後端不會替沒送的欄位做狀態合併，漏送等於把目前的精選內容清空。
-      if (orig.feature) fd.append('feature', orig.feature);
+      // feature 一律送（沒有就送空字串代表清空）：後端只覆寫「有送來」的欄位，沒送的
+      // （例如點位原生內容 content）由 spot_merge_forward() 自動沿用目前有效值。
+      fd.append('feature', orig.feature || '');
       fd.append('name', displayName());
       fd.append('csrf', APP.csrf || '');
       const res = await fetch(apiUrl('editspot'), { method: 'POST', body: fd });
@@ -890,6 +891,35 @@ window.MapApp = (() => {
       btn.disabled = false;
     }
   }
+  // 寫入點位自己的原生內容（目前只有音訊，見 api/spotcontent.php）。這次只開放管理者，身分
+  // 只靠 csrf——跟拖曳定位的 submitSpotEdit() 同一組權限（edit_spots），不是投稿的 owner/code/
+  // ctoken 那一套。不送 lat/lon/feature：伺服器用 spot_effective() 算目前有效值再疊上 content，
+  // 前端就算送了也會被忽略。
+  async function submitSpotContent(itemNum, fields) {
+    const fd = new FormData();
+    fd.append('project', PROJECT);
+    fd.append('item_num', itemNum);
+    fd.append('csrf', APP.csrf || '');
+    for (const k in fields) {
+      const v = fields[k];
+      if (v === undefined || v === null) continue;
+      if (Array.isArray(v)) fd.append(k, v[0], v[1]); else fd.append(k, v);
+    }
+    const res = await fetch(apiUrl('spotcontent'), { method: 'POST', body: fd });
+    const j = await res.json().catch(() => ({ error: 'HTTP ' + res.status }));
+    if (!res.ok || j.error) throw new Error((j.error || ('HTTP ' + res.status)) + (j.detail ? '：' + j.detail : ''));
+    CONTRIB.push(j.item);
+    // content 會改變地圖標記要不要顯示音訊脈動，跟一般投稿不一樣要重算 audioSpots（見 recount()）
+    recount(); renderSpots();
+    const updated = effectiveSpots().find(p => p.num === itemNum);
+    if (updated) {
+      current = updated;
+      document.getElementById('pTitle').textContent = spotTitle(updated);
+      document.getElementById('pSub').innerHTML = spotSub(updated);
+      renderEntries();
+    }
+    return j.item;
+  }
   function renderEntries() {
     if (!current) return;
     const box = document.getElementById('entries');
@@ -907,9 +937,12 @@ window.MapApp = (() => {
     // 精選內容：地點記錄若帶 feature（見 editspot.php），指向投稿牆上某一則投稿的 id；只要
     // 那則投稿還在（effectiveEntries() 找得到、沒被刪），就放大顯示在故事區——它本身照常留在
     // 投稿牆上，不做任何排除。沒有 feature 就照一般地圖的 desc 版本顯示故事文字。
+    // 音訊是點位自己的原生內容（見 api/spotcontent.php），不透過 feature 這座橋：
+    // 直接從 effectiveSpots() 疊好的 content 陣列裡找，找到就跟 featured 一樣放大顯示。
     const featured = current.feature ? entries.find(e => e.id === current.feature) : null;
-    const isFeaturedAudio = !!(featured && featured.media && kindOf(featured) === 'audio');
-    const byLine = (!featured && latest)
+    const nativeAudio = (current.content || []).find(c => c && c.kind === 'audio' && c.media);
+    const hasFeaturedDisplay = !!(featured || nativeAudio);
+    const byLine = (!hasFeaturedDisplay && latest)
       ? (latest.baseline ? esc(t('source_label', { src: META.source || META.credit || '' })) : '— ' + esc(latest.name || t('anon_fallback')) + '・' + fmtTime(latest.photo_time || latest.created_at))
       : '';
     const sourceLic = latest && latest.source_license === 'cc-by' ? 'CC BY' : (latest && latest.source_license === 'cc0' ? 'CC0' : '');
@@ -922,12 +955,12 @@ window.MapApp = (() => {
         '</div>';
     }
 
-    // 主要內容本身：一般是故事文字；有精選音訊投稿時，改成大播放鍵＋進度條的自訂播放器
-    // （不用瀏覽器原生介面），投稿本身的文字說明（如果有）放在播放器下方當作附註。
+    // 主要內容本身：一般是故事文字；點位帶原生音訊內容時，改成大播放鍵＋進度條的自訂播放器
+    // （不用瀏覽器原生介面），錄音當時附的文字說明（如果有）放在播放器下方當作附註。
     let bodyHtml;
-    if (isFeaturedAudio) {
-      bodyHtml = audioPlayerHtml(entryFullUrl(featured), featured.duration, { big: true }) +
-        (featured.comment ? '<div class="story-caption">' + esc(featured.comment) + '</div>' : '');
+    if (nativeAudio) {
+      bodyHtml = audioPlayerHtml(mediaFullUrl(nativeAudio), nativeAudio.duration, { big: true }) +
+        (nativeAudio.comment ? '<div class="story-caption">' + esc(nativeAudio.comment) + '</div>' : '');
     } else if (latest) {
       bodyHtml = esc(latest.comment);
     } else {
@@ -937,7 +970,7 @@ window.MapApp = (() => {
     // 故事 / 說明（版本化，預設只顯示最新版）
     const story = document.createElement('div'); story.className = 'story';
     story.innerHTML =
-      (featured ? '' : '<div class="story-head">' + esc(t('location_story_title')) + '</div>') +
+      (hasFeaturedDisplay ? '' : '<div class="story-head">' + esc(t('location_story_title')) + '</div>') +
       '<div class="story-body">' + bodyHtml + '</div>' +
       (byLine ? '<div class="story-by">' + byLine + '</div>' : '') +
       sourceLine +
@@ -945,7 +978,7 @@ window.MapApp = (() => {
       (!EMBED && versions.length > 1 ? '<button class="btn small" id="histBtn">' + esc(t('history_versions', { n: versions.length })) + '</button>' : '') +
       '</div><div id="descHistory" style="display:none"></div>';
     box.appendChild(story);
-    if (isFeaturedAudio) wireAudioPlayer(story, current.num);
+    if (nativeAudio) wireAudioPlayer(story, current.num);
     const hb = story.querySelector('#histBtn'); if (hb) hb.onclick = () => toggleHistory(versions);
 
     // 插件掛勾點：讓插件（例如上傳、依序探索）在照片牆前面插入自己的提示區塊或按鈕（如「上傳照片到這個點」「僅顯示 X 的照片・顯示全部」）
@@ -1311,6 +1344,11 @@ window.MapApp = (() => {
         if (kindOf(e) === 'audio') audioSpots.add(e.item_num);
       }
     });
+    // 點位自己的原生內容（目前只有音訊）不是投稿，不計進 counts／contribTotal，
+    // 但一樣要讓地圖標記顯示音訊脈動（has-audio，見 spotIcon()）。
+    effectiveSpots().forEach(s => {
+      if ((s.content || []).some(c => c && c.kind === 'audio' && c.media)) audioSpots.add(s.num);
+    });
     updatePhotoBtn();
   }
   // 供插件在自己完成一次會影響地圖/清單顯示的動作（例如上傳、建立地點）後，一次重繪所有受影響的畫面。
@@ -1462,7 +1500,7 @@ window.MapApp = (() => {
       localStorage.setItem('ctlCollapsed', c ? '1' : '0');
     };
 
-    // 定位點微調（僅管理者，顯示與否由 openPanel() 依 APP.isManager 控制）
+    // 定位點微調（僅有 edit_spots 權限者，顯示與否由 openPanel() 依 APP.canEditSpots 控制）
     const peBtn = document.getElementById('spotEditBtn');
     if (peBtn) peBtn.onclick = toggleSpotEditor;
 
@@ -1790,7 +1828,7 @@ window.MapApp = (() => {
     // 供插件（如 sound-editor.js 錄音後的即時試聽）也能用同一套外觀，見 renderEntries() 內的用法。
     audioPlayerHtml, wireAudioPlayer,
     personColor, toast,
-    displayName, anonName: () => SESSION_ANON, submitContribution, submitNewSpot,
+    displayName, anonName: () => SESSION_ANON, submitContribution, submitNewSpot, submitSpotContent,
     rerollAnon, identityChipClick,
     spotOptionsHtml, nearestSpot, locNote, srcTone, fmtTime,
     getMeta: () => META, getCats: () => CATS.slice(),

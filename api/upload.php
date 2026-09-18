@@ -11,6 +11,7 @@ require __DIR__ . '/store.php';
 require __DIR__ . '/security.php';
 require __DIR__ . '/stats.php';
 require __DIR__ . '/features.php';
+require __DIR__ . '/uploadlib.php';
 $cfg = require __DIR__ . '/config.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -104,22 +105,6 @@ $hasIdentity = !empty($_POST['ctoken']);
 $license     = ($hasIdentity && ($_POST['license'] ?? '') === 'cc-by') ? 'cc-by' : 'cc0';
 $wikidataOk  = !empty($_POST['wikidata_ok']);
 
-/**
- * 判斷上傳檔的實際 MIME。圖片優先用 getimagesize()（不依賴 fileinfo 擴充，較可攜）；
- * 影音沒有等價的可攜函式，只能靠 finfo，主機沒裝 fileinfo 擴充時影音就一律收不了。
- * 這是刻意的：絕對不能改用 $_FILES['type']，那個值由瀏覽器（也就是投稿者）說了算、可任意偽造，
- * 拿它當白名單等於沒有白名單。
- */
-function detect_mime(string $tmp): string {
-    $info = @getimagesize($tmp);
-    if (is_array($info) && !empty($info['mime'])) return (string)$info['mime'];
-    if (class_exists('finfo')) {
-        $m = (new finfo(FILEINFO_MIME_TYPE))->file($tmp);
-        if (is_string($m) && $m !== '') return $m;
-    }
-    return '';
-}
-
 // 照片沿用歷史的 photo/thumb 欄位與 photos/ 目錄，影音走新的 media 欄位與 media/ 目錄。
 // 這樣切是為了讓既有的 exiffix.php／thumbfix.php／editentry.php／photo.php 與前端的
 // photoFullUrl() 一行都不用改，舊資料與舊流程完全不受影響（見 features.php 的 file 欄位說明）。
@@ -131,29 +116,16 @@ $mediaMime = null;
 $fileField = $kindDef['file'] ?? null;
 $isPhoto   = ($fileField === 'photo');
 if ($fileField !== null && isset($_FILES[$fileField]) && $_FILES[$fileField]['error'] === UPLOAD_ERR_OK) {
-    $f = $_FILES[$fileField];
     $maxBytes = (int)($cfg['max_bytes_' . $kind] ?? $kindDef['max_bytes'] ?? $cfg['max_bytes']);
-    if ($f['size'] > $maxBytes) {
-        json_out(['error' => 'file too large'], 413);
-    }
     // 照片維持吃 config 的 allowed_mime（部署端本來就能調的旋鈕），其他種類用註冊表的 mimes
     $mimes = ($isPhoto && !empty($cfg['allowed_mime'])) ? $cfg['allowed_mime'] : ($kindDef['mimes'] ?? []);
-    $mime  = detect_mime($f['tmp_name']);
-    if (!isset($mimes[$mime])) {
-        json_out(['error' => 'unsupported type: ' . ($mime === '' ? '(unknown)' : $mime)], 415);
-    }
-    $ext = $mimes[$mime];
-    $destDir = project_dir($cfg, $project) . '/' . ($isPhoto ? 'photos' : 'media');
-    if (!is_dir($destDir)) { @mkdir($destDir, 0775, true); }
     // 檔名用「內容實際的時間」（照片 EXIF／檔案修改時間），不是伺服器收到上傳的時間，方便直接依檔名辨識先後
     $shotTs = $photo_time !== null ? strtotime($photo_time) : false;
-    $fbase = date('Ymd_His', $shotTs !== false ? $shotTs : time()) . '_' . bin2hex(random_bytes(4));
-    $fname = $fbase . '.' . $ext;
-    if (!move_uploaded_file($f['tmp_name'], $destDir . '/' . $fname)) {
-        json_out(['error' => 'save failed'], 500);
-    }
-    if ($isPhoto) { $photoRel = $project . '/' . $fname; }
-    else { $mediaRel = $project . '/' . $fname; $mediaMime = $mime; }
+    $saved = uploadlib_store_file($cfg, $project, $_FILES[$fileField], $isPhoto ? 'photos' : 'media', $mimes, $maxBytes, $shotTs !== false ? $shotTs : null);
+    $fbase = $saved['fbase'];
+    $destDir = project_dir($cfg, $project) . '/' . ($isPhoto ? 'photos' : 'media');
+    if ($isPhoto) { $photoRel = $saved['rel']; }
+    else { $mediaRel = $saved['rel']; $mediaMime = $saved['mime']; }
 
     // 顯示用縮圖（照片由前端隨主圖一起轉、影片由前端抽第一幀；沒有或存失敗都不影響投稿本身）。
     // 縮圖永遠是圖片，所以驗證一律走照片那組 mime，跟主檔是什麼種類無關。

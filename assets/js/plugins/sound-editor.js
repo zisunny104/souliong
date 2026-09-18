@@ -1,10 +1,12 @@
-/* 選用插件：聲音主要內容編輯（見 souliong/docs/EXTENDING.md 第七節）
-   只在該地圖 meta.json 的 features.soundEdit 為 true 時，view.php 才會載入這個檔案（依賴 upload 模組，
-   因為要用到 isUnlocked()/openUnlock() 的解鎖流程與 kind-audio.js 的錄音機／選檔邏輯）。
-   跟 story-editor.js 是同一種角色：故事區「新增一則版本」的動作，只是送出的是錄音而非故事文字。
-   送出時走跟一般投稿相同的 api/upload.php，產生一筆普通 audio 投稿（照樣出現在投稿牆上）；
-   要不要把這筆設成點位的精選內容（feature），是另一件事，由具備 edit_spots 權限的人透過
-   點位編輯 UI 決定，兩者不綁在同一次送出。 */
+/* 選用插件：點位原生音訊內容編輯（見 souliong/docs/EXTENDING.md 第七節）
+   只在該地圖 meta.json 的 features.soundEdit 為 true、且目前身份具備 edit_spots 權限時，
+   view.php 才會載入這個檔案；這只是顯示層級的判斷，真正擋寫入的是 api/spotcontent.php 的
+   perm_check(edit_spots)。
+   跟 story-editor.js 是同一種角色：故事區「新增一則版本」的動作，只是送出的是錄音而非故事文字，
+   但寫入的是點位自己的 content 欄位（見 MapApp.submitSpotContent()／api/spotcontent.php），
+   不進 entries.jsonl、不會出現在投稿牆上，錄完就是這個點位當下的音訊內容，不必另外「設精選」。
+   錄音機／選檔／量時長仍借用 kind-audio.js 的 AudioKind 類別（buildRecorder/prepare/acceptAttr），
+   所以這張地圖仍要開著 upload 模組、contrib.kinds 留著 "audio"，這支檔案才拿得到那個類別。 */
 (() => {
   const I18N = window.I18N || {};
   const t = (key, vars) => {
@@ -21,13 +23,14 @@
       this.mapApp.registerEntriesHint(spot => { this.injectRecordButton(spot); return null; });
     }
 
-    // #storyActions 是核心 renderEntries() 每次重建 #entries 時一定會重畫的容器，藉 registerEntriesHint 的時機掛上錄音鈕
+    // #storyActions 是核心 renderEntries() 每次重建 #entries 時一定會重畫的容器，藉 registerEntriesHint 的時機掛上錄音鈕。
+    // 按鈕要不要出現只看這支檔案有沒有被載入（view.php 的 soundEdit && canEditSpots 條件，見檔頭
+    // 註解），這裡不再另外拿 SLContrib 裡有沒有註冊 audio 型別當可見性判斷。
     injectRecordButton(spot) {
       const actions = document.getElementById('storyActions');
       if (!actions) return;
       if (!this.mapApp.isUnlocked() || this.mapApp.isEmbedMode()) return;
       const audioKind = window.SLContrib && window.SLContrib.byKey('audio');
-      if (!audioKind) return;
       const btn = document.createElement('button');
       btn.className = 'btn small'; btn.id = 'editSoundBtn';
       btn.innerHTML = '<i class="fa-solid fa-microphone"></i> ' + esc(t('record_sound_btn'));
@@ -106,21 +109,21 @@
       const btn = document.getElementById('sndSave'); btn.disabled = true; btn.textContent = t('submitting');
       try {
         const fields = {
-          kind: audioKind.key, item_num: num,
+          kind: audioKind.key,
           name: this.mapApp.displayName(),
           comment: caption || null, source_url: source || null,
           media: [st.blob, st.blob.name || 'audio'],
-          photo_time: new Date().toISOString(),
         };
         if (st.duration) fields.duration = st.duration;
         if (source) {
           const licEl = document.querySelector('input[name="sndLic"]:checked');
           fields.source_license = licEl ? licEl.value : 'cc0';
         }
-        await this.mapApp.submitContribution(fields);
+        // 寫進點位自己的 content，不是投稿——submitSpotContent() 成功後會自己重繪故事區，
+        // 這裡不用再另外呼叫 refreshEntries()（重繪同時也會把這個編輯面板本身清掉）。
+        await this.mapApp.submitSpotContent(num, fields);
         this.mapApp.trackFeature('sound');
         this.cleanup();
-        this.mapApp.refreshEntries();
       } catch (err) {
         alert(t('save_failed', { err: err.message || err }));
         btn.disabled = false; btn.textContent = t('submit_new_version');

@@ -81,6 +81,9 @@ switch ($action) {
     case 'newspot':
         require __DIR__ . '/api/newspot.php';   // 訪客／管理者建立新地點（權限見 meta.json 的 contrib.newPoint）
         return;
+    case 'spotcontent':
+        require __DIR__ . '/api/spotcontent.php';   // 點位原生內容（目前唯一型別：音訊），把關比照 editspot.php
+        return;
     case 'unlock':
         require __DIR__ . '/api/unlock.php';
         return;
