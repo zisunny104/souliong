@@ -595,7 +595,13 @@ if (!$authed) {
 
         // 允許操作某專案？（主全通；專案管理者只能動自己的——perm_can() 本身已檢查 PIN／帳號授權，
         // 不需要再比對 $reqProject，否則多專案帳號在非目前網址那個專案上會被誤擋）
+        // 這支只做「有沒有任何授權」的粗粒度判斷，僅供分頁/區塊可見性等純顯示邏輯使用；
+        // 實際動作把關一律用下面 4 支具名權限版本，不能再拿 $canProject 當作動作門檻。
         $canProject = fn($p) => $primary || perm_can($cfg, $p);
+        $canMeta    = fn($p) => $primary || perm_check($cfg, $p, 'edit_meta');
+        $canLayers  = fn($p) => $primary || perm_check($cfg, $p, 'edit_layers');
+        $canContrib = fn($p) => $primary || perm_check($cfg, $p, 'manage_contrib');
+        $canBackup  = fn($p) => $primary || perm_check($cfg, $p, 'export_backup');
 
         // 目前是否為「所有專案」總覽頁：全站專屬功能（工具分頁、主要管理 PIN）只在這裡顯示與生效
         $sitewideOnly = $primary && $scopeProject === '';
@@ -641,7 +647,7 @@ if (!$authed) {
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'meta') {
           need_csrf($csrf);
           $p = clean_id($_POST['project'] ?? '');
-          if ($p === '' || !$canProject($p)) {
+          if ($p === '' || !$canMeta($p)) {
             error_page(403, $t('no_permission_title'), $t('no_project_permission_msg'), Route::manager($scopeProject, 'access'), $t('back_to_admin'));
           }
           $mf = $cfg['projects_dir'] . '/' . $p . '/meta.json';
@@ -828,11 +834,16 @@ if (!$authed) {
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'sharelink') {
           need_csrf($csrf);
           $p = clean_id($_POST['project'] ?? '');
-          if ($p === '' || !$canProject($p)) {
+          if ($p === '') {
             error_page(403, $t('no_permission_title'), $t('no_project_permission_msg'), Route::manager($scopeProject, 'access'), $t('back_to_admin'));
           }
           $kindIn = ($_POST['kind'] ?? '') === 'admin' ? 'grant' : ($_POST['kind'] ?? '');   // admin：改名前的舊表單值，相容
           $kind = in_array($kindIn, ['code', 'grant'], true) ? $kindIn : 'code';
+          // code（投稿代碼連結）歸投稿名單管理權限；grant（管理PIN邀請連結）維持只看 grant_access，
+          // 兩者各自獨立判斷，不疊加——建立投稿代碼連結不該額外要求授權他人的能力，反之亦然。
+          if ($kind === 'code' && !$canContrib($p)) {
+            error_page(403, $t('no_permission_title'), $t('no_project_permission_msg'), Route::manager($scopeProject, 'access'), $t('back_to_admin'));
+          }
           if ($kind === 'grant' && !($primary || perm_check($cfg, $p, 'grant_access'))) {
             error_page(403, $t('no_permission_title'), $t('admin_pin_share_permission_msg'), Route::manager($p, 'access'), $t('back_to_admin'));
           }
@@ -930,7 +941,7 @@ if (!$authed) {
           need_csrf($csrf);
           $p = clean_id($_POST['project'] ?? '');
           $dc = preg_replace('/\D/', '', (string)($_POST['code_del'] ?? ''));
-          if ($p !== '' && $dc !== '' && $canProject($p)) {
+          if ($p !== '' && $dc !== '' && $canContrib($p)) {
             codes_save($cfg, $p, array_values(array_filter(codes_load($cfg, $p), fn($e) => (string)($e['code'] ?? '') !== $dc)));
           }
           header('Location: ' . Route::manager($scopeProject, 'access'));
@@ -941,7 +952,7 @@ if (!$authed) {
           need_csrf($csrf);
           $p = clean_id($_POST['project'] ?? '');
           $cid = (string)($_POST['contrib_id'] ?? '');
-          if ($p !== '' && $cid !== '' && $canProject($p)) {
+          if ($p !== '' && $cid !== '' && $canContrib($p)) {
             $cd = contrib_load($cfg, $p);
             if (isset($cd[$cid])) { unset($cd[$cid]); contrib_save($cfg, $p, $cd); }
           }
@@ -954,7 +965,7 @@ if (!$authed) {
           $p = clean_id($_POST['project'] ?? '');
           $kind = ($_POST['kind'] ?? '') === 'owner' ? 'owner' : 'contrib';
           $key = (string)($_POST['key'] ?? '');
-          if ($p !== '' && $key !== '' && $canProject($p)) {
+          if ($p !== '' && $key !== '' && $canContrib($p)) {
             if (($_POST['action']) === 'blockid') block_add($cfg, $p, $kind === 'owner' ? $key : null, $kind === 'contrib' ? $key : null);
             else block_remove($cfg, $p, $kind === 'owner' ? $key : null, $kind === 'contrib' ? $key : null);
           }
@@ -992,7 +1003,7 @@ if (!$authed) {
             }
             // 全站包歸主要管理者，專案包歸該專案的管理者——權限跟著包實際住在哪裡走
             $isProj = ($packs[$pid]['scope'] ?? '') === 'project';
-            if ($isProj ? !$canProject($pp) : !$primary) {
+            if ($isProj ? !$canLayers($pp) : !$primary) {
               error_page(403, $t('no_permission_title'), $t('primary_only_packs_msg'), Route::manager('', 'tools'), $t('back_to_admin'));
             }
             $pdir = souliong_pack_dir($cfg, $pid, $pp);
@@ -1025,7 +1036,7 @@ if (!$authed) {
             }
             // 全站層歸主要管理者，專案層歸該專案的管理者——權限跟著圖層實際住在哪裡走
             $isProj = ($all[$lid]['scope'] ?? '') === 'project';
-            if ($isProj ? !$canProject($lp) : !$primary) {
+            if ($isProj ? !$canLayers($lp) : !$primary) {
               error_page(403, $t('no_permission_title'), $t('primary_only_layers_msg'), Route::manager('', 'tools'), $t('back_to_admin'));
             }
             $ldir = souliong_layer_dir($cfg, $lid, $lp);
@@ -1057,7 +1068,7 @@ if (!$authed) {
           if ($bp === null && !$primary) {
             error_page(403, $t('no_permission_title'), $t('primary_only_backup_all_msg'), Route::manager($scopeProject, 'tools'), $t('back_to_admin'));
           }
-          if ($bp !== null && !$canProject($bp)) {
+          if ($bp !== null && !$canBackup($bp)) {
             error_page(403, $t('no_permission_title'), $t('no_project_permission_msg'), Route::manager((string)$bp, 'tools'), $t('back_to_admin'));
           }
           if ($bp === null) audit_log($cfg, $auditWho(), 'backup_all', null, '');
@@ -1190,7 +1201,7 @@ if (!$authed) {
           need_csrf($csrf);
           $pp = clean_id($_POST['project'] ?? '');
           $backTo = Route::manager($pp, 'tools');
-          if ($pp === '' ? !$primary : !$canProject($pp)) {
+          if ($pp === '' ? !$primary : !$canLayers($pp)) {
             error_page(403, $t('no_permission_title'), $t('primary_only_packs_msg'), $backTo, $t('back_to_admin'));
           }
           $roots = souliong_pack_roots($cfg, $pp);
@@ -1225,7 +1236,7 @@ if (!$authed) {
           need_csrf($csrf);
           $lp = clean_id($_POST['project'] ?? '');
           $backTo = Route::manager($lp, 'tools');
-          if ($lp === '' ? !$primary : !$canProject($lp)) {
+          if ($lp === '' ? !$primary : !$canLayers($lp)) {
             error_page(403, $t('no_permission_title'), $t('primary_only_layers_msg'), $backTo, $t('back_to_admin'));
           }
           $roots = souliong_layer_roots($cfg, $lp);
@@ -1300,7 +1311,7 @@ if (!$authed) {
           need_csrf($csrf);
           $cp = clean_id($_POST['project'] ?? '');
           $backTo = Route::manager($scopeProject !== '' ? $cp : '', 'access');
-          if ($cp === '' || !$canProject($cp)) {
+          if ($cp === '' || !$canMeta($cp)) {
             error_page(403, $t('no_permission_title'), $t('no_permission_msg'), $backTo, $t('back_to_admin'));
           }
           $cmf = $cfg['projects_dir'] . '/' . $cp . '/meta.json';
@@ -1321,7 +1332,7 @@ if (!$authed) {
           need_csrf($csrf);
           $cp = clean_id($_POST['project'] ?? '');
           $backTo = Route::manager($scopeProject !== '' ? $cp : '', 'access');
-          if ($cp === '' || !$canProject($cp)) {
+          if ($cp === '' || !$canMeta($cp)) {
             error_page(403, $t('no_permission_title'), $t('no_permission_msg'), $backTo, $t('back_to_admin'));
           }
           $cmf = $cfg['projects_dir'] . '/' . $cp . '/meta.json';
@@ -1341,7 +1352,7 @@ if (!$authed) {
           need_csrf($csrf);
           $cp = clean_id($_POST['project'] ?? '');
           $backTo = Route::manager($scopeProject !== '' ? $cp : '', 'access');
-          if ($cp === '' || !$canProject($cp)) {
+          if ($cp === '' || !$canMeta($cp)) {
             error_page(403, $t('no_permission_title'), $t('no_permission_msg'), $backTo, $t('back_to_admin'));
           }
           $cmf = $cfg['projects_dir'] . '/' . $cp . '/meta.json';
@@ -1362,7 +1373,7 @@ if (!$authed) {
           need_csrf($csrf);
           $cp = clean_id($_POST['project'] ?? '');
           $backTo = Route::manager($scopeProject !== '' ? $cp : '', 'access');
-          if ($cp === '' || !$canProject($cp)) {
+          if ($cp === '' || !$canMeta($cp)) {
             error_page(403, $t('no_permission_title'), $t('no_permission_msg'), $backTo, $t('back_to_admin'));
           }
           $cmf = $cfg['projects_dir'] . '/' . $cp . '/meta.json';
@@ -1378,9 +1389,9 @@ if (!$authed) {
         // ── 圖層的解析：刪除與就地編輯共用。刻意用「作用域對應的那個 root」而不是
         //    souliong_layer_dir()——後者同名時會偏好專案層，用在這裡的話，想刪全站層卻剛好有
         //    同名專案層時就會刪錯一邊。權限規則與 layerimport 相同：圖層住哪，權限就跟到哪。 ──
-        $layerTarget = function (string $lp, string $lid) use ($cfg, $primary, $canProject, $t): array {
+        $layerTarget = function (string $lp, string $lid) use ($cfg, $primary, $canLayers, $t): array {
           $backTo = Route::manager($lp, 'tools');
-          if ($lp === '' ? !$primary : !$canProject($lp)) {
+          if ($lp === '' ? !$primary : !$canLayers($lp)) {
             error_page(403, $t('no_permission_title'), $t('primary_only_layers_msg'), $backTo, $t('back_to_admin'));
           }
           $roots = souliong_layer_roots($cfg, $lp);
@@ -1501,7 +1512,7 @@ if (!$authed) {
           $pp  = clean_id($_POST['project'] ?? '');
           $pid = strtolower(preg_replace('/[^A-Za-z0-9_-]/', '', $_POST['pack'] ?? ''));
           $backTo = Route::manager($pp, 'tools');
-          if ($pp === '' ? !$primary : !$canProject($pp)) {
+          if ($pp === '' ? !$primary : !$canLayers($pp)) {
             error_page(403, $t('no_permission_title'), $t('primary_only_packs_msg'), $backTo, $t('back_to_admin'));
           }
           $roots = souliong_pack_roots($cfg, $pp);
@@ -3706,7 +3717,7 @@ if (!$authed) {
 
       <?php if ($canProject($p)):
         $canGrantAccess = $primary || perm_check($cfg, $p, 'grant_access');
-        $permLabels = ['delete_others' => $t('perm_delete_others'), 'edit_others' => $t('perm_edit_others'), 'edit_spots' => $t('perm_edit_spots'), 'grant_access' => $t('perm_grant_access'), 'edit_3d_regions' => $t('perm_edit_3d_regions')];
+        $permLabels = ['delete_others' => $t('perm_delete_others'), 'edit_others' => $t('perm_edit_others'), 'edit_spots' => $t('perm_edit_spots'), 'grant_access' => $t('perm_grant_access'), 'edit_3d_regions' => $t('perm_edit_3d_regions'), 'edit_meta' => $t('perm_edit_meta'), 'edit_layers' => $t('perm_edit_layers'), 'manage_contrib' => $t('perm_manage_contrib'), 'export_backup' => $t('perm_export_backup')];
         $cList = contrib_load($cfg, $p);
         $codesList = codes_load($cfg, $p);
         $blocked = blocked_load($cfg, $p);

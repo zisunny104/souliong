@@ -42,7 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 rate_limit($cfg, 'manage');
 
-if (!perm_can($cfg, $project)) {
+if (!(primary_authed($cfg) || perm_check($cfg, $project, 'edit_meta'))) {
     json_out(['error' => '沒有權限管理這張地圖的封面圖片'], 403);
 }
 

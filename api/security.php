@@ -67,6 +67,7 @@ function primary_perms(): array {
     return [
         'delete_others' => true, 'edit_others' => true, 'edit_spots' => true,
         'grant_access' => true, 'edit_3d_regions' => true,
+        'edit_meta' => true, 'edit_layers' => true, 'manage_contrib' => true, 'export_backup' => true,
         'manage_layers' => true, 'fix_exif' => true, 'fix_thumbnails' => true, 'view_stats' => true,
         'migrate_spots' => true,
     ];
@@ -108,7 +109,7 @@ function pins_file(array $cfg): string {
     return $new;
 }
 /** 新專案 PIN 的預設權限：一律從全關始（等同僅主 PIN 才能動別人的東西），需主 PIN 逐項開啟下放。 */
-function pin_default_perms(): array { return ['delete_others' => false, 'edit_others' => false, 'edit_spots' => false, 'grant_access' => false, 'edit_3d_regions' => false]; }
+function pin_default_perms(): array { return ['delete_others' => false, 'edit_others' => false, 'edit_spots' => false, 'grant_access' => false, 'edit_3d_regions' => false, 'edit_meta' => false, 'edit_layers' => false, 'manage_contrib' => false, 'export_backup' => false]; }
 // manager.php 單次頁面渲染常對同一專案連續呼叫多次 perm_check()，各自都會讀這份清單；
 // 用行程內靜態快取避免同一請求重複讀檔／解碼，pins_save() 寫入後會同步更新快取。
 function _pins_cache(?array $set = null): ?array {
@@ -150,6 +151,16 @@ function pins_load(array $cfg): array {
                 $e['perms']['edit_spots'] = $e['perms']['edit_points'];
                 unset($e['perms']['edit_points']);
                 $dirty = true;
+            }
+            // edit_meta/edit_layers/manage_contrib/export_backup 上線前就存在的 PIN：這幾類動作原本
+            // 只靠 perm_can()（有沒有任何授權）把關，現在改具名權限，既有 PIN 缺這幾個 key 一律回填
+            // true（保留現有能力），不能讓它們悄悄被鎖出；全新 PIN 走 pin_default_perms() 一開始就
+            // 帶著這些 key（false），不會落入這個分支。
+            foreach (['edit_meta', 'edit_layers', 'manage_contrib', 'export_backup'] as $gk) {
+                if (!array_key_exists($gk, $e['perms'])) {
+                    $e['perms'][$gk] = true;
+                    $dirty = true;
+                }
             }
             if (isset($e['pin'])) { $e['pin_hash'] = pin_hash_of($cfg, (string)$e['pin']); unset($e['pin']); $dirty = true; }
         }

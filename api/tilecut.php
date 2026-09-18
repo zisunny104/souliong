@@ -40,7 +40,7 @@ $primary = primary_authed($cfg);
 $canProj = function (string $p) use ($cfg, $primary): bool {
     return $p !== '' && preg_match('/^[a-z0-9_-]+$/', $p) === 1
         && is_dir(project_dir($cfg, $p))
-        && ($primary || perm_can($cfg, $p));
+        && ($primary || perm_check($cfg, $p, 'edit_layers'));
 };
 $auditWho = fn(string $p) => $primary ? 'primary' : (($acc = account_current($cfg)) !== null ? 'acct:' . $acc['id'] : 'pin:' . (string)pin_current_id($cfg, $p));
 // 依身份派生 CSRF token：primary 用 primary_derived()，帳號用 account_derived()，專案 PIN 用
