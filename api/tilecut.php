@@ -37,10 +37,10 @@ $adminUrl = $esc(Route::abs(Route::manager($backProject, 'tools')));
 // 這支寫的是專案層，所以權限跟著專案走（比照 manager.php 的 layerimport）：主要管理者通吃，
 // 專案管理者只能動自己那張地圖。thumbfix 之類的全站維護工具是 primary only，這支不是。
 $primary = primary_authed($cfg);
-$canProj = function (string $p) use ($cfg, $primary): bool {
+$canProj = function (string $p) use ($cfg): bool {
     return $p !== '' && preg_match('/^[a-z0-9_-]+$/', $p) === 1
         && is_dir(project_dir($cfg, $p))
-        && ($primary || perm_check($cfg, $p, 'edit_layers'));
+        && perm_check($cfg, $p, 'edit_layers');
 };
 $auditWho = fn(string $p) => $primary ? 'primary' : (($acc = account_current($cfg)) !== null ? 'acct:' . $acc['id'] : 'pin:' . (string)pin_current_id($cfg, $p));
 // 依身份派生 CSRF token：primary 用 primary_derived()，帳號用 account_derived()，專案 PIN 用
@@ -434,7 +434,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'finis
 }
 
 // ── 頁面 ──
-$allProjects = array_values(array_filter(store_projects($cfg), fn($p) => $primary || perm_can($cfg, $p)));
+$allProjects = array_values(array_filter(store_projects($cfg), fn($p) => perm_can($cfg, $p)));
 if (!$primary && !$allProjects) {
     http_response_code(401);
     header('Content-Type: text/html; charset=utf-8');

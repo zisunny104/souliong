@@ -597,11 +597,11 @@ if (!$authed) {
         // 不需要再比對 $reqProject，否則多專案帳號在非目前網址那個專案上會被誤擋）
         // 這支只做「有沒有任何授權」的粗粒度判斷，僅供分頁/區塊可見性等純顯示邏輯使用；
         // 實際動作把關一律用下面 4 支具名權限版本，不能再拿 $canProject 當作動作門檻。
-        $canProject = fn($p) => $primary || perm_can($cfg, $p);
-        $canMeta    = fn($p) => $primary || perm_check($cfg, $p, 'edit_meta');
-        $canLayers  = fn($p) => $primary || perm_check($cfg, $p, 'edit_layers');
-        $canContrib = fn($p) => $primary || perm_check($cfg, $p, 'manage_contrib');
-        $canBackup  = fn($p) => $primary || perm_check($cfg, $p, 'export_backup');
+        $canProject = fn($p) => perm_can($cfg, $p);
+        $canMeta    = fn($p) => perm_check($cfg, $p, 'edit_meta');
+        $canLayers  = fn($p) => perm_check($cfg, $p, 'edit_layers');
+        $canContrib = fn($p) => perm_check($cfg, $p, 'manage_contrib');
+        $canBackup  = fn($p) => perm_check($cfg, $p, 'export_backup');
 
         // 目前是否為「所有專案」總覽頁：全站專屬功能（工具分頁、主要管理 PIN）只在這裡顯示與生效
         $sitewideOnly = $primary && $scopeProject === '';
@@ -844,7 +844,7 @@ if (!$authed) {
           if ($kind === 'code' && !$canContrib($p)) {
             error_page(403, $t('no_permission_title'), $t('no_project_permission_msg'), Route::manager($scopeProject, 'access'), $t('back_to_admin'));
           }
-          if ($kind === 'grant' && !($primary || perm_check($cfg, $p, 'grant_access'))) {
+          if ($kind === 'grant' && !perm_check($cfg, $p, 'grant_access')) {
             error_page(403, $t('no_permission_title'), $t('admin_pin_share_permission_msg'), Route::manager($p, 'access'), $t('back_to_admin'));
           }
           $label = substr(trim((string)($_POST['label'] ?? '')), 0, 80);
@@ -876,7 +876,7 @@ if (!$authed) {
           $mLegacyId = ($_POST['legacy_id'] ?? '') !== '' ? (string)$_POST['legacy_id'] : null;
           $mLabel = substr(trim((string)($_POST['label'] ?? '')), 0, 80);
           $canMigrate = $mSource === 'project'
-            ? ($mProject !== '' && ($primary || perm_check($cfg, $mProject, 'grant_access')))
+            ? ($mProject !== '' && perm_check($cfg, $mProject, 'grant_access'))
             : $primary;   // primary／bootstrap 兩種來源（全域身分）僅限主 PIN 本人操作
           if ($mSource === '' || !$canMigrate) {
             error_page(403, $t('no_permission_title'), $t('primary_only_pin_perm_msg'), Route::manager($scopeProject, 'access'), $t('back_to_admin'));
@@ -890,7 +890,7 @@ if (!$authed) {
           need_csrf($csrf);
           $p = clean_id($_POST['project'] ?? '');
           $iid = (string)($_POST['invite_id'] ?? '');
-          if ($p !== '' && $iid !== '' && ($primary || perm_check($cfg, $p, 'grant_access'))) {
+          if ($p !== '' && $iid !== '' && perm_check($cfg, $p, 'grant_access')) {
             $d = pins_load($cfg);
             $d['projects'][$p] = array_values(array_filter($d['projects'][$p] ?? [], fn($e) => !(($e['kind'] ?? '') === 'invite' && (string)($e['id'] ?? '') === $iid)));
             pins_save($cfg, $d);
@@ -978,9 +978,9 @@ if (!$authed) {
           $p = clean_id($_POST['project'] ?? '');
           $field = ($_POST['kind'] ?? '') === 'owner' ? 'owner_hash' : 'contrib_id';
           $key = (string)($_POST['key'] ?? '');
-          if ($p !== '' && $key !== '' && ($primary || perm_check($cfg, $p, 'delete_others'))) {
+          if ($p !== '' && $key !== '' && perm_check($cfg, $p, 'delete_others')) {
             // 沒有 edit_spots 就略過這批裡的 spot 記錄（點位本身），留著不刪、其餘照常整批刪除
-            $excludeKinds = ($primary || perm_check($cfg, $p, 'edit_spots')) ? [] : ['spot'];
+            $excludeKinds = perm_check($cfg, $p, 'edit_spots') ? [] : ['spot'];
             $removedList = store_delete_by($cfg, $p, $field, $key, $excludeKinds);
             foreach ($removedList as $removed) {
               store_purge_files($cfg, $removed);
@@ -3561,7 +3561,7 @@ if (!$authed) {
                 // edit_3d_regions 預設關閉（跟 grant_access 等其他委派權限一樣），沒開的話這裡
                 // 整段不出現——存檔會被伺服器擋，與其讓人填完整個編輯流程才在最後一步撞牆，不如
                 // 一開始就不給入口。
-                $canEdit3d = $primary || perm_check($cfg, $p, 'edit_3d_regions');
+                $canEdit3d = perm_check($cfg, $p, 'edit_3d_regions');
                 $projRegions = $canEdit3d ? souliong_region3d_list($cfg, $p) : [];
               ?>
               <?php if ($canEdit3d): ?>
@@ -3716,7 +3716,7 @@ if (!$authed) {
       </div>
 
       <?php if ($canProject($p)):
-        $canGrantAccess = $primary || perm_check($cfg, $p, 'grant_access');
+        $canGrantAccess = perm_check($cfg, $p, 'grant_access');
         $permLabels = ['delete_others' => $t('perm_delete_others'), 'edit_others' => $t('perm_edit_others'), 'edit_spots' => $t('perm_edit_spots'), 'grant_access' => $t('perm_grant_access'), 'edit_3d_regions' => $t('perm_edit_3d_regions'), 'edit_meta' => $t('perm_edit_meta'), 'edit_layers' => $t('perm_edit_layers'), 'manage_contrib' => $t('perm_manage_contrib'), 'export_backup' => $t('perm_export_backup')];
         $cList = contrib_load($cfg, $p);
         $codesList = codes_load($cfg, $p);
@@ -3734,7 +3734,7 @@ if (!$authed) {
           $at = (string)($r['created_at'] ?? '');
           if ($at > $ownerGroups[$oh]['last_at']) { $ownerGroups[$oh]['last_at'] = $at; $ownerGroups[$oh]['last_name'] = (string)($r['name'] ?? ''); }
         }
-        $canDeleteOthers = $primary || perm_check($cfg, $p, 'delete_others');
+        $canDeleteOthers = perm_check($cfg, $p, 'delete_others');
         // 剛建立的憑證：只在本次回應顯示一次，畫在所屬區塊內（屬「正在分享」，維持明碼）
         $justHere = fn(...$kinds) => $justCreatedShare && $justCreatedShare['project'] === $p && in_array($justCreatedShare['kind'], $kinds, true);
         $shareNew = function (array $s, string $kindLabel) use ($esc, $p, $meta, $t) { ?>
