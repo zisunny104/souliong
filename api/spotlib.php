@@ -183,13 +183,13 @@ function spotmigrate_run(array $cfg, string $proj): array {
  *  spot_merge_forward() 與其呼叫端都以這份清單為準，不要各自硬編一份欄位名單。 */
 function spot_overridable_fields(): array
 {
-    return ['lat', 'lon', 'feature', 'content'];
+    return ['lat', 'lon', 'content'];
 }
 
 /**
  * 算出一個點位「目前有效」的狀態：起點（kind:'spot'、有 num、edit_of 留空）疊上 edit_of 鏈
  * 裡 created_at 最新一筆覆寫。疊加用 array_key_exists() 而非 isset()——舊紀錄可能整個 key
- * 都不存在（例如遷移前的底稿沒有 feature 欄位），isset() 會把「沒帶這個 key」誤判成「明確
+ * 都不存在（例如遷移前的底稿沒有 content 欄位），isset() 會把「沒帶這個 key」誤判成「明確
  * 覆寫成 null」，把起點原本的值蓋掉。找不到這個 item_num 的起點回傳 null。
  */
 function spot_effective(array $cfg, string $project, int $itemNum): ?array

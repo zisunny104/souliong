@@ -1,13 +1,12 @@
 <?php
-// POST spotcontent.php：把內容直接寫入點位自己的 content 欄位（spots.jsonl 的 edit_of 覆寫鏈），
-// 取代「投稿到 entries.jsonl 再由管理者用 feature 手動精選」的舊流程（見 docs/part4-coordination.md
-// 的概念模型：投稿與點位是兩個平行的域，content 是點位自己的原生內容，跟 feature 這座橋是兩回事）。
+// POST spotcontent.php：把內容直接寫入點位自己的 content 欄位（spots.jsonl 的 edit_of 覆寫鏈）。
+// 投稿與點位是兩個平行的域：投稿在 entries.jsonl，content 是點位自己的原生內容，兩者不互相引用。
 // content 是通用欄位，目前唯一型別是音訊，但資料形狀（型別標記物件陣列）刻意設計成可擴充。
 // 把關比照 editspot.php 逐字同款（perm_check('edit_spots') + CSRF）——這是點位權限，跟投稿軸的
 // 投稿代碼／contrib_open() 無關，也跟這張地圖有沒有開 soundEdit／upload 模組無關（模組開關只影響
 // 前端要不要顯示錄音入口，不是後端的把關條件）。本次只做管理者可寫，訪客投稿之後再單獨討論。
-// 伺服器端一律用 spot_effective() 算出目前有效的 lat/lon/feature 重新寫回去，不信任前端送來的值，
-// 只覆寫 content——避免竄改位置或清空 feature。item_num 對不到起點直接 404，不產生孤兒紀錄。
+// 伺服器端一律用 spot_effective() 算出目前有效的 lat/lon 重新寫回去，不信任前端送來的值，
+// 只覆寫 content——避免竄改位置。item_num 對不到起點直接 404，不產生孤兒紀錄。
 // POST project, item_num（必填，對應起點的 num）, media(檔案), duration(秒，選填), comment(選填),
 // name(選填), source_url(選填), source_license(選填), license(選填，cc0/cc-by)。
 require __DIR__ . '/store.php';
@@ -110,7 +109,6 @@ try {
         'name'       => $name,
         'lat'        => $fields['lat'],
         'lon'        => $fields['lon'],
-        'feature'    => $fields['feature'],
         'content'    => $fields['content'],
         'created_at' => gmdate('c'),
     ];

@@ -126,7 +126,7 @@ try {
     $record = store_append_locked($cfg, $project, function (array $records) use ($project, $title, $cat, $catLabel, $color, $story, $lat, $lon, $by, $ownerHash, $contribId) {
         $max = 0;
         foreach ($records as $r) {
-            // 只算起點（無 edit_of、有 num），搬移／設精選那幾筆沒有自己的 num 可算
+            // 只算起點（無 edit_of、有 num），搬移／內容那幾筆沒有自己的 num 可算
             if (empty($r['edit_of']) && isset($r['num'])) $max = max($max, (int)$r['num']);
         }
         return [

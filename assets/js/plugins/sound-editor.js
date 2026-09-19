@@ -4,7 +4,7 @@
    perm_check(edit_spots)。
    跟 story-editor.js 是同一種角色：故事區「新增一則版本」的動作，只是送出的是錄音而非故事文字，
    但寫入的是點位自己的 content 欄位（見 MapApp.submitSpotContent()／api/spotcontent.php），
-   不進 entries.jsonl、不會出現在投稿牆上，錄完就是這個點位當下的音訊內容，不必另外「設精選」。
+   不進 entries.jsonl、不會出現在投稿牆上，錄完就是這個點位當下的音訊內容。
    錄音機／選檔／量時長仍借用 kind-audio.js 的 AudioKind 類別（buildRecorder/prepare/acceptAttr），
    所以這張地圖仍要開著 upload 模組、contrib.kinds 留著 "audio"，這支檔案才拿得到那個類別。 */
 (() => {

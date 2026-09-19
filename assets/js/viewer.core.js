@@ -509,8 +509,7 @@ window.MapApp = (() => {
   }
 
   // 哪些記錄是「排在投稿牆上的一則投稿」。desc（地點故事版本）不算，它顯示在故事區；
-  // spot 也不算，它是地點本身而不是掛在地點底下的內容。每一種投稿型別（含音訊）一律算，
-  // 是否放大顯示在故事區是 current.feature 的事，不影響它算不算一則投稿。
+  // spot 也不算，它是地點本身而不是掛在地點底下的內容。每一種投稿型別（含音訊）一律算。
   const isEntry = (e) => !!(e && (KINDS[e.kind] || (!e.kind && e.photo)) && e.kind !== 'desc');
 
   // 合併「原始投稿」與其 edit_of 編輯紀錄，算出目前應顯示的內容：
@@ -548,7 +547,7 @@ window.MapApp = (() => {
 
   // 合併「地點本身」的建立與後續編輯：起點（api/newspot.php 或 api/spotmigrate.php 寫入的
   // kind:'spot'，一定帶 num、無 edit_of）疊上指向它的 edit_of 鏈最新一筆（api/editspot.php
-  // 寫入的搬移／設精選紀錄）。spots.jsonl 是點位唯一的真相來源（含匯入的靜態底稿，見
+  // 寫入的搬移紀錄、api/spotcontent.php 寫入的內容紀錄）。spots.jsonl 是點位唯一的真相來源（含匯入的靜態底稿，見
   // api/spotmigrate.php），這裡不再另外處理 SPOTS 靜態陣列。origLat/origLon 一律保留起點
   // 原始座標，供編輯面板「還原初始位置」使用。
   function effectiveSpots() {
@@ -566,7 +565,6 @@ window.MapApp = (() => {
         ...o, cat: o.cat || 'new', color: o.color || '#7a7f87',
         lat: latest ? latest.lat : o.lat, lon: latest ? latest.lon : o.lon,
         addedBy: o.name, addedAt: o.created_at,
-        feature: latest ? latest.feature : o.feature,
         content: latest ? latest.content : o.content,
         posEdited: !!latest, origLat: o.lat, origLon: o.lon,
       };
@@ -868,9 +866,7 @@ window.MapApp = (() => {
       fd.append('item_num', orig.num);
       fd.append('lat', state.lat);
       fd.append('lon', state.lon);
-      // feature 一律送（沒有就送空字串代表清空）：後端只覆寫「有送來」的欄位，沒送的
-      // （例如點位原生內容 content）由 spot_merge_forward() 自動沿用目前有效值。
-      fd.append('feature', orig.feature || '');
+      // 只送座標：沒送的欄位（點位原生內容 content）由 spot_merge_forward() 自動沿用目前有效值。
       fd.append('name', displayName());
       fd.append('csrf', APP.csrf || '');
       const res = await fetch(apiUrl('editspot'), { method: 'POST', body: fd });
@@ -893,7 +889,7 @@ window.MapApp = (() => {
   }
   // 寫入點位自己的原生內容（目前只有音訊，見 api/spotcontent.php）。這次只開放管理者，身分
   // 只靠 csrf——跟拖曳定位的 submitSpotEdit() 同一組權限（edit_spots），不是投稿的 owner/code/
-  // ctoken 那一套。不送 lat/lon/feature：伺服器用 spot_effective() 算目前有效值再疊上 content，
+  // ctoken 那一套。不送 lat/lon：伺服器用 spot_effective() 算目前有效值再疊上 content，
   // 前端就算送了也會被忽略。
   async function submitSpotContent(itemNum, fields) {
     const fd = new FormData();
@@ -934,15 +930,10 @@ window.MapApp = (() => {
     if (current.story) versions.push({ name: t('original_source_tag'), comment: current.story, created_at: null, baseline: true });
     descs.forEach(d => versions.push(d));
     const latest = versions[versions.length - 1];
-    // 精選內容：地點記錄若帶 feature（見 editspot.php），指向投稿牆上某一則投稿的 id；只要
-    // 那則投稿還在（effectiveEntries() 找得到、沒被刪），就放大顯示在故事區——它本身照常留在
-    // 投稿牆上，不做任何排除。沒有 feature 就照一般地圖的 desc 版本顯示故事文字。
-    // 音訊是點位自己的原生內容（見 api/spotcontent.php），不透過 feature 這座橋：
-    // 直接從 effectiveSpots() 疊好的 content 陣列裡找，找到就跟 featured 一樣放大顯示。
-    const featured = current.feature ? entries.find(e => e.id === current.feature) : null;
+    // 點位自己的原生內容（見 api/spotcontent.php）：直接從 effectiveSpots() 疊好的 content 陣列裡找，
+    // 找到就放大顯示在故事區；沒有就照一般地圖的 desc 版本顯示故事文字。
     const nativeAudio = (current.content || []).find(c => c && c.kind === 'audio' && c.media);
-    const hasFeaturedDisplay = !!(featured || nativeAudio);
-    const byLine = (!hasFeaturedDisplay && latest)
+    const byLine = (!nativeAudio && latest)
       ? (latest.baseline ? esc(t('source_label', { src: META.source || META.credit || '' })) : '— ' + esc(latest.name || t('anon_fallback')) + '・' + fmtTime(latest.photo_time || latest.created_at))
       : '';
     const sourceLic = latest && latest.source_license === 'cc-by' ? 'CC BY' : (latest && latest.source_license === 'cc0' ? 'CC0' : '');
@@ -970,7 +961,7 @@ window.MapApp = (() => {
     // 故事 / 說明（版本化，預設只顯示最新版）
     const story = document.createElement('div'); story.className = 'story';
     story.innerHTML =
-      (hasFeaturedDisplay ? '' : '<div class="story-head">' + esc(t('location_story_title')) + '</div>') +
+      (nativeAudio ? '' : '<div class="story-head">' + esc(t('location_story_title')) + '</div>') +
       '<div class="story-body">' + bodyHtml + '</div>' +
       (byLine ? '<div class="story-by">' + byLine + '</div>' : '') +
       sourceLine +
@@ -984,7 +975,7 @@ window.MapApp = (() => {
     // 插件掛勾點：讓插件（例如上傳、依序探索）在照片牆前面插入自己的提示區塊或按鈕（如「上傳照片到這個點」「僅顯示 X 的照片・顯示全部」）
     entriesHintFns.forEach(fn => { const el = fn(current); if (el) box.appendChild(el); });
 
-    // 投稿牆：每一筆投稿一律出現在這裡，即使其中一筆已被設為上面的精選內容也不排除
+    // 投稿牆：每一筆投稿一律出現在這裡
     const gwrap = document.createElement('div');
     gwrap.className = 'gallery';   // 大卡片模式時靠這個 class 排成多欄
     if (!entries.length) gwrap.innerHTML = '<div class="empty" style="margin-top:12px">' + esc(t('photos_empty')) + '</div>';

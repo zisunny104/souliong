@@ -1,9 +1,9 @@
 <?php
-// 一次性維護工具（CLI only，可重複執行、冪等）：把專案裡透過 feature 精選到某筆音訊投稿的點位，
-// 搬成點位自己的原生 content（依 docs/part4-coordination.md 的「音訊正名為點位原生內容」決策）。
-// 只對 spots.jsonl 新增一筆 edit_of 覆寫紀錄（lat/lon 由 spot_merge_forward() 自動帶下去，feature
-// 依設計清空——renderEntries() 改版後不再讀它），entries.jsonl 裡原始的音訊投稿完全不動，仍是
-// 投稿牆上合法的一般投稿。
+// 一次性維護工具（CLI only，可重複執行、冪等）：舊版用 feature 欄位把某筆音訊投稿「精選」到點位上，
+// 這支工具把這種點位搬成點位自己的原生 content。feature 欄位本身已從系統移除（spot_effective() 不再
+// 疊它），所以這裡自己讀 spots.jsonl 的原始紀錄找出每個點位最後一次的 feature 值。
+// 只對 spots.jsonl 新增一筆 edit_of 覆寫紀錄（lat/lon/content），entries.jsonl 裡原始的音訊投稿
+// 完全不動，仍是投稿牆上合法的一般投稿。所有舊資料都遷移完之後，這支工具就可以刪除。
 //
 // 用法：php soundcontent_migrate.php <project_dir> [--apply]
 // 不加 --apply 是預覽模式（dry run），只列出會處理哪些點位，不寫入也不備份；
@@ -38,6 +38,24 @@ foreach ($spotRecords as $r) {
 }
 sort($nums);
 
+// 舊版有效 feature：起點的 feature 疊上 edit_of 鏈裡 created_at 最新、且帶有 feature 這個 key 的一筆
+// （明確的 null／空字串代表當時被清空）。
+$legacyFeature = [];
+$originIdToNum = [];
+foreach ($spotRecords as $r) {
+    if (($r['kind'] ?? '') === 'spot' && empty($r['edit_of']) && isset($r['num'])) {
+        $originIdToNum[(string)$r['id']] = (int)$r['num'];
+        $legacyFeature[(int)$r['num']] = ['at' => '', 'value' => $r['feature'] ?? null];
+    }
+}
+foreach ($spotRecords as $r) {
+    if (($r['kind'] ?? '') !== 'spot' || empty($r['edit_of']) || !array_key_exists('feature', $r)) continue;
+    $num = $originIdToNum[(string)$r['edit_of']] ?? null;
+    if ($num === null) continue;
+    $at = (string)($r['created_at'] ?? '');
+    if ($at >= $legacyFeature[$num]['at']) $legacyFeature[$num] = ['at' => $at, 'value' => $r['feature']];
+}
+
 $audioById = [];
 foreach (file($dir . '/entries.jsonl', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $line) {
     $rec = json_decode($line, true);
@@ -50,7 +68,7 @@ foreach ($nums as $num) {
     $eff = spot_effective($cfg, $project, $num);
     if ($eff === null) { $skipped[] = ['num' => $num, 'reason' => 'no origin (不應該發生)']; continue; }
     if (!empty($eff['content'])) { $skipped[] = ['num' => $num, 'reason' => '已有 content，跳過（冪等）']; continue; }
-    $featureId = (string)($eff['feature'] ?? '');
+    $featureId = (string)($legacyFeature[$num]['value'] ?? '');
     if ($featureId === '') { $skipped[] = ['num' => $num, 'reason' => '沒有精選 feature，無須遷移']; continue; }
     if (!isset($audioById[$featureId])) { $skipped[] = ['num' => $num, 'reason' => "feature={$featureId} 找不到對應的音訊投稿"]; continue; }
     $toWrite[] = ['num' => $num, 'eff' => $eff, 'entry' => $audioById[$featureId]];
@@ -93,7 +111,7 @@ foreach ($toWrite as $w) {
         'name'           => $e['name'] ?? '管理者',
         'created_at'     => $e['created_at'] ?? gmdate('c'),
     ];
-    $fields = spot_merge_forward($w['eff'], ['feature' => null, 'content' => [$item]]);
+    $fields = spot_merge_forward($w['eff'], ['content' => [$item]]);
     $record = [
         'id'         => bin2hex(random_bytes(8)),
         'project'    => $project,
@@ -103,7 +121,6 @@ foreach ($toWrite as $w) {
         'name'       => '音訊內容遷移工具',
         'lat'        => $fields['lat'],
         'lon'        => $fields['lon'],
-        'feature'    => $fields['feature'],
         'content'    => $fields['content'],
         'created_at' => gmdate('c'),
     ];

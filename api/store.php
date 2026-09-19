@@ -9,7 +9,7 @@
  * 從這裡開始的所有函式都不會再讀寫它。
  *
  * 已淘汰、只留給舊資料相容用的舊機制：data.jsonl 本身、kind 值 point／newpoint（已併入 spot，
- * 見 store_file()）、primaryKind（已由 spot 記錄的 feature 欄位取代）。退場判準與流程見
+ * 見 store_file()）、primaryKind（已由 spot 記錄的 content 欄位取代）。退場判準與流程見
  * docs/EXTENDING.md「舊機制淘汰與退場」一節，判準腳本見 tools/retirecheck.php。
  */
 

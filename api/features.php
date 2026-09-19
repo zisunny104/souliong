@@ -169,7 +169,7 @@ function souliong_modules(): array
         'personExplore' => ['label' => '依序探索（插件）', 'desc' => '選了投稿者後，可依序探索他的地標／零散照片時間軸。', 'default' => false, 'dependsOn' => 'identity'],
         'delegation' => ['label' => '管理者邀請登入', 'desc' => '地圖頁上的管理者登入／邀請兌換彈窗。關閉後這張地圖不再產生新的專案 PIN 或邀請連結，只能用主 PIN 從後台網址（/manager）登入管理，適合純檢視、僅超級管理者更新內容的部署。', 'default' => true],
         'map3d'  => ['label' => '3D 地圖模式', 'desc' => '訪客可切換到 MapLibre 3D 檢視（公用建物擠出＋自訂模型）。關閉後只有既有 Leaflet 2D 地圖，不載入 MapLibre。', 'default' => false],
-        'soundEdit' => ['label' => '聲音主要內容編輯', 'desc' => '在地點故事區提供錄音／上傳按鈕，送出後直接寫入該地點的原生內容（spots.jsonl 的 content 欄位），立即顯示，不需另外精選。點位內容屬點位權限軸，僅限具 edit_spots 權限的管理者寫入，與投稿代碼無關。', 'default' => false, 'dependsOn' => 'upload'],
+        'soundEdit' => ['label' => '聲音主要內容編輯', 'desc' => '在地點故事區提供錄音／上傳按鈕，送出後直接寫入該地點的原生內容（spots.jsonl 的 content 欄位），立即顯示。點位內容屬點位權限軸，僅限具 edit_spots 權限的管理者寫入，與投稿代碼無關。', 'default' => false, 'dependsOn' => 'upload'],
     ];
 }
 

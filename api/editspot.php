@@ -1,15 +1,14 @@
 <?php
-// 編輯點位本身的座標／精選內容：預設僅限主要管理者；主 PIN 可個別開啟特定專案 PIN 的 edit_spots 權限。
+// 編輯點位本身的座標：預設僅限主要管理者；主 PIN 可個別開啟特定專案 PIN 的 edit_spots 權限。
 // 點位不論是原本來自靜態底稿（api/spotmigrate.php 併入 spots.jsonl 的官方/共享資料，無個別投稿者）
 // 還是 newspot.php 建立的動態點位，此刻都已是 spots.jsonl 裡同一種起點記錄（一定有 num），因此不比照
 // editentry.php 驗證 owner/ctoken，而是單純以 perm_check() 把關。
 // 比照「故事」的版本化精神：不覆寫起點，而是新增一筆 kind:'spot' 版本紀錄，帶 edit_of 指回這個點位的
 // 起點記錄 id。前端讀取時把同一條 edit_of 鏈的最新一筆疊加到起點原始狀態上（見 api/spotlib.php 的
 // spot_effective()，viewer.core.js 的 effectiveSpots() 是同一套算法的前端版本）。
-// 可覆寫欄位（lat/lon/feature/content，見 spot_overridable_fields()）採 merge-forward：伺服器先算出
-// 目前有效狀態，只疊上這次請求裡「真的有送」的欄位，沒送的欄位沿用舊值——因此 feature 要清空
-// （取消精選）必須明確送出空字串，不能靠「不送」，前端 submitSpotEdit() 已改成一律送。
-// POST project, item_num（必填，對應起點的 num）, lat, lon, name(可留空), feature(可留空，精選投稿 id)。
+// 可覆寫欄位（lat/lon/content，見 spot_overridable_fields()）採 merge-forward：伺服器先算出
+// 目前有效狀態，只疊上這次請求裡「真的有送」的欄位（這支只改 lat/lon），沒送的欄位（content）沿用舊值。
+// POST project, item_num（必填，對應起點的 num）, lat, lon, name(可留空)。
 require __DIR__ . '/store.php';
 require __DIR__ . '/security.php';
 require __DIR__ . '/spotlib.php';
@@ -59,9 +58,7 @@ try {
 
     $editorName = clean_str_es($_POST['name'] ?? null, $cfg['name_max']) ?? '管理者';
 
-    $changes = ['lat' => $lat, 'lon' => $lon];
-    if (isset($_POST['feature'])) $changes['feature'] = clean_str_es($_POST['feature'], 64);
-    $fields = spot_merge_forward($eff, $changes);
+    $fields = spot_merge_forward($eff, ['lat' => $lat, 'lon' => $lon]);
 
     $record = [
         'id'         => bin2hex(random_bytes(8)),
@@ -72,7 +69,6 @@ try {
         'name'       => $editorName,
         'lat'        => $fields['lat'],
         'lon'        => $fields['lon'],
-        'feature'    => $fields['feature'],
         'content'    => $fields['content'],
         'created_at' => gmdate('c'),
     ];

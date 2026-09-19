@@ -1,7 +1,7 @@
 <?php
 // 社群分享預覽卡（OG/Twitter Card）共用邏輯：純函式，無副作用，供 pages/view.php／pages/landing.php
 // 一起用。點位解析沿用 assets/js/viewer.core.js 的 effectiveSpots() 同一套「起點（有 num）＋
-// edit_of 鏈取最新一筆覆寫 lat/lon/feature」演算法，在伺服器端重寫一次。
+// edit_of 鏈取最新一筆覆寫 lat/lon/content」演算法，在伺服器端重寫一次。
 require_once __DIR__ . '/store.php';
 require_once __DIR__ . '/coverlib.php';
 require_once __DIR__ . '/spotlib.php';

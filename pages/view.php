@@ -143,9 +143,6 @@ if ($entryId !== '' && ($entry = souliong_og_resolve_entry($apiCfg, $proj, $entr
 } elseif ($spotNum !== null && ($sp = souliong_og_resolve_spot($apiCfg, $proj, $spotNum))) {
     $ogTitle = souliong_og_spot_title(souliong_og_spot_name($sp), $spotNum, $meta['numbering'] ?? 'suffix');
     $ogDesc  = souliong_og_truncate((string)($sp['story'] ?: ($meta['desc'] ?? i18n_t($DICT, 'app_tagline'))));
-    if (!empty($sp['feature']) && ($fe = souliong_og_resolve_entry($apiCfg, $proj, $sp['feature'])) && ($qs = souliong_og_entry_image_qs($fe))) {
-        $ogImage = Route::abs(Route::api($qs[0], $qs[1]));
-    }
     $ogUrl = Route::abs(Route::map($proj) . '?spot=' . $spotNum);
 }
 ?><!DOCTYPE html>
