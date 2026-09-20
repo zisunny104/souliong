@@ -21,7 +21,7 @@ if ($project === '' || $editOf === '' || strlen($editOf) > 64 || !is_dir($cfg['p
 
 try {
     // 找出原始紀錄：只能編輯「排在投稿牆上的那幾種」（照片／影片／音訊／文字）。
-    // desc（地點故事版本）有自己的版本機制；spot 是地點本身，走 editspot.php／newspot.php。
+    // spot 是地點本身，走 editspot.php／newspot.php；內容區走 spotcontent.php。
     $orig = null;
     foreach (store_all($cfg, $project) as $r) {
         if ((string)($r['id'] ?? '') === $editOf) { $orig = $r; break; }

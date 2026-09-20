@@ -20,6 +20,13 @@ function souliong_og_spot_title(string $name, ?int $num, string $numbering): str
     return $numbering === 'prefix' ? ($n . ' ' . $name) : ($name . ' ' . $n);
 }
 
+/** Markdown 內容轉成純文字（OG 描述不能帶標記）：走 spot_markdown() 算繪後去標籤。 */
+function souliong_og_plain(string $md): string
+{
+    $html = preg_replace('#</(p|li|h[1-6]|tr|blockquote|pre)>|<br\s*/?>#i', ' ', spot_markdown($md));
+    return html_entity_decode(strip_tags((string)$html), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+}
+
 /** 把長文字裁到 OG 描述合理長度，換行轉空白。 */
 function souliong_og_truncate(string $s, int $len = 200): string
 {

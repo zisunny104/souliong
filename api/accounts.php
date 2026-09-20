@@ -15,7 +15,7 @@ require_once __DIR__ . '/store.php';
 
 // ── state/accounts.json：{accounts:[...], pending:[...]（轉換/邀請 token）} ──
 function accounts_file(array $cfg): string { return rtrim($cfg['state_dir'], '/\\') . '/accounts.json'; }
-// account_current() 會在 perm_can()/perm_check() 內被逐專案呼叫（例如 manager.php 列出多個
+// account_current() 會被逐專案呼叫（例如 manager.php 列出多個
 // 專案時），一次請求內用行程內靜態快取避免每個專案都重讀整份 accounts.json；accounts_save()
 // 寫入後同步更新快取。
 function _accounts_cache(?array $set = null): ?array {
@@ -159,7 +159,7 @@ function project_perms_file(array $cfg, string $project): string {
     if (!is_file($new) && is_file($legacy)) @rename($legacy, $new);
     return $new;
 }
-// perm_check() 對同一專案在單次請求內常被呼叫多次（例如 manager.php 逐一渲染多項權限旗標），
+// 權限檢查對同一專案在單次請求內常被呼叫多次（例如 manager.php 逐一渲染多項權限旗標），
 // 依專案 id 分開快取，避免重複讀檔／解碼同一份 perms.json；project_perms_save() 寫入後同步更新。
 function _project_perms_cache(string $project, ?array $set = null): ?array {
     static $cache = [];
@@ -206,7 +206,7 @@ function project_account_remove(array $cfg, string $project, string $accountId):
     $d['members'] = array_values(array_filter($d['members'], fn($m) => (string)($m['account_id'] ?? '') !== $accountId));
     project_perms_save($cfg, $project, $d);
 }
-/** 此帳號有權限的專案清單；primary 角色不會用到（對所有專案永遠通過，見 perm_can()）。 */
+/** 此帳號有權限的專案清單；primary 角色不會用到（對所有專案永遠通過）。 */
 function account_project_list(array $cfg, string $accountId): array {
     $out = [];
     foreach (store_projects($cfg) as $p) { if (project_account_perms($cfg, $p, $accountId) !== null) $out[] = $p; }

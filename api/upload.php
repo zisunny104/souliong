@@ -13,6 +13,7 @@ require_once __DIR__ . '/contribgate.php';
 require_once __DIR__ . '/stats.php';
 require_once __DIR__ . '/features.php';
 require_once __DIR__ . '/uploadlib.php';
+require_once __DIR__ . '/spotlib.php';
 $cfg = require __DIR__ . '/config.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -190,6 +191,7 @@ try {
     unset($out['src_hash'], $out['contrib_hash']);                      // 不外流 IP 雜湊與身分驗刪雜湊
     $out['photo_url'] = $photoRel ? ('photos/' . $photoRel) : null;
     $out['media_url'] = $mediaRel ? ('media/' . $mediaRel) : null;
+    if ($kind === 'text' && !empty($out['comment'])) $out['html'] = spot_markdown((string)$out['comment']);   // 與 list.php 同源，剛送出的貼文不必重載
     json_out(['ok' => true, 'item' => $out]);
 } catch (Throwable $e) {
     error_log('souliong upload: ' . $e->getMessage());

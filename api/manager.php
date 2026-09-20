@@ -707,7 +707,7 @@ if (!$authed) {
           // 所以靠 hidden 旗標分辨「這次有送出這一區」與「這張表單根本沒有這一區」。
           if (isset($_POST['contrib_submitted'])) {
             $want = is_array($_POST['contrib_kinds'] ?? null) ? array_keys($_POST['contrib_kinds']) : [];
-            // 依註冊表順序過濾，順便擋掉表單送來的任何非法 key（desc／spot 不在 souliong_contrib_kinds() 裡）
+            // 依註冊表順序過濾，順便擋掉表單送來的任何非法 key（spot 不在 souliong_contrib_kinds() 裡）
             $kinds = array_values(array_intersect(souliong_contrib_kinds(), $want));
             if (!$kinds) $kinds = ['photo'];   // 一種都不留＝這張地圖不能投稿，那是「上傳投稿」模組的職責，不是這裡
             // 用合併而非整包覆寫，避免日後這裡再加簽表單沒涵蓋到的 contrib 子欄位時被整包洗掉

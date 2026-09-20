@@ -8,7 +8,7 @@
 //   tab      投稿對話框的分頁代號；null＝不出現在對話框（由專屬流程產生）
 //   postable upload.php 是否接受前端直接 POST 這個 kind。**這個旗標是安全邊界，不是分類**：
 //            spot（點位本身，含建立與搬移）只能由 newspot.php／editspot.php 在
-//            perm_check() 把關後寫入；若讓它 postable，任何人都能 POST 到
+//            Auth::require() 把關後寫入；若讓它 postable，任何人都能 POST 到
 //            upload.php 偽造一筆座標覆蓋紀錄，繞過整個權限檢查。新增 kind 時預設要想清楚。
 //   file     要收的 $_FILES 欄位名；null＝純文字投稿。photo 沿用歷史欄位名 'photo' 且存進
 //            projects/<id>/photos/，讓 exiffix.php／thumbfix.php／editentry.php／前端的

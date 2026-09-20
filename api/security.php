@@ -4,7 +4,7 @@
  * 無外部相依；限流本身失敗時「放行」而非拒服務（避免自我 DoS）。
  * 位於 Nginx 反代後，需在 config 開 trust_forwarded 才會用 X-Forwarded-For。
  */
-require_once __DIR__ . '/accounts.php';   // primary_authed() 疊加帳號登入判斷，需要 account_current() 等函式
+require_once __DIR__ . '/accounts.php';   // 帳號登入判斷需要 account_current() 等函式
 
 function client_ip(array $cfg): string {
     if (!empty($cfg['trust_forwarded']) && !empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
@@ -50,7 +50,7 @@ function pin_current_id(array $cfg, string $project): ?string {
     if ($pinId === '' || !hash_equals(pin_derived($cfg, $project, $pinId), $sig)) return null;
     return $pinId;
 }
-/** 身分屬於此專案（純身分，不是能力）。放行條件請用 Auth::can()／perm_check()。 */
+/** 身分屬於此專案（純身分，不是能力）。放行條件請用 Auth::can()。 */
 function perm_can(array $cfg, string $project): bool { return Auth::actor($cfg, $project)->isMember($project); }
 /** primary 的權限表；鍵由 api/auth.php 的註冊表產生。 */
 function primary_perms(): array { return auth_perms_primary(); }
@@ -76,7 +76,7 @@ function pins_file(array $cfg): string {
 }
 /** 新專案 PIN 的預設權限：專案層級鍵一律從全關開始，需主 PIN 逐項開啟下放（鍵由註冊表產生）。 */
 function pin_default_perms(): array { return auth_perms_default(); }
-// manager.php 單次頁面渲染常對同一專案連續呼叫多次 perm_check()，各自都會讀這份清單；
+// manager.php 單次頁面渲染常對同一專案連續呼叫多次權限檢查，各自都會讀這份清單；
 // 用行程內靜態快取避免同一請求重複讀檔／解碼，pins_save() 寫入後會同步更新快取。
 function _pins_cache(?array $set = null): ?array {
     static $cache = null;
@@ -453,4 +453,4 @@ function rate_limit(array $cfg, string $bucket = 'default'): void {
     flock($fp, LOCK_UN); fclose($fp);
 }
 
-require_once __DIR__ . '/auth.php';   // 權限單一入口（Actor／Auth／權限鍵註冊表）；perm_can／perm_check／site_perm 都是它的薄封裝
+require_once __DIR__ . '/auth.php';   // 權限單一入口（Actor／Auth／權限鍵註冊表）

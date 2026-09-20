@@ -146,13 +146,13 @@ if ($entryId !== '' && ($entry = souliong_og_resolve_entry($apiCfg, $proj, $entr
     $ogTitle = $sp ? souliong_og_spot_title(souliong_og_spot_name($sp), (int)$entry['item_num'], $meta['numbering'] ?? 'suffix') : $ogTitle;
     $kindKey = ['photo' => 'tab_photo', 'video' => 'tab_video', 'audio' => 'tab_audio'][$entry['kind'] ?? ''] ?? 'tab_text';
     $ogDesc  = ($entry['comment'] ?? '') !== ''
-        ? souliong_og_truncate((string)$entry['comment'])
+        ? souliong_og_truncate(souliong_og_plain((string)$entry['comment']))
         : i18n_t($DICT, 'og_entry_fallback', ['name' => $entry['name'] ?: i18n_t($DICT, 'anon_fallback'), 'kind' => i18n_t($DICT, $kindKey)]);
     if ($qs = souliong_og_entry_image_qs($entry)) $ogImage = Route::abs(Route::api($qs[0], $qs[1]));
     $ogUrl = Route::abs(Route::map($proj) . '?entry=' . rawurlencode($entryId));
 } elseif ($spotNum !== null && ($sp = souliong_og_resolve_spot($apiCfg, $proj, $spotNum))) {
     $ogTitle = souliong_og_spot_title(souliong_og_spot_name($sp), $spotNum, $meta['numbering'] ?? 'suffix');
-    $ogDesc  = souliong_og_truncate(spot_content_text($sp) ?: (string)($meta['desc'] ?? i18n_t($DICT, 'app_tagline')));
+    $ogDesc  = souliong_og_truncate(souliong_og_plain(spot_content_text($sp)) ?: (string)($meta['desc'] ?? i18n_t($DICT, 'app_tagline')));
     $ogUrl = Route::abs(Route::map($proj) . '?spot=' . $spotNum);
 }
 ?><!DOCTYPE html>
