@@ -945,7 +945,11 @@ window.MapApp = (() => {
       err.status = res.status;
       throw err;
     }
-    CONTRIB.push(j.item);
+    // 回應只帶內容與版本資訊，這裡補成一筆修訂紀錄（跟 store 內的鏈結欄位一致）放進 CONTRIB
+    const it = j.item, origin = effectiveSpots().find(p => p.num === itemNum);
+    if (origin && it.content_rev && it.content_rev !== origin.contentRev) {
+      CONTRIB.push({ id: it.content_rev, project: PROJECT, kind: 'spot', edit_of: origin.id, content: it.content, name: it.name, created_at: it.created_at });
+    }
     // content 會改變地圖標記要不要顯示音訊脈動，跟一般投稿不一樣要重算 audioSpots（見 recount()）
     recount(); renderSpots();
     refreshCurrentSpot(itemNum);

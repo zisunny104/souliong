@@ -48,6 +48,7 @@ function auth_registry(): array {
         'fix_thumbnails'  => ['scope' => 'site',    'label' => null, 'backfill' => false],
         'view_stats'      => ['scope' => 'site',    'label' => null, 'backfill' => false],
         'migrate_spots'   => ['scope' => 'site',    'label' => null, 'backfill' => false],
+        'manage_site'     => ['scope' => 'site',    'label' => null, 'backfill' => false],
     ];
     return $r;
 }
@@ -186,16 +187,19 @@ final class Auth {
     /**
      * 端點的唯一關卡：先權限、後 CSRF（POST 的 csrf 欄位對上 Actor 的衍生值），任一失敗直接 403 結束。
      * $denyMessage 是缺權限時給使用者看的訊息；CSRF 失敗訊息固定。
+     * 預設以 JSON 403 結束；表單頁可傳 $onFail(string $reason, string $message)（$reason 為 'deny'｜'csrf'），
+     * 由呼叫端自己輸出頁面式錯誤並結束請求。
      */
-    public static function require(array $cfg, ?string $project, string $key, bool $csrf = true, ?string $denyMessage = null): Actor {
+    public static function require(array $cfg, ?string $project, string $key, bool $csrf = true, ?string $denyMessage = null, ?callable $onFail = null): Actor {
+        $fail = $onFail ?? fn(string $reason, string $message) => json_out(['error' => $message], 403);
         $actor = self::actor($cfg, $project);
         if (!$actor->can($project, $key)) {
-            json_out(['error' => $denyMessage ?? '沒有權限執行這個動作'], 403);
+            $fail('deny', $denyMessage ?? '沒有權限執行這個動作');
         }
         if ($csrf) {
             $expected = $actor->csrf($project);
             if ($expected === null || !hash_equals($expected, (string)($_POST['csrf'] ?? ''))) {
-                json_out(['error' => '憑證失效，請重新整理頁面後再操作一次'], 403);
+                $fail('csrf', '憑證失效，請重新整理頁面後再操作一次');
             }
         }
         return $actor;

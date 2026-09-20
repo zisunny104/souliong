@@ -180,14 +180,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && !isset($_GET['backup'])) {
         exit;
     }
 }
-$primary = primary_authed($cfg);
+$primary = Auth::actor($cfg, null)->kind() === 'primary';
 // 帳號登入者可能同時管理多個專案，不像 PIN 綁死單一 $reqProject：$acctProjects 是他有權限的專案清單，
 // 沒有 ?project= 時（例如剛登入、或多專案帳號查看總覽）也要能通過 $authed。
-$acct = $primary ? null : account_current($cfg);
-$acctProjects = $acct !== null ? account_project_list($cfg, (string)$acct['id']) : [];
+$isAcct = !$primary && Auth::actor($cfg, null)->kind() === 'account';
+$acctProjects = $isAcct ? array_values(array_filter(store_projects($cfg), fn($tp) => Auth::actor($cfg, $tp)->isMember($tp))) : [];
 $authed = $primary
-  || ($reqProject !== '' && perm_can($cfg, $reqProject))
-  || ($acct !== null && $acctProjects !== []);
+  || ($reqProject !== '' && Auth::actor($cfg, $reqProject)->isMember($reqProject))
+  || ($isAcct && $acctProjects !== []);
 if (!$authed) {
   http_response_code(401);
   header('Content-Type: text/html; charset=utf-8');
@@ -581,27 +581,38 @@ if (!$authed) {
 
         // 範圍：主 PIN → 可全部（?project= 選填，空字串＝全部）；專案 PIN → $reqProject 恆為登入時鎖定的那個專案
         $scopeProject = $reqProject;
-        $csrf = $primary
-          ? primary_derived($cfg)
-          : ($acct !== null ? account_derived($cfg, (string)$acct['id']) : pin_derived($cfg, $reqProject, (string)pin_current_id($cfg, $reqProject)));
+        $reqScope = $reqProject !== '' ? $reqProject : null;
+        $csrfActor = Auth::actor($cfg, $reqScope);
+        $csrf = (string)($csrfActor->csrf($reqScope) ?? Auth::actor($cfg, null)->csrf(null) ?? '');
         $esc_csrf = $esc($csrf);
-        function need_csrf(string $csrf): void
-        {
-          if (!hash_equals($csrf, (string)($_POST['csrf'] ?? ''))) {
-            global $scopeProject, $t;
-            error_page(403, $t('csrf_expired_title'), $t('csrf_expired_msg'), Route::manager($scopeProject), $t('back_to_admin'));
-          }
-        }
 
-        // 允許操作某專案？（主全通；專案管理者只能動自己的——perm_can() 本身已檢查 PIN／帳號授權，
-        // 不需要再比對 $reqProject，否則多專案帳號在非目前網址那個專案上會被誤擋）
-        // 這支只做「有沒有任何授權」的粗粒度判斷，僅供分頁/區塊可見性等純顯示邏輯使用；
-        // 實際動作把關一律用下面 4 支具名權限版本，不能再拿 $canProject 當作動作門檻。
-        $canProject = fn($p) => perm_can($cfg, $p);
-        $canMeta    = fn($p) => perm_check($cfg, $p, 'edit_meta');
-        $canLayers  = fn($p) => perm_check($cfg, $p, 'edit_layers');
-        $canContrib = fn($p) => perm_check($cfg, $p, 'manage_contrib');
-        $canBackup  = fn($p) => perm_check($cfg, $p, 'export_backup');
+        // 表單動作的唯一關卡：權限鍵與 CSRF 一次驗完（Auth::require），失敗以頁面式錯誤結束。
+        // 專案層級鍵一定要帶專案；全站鍵傳 null。
+        $gate = function (?string $project, string $key, ?string $denyKey = null, ?string $back = null) use ($cfg, $t, $scopeProject): Actor {
+          $project = ($project === '' || $project === null) ? null : $project;
+          $fail = function (string $reason, string $msg) use ($t, $scopeProject, $back): void {
+            $to = $back ?? Route::manager($scopeProject);
+            if ($reason === 'csrf') {
+              error_page(403, $t('csrf_expired_title'), $t('csrf_expired_msg'), $to, $t('back_to_admin'));
+            }
+            error_page(403, $t('no_permission_title'), $msg, $to, $t('back_to_admin'));
+          };
+          $msg = $t($denyKey ?? 'no_project_permission_msg');
+          if ($project === null && (auth_registry()[$key]['scope'] ?? 'project') === 'project') {
+            $fail('deny', $msg);
+          }
+          return Auth::require($cfg, $project, $key, true, $msg, $fail);
+        };
+        // 圖層／主題包：全站層（$lp 為空）歸 manage_layers，專案層歸該專案的 edit_layers
+        $gateLayers = fn(string $lp, string $denyKey, string $back): Actor
+          => $gate($lp === '' ? null : $lp, $lp === '' ? 'manage_layers' : 'edit_layers', $denyKey, $back);
+
+        // 顯示用：$canProject 只判斷是否為該專案成員，不作為動作門檻；動作一律走 $gate。
+        $canProject = fn($p) => Auth::actor($cfg, $p)->isMember($p);
+        $canMeta    = fn($p) => Auth::can($cfg, $p, 'edit_meta');
+        $canLayers  = fn($p) => Auth::can($cfg, $p, 'edit_layers');
+        $canContrib = fn($p) => Auth::can($cfg, $p, 'manage_contrib');
+        $canBackup  = fn($p) => Auth::can($cfg, $p, 'export_backup');
 
         // 目前是否為「所有專案」總覽頁：全站專屬功能（工具分頁、主要管理 PIN）只在這裡顯示與生效
         $sitewideOnly = $primary && $scopeProject === '';
@@ -616,7 +627,7 @@ if (!$authed) {
         }
 
         // 稽核紀錄用的操作者識別：primary／帳號 id／PIN id 三選一，供事後追查憑證外洩時歸責
-        $auditWho = fn() => $primary ? 'primary' : ($acct !== null ? 'acct:' . $acct['id'] : 'pin:' . (string)pin_current_id($cfg, $reqProject));
+        $auditWho = fn() => $csrfActor->kind() === 'anon' ? Auth::actor($cfg, null)->audit() : $csrfActor->audit();
 
         // 專案清單（供備份/檢視）
         $allProjects = store_projects($cfg);
@@ -627,14 +638,13 @@ if (!$authed) {
 
         // ── 動作 ──
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delete') {
-          need_csrf($csrf);
           $p = clean_id($_POST['project'] ?? '');
+          $gate($p, 'delete_others');
           $id = (string)($_POST['id'] ?? '');
           // 刪別人投稿預設僅限主 PIN；專案管理者只有在被授權 delete_others、且動的是自己已登入的專案時才可以。
           // 刪點位本身（kind:'spot'）另外還要有 edit_spots——delete_others 管的是別人的投稿，不等於能動點位識別記錄。
           $rec = ($p !== '' && $id !== '') ? store_find($cfg, $p, $id) : null;
-          $canDelete = $primary || (perm_check($cfg, $p, 'delete_others')
-            && (!$rec || ($rec['kind'] ?? '') !== 'spot' || perm_check($cfg, $p, 'edit_spots')));
+          $canDelete = !$rec || ($rec['kind'] ?? '') !== 'spot' || Auth::can($cfg, $p, 'edit_spots');
           if ($p !== '' && $id !== '' && $canDelete) {
             $removed = store_delete($cfg, $p, $id);
             if ($removed) audit_log($cfg, $auditWho(), 'delete_others', $p, $id);
@@ -645,11 +655,8 @@ if (!$authed) {
         }
         // 編輯專案描述（只改標題/副標/說明/資料來源，其餘欄位保留；免手改 meta.json）
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'meta') {
-          need_csrf($csrf);
           $p = clean_id($_POST['project'] ?? '');
-          if ($p === '' || !$canMeta($p)) {
-            error_page(403, $t('no_permission_title'), $t('no_project_permission_msg'), Route::manager($scopeProject, 'access'), $t('back_to_admin'));
-          }
+          $gate($p, 'edit_meta', 'no_project_permission_msg', Route::manager($scopeProject, 'access'));
           $mf = $cfg['projects_dir'] . '/' . $p . '/meta.json';
           $meta = is_file($mf) ? json_decode((string)@file_get_contents($mf), true) : [];
           if (!is_array($meta)) $meta = [];
@@ -758,7 +765,7 @@ if (!$authed) {
         }
         // 平台全域設定（跨地圖，非單一專案）
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'settings') {
-          need_csrf($csrf);
+          $gate(null, 'manage_site', 'primary_only_settings_msg', Route::manager($scopeProject, 'tools'));
           need_sitewide_primary('primary_only_settings_msg');
           $s = souliong_settings_load($cfg);
           $s['random_explore'] = isset($_POST['random_explore']);
@@ -772,7 +779,7 @@ if (!$authed) {
         }
         // 全站儲存空間快取重新計算（手動觸發，算的是全站總量）
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'storagerecalc') {
-          need_csrf($csrf);
+          $gate(null, 'manage_site', 'primary_only_settings_msg', Route::manager($scopeProject, 'tools'));
           need_sitewide_primary('primary_only_settings_msg');
           $data = souliong_storage_compute($cfg);
           @file_put_contents(souliong_storage_cache_path($cfg), json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX);
@@ -781,10 +788,7 @@ if (!$authed) {
           exit;
         }
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array(($_POST['action'] ?? ''), ['addpin', 'delpin', 'setperm'], true)) {
-          need_csrf($csrf);
-          if (!$primary) {
-            error_page(403, $t('no_permission_title'), $t('primary_only_pin_perm_msg'), Route::manager($scopeProject, 'access'), $t('back_to_admin'));
-          }   // 權限管理限主 PIN
+          $gate(null, 'manage_site', 'primary_only_pin_perm_msg', Route::manager($scopeProject, 'access'));   // 權限管理限主 PIN
           $scope = ($_POST['scope'] ?? '') === 'primary' ? 'primary' : 'project';
           $tp = clean_id($_POST['project'] ?? '');
           $d = pins_load($cfg);
@@ -832,20 +836,15 @@ if (!$authed) {
         // 特意不用 Location 導頁：導頁只能靠 query string 帶祕密回來，反而會落地在網址列/伺服器紀錄，所以留在同一次回應內顯示一次。
         $justCreatedShare = null;
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'sharelink') {
-          need_csrf($csrf);
           $p = clean_id($_POST['project'] ?? '');
-          if ($p === '') {
-            error_page(403, $t('no_permission_title'), $t('no_project_permission_msg'), Route::manager($scopeProject, 'access'), $t('back_to_admin'));
-          }
           $kindIn = ($_POST['kind'] ?? '') === 'admin' ? 'grant' : ($_POST['kind'] ?? '');   // admin：改名前的舊表單值，相容
           $kind = in_array($kindIn, ['code', 'grant'], true) ? $kindIn : 'code';
           // code（投稿代碼連結）歸投稿名單管理權限；grant（管理PIN邀請連結）維持只看 grant_access，
           // 兩者各自獨立判斷，不疊加——建立投稿代碼連結不該額外要求授權他人的能力，反之亦然。
-          if ($kind === 'code' && !$canContrib($p)) {
-            error_page(403, $t('no_permission_title'), $t('no_project_permission_msg'), Route::manager($scopeProject, 'access'), $t('back_to_admin'));
-          }
-          if ($kind === 'grant' && !perm_check($cfg, $p, 'grant_access')) {
-            error_page(403, $t('no_permission_title'), $t('admin_pin_share_permission_msg'), Route::manager($p, 'access'), $t('back_to_admin'));
+          if ($kind === 'grant') {
+            $gate($p, 'grant_access', 'admin_pin_share_permission_msg', Route::manager($p, 'access'));
+          } else {
+            $gate($p, 'manage_contrib', 'no_project_permission_msg', Route::manager($scopeProject, 'access'));
           }
           $label = substr(trim((string)($_POST['label'] ?? '')), 0, 80);
           $expiresRaw = trim((string)($_POST['expires_at'] ?? ''));
@@ -870,27 +869,27 @@ if (!$authed) {
         // 秘密（token）比照管理PIN邀請連結，只透過網址 fragment 帶出，不落地在 query string／伺服器紀錄。
         $justCreatedMigrate = null;
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'migrate_create') {
-          need_csrf($csrf);
           $mSource = in_array(($_POST['source'] ?? ''), ['bootstrap', 'primary', 'project'], true) ? $_POST['source'] : '';
           $mProject = $mSource === 'project' ? clean_id($_POST['project'] ?? '') : null;
           $mLegacyId = ($_POST['legacy_id'] ?? '') !== '' ? (string)$_POST['legacy_id'] : null;
           $mLabel = substr(trim((string)($_POST['label'] ?? '')), 0, 80);
-          $canMigrate = $mSource === 'project'
-            ? ($mProject !== '' && perm_check($cfg, $mProject, 'grant_access'))
-            : $primary;   // primary／bootstrap 兩種來源（全域身分）僅限主 PIN 本人操作
-          if ($mSource === '' || !$canMigrate) {
-            error_page(403, $t('no_permission_title'), $t('primary_only_pin_perm_msg'), Route::manager($scopeProject, 'access'), $t('back_to_admin'));
+          $migBack = Route::manager($scopeProject, 'access');
+          if ($mSource === '') {
+            error_page(403, $t('no_permission_title'), $t('primary_only_pin_perm_msg'), $migBack, $t('back_to_admin'));
           }
+          // primary／bootstrap 兩種來源（全域身分）僅限主 PIN 本人操作
+          if ($mSource === 'project') $gate($mProject, 'grant_access', 'primary_only_pin_perm_msg', $migBack);
+          else $gate(null, 'manage_site', 'primary_only_pin_perm_msg', $migBack);
           $pending = account_migrate_create($cfg, $mSource, $mProject, $mLegacyId, $mLabel !== '' ? $mLabel : 'user', $mLabel);
           audit_log($cfg, $auditWho(), 'migrate_create', $mProject, $mSource . ':' . ($mLegacyId ?? ''));
           $justCreatedMigrate = ['source' => $mSource, 'project' => $mProject, 'kind' => 'migrate', 'url' => Route::abs(Route::manager('', '', 'activate=' . rawurlencode($pending['token']))), 'note' => $t('migrate_link_hint')];
         }
         // 撤銷管理PIN邀請連結（尚未兌換）：跟建立邀請同一權限門檻——主 PIN 或已被授權 grant_access 的專案 PIN 皆可
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delinvite') {
-          need_csrf($csrf);
           $p = clean_id($_POST['project'] ?? '');
+          $gate($p, 'grant_access', 'admin_pin_share_permission_msg', Route::manager($scopeProject, 'access'));
           $iid = (string)($_POST['invite_id'] ?? '');
-          if ($p !== '' && $iid !== '' && perm_check($cfg, $p, 'grant_access')) {
+          if ($iid !== '') {
             $d = pins_load($cfg);
             $d['projects'][$p] = array_values(array_filter($d['projects'][$p] ?? [], fn($e) => !(($e['kind'] ?? '') === 'invite' && (string)($e['id'] ?? '') === $iid)));
             pins_save($cfg, $d);
@@ -900,10 +899,7 @@ if (!$authed) {
         }
         // 帳號型專案管理者：直接以既有帳號的 userid 指派／調整權限／移除。跟 PIN 權限管理同門檻——僅限主 PIN。
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array(($_POST['action'] ?? ''), ['addacctperm', 'delacctperm', 'setacctperm'], true)) {
-          need_csrf($csrf);
-          if (!$primary) {
-            error_page(403, $t('no_permission_title'), $t('primary_only_pin_perm_msg'), Route::manager($scopeProject, 'access'), $t('back_to_admin'));
-          }
+          $gate(null, 'manage_site', 'primary_only_pin_perm_msg', Route::manager($scopeProject, 'access'));
           $tp = clean_id($_POST['project'] ?? '');
           if ($tp !== '') {
             if (($_POST['action']) === 'addacctperm') {
@@ -938,10 +934,10 @@ if (!$authed) {
         }
         // 移除附加投稿代碼（立即失效；常駐碼另走 rotate）
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delcode') {
-          need_csrf($csrf);
           $p = clean_id($_POST['project'] ?? '');
+          $gate($p, 'manage_contrib', null, Route::manager($scopeProject, 'access'));
           $dc = preg_replace('/\D/', '', (string)($_POST['code_del'] ?? ''));
-          if ($p !== '' && $dc !== '' && $canContrib($p)) {
+          if ($dc !== '') {
             codes_save($cfg, $p, array_values(array_filter(codes_load($cfg, $p), fn($e) => (string)($e['code'] ?? '') !== $dc)));
           }
           header('Location: ' . Route::manager($scopeProject, 'access'));
@@ -949,10 +945,10 @@ if (!$authed) {
         }
         // 移除投稿身分（含分享連結建立的、使用者自行設定的皆可）
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delcontrib') {
-          need_csrf($csrf);
           $p = clean_id($_POST['project'] ?? '');
+          $gate($p, 'manage_contrib', null, Route::manager($scopeProject, 'access'));
           $cid = (string)($_POST['contrib_id'] ?? '');
-          if ($p !== '' && $cid !== '' && $canContrib($p)) {
+          if ($cid !== '') {
             $cd = contrib_load($cfg, $p);
             if (isset($cd[$cid])) { unset($cd[$cid]); contrib_save($cfg, $p, $cd); }
           }
@@ -961,11 +957,11 @@ if (!$authed) {
         }
         // 鎖定／解除鎖定某個投稿身分（PIN 投稿者用 contrib_id、匿名裝置用 owner_hash）：只擋日後投稿，不影響已投稿內容
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array(($_POST['action'] ?? ''), ['blockid', 'unblockid'], true)) {
-          need_csrf($csrf);
           $p = clean_id($_POST['project'] ?? '');
+          $gate($p, 'manage_contrib', null, Route::manager($scopeProject, 'access'));
           $kind = ($_POST['kind'] ?? '') === 'owner' ? 'owner' : 'contrib';
           $key = (string)($_POST['key'] ?? '');
-          if ($p !== '' && $key !== '' && $canContrib($p)) {
+          if ($key !== '') {
             if (($_POST['action']) === 'blockid') block_add($cfg, $p, $kind === 'owner' ? $key : null, $kind === 'contrib' ? $key : null);
             else block_remove($cfg, $p, $kind === 'owner' ? $key : null, $kind === 'contrib' ? $key : null);
           }
@@ -974,13 +970,13 @@ if (!$authed) {
         }
         // 刪除某身分的全部投稿：跟單筆刪除同一權限規則（動別人的東西預設限主 PIN，或已授權 delete_others 的專案 PIN）
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delbyid') {
-          need_csrf($csrf);
           $p = clean_id($_POST['project'] ?? '');
+          $gate($p, 'delete_others');
           $field = ($_POST['kind'] ?? '') === 'owner' ? 'owner_hash' : 'contrib_id';
           $key = (string)($_POST['key'] ?? '');
-          if ($p !== '' && $key !== '' && perm_check($cfg, $p, 'delete_others')) {
+          if ($key !== '') {
             // 沒有 edit_spots 就略過這批裡的 spot 記錄（點位本身），留著不刪、其餘照常整批刪除
-            $excludeKinds = perm_check($cfg, $p, 'edit_spots') ? [] : ['spot'];
+            $excludeKinds = Auth::can($cfg, $p, 'edit_spots') ? [] : ['spot'];
             $removedList = store_delete_by($cfg, $p, $field, $key, $excludeKinds);
             foreach ($removedList as $removed) {
               store_purge_files($cfg, $removed);
@@ -1003,7 +999,7 @@ if (!$authed) {
             }
             // 全站包歸主要管理者，專案包歸該專案的管理者——權限跟著包實際住在哪裡走
             $isProj = ($packs[$pid]['scope'] ?? '') === 'project';
-            if ($isProj ? !$canLayers($pp) : !$primary) {
+            if ($isProj ? !$canLayers($pp) : !Auth::can($cfg, null, 'manage_layers')) {
               error_page(403, $t('no_permission_title'), $t('primary_only_packs_msg'), Route::manager('', 'tools'), $t('back_to_admin'));
             }
             $pdir = souliong_pack_dir($cfg, $pid, $pp);
@@ -1036,7 +1032,7 @@ if (!$authed) {
             }
             // 全站層歸主要管理者，專案層歸該專案的管理者——權限跟著圖層實際住在哪裡走
             $isProj = ($all[$lid]['scope'] ?? '') === 'project';
-            if ($isProj ? !$canLayers($lp) : !$primary) {
+            if ($isProj ? !$canLayers($lp) : !Auth::can($cfg, null, 'manage_layers')) {
               error_page(403, $t('no_permission_title'), $t('primary_only_layers_msg'), Route::manager('', 'tools'), $t('back_to_admin'));
             }
             $ldir = souliong_layer_dir($cfg, $lid, $lp);
@@ -1065,7 +1061,7 @@ if (!$authed) {
             exit;
           }
           $bp = $_GET['backup'] === 'project' ? clean_id($_GET['project'] ?? '') : null;
-          if ($bp === null && !$primary) {
+          if ($bp === null && !Auth::can($cfg, null, 'manage_site')) {
             error_page(403, $t('no_permission_title'), $t('primary_only_backup_all_msg'), Route::manager($scopeProject, 'tools'), $t('back_to_admin'));
           }
           if ($bp !== null && !$canBackup($bp)) {
@@ -1104,7 +1100,7 @@ if (!$authed) {
 
         // ── 匯入還原（合併／覆蓋，ZIP 可能含任何專案的資料） ──
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'import') {
-          need_csrf($csrf);
+          $gate(null, 'manage_site', 'primary_only_import_msg', Route::manager($scopeProject, 'tools'));
           need_sitewide_primary('primary_only_import_msg');
           require_once __DIR__ . '/zip.php';
           $imported = 0;
@@ -1198,12 +1194,9 @@ if (!$authed) {
         //    跟圖層同一套「匯到哪裡」：沒帶 project ＝全站包（主要管理者限定），帶了 project ＝
         //    該地圖自己的包。匯入不會刪掉 zip 裡沒有的舊檔（覆蓋不是取代）。 ──
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'packimport') {
-          need_csrf($csrf);
           $pp = clean_id($_POST['project'] ?? '');
           $backTo = Route::manager($pp, 'tools');
-          if ($pp === '' ? !$primary : !$canLayers($pp)) {
-            error_page(403, $t('no_permission_title'), $t('primary_only_packs_msg'), $backTo, $t('back_to_admin'));
-          }
+          $gateLayers($pp, 'primary_only_packs_msg', $backTo);
           $roots = souliong_pack_roots($cfg, $pp);
           $destRoot = rtrim((string)($pp === '' ? ($roots['site'] ?? '') : ($roots['project'] ?? '')), '/\\');
           if ($destRoot === '') {
@@ -1233,12 +1226,9 @@ if (!$authed) {
         //    該地圖自己的圖層。切好的圖磚金字塔請匯進專案——projects/ 本來就不進版控。
         //    匯入不會刪掉 zip 裡沒有的舊檔（同 pack，是覆蓋不是取代）。 ──
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'layerimport') {
-          need_csrf($csrf);
           $lp = clean_id($_POST['project'] ?? '');
           $backTo = Route::manager($lp, 'tools');
-          if ($lp === '' ? !$primary : !$canLayers($lp)) {
-            error_page(403, $t('no_permission_title'), $t('primary_only_layers_msg'), $backTo, $t('back_to_admin'));
-          }
+          $gateLayers($lp, 'primary_only_layers_msg', $backTo);
           $roots = souliong_layer_roots($cfg, $lp);
           $destRoot = rtrim((string)($lp === '' ? ($roots['site'] ?? '') : ($roots['project'] ?? '')), '/\\');
           if ($destRoot === '') {
@@ -1308,12 +1298,9 @@ if (!$authed) {
         // ── 封面圖片：上傳／重設共用同一套存檔邏輯（api/coverlib.php），跟前台自動快照
         //    （api/cover.php）寫的是同一份檔案。手動上傳一律存 mode=custom，理由見 coverlib.php。 ──
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'coverupload') {
-          need_csrf($csrf);
           $cp = clean_id($_POST['project'] ?? '');
           $backTo = Route::manager($scopeProject !== '' ? $cp : '', 'access');
-          if ($cp === '' || !$canMeta($cp)) {
-            error_page(403, $t('no_permission_title'), $t('no_permission_msg'), $backTo, $t('back_to_admin'));
-          }
+          $gate($cp, 'edit_meta', 'no_permission_msg', $backTo);
           $cmf = $cfg['projects_dir'] . '/' . $cp . '/meta.json';
           $cbase = project_dir($cfg, $cp) . '/cover';
           $cmeta = is_file($cmf) ? json_decode((string)@file_get_contents($cmf), true) : [];
@@ -1329,12 +1316,9 @@ if (!$authed) {
           exit;
         }
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'coverreset') {
-          need_csrf($csrf);
           $cp = clean_id($_POST['project'] ?? '');
           $backTo = Route::manager($scopeProject !== '' ? $cp : '', 'access');
-          if ($cp === '' || !$canMeta($cp)) {
-            error_page(403, $t('no_permission_title'), $t('no_permission_msg'), $backTo, $t('back_to_admin'));
-          }
+          $gate($cp, 'edit_meta', 'no_permission_msg', $backTo);
           $cmf = $cfg['projects_dir'] . '/' . $cp . '/meta.json';
           $cbase = project_dir($cfg, $cp) . '/cover';
           $cmeta = is_file($cmf) ? json_decode((string)@file_get_contents($cmf), true) : [];
@@ -1349,12 +1333,9 @@ if (!$authed) {
         //    存在才會生效——action=meta 那邊若收到 pinMark=image 但沒有檔案會退回 number，
         //    所以這裡上傳成功才把 pinMark 切成 image，跟封面上傳自動轉 mode=custom 同一個道理。 ──
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'pinmarkupload') {
-          need_csrf($csrf);
           $cp = clean_id($_POST['project'] ?? '');
           $backTo = Route::manager($scopeProject !== '' ? $cp : '', 'access');
-          if ($cp === '' || !$canMeta($cp)) {
-            error_page(403, $t('no_permission_title'), $t('no_permission_msg'), $backTo, $t('back_to_admin'));
-          }
+          $gate($cp, 'edit_meta', 'no_permission_msg', $backTo);
           $cmf = $cfg['projects_dir'] . '/' . $cp . '/meta.json';
           $pmbase = project_dir($cfg, $cp) . '/pinmark';
           $cmeta = is_file($cmf) ? json_decode((string)@file_get_contents($cmf), true) : [];
@@ -1370,12 +1351,9 @@ if (!$authed) {
           exit;
         }
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'pinmarkreset') {
-          need_csrf($csrf);
           $cp = clean_id($_POST['project'] ?? '');
           $backTo = Route::manager($scopeProject !== '' ? $cp : '', 'access');
-          if ($cp === '' || !$canMeta($cp)) {
-            error_page(403, $t('no_permission_title'), $t('no_permission_msg'), $backTo, $t('back_to_admin'));
-          }
+          $gate($cp, 'edit_meta', 'no_permission_msg', $backTo);
           $cmf = $cfg['projects_dir'] . '/' . $cp . '/meta.json';
           $pmbase = project_dir($cfg, $cp) . '/pinmark';
           $cmeta = is_file($cmf) ? json_decode((string)@file_get_contents($cmf), true) : [];
@@ -1389,11 +1367,9 @@ if (!$authed) {
         // ── 圖層的解析：刪除與就地編輯共用。刻意用「作用域對應的那個 root」而不是
         //    souliong_layer_dir()——後者同名時會偏好專案層，用在這裡的話，想刪全站層卻剛好有
         //    同名專案層時就會刪錯一邊。權限規則與 layerimport 相同：圖層住哪，權限就跟到哪。 ──
-        $layerTarget = function (string $lp, string $lid) use ($cfg, $primary, $canLayers, $t): array {
+        $layerTarget = function (string $lp, string $lid) use ($cfg, $gateLayers, $t): array {
           $backTo = Route::manager($lp, 'tools');
-          if ($lp === '' ? !$primary : !$canLayers($lp)) {
-            error_page(403, $t('no_permission_title'), $t('primary_only_layers_msg'), $backTo, $t('back_to_admin'));
-          }
+          $gateLayers($lp, 'primary_only_layers_msg', $backTo);
           $roots = souliong_layer_roots($cfg, $lp);
           $root = rtrim((string)($lp === '' ? ($roots['site'] ?? '') : ($roots['project'] ?? '')), '/\\');
           $dir = ($root !== '' && preg_match('/^[a-z0-9_-]+$/', $lid)) ? $root . '/' . $lid : '';
@@ -1407,7 +1383,6 @@ if (!$authed) {
         //    刪掉之後仍指著它的 meta.json 不必清理——souliong_layers_for() 對找不到的 id 本來就
         //    靜靜略過（同 pack），地圖只會少一層而不會開天窗。 ──
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'layerdelete') {
-          need_csrf($csrf);
           $lp  = clean_id($_POST['project'] ?? '');
           $lid = strtolower(preg_replace('/[^A-Za-z0-9_-]/', '', $_POST['layer'] ?? ''));
           [$root, $dir, $backTo] = $layerTarget($lp, $lid);
@@ -1438,7 +1413,6 @@ if (!$authed) {
         //    detectRetina、type、desc、maxNativeZoom、generated…）原樣寫回去。表單沒有的欄位
         //    不等於使用者想清掉它。 ──
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'layeredit') {
-          need_csrf($csrf);
           $lp  = clean_id($_POST['project'] ?? '');
           $lid = strtolower(preg_replace('/[^A-Za-z0-9_-]/', '', $_POST['layer'] ?? ''));
           [$root, $dir, $backTo] = $layerTarget($lp, $lid);
@@ -1508,13 +1482,10 @@ if (!$authed) {
         //    root，不用 souliong_pack_dir()，避免同名時刪錯邊。刪掉之後仍指著它的 meta.json／
         //    settings.json 不必清理，souliong_pack_for() 對找不到的 id 本來就靜靜略過。 ──
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'packdelete') {
-          need_csrf($csrf);
           $pp  = clean_id($_POST['project'] ?? '');
           $pid = strtolower(preg_replace('/[^A-Za-z0-9_-]/', '', $_POST['pack'] ?? ''));
           $backTo = Route::manager($pp, 'tools');
-          if ($pp === '' ? !$primary : !$canLayers($pp)) {
-            error_page(403, $t('no_permission_title'), $t('primary_only_packs_msg'), $backTo, $t('back_to_admin'));
-          }
+          $gateLayers($pp, 'primary_only_packs_msg', $backTo);
           $roots = souliong_pack_roots($cfg, $pp);
           $root = rtrim((string)($pp === '' ? ($roots['site'] ?? '') : ($roots['project'] ?? '')), '/\\');
           $dir = ($root !== '' && preg_match('/^[a-z0-9_-]+$/', $pid)) ? $root . '/' . $pid : '';
@@ -1537,7 +1508,7 @@ if (!$authed) {
         // ── 資料 ──（$allProjects 沿用前面「專案清單」算好的那份，中間的動作不會新增/刪除專案目錄）
         $viewProjects = $primary
           ? ($scopeProject !== '' ? [$scopeProject] : $allProjects)
-          : ($acct !== null ? ($scopeProject !== '' ? [$scopeProject] : $acctProjects) : [$reqProject]);
+          : ($isAcct ? ($scopeProject !== '' ? [$scopeProject] : $acctProjects) : [$reqProject]);
 
         $rows = [];
         foreach ($viewProjects as $p) {
@@ -3177,7 +3148,7 @@ if (!$authed) {
       <div class="tabs">
         <a class="tab" href="<?= $esc(Route::manager()) ?>"><i class="fa-solid fa-arrow-left"></i> <?= $t('back_to_all_projects') ?></a>
       </div>
-    <?php elseif ($acct !== null && count($acctProjects) > 1 && $scopeProject === ''): ?>
+    <?php elseif ($isAcct && count($acctProjects) > 1 && $scopeProject === ''): ?>
       <div class="pcards-wrap">
         <div class="pcards" id="pcards-projects">
           <a class="pcard on"><?= $t('tab_all_count', ['n' => count($acctProjects)]) ?></a>
@@ -3185,7 +3156,7 @@ if (!$authed) {
         </div>
         <button type="button" class="pcards-toggle" data-target="pcards-projects" aria-expanded="false" title="<?= $t('pcards_expand_btn') ?>"><i class="fa-solid fa-chevron-down"></i></button>
       </div>
-    <?php elseif ($acct !== null && count($acctProjects) > 1): ?>
+    <?php elseif ($isAcct && count($acctProjects) > 1): ?>
       <div class="tabs">
         <a class="tab" href="<?= $esc(Route::manager()) ?>"><i class="fa-solid fa-arrow-left"></i> <?= $t('back_to_all_my_projects') ?></a>
       </div>
@@ -3561,7 +3532,7 @@ if (!$authed) {
                 // edit_3d_regions 預設關閉（跟 grant_access 等其他委派權限一樣），沒開的話這裡
                 // 整段不出現——存檔會被伺服器擋，與其讓人填完整個編輯流程才在最後一步撞牆，不如
                 // 一開始就不給入口。
-                $canEdit3d = perm_check($cfg, $p, 'edit_3d_regions');
+                $canEdit3d = Auth::can($cfg, $p, 'edit_3d_regions');
                 $projRegions = $canEdit3d ? souliong_region3d_list($cfg, $p) : [];
               ?>
               <?php if ($canEdit3d): ?>
@@ -3716,8 +3687,11 @@ if (!$authed) {
       </div>
 
       <?php if ($canProject($p)):
-        $canGrantAccess = perm_check($cfg, $p, 'grant_access');
-        $permLabels = ['delete_others' => $t('perm_delete_others'), 'edit_others' => $t('perm_edit_others'), 'edit_spots' => $t('perm_edit_spots'), 'grant_access' => $t('perm_grant_access'), 'edit_3d_regions' => $t('perm_edit_3d_regions'), 'edit_meta' => $t('perm_edit_meta'), 'edit_layers' => $t('perm_edit_layers'), 'manage_contrib' => $t('perm_manage_contrib'), 'export_backup' => $t('perm_export_backup')];
+        $canGrantAccess = Auth::can($cfg, $p, 'grant_access');
+        $permLabels = [];
+        foreach (auth_registry() as $pk => $pdef) {
+          if ($pdef['scope'] === 'project' && $pdef['label'] !== null) $permLabels[$pk] = $t($pdef['label']);
+        }
         $cList = contrib_load($cfg, $p);
         $codesList = codes_load($cfg, $p);
         $blocked = blocked_load($cfg, $p);
@@ -3734,7 +3708,7 @@ if (!$authed) {
           $at = (string)($r['created_at'] ?? '');
           if ($at > $ownerGroups[$oh]['last_at']) { $ownerGroups[$oh]['last_at'] = $at; $ownerGroups[$oh]['last_name'] = (string)($r['name'] ?? ''); }
         }
-        $canDeleteOthers = perm_check($cfg, $p, 'delete_others');
+        $canDeleteOthers = Auth::can($cfg, $p, 'delete_others');
         // 剛建立的憑證：只在本次回應顯示一次，畫在所屬區塊內（屬「正在分享」，維持明碼）
         $justHere = fn(...$kinds) => $justCreatedShare && $justCreatedShare['project'] === $p && in_array($justCreatedShare['kind'], $kinds, true);
         $shareNew = function (array $s, string $kindLabel) use ($esc, $p, $meta, $t) { ?>

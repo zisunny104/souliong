@@ -50,6 +50,11 @@
     // 這樣不同地圖的分頁排列才一致（跟 souliong_contrib_cfg() 依註冊表排序是同一個道理）。
     initTabs() {
       const cfg = this.mapApp.contribCfg() || {};
+      // 載入了型別檔不代表這張地圖開放它（例如點位聲音編輯借用了 kind-audio.js）：註冊表只留 contrib.kinds 列出的，建立地點不在其中
+      const allowed = cfg.kinds || [];
+      for (let i = SL.kinds.length - 1; i >= 0; i--) {
+        if (SL.kinds[i].key !== 'newspot' && !allowed.includes(SL.kinds[i].key)) SL.kinds.splice(i, 1);
+      }
       const have = SL.kinds.map(k => k.tab);
       this.tabs = Object.keys(TABS).filter(tb => have.includes(tb));
       this.tab = this.tabs.includes(cfg.default) ? cfg.default : this.tabs[0];

@@ -28,7 +28,6 @@
     get kind() { return ''; }
     get icon() { return 'fa-square'; }
     get labelKey() { return ''; }    // 區塊標籤
-    get trackKey() { return ''; }    // 儲存後回報的功能使用統計
     available() { return true; }     // 回 false 就不畫這個型別的新增鈕
 
     fromItem(item) { return { key: ++uid, kind: this.kind, id: item.id, comment: item.comment || '', item }; }
@@ -39,6 +38,7 @@
     serialize(block, files) { return { id: block.id, kind: this.kind, comment: block.comment.trim() }; }
     addControls(bar, ctx) {}
     dispose(block) {}
+    teardown() {}    // 編輯介面被關掉或重繪時放掉還在進行的東西（例如錄音）
   }
 
   // 文字區塊：textarea 直接編輯 Markdown 原文，不做前端預覽，儲存後畫面用伺服器算好的 html。
@@ -46,7 +46,6 @@
     get kind() { return 'text'; }
     get icon() { return 'fa-align-left'; }
     get labelKey() { return 'content_kind_text'; }
-    get trackKey() { return 'story'; }
 
     isEmpty(block) { return !block.comment.trim(); }
 
@@ -72,7 +71,6 @@
     get kind() { return 'audio'; }
     get icon() { return 'fa-microphone'; }
     get labelKey() { return 'content_kind_audio'; }
-    get trackKey() { return 'sound'; }
     available() { return !!window.SLAudioTools; }
 
     buildBody(block, ctx) {
@@ -116,9 +114,13 @@
 
     dispose(block) { (block.urls || []).forEach(u => { try { URL.revokeObjectURL(u); } catch (e) {} }); }
 
+    teardown() { if (this.recorder && this.recorder.abort) this.recorder.abort(); this.recorder = null; }
+
     addControls(bar, ctx) {
       const tools = window.SLAudioTools;
-      bar.appendChild(tools.buildRecorder(file => this.onFile(file, ctx)));
+      this.teardown();
+      this.recorder = tools.buildRecorder(file => this.onFile(file, ctx));
+      bar.appendChild(this.recorder);
       const pick = document.createElement('button');
       pick.type = 'button'; pick.className = 'btn small';
       pick.innerHTML = '<i class="fa-solid fa-upload"></i> ' + esc(t('pick_audio_btn'));
@@ -169,6 +171,7 @@
     // #storyActions 是核心 renderEntries() 每次重建 #entries 時一定會重畫的節點；草稿留在這裡（依點位），
     // 重繪後如果這個點位還有進行中的草稿，就把編輯介面接回去，改動不會因為畫面重繪而消失。
     decorate(spot) {
+      types.forEach(k => k.teardown());
       const mapApp = this.mapApp;
       if (!mapApp.can('edit_spots') || mapApp.isEmbedMode()) return;
       const actions = document.getElementById('storyActions');
@@ -199,6 +202,7 @@
     }
 
     discard(draft) {
+      types.forEach(k => k.teardown());
       draft.blocks.forEach(b => this.typeOf(b).dispose(b));
       this.drafts.delete(draft.num);
     }
@@ -281,9 +285,7 @@
           if (!host.isConnected) mapApp.refreshEntries();
           return;
         }
-        const used = new Set();
-        draft.blocks.forEach(b => { const type = this.typeOf(b); if (type.trackKey && (!b.id || type.changed(b))) used.add(type.trackKey); });
-        used.forEach(k => mapApp.trackFeature(k));
+        mapApp.trackFeature('content');
         this.discard(draft);
       };
     }

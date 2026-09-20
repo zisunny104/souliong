@@ -53,6 +53,8 @@
     },
 
     // 現場錄音：回傳一顆按鈕，錄完把 File 丟回 onFile()，之後跟「選了一個音訊檔」走完全一樣的路。
+    // 按鈕帶 abort()：放棄目前這段錄音並關掉麥克風（畫面被重繪或編輯被取消時用），不會呼叫 onFile()；
+    // 瀏覽器不支援錄音時沒有 abort。
     buildRecorder(onFile) {
       const btn = document.createElement('button');
       btn.type = 'button';
@@ -105,6 +107,10 @@
         timer = setInterval(tick, 500);
       };
 
+      btn.abort = () => {
+        if (rec) { rec.onstop = null; try { rec.stop(); } catch (e) {} }
+        stopAll();
+      };
       return btn;
     },
   };

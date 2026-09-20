@@ -78,8 +78,8 @@
     }
   }
 
-  // 已啟用的型別註冊表。view.php 只會輸出這張地圖開放的型別檔，所以「檔案有被載入」
-  // 就等於「這個型別可用」，殼不需要再對 APP.contrib.kinds 過濾一次。
+  // 型別註冊表。view.php 只輸出這張地圖開放的型別檔；contribution.js 開機時還會再依
+  // APP.contrib.kinds 過濾一次，借用型別檔的其他功能（例如點位聲音編輯載入 kind-audio.js）不會多出投稿分頁。
   const kinds = [];
   window.SLContrib = {
     Kind: ContribKind,
