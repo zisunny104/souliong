@@ -155,6 +155,7 @@
   grid-column: 2
 }
 
+#panel.sl-audio.sl-has-cover .p-head .p-actions,
 #panel.sl-audio.sl-has-cover .p-head #spotEditBtn,
 #panel.sl-audio.sl-has-cover .p-head .spot-editor {
   grid-column: 1 / -1

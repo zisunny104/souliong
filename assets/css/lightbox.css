@@ -68,11 +68,14 @@
   min-width: 0
 }
 
+/* 左右都給定再用 auto 置中：left:50% 加位移會讓縮放寬度只剩半個畫面，手機上說明列被擠窄 */
 #lb .cap {
   position: absolute;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  left: 16px;
+  right: 16px;
+  margin-inline: auto;
+  width: fit-content;
   max-width: min(94vw, 480px);
   max-height: 30vh;
   overflow-y: auto;

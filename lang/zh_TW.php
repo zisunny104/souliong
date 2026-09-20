@@ -927,4 +927,9 @@ return [
     'nav_app_geo' => 'OsmAnd／Organic Maps（geo 連結）',
     'nav_app_osm' => 'OpenStreetMap 網頁路線',
     'nav_no_coords' => '這個點位沒有座標，無法導航',
+    'field_maplabel_label' => '地圖標註語言',
+    'maplabel_auto_option' => '跟隨介面語言',
+    'maplabel_lang_zh_TW' => '繁體中文',
+    'maplabel_lang_en' => 'English',
+    'maplabel_hint' => '只對向量底圖有效；光柵底圖（如 CARTO）的標註烤在圖磚裡，無法更換。',
 ];

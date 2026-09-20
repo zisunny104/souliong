@@ -1,7 +1,7 @@
 /* 選用插件：路徑（見 souliong/docs/EXTENDING.md 第七節）
    只在該地圖 meta.json 的 features.route 為 true 時，view.php 才會載入這個檔案。
    #routeBtn 由這裡自己建立、插入 #ctlBody 的第一個 .ctl-row（旗標關閉時整個檔案不會載入，按鈕自然也不存在）。
-   未選投稿者時：畫出每位投稿者各自的時間路徑（多色）；選了投稿者則改畫他單人的路徑（較粗）。
+   路徑是單一投稿者的時間路徑：要先選定投稿者才畫，沒選時按「路徑」只提示、不開；取消選擇時路徑開關一併關閉。
    彩蛋：快速連點「路徑」鈕數下，依所有投稿的時間順序，重新走一次整條路徑動畫。 */
 (() => {
   const I18N = window.I18N || {};
@@ -20,7 +20,6 @@
 
     mount() {
       this.routeOn = false;
-      this.routeLines = [];
       this.personLine = null;
       this.eggN = 0;
       this.eggTimer = null;
@@ -34,14 +33,26 @@
       btn.title = t('route_by_number');
       btn.innerHTML = '<i class="fa-solid fa-route"></i> ' + esc(t('route'));
       row.appendChild(btn);
+      this.btn = btn;
       btn.onclick = () => {
-        this.routeOn = !this.routeOn;
-        btn.classList.toggle('on', this.routeOn);
-        this.drawAll();
-        if (this.routeOn) this.mapApp.trackFeature('route');
         this.eggClick();
+        if (!this.routeOn && !this.mapApp.getFilterPerson()) {
+          if (this.eggN === 1) this.mapApp.toast(esc(t('route_need_person')));   // 連點彩蛋時只在第一下提示，不洗版
+          return;
+        }
+        this.routeOn = !this.routeOn;
+        this.syncRoute();
+        if (this.routeOn) this.mapApp.trackFeature('route');
       };
-      this.mapApp.onHook('stateChange', () => this.drawAll());
+      this.mapApp.onHook('stateChange', () => {
+        if (this.routeOn && !this.mapApp.getFilterPerson()) this.routeOn = false;
+        this.syncRoute();
+      });
+    }
+
+    syncRoute() {
+      this.btn.classList.toggle('on', this.routeOn);
+      this.drawPersonRoute();
     }
 
     // 依姓名分組取得每人的照片點（依拍攝／建立時間排序，只取有座標的）
@@ -51,27 +62,7 @@
         .sort((a, b) => tv(a) - tv(b));
     }
 
-    drawAll() { this.drawRoute(); this.drawPersonRoute(); }
-
-    // 未選特定投稿者時：同時畫出每位投稿者各自的時間路徑（多色）
-    drawRoute() {
-      const engine = this.mapApp.getEngine();
-      this.routeLines.forEach(l => engine.removePolyline(l));
-      this.routeLines = [];
-      const filterPerson = this.mapApp.getFilterPerson();
-      if (!this.routeOn || filterPerson) return;
-      const byName = {};
-      this.mapApp.effectivePhotos().forEach(e => {
-        if (!e.name || typeof e.lat !== 'number' || typeof e.lon !== 'number') return;
-        (byName[e.name] = byName[e.name] || []).push(e);
-      });
-      Object.keys(byName).forEach(name => {
-        const pts = byName[name].sort((a, b) => tv(a) - tv(b)).map(e => [e.lat, e.lon]);
-        if (pts.length >= 2) this.routeLines.push(engine.drawPolyline(pts, { color: this.mapApp.personColor(name), weight: 2, opacity: .65 }));
-      });
-    }
-
-    // 選了投稿者時：改畫他單人的路徑（較粗），要「選投稿者」且「路徑」開關也開著才畫
+    // 要「選投稿者」且「路徑」開關也開著才畫
     drawPersonRoute() {
       const engine = this.mapApp.getEngine();
       if (this.personLine) { engine.removePolyline(this.personLine); this.personLine = null; }

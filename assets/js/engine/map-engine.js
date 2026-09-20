@@ -128,6 +128,8 @@ window.MapEngine = (() => {
     styleUrl() { return ''; }
     // 底圖是否真的有深色版樣式（供封面擷圖判斷要不要暫時切成淺色，見 viewer.core.js 的 trySnapshotCover）
     get hasDarkStyle() { return false; }
+    // 擷圖前暫時隱藏底圖上的文字標籤，回傳還原函式；沒有可隱藏的向量文字圖層時回傳 null（點陣圖磚的地名已畫在圖上）
+    hideBaseLabels() { return null; }
 
     // ---- 小地圖選點器 ----
     createMiniPicker(container, opts) { throw new Error('MapEngine.createMiniPicker() not implemented'); }

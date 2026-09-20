@@ -7,6 +7,7 @@ require __DIR__ . '/stats.php';
 require __DIR__ . '/features.php';
 require_once __DIR__ . '/packs.php';
 require_once __DIR__ . '/layers.php';     // 地圖圖層註冊表（底圖／疊圖），形狀同 packs.php
+require_once __DIR__ . '/labellang.php';
 require_once __DIR__ . '/regions3d.php';  // 3D 自訂模型區域註冊表，形狀同上，見 api/region3d.php
 require_once __DIR__ . '/coverlib.php';   // 封面／地圖快照的存檔邏輯，與 api/cover.php 共用
 require_once __DIR__ . '/routes.php';    // 網址表：後台網址只有這一份定義，不在各處黏字串
@@ -721,6 +722,15 @@ if (!$authed) {
             $ccfg = souliong_contrib_cfg($meta);
             $meta['contrib']['default'] = $ccfg['default'];
             $meta['contrib']['newPoint'] = $ccfg['newPoint'];
+          }
+          // 向量底圖標註語言：'auto' 或未知值＝移除欄位（跟隨介面語言）
+          if (isset($_POST['mapLabelLang'])) {
+            $ml = souliong_label_lang(['mapLabelLang' => (string)$_POST['mapLabelLang']]);
+            if ($ml === 'auto') {
+              unset($meta['mapLabelLang']);
+            } else {
+              $meta['mapLabelLang'] = $ml;
+            }
           }
           // 主題包：只接受目前實際存在的包 id，避免存進一個已刪除／偽造的值。三態——
           //   ''      ＝跟隨全站預設 → 移除欄位（沒有欄位就是「沒指定」，見 packs.php）
@@ -3418,6 +3428,16 @@ if (!$authed) {
                   <?php endforeach; ?>
                 </select>
               </label>
+              <?php $labelCur = souliong_label_lang($meta); ?>
+              <label><?= $t('field_maplabel_label') ?>
+                <select name="mapLabelLang">
+                  <option value="auto" <?= $labelCur === 'auto' ? 'selected' : '' ?>><?= $t('maplabel_auto_option') ?></option>
+                  <?php foreach (array_keys(souliong_label_fields()) as $lc): ?>
+                  <option value="<?= $esc($lc) ?>" <?= $labelCur === $lc ? 'selected' : '' ?>><?= $t('maplabel_lang_' . $lc) ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </label>
+              <div class="hint"><?= $t('maplabel_hint') ?></div>
               <?php
                 // 圖層挑選器。清單由上而下＝由頂層到底層（跟繪圖軟體的圖層面板一致），
                 // meta.json 存的是相反方向，兩邊各自反轉一次，見上面 action=meta 的處理。

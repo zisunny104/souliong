@@ -925,4 +925,9 @@ return [
     'nav_app_geo' => 'OsmAnd / Organic Maps (geo link)',
     'nav_app_osm' => 'OpenStreetMap web directions',
     'nav_no_coords' => 'This spot has no coordinates, so navigation is unavailable',
+    'field_maplabel_label' => 'Map label language',
+    'maplabel_auto_option' => 'Follow interface language',
+    'maplabel_lang_zh_TW' => '繁體中文',
+    'maplabel_lang_en' => 'English',
+    'maplabel_hint' => 'Vector base maps only; raster base maps (e.g. CARTO) have labels baked into the tiles and cannot be changed.',
 ];

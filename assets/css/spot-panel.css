@@ -197,8 +197,50 @@
   line-height: 1.5
 }
 
-.p-head #spotEditBtn {
+.p-head .p-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-top: 10px
+}
+
+.p-head .p-actions #spotEditBtn {
+  margin-top: 0
+}
+
+/* 選單在標頭內就地展開、不浮在別的內容上：#panel 用 overflow:clip 裁切，
+   而 #panel > * 的 z-index 又壓過標頭自己的層級，浮動選單會被裁掉或蓋住 */
+.p-nav-menu {
+  flex: 0 0 100%;
+  padding: 6px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md)
+}
+
+.p-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
+  color: var(--fg);
+  font-size: 0.875rem;
+  text-decoration: none
+}
+
+.p-nav-item i {
+  flex: none;
+  width: 1.1em;
+  text-align: center;
+  color: var(--muted)
+}
+
+.p-nav-item:hover,
+.p-nav-item:focus-visible {
+  background: var(--line);
+  outline: none
 }
 
 .p-head .spot-editor {

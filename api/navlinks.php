@@ -5,7 +5,7 @@
  *
  * 模板佔位符：{lat}、{lon}（十進位度數，原樣填入）、{name}（點位名稱，已 URL 編碼；沒有名稱時
  * 呼叫端改填 "lat,lon"）。platform 是顯示條件：all＝所有裝置，ios＝只在 iOS 裝置顯示
- * （Apple 地圖在其他平台開不起來）。
+ * （Apple 地圖在其他平台開不起來）。icon 是 Font Awesome 6（pages/view.php 載入 all.min.css，含 brands）的 class。
  *
  * 各家格式（皆為官方文件或站方原始碼認可的寫法，改動前請重新查證）：
  *   Google Maps   Maps URLs：/maps/dir/?api=1&destination=lat,lon
@@ -16,11 +16,17 @@
 function souliong_nav_apps(): array
 {
     return [
-        ['id' => 'google', 'lang' => 'nav_app_google', 'url' => 'https://www.google.com/maps/dir/?api=1&destination={lat},{lon}', 'platform' => 'all'],
-        ['id' => 'apple',  'lang' => 'nav_app_apple',  'url' => 'https://maps.apple.com/?daddr={lat},{lon}&dirflg=d&q={name}', 'platform' => 'ios'],
-        ['id' => 'geo',    'lang' => 'nav_app_geo',    'url' => 'geo:{lat},{lon}?q={lat},{lon}({name})', 'platform' => 'all'],
-        ['id' => 'osm',    'lang' => 'nav_app_osm',    'url' => 'https://www.openstreetmap.org/directions?route=;{lat},{lon}', 'platform' => 'all'],
+        ['id' => 'google', 'icon' => 'fa-brands fa-google', 'lang' => 'nav_app_google', 'url' => 'https://www.google.com/maps/dir/?api=1&destination={lat},{lon}', 'platform' => 'all'],
+        ['id' => 'apple', 'icon' => 'fa-brands fa-apple',  'lang' => 'nav_app_apple',  'url' => 'https://maps.apple.com/?daddr={lat},{lon}&dirflg=d&q={name}', 'platform' => 'ios'],
+        ['id' => 'geo', 'icon' => 'fa-solid fa-location-arrow',    'lang' => 'nav_app_geo',    'url' => 'geo:{lat},{lon}?q={lat},{lon}({name})', 'platform' => 'all'],
+        ['id' => 'osm', 'icon' => 'fa-solid fa-route',    'lang' => 'nav_app_osm',    'url' => 'https://www.openstreetmap.org/directions?route=;{lat},{lon}', 'platform' => 'all'],
     ];
+}
+
+/** 給前端的完整導航設定：按鈕圖示與各軟體清單 */
+function souliong_nav_config(): array
+{
+    return ['icon' => 'fa-solid fa-diamond-turn-right', 'apps' => souliong_nav_apps()];
 }
 
 /** 依模板產生連結；座標非有限數字回 null（無座標的點位不該有導航）。 */

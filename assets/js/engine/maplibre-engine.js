@@ -364,6 +364,17 @@ window.MapLibreEngine = (() => {
     styleUrl() { return (this._baseManifest && this._baseManifest.url) || ''; }
     get hasDarkStyle() { return !!(this._baseManifest && this._baseManifest.urlDark); }
 
+    // 只動底圖樣式自帶的 symbol 圖層；疊圖與 3D 模型圖層（sl-／m3d- 開頭）不是文字，不碰
+    hideBaseLabels() {
+      const map = this.map, style = map.getStyle();
+      const hidden = ((style && style.layers) || [])
+        .filter(l => l.type === 'symbol' && !/^(sl-|m3d-)/.test(l.id) && (l.layout || {}).visibility !== 'none')
+        .map(l => l.id);
+      if (!hidden.length) return null;
+      hidden.forEach(id => map.setLayoutProperty(id, 'visibility', 'none'));
+      return () => hidden.forEach(id => { if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'visible'); });
+    }
+
     createMiniPicker(container, opts) {
       const o = opts || {};
       const mini = new maplibregl.Map({

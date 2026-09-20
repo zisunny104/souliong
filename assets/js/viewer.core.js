@@ -299,9 +299,31 @@ window.MapApp = (() => {
       if (cov && cov.updatedAt && (Date.now() - Date.parse(cov.updatedAt)) < (APP.coverMinInterval || 3600) * 1000) return;
     }
     const needLightSwap = isDark() && engine.hasDarkStyle;
+    // 封面不含地名：擷圖前隱藏底圖文字標籤（點位圓點是另外疊繪的，不受影響）。
+    // 還原順序與淺色切換相反：先還原標籤，再切回深色；任何失敗路徑都經由 finish() 走同一段還原。
+    let restoreLabels = null, done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      try { if (restoreLabels) restoreLabels(); } catch (e) {}
+      if (needLightSwap) engine.applyTheme(true);   // 切回管理者原本開著的深色主題，不留痕跡
+    };
+    // 標籤隱藏後要等地圖重畫完才擷（否則擷到還有標籤的舊畫面）；idle 遲遲不來就用逾時保底
+    const grab = () => {
+      if (done) return;
+      let dataUrl = null;
+      try { dataUrl = engine.getCanvasDataURL('image/jpeg', 0.85); } finally { finish(); }
+      upload(dataUrl);
+    };
     const capture = () => {
-      const dataUrl = engine.getCanvasDataURL('image/jpeg', 0.85);
-      if (needLightSwap) engine.applyTheme(true);   // 擷完切回管理者原本開著的深色主題，不留痕跡
+      try { restoreLabels = engine.hideBaseLabels(); } catch (e) { restoreLabels = null; }
+      if (!restoreLabels) { grab(); return; }
+      const map = engine.getRawMap();
+      map.once('idle', grab);
+      setTimeout(grab, 4000);
+      map.triggerRepaint();
+    };
+    const upload = dataUrl => {
       if (!dataUrl) return;
       const fd = new FormData();
       fd.append('project', APP.project);
@@ -862,10 +884,86 @@ window.MapApp = (() => {
     const peBtn = document.getElementById('spotEditBtn');
     if (peBtn) peBtn.style.display = (!EMBED && can('edit_spots')) ? '' : 'none';
     resetSpotEditor();
+    renderNav(c);
     renderEntries();
     statSend('spot', c.num);
   }
-  function closePanel() { document.getElementById('panel').classList.remove('open'); resetSpotEditor(); current = null; emitHook('panelReset'); }
+  function closePanel() { document.getElementById('panel').classList.remove('open'); resetSpotEditor(); closeNavMenu(); current = null; emitHook('panelReset'); }
+
+  /* ---------- 點位導航選單 ---------- */
+  // 連結模板由伺服器提供（APP.nav.apps，見 api/navlinks.php）；這裡只套值、依平台過濾、排成選單。
+  // 選項用一般 <a>：新分頁、長按複製與鍵盤操作都交給瀏覽器，geo: 之類的協定也直接交給系統挑軟體開啟。
+  const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  let navBox = null;
+  function navApps() { return (((window.APP || {}).nav || {}).apps || []).filter(a => a.platform !== 'ios' || IS_IOS); }
+  // 圖示 class 由伺服器資料提供（APP.nav.icon／apps[].icon），缺了就不畫圖示
+  function navIcon(cls) { return cls ? '<i class="' + esc(cls) + '" aria-hidden="true"></i> ' : ''; }
+  function navUrl(tpl, c) {
+    const lat = +(+c.lat).toFixed(6), lon = +(+c.lon).toFixed(6);
+    return String(tpl).replace(/\{lat\}/g, lat).replace(/\{lon\}/g, lon)
+      .replace(/\{name\}/g, encodeURIComponent(spotTitle(c) || (lat + ',' + lon)));
+  }
+  function ensureNavBox() {
+    if (navBox) return navBox;
+    const editBtn = document.getElementById('spotEditBtn');
+    if (!editBtn) return null;
+    const row = document.createElement('div');
+    row.className = 'p-actions';
+    editBtn.parentNode.insertBefore(row, editBtn);
+    const wrap = document.createElement('div');
+    wrap.innerHTML =
+      '<button class="btn small" type="button" id="spotNavBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="spotNavMenu">' +
+      navIcon(((window.APP || {}).nav || {}).icon) + esc(t('nav_btn')) + '</button>';
+    const menu = document.createElement('div');
+    menu.className = 'p-nav-menu'; menu.id = 'spotNavMenu'; menu.setAttribute('role', 'menu');
+    menu.setAttribute('aria-label', t('nav_menu_title')); menu.style.display = 'none';
+    row.appendChild(wrap);
+    row.appendChild(editBtn);
+    row.appendChild(menu);
+    const btn = wrap.querySelector('#spotNavBtn');
+    btn.onclick = () => { if (menu.style.display === 'none') openNavMenu(); else closeNavMenu(true); };
+    row.addEventListener('keydown', ev => {
+      if (menu.style.display === 'none') return;
+      const items = [...menu.querySelectorAll('[role=menuitem]')];
+      const i = items.indexOf(document.activeElement);
+      if (ev.key === 'ArrowDown') { ev.preventDefault(); items[(i + 1) % items.length].focus(); }
+      else if (ev.key === 'ArrowUp') { ev.preventDefault(); items[(i <= 0 ? items.length : i) - 1].focus(); }
+    });
+    document.addEventListener('click', ev => { if (!row.contains(ev.target)) closeNavMenu(); });
+    navBox = { row, wrap, btn, menu };
+    return navBox;
+  }
+  function renderNav(c) {
+    const box = ensureNavBox();
+    if (!box) return;
+    closeNavMenu();
+    const ok = Number.isFinite(+c.lat) && Number.isFinite(+c.lon) && c.lat != null && c.lon != null && navApps().length > 0;
+    box.wrap.style.display = ok ? '' : 'none';
+    const editShown = document.getElementById('spotEditBtn').style.display !== 'none';
+    box.row.style.display = (ok || editShown) ? '' : 'none';
+  }
+  function openNavMenu() {
+    if (!navBox || !current) return;
+    const c = current;
+    navBox.menu.innerHTML = navApps().map(a => {
+      const url = navUrl(a.url, c), web = /^https?:/i.test(url);
+      return '<a class="p-nav-item" role="menuitem" href="' + esc(url) + '"' + (web ? ' target="_blank" rel="noopener noreferrer"' : '') + '>' +
+        navIcon(a.icon) + esc(t(a.lang)) + '</a>';
+    }).join('');
+    navBox.menu.querySelectorAll('.p-nav-item').forEach(a => a.addEventListener('click', () => setTimeout(closeNavMenu, 0)));
+    navBox.menu.style.display = '';
+    navBox.btn.setAttribute('aria-expanded', 'true');
+    const first = navBox.menu.querySelector('.p-nav-item');
+    if (first) first.focus();
+  }
+  // 回傳是否真的關了一個開著的選單，讓 Esc 可以「先關選單、不順便關面板」
+  function closeNavMenu(refocus) {
+    if (!navBox || navBox.menu.style.display === 'none') return false;
+    navBox.menu.style.display = 'none';
+    navBox.btn.setAttribute('aria-expanded', 'false');
+    if (refocus) navBox.btn.focus();
+    return true;
+  }
   // 電腦版：地點卡片在「預設寬度」與「接近全螢幕的大卡片」之間切換（狀態保留到下次開啟）
   function togglePanelSize() {
     const p = document.getElementById('panel');
@@ -1360,11 +1458,11 @@ window.MapApp = (() => {
     if (shot.length) rows.push([t('info_params'), shot.join(' · ')]);
     if (x.sw) rows.push([t('info_software'), esc(x.sw)]);
     // 「沒有相機資訊」只對照片說得通；影音本來就不會有 EXIF，不必特地報告一次
-    if (!rows.length && kindDef(e).box === 'image') rows.push([t('info_camera'), '<span class="sc-empty">' + esc(t('info_no_camera')) + '</span>']);
+    if (!rows.length && kindDef(e).box === 'image' && !e.spotBlock) rows.push([t('info_camera'), '<span class="sc-empty">' + esc(t('info_no_camera')) + '</span>']);
     const shotTime = e.photo_time || e.created_at;
     if (shotTime) rows.push([t('info_shot_time'), fmtTime(shotTime)]);
     if (e.lat != null && e.lon != null) rows.push([t('info_coords'), (+e.lat).toFixed(5) + ', ' + (+e.lon).toFixed(5)]);
-    rows.push([t('info_loc_source'), locNote(e.loc_source)]);
+    if (!e.spotBlock) rows.push([t('info_loc_source'), locNote(e.loc_source)]);   // 說明區照片區塊沒有自己的座標
     return rows.map(r => '<div class="lbi-row"><span class="lbi-k">' + r[0] + '</span><span class="lbi-v">' + r[1] + '</span></div>').join('');
   }
   // 傳整筆投稿資料進來，才能連留言／說明文字一起顯示成卡片（不只圖片+姓名時間）
@@ -1740,6 +1838,9 @@ window.MapApp = (() => {
       if (/^(INPUT|TEXTAREA|SELECT)$/.test(tag) || e.metaKey || e.ctrlKey || e.altKey) return;
       const k = e.key.toLowerCase();
       if (k === 'escape') {
+        const lb = document.getElementById('lb');
+        if (lb && getComputedStyle(lb).display !== 'none') { closeLightbox(); return; }   // 燈箱在最上層，先只關它
+        if (closeNavMenu(true)) return;
         closePanel(); closeUnlock(); closePin(); closeAdminRedeem(); closeShortcuts(); emitHook('closeAll');
         const trG = document.getElementById('topright'), trT = document.getElementById('trToggle');
         if (trG) { trG.classList.remove('open'); if (trT) trT.setAttribute('aria-expanded', 'false'); }
