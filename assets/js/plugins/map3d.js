@@ -1,13 +1,13 @@
 /* 選用插件：3D 地圖模式（見 souliong/docs/EXTENDING.md 第七節）
    只在該地圖 meta.json 的 features.map3d 為 true 時，view.php 才會載入這個檔案。
 
-   3D 渲染管線（建物排除、自訂模型、pitch 切換）本身已經整併進 MapLibreEngine（見
+   3D 渲染管線（建物排除、自訂模型、pitch 切換）本身在 MapLibreEngine（見
    assets/js/engine/maplibre-engine.js 的 enter3D()/exit3D()），這裡只剩下判斷「要不要另開
    一顆地圖」的膠水邏輯：
    - 如果這張地圖的主引擎剛好就是 MapLibre、而且它現在的底圖 style 網址跟 3D 切換鈕自己設定的
      style 完全一樣（sameStyle()），就直接在同一顆地圖上呼叫 enter3D()/exit3D()，不開第二個
      WebGL context。
-   - 否則（主引擎是 Leaflet，或底圖 style 跟 3D style 不同），照舊另開一顆獨立的 MapLibreEngine，
+   - 否則（主引擎是 Leaflet，或底圖 style 跟 3D style 不同），另開一顆獨立的 MapLibreEngine，
      蓋在 #map 上面、切換時互相隱藏顯示，兩顆地圖互不知情，2D 地圖的任何狀態（圖層、投稿、主題）
      都不會被這裡碰到、也不會反過來被 3D 影響。 */
 (() => {

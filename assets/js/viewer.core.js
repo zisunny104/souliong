@@ -24,7 +24,7 @@ window.MapApp = (() => {
   const catOrder = ['green', 'pink', 'blue'];
 
   // 這張地圖的投稿設定（由 view.php 依 souliong_contrib_cfg() 算好塞進 APP.contrib）。
-  // 舊部署或獨立部署可能沒有這個欄位，退回「只有照片、不能建點」——跟加入多型別之前一樣。
+  // 舊部署或獨立部署可能沒有這個欄位，退回「只有照片、不能建點」。
   const CONTRIB_CFG = Object.assign({ kinds: ['photo'], tabs: ['media'], default: 'media', newPoint: 'off' }, APP.contrib || {});
 
   // 投稿型別在**呈現端**的中繼資料。刻意跟 api/features.php 的註冊表分開：那份管的是
@@ -41,7 +41,7 @@ window.MapApp = (() => {
     // 只會出現在所屬地點的投稿牆上。
     text:  { icon: 'fa-align-left',       layer: false, box: 'text'  },
   };
-  // 沒有 kind 的舊記錄一律當照片（多型別上線前所有投稿都是照片）
+  // 沒有 kind 的舊記錄一律當照片
   const kindOf = (e) => (e && KINDS[e.kind] ? e.kind : 'photo');
   const kindDef = (e) => KINDS[kindOf(e)];
 
@@ -113,9 +113,9 @@ window.MapApp = (() => {
   // 編輯他人投稿（edit_others）與投稿軸（canPost）互不相干：自己的投稿要能投稿才能改，改別人的只看權限
   const canEditEntry = (e) => !EMBED && ((canPost() && isMine(e)) || can('edit_others'));
 
-  // 新增一筆投稿（故事版本、照片…共用）：project/owner/code/ctoken 這些通用欄位統一在這裡補上，呼叫端只要給業務欄位（kind/name/comment/photo…）。
+  // 新增一筆投稿（照片、文字、音訊等共用）：project/owner/code/ctoken 這些通用欄位統一在這裡補上，呼叫端只要給業務欄位（kind/name/comment/photo…）。
   // 欄位值傳 [blob, filename] 陣列可指定 Blob 的檔名（否則瀏覽器預設存成 "blob"）。
-  // opts.maxRetry 搭配 opts.onRetry(waitSeconds, attempt, maxAttempt) 可在遇到伺服器限流（429）時自動倒數重試，不做的話（不傳 opts）就是原本的單次送出行為。
+  // opts.maxRetry 搭配 opts.onRetry(waitSeconds, attempt, maxAttempt) 可在遇到伺服器限流（429）時自動倒數重試，不傳 opts 就只送一次。
   async function submitContribution(fields, opts) {
     opts = opts || {};
     const maxRetry = opts.maxRetry || 0;
@@ -300,7 +300,7 @@ window.MapApp = (() => {
 
   // 管理 PIN 連結兌換：秘密只透過網址 fragment（#redeem=...&rmode=grant）傳遞，不落地在 query string／伺服器紀錄。
   // 讀出後立刻用 history.replaceState 清掉，避免重新整理或分享網址時重複兌換／外流。
-  // rmode=admin 是改名前的舊值：舊連結可能沒有效期限制、早就分享出去了，因此永久相容，不能只認新值。
+  // rmode=admin 是舊連結用過的值，已分享出去的連結仍要能兌換，所以與 grant 並認。
   let pendingRedeem = null; // {project, token}，等待使用者在 #adminRedeemDialog 自己輸入 PIN／暱稱後才送出
   async function handleRedeemFragment() {
     if (EMBED || !MOD('delegation')) return;
@@ -531,7 +531,7 @@ window.MapApp = (() => {
     CONTRIB.forEach(e => {
       if (e.kind === 'spot') return;
       if (e.edit_of) (edits[e.edit_of] = edits[e.edit_of] || []).push(e);
-      // photo 記錄要有圖才算（純留言的照片投稿沿用舊行為不上牆）；其餘型別各有自己的成立條件
+      // photo 記錄要有圖才算（純留言的照片投稿不上牆）；其餘型別各有自己的成立條件
       else if (isEntry(e) && (e.photo || e.media || (e.kind === 'text' && e.comment))) originals[e.id] = e;
     });
     return Object.keys(originals).map(id => {
@@ -560,7 +560,7 @@ window.MapApp = (() => {
   // 合併「地點本身」的建立與後續編輯：起點（api/newspot.php 或 api/spotmigrate.php 寫入的
   // kind:'spot'，一定帶 num、無 edit_of）疊上指向它的 edit_of 版本鏈（api/editspot.php、
   // api/spotcontent.php 寫入）。spots.jsonl 是點位唯一的真相來源（含匯入的靜態底稿，見
-  // api/spotmigrate.php），這裡不再另外處理 SPOTS 靜態陣列。
+  // api/spotmigrate.php），這裡只吃 CONTRIB。
   // 疊加規則與 api/spotlib.php 的 spot_effective() 同一份規格：逐欄疊加，每個可覆寫欄位取
   // 「版本鏈上帶有該 key 的最新一筆」，created_at 相同時檔案裡較後面那筆勝出（sort 是穩定的，
   // list.php 也保持檔案順序）。欄位清單由伺服器給（APP.spotFields），這裡不硬編。
@@ -624,7 +624,7 @@ window.MapApp = (() => {
   function spotIcon(c, count, badgeColor) {
     const badge = count ? '<div class="badge"' + (badgeColor ? ' style="background:' + badgeColor + '"' : '') + '>' + count + '</div>' : '';
     const sizeCls = META.pinSize === 'sm' ? ' sl-sz-sm' : META.pinSize === 'lg' ? ' sl-sz-lg' : '';
-    // pinBorder：白色外框開關，沒設過（舊專案）預設為 true，跟改版前的固定外框行為一致
+    // pinBorder：白色外框開關，沒設過就預設為 true
     const borderCls = META.pinBorder === false ? ' sl-noborder' : '';
     // has-audio：這個地點掛了聲音；is-playing：其中一則正在播放，脈衝光暈只在播放中顯示（見 map-markers.css）
     const cls = 'dot-pin' + sizeCls + borderCls + (count ? ' has-contrib' : '') + (audioSpots.has(c.num) ? ' has-audio' : '') + (playingSpots.has(c.num) ? ' is-playing' : '');
@@ -652,7 +652,7 @@ window.MapApp = (() => {
     audioEl.addEventListener('ended', () => setSpotPlaying(itemNum, false));
   }
   // 引擎無關的 spots marker spec 陣列——2D 主地圖跟 map3d.js 的 3D 模式共用同一份，
-  // 不要各刻一份（3D 之前自己重畫過一次簡化圓點，見 Part D 整併紀錄）。
+  // 不要各刻一份。
   function spotMarkerSpecs() {
     // 篩選單一投稿者時：角標改顯示「這個人在這個點的張數」，並跟路徑同色（同一個 personColor 快取）
     let personCounts = null, badgeColor = null;
@@ -896,7 +896,7 @@ window.MapApp = (() => {
       btn.disabled = false;
     }
   }
-  // 點位寫入後重算：目前開著的點位面板換成最新有效狀態（標題、副標、故事區）
+  // 點位寫入後重算：目前開著的點位面板換成最新有效狀態（標題、副標、說明區）
   function refreshCurrentSpot(itemNum) {
     const updated = effectiveSpots().find(p => p.num === itemNum);
     if (!updated) return;
@@ -1094,7 +1094,7 @@ window.MapApp = (() => {
     return '';   // 文字投稿沒有預覽區，內容就是底下 meta 裡的 .txt
   }
   // 自訂音訊播放器：大顆播放鍵＋進度條，不用瀏覽器原生介面（沒有音量／速度／下載等雜項設定）。
-  // 卡片牆與故事區的主要聲音內容共用同一個元件；headless 的 <audio> 仍吃 preload=none，捲過不會下載。
+  // 卡片牆與說明區的主要聲音內容共用同一個元件；headless 的 <audio> 仍吃 preload=none，捲過不會下載。
   function audioPlayerHtml(src, dur, opts) {
     opts = opts || {};
     return '<div class="sl-aplay' + (opts.big ? ' sl-aplay-lg' : '') + '">' +
@@ -1240,7 +1240,7 @@ window.MapApp = (() => {
       btn.disabled = false;
     }
   }
-  // 照片編輯歷史（比照故事的 toggleHistory）：原始投稿與之後每一次編輯都保留，新到舊列出
+  // 照片編輯歷史：原始投稿與之後每一次編輯都保留，新到舊列出
   function togglePhotoEditHistory(e, container) {
     const panel = container.querySelector('.photo-history');
     if (panel.style.display !== 'none') { panel.style.display = 'none'; panel.innerHTML = ''; return; }
@@ -1333,7 +1333,7 @@ window.MapApp = (() => {
       }
       lbImg.src = nextUrl;
     }
-    // 照片資訊改成「時間後面的 i 小圖示」，不佔一顆獨立按鈕（id 不變，沿用原本的展開邏輯）
+    // 照片資訊改成「時間後面的 i 小圖示」，不佔一顆獨立按鈕
     const who = esc(e.name || t('anon_fallback')) + ' ・ ' + fmtTime(e.photo_time || e.created_at) +
       ' <button class="lb-info-i" type="button" id="lbInfoBtn" title="' + esc(t('photo_info_title')) + '" aria-label="' + esc(t('photo_info_title')) + '"><i class="fa-solid fa-circle-info" aria-hidden="true"></i></button>';
     const txt = e.comment ? '<div class="lb-txt">' + esc(e.comment) + '</div>' : '';
@@ -1891,7 +1891,7 @@ window.MapApp = (() => {
     // （那些畫面只處理得了 <img>）；要拿到全部型別的投稿請用 effectiveEntries + entryFullUrl。
     effectivePhotos, effectiveEntries, entryFullUrl, entryThumbUrl, effectiveSpots, spotMarkerSpecs,
     kindOf, contribCfg: () => CONTRIB_CFG, fmtDur,
-    // 自訂聲音播放器元件（大播放鍵＋進度條，取代預設 <audio controls>）：故事區、投稿卡片預覽共用，
+    // 自訂聲音播放器元件（大播放鍵＋進度條，取代預設 <audio controls>）：說明區、投稿卡片預覽共用，
     // 供插件（如 content-editor.js 錄音後的即時試聽）也能用同一套外觀，見 renderEntries() 內的用法。
     audioPlayerHtml, wireAudioPlayer, mediaFullUrl,
     personColor, toast,

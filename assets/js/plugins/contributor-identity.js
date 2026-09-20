@@ -2,7 +2,7 @@
    由 api/features.php 的 identity 旗標決定要不要載入（關閉時整個檔案不會載入，#identity 自然不存在；
    #idToggleBtn／#idFields 仍是 view.php 在 #unlockDialog 裡輸出的既有 DOM，見下方 idBtn 段落；
    personExplore 透過 dependsOn 一併隨之關閉，見 souliong_module_on()）。
-   #identity 小標籤改由這裡自己建立、插入 #trItems 的最前面，view.php 不再輸出這段 HTML。
+   #identity 小標籤改由這裡自己建立、插入 #trItems 的最前面。
    管右上角的身分指示鈕（#identity：顯示暱稱/管理者/匿名預覽名、點按觸發上傳捷徑或解鎖、長按換一個匿名名），
    以及解鎖對話框裡「建立身分」的展開/收合（#idToggleBtn/#idFields，PIN／暱稱欄位的讀取與重置仍留在核心，
    因為它們跟純代碼解鎖共用同一個對話框與送出按鈕，拆不乾淨）。
@@ -34,7 +34,7 @@
       // 新的下拉鈕放在一起，晶片本身的點擊/長按邏輯不受影響。
       if (this.mapApp.canTogglePreview()) host = this.buildPreviewMenu(idEl);
 
-      // 排在這組按鈕的最前面。原本是「插在首頁鈕之前」，但首頁鈕是可關閉的模組（homeLink），
+      // 排在這組按鈕的最前面；不能插在首頁鈕之前，因為首頁鈕是可關閉的模組（homeLink），
       // 關掉時 insertBefore(…, null) 會變成 append，身分標籤就跑到語言選單後面去了。
       if (trItems) trItems.insertBefore(host, trItems.firstChild);
 

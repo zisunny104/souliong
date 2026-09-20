@@ -406,8 +406,8 @@ body.embed .tr-group .tr-toggle {
 /* ── 左下：地圖操作（重置）。這顆鈕是掛在引擎自己的角落堆疊裡（見 map-engine.js 的
    mountOpButtons()／_addCornerControl()，各引擎子類在 leaflet-engine.js／maplibre-engine.js
    實作各自的轉接器），跟縮放鈕自動疊好，這裡只留外觀，不寫死跟縮放鈕的間距數字——MapLibre
-   的縮放鈕比 Leaflet 多一顆羅盤鈕、高度不同，算好的固定數字只會對其中一邊，這正是先前疊在
-   一起的原因。 */
+   的縮放鈕比 Leaflet 多一顆羅盤鈕、高度不同，算好的固定數字只會對其中一邊，會讓兩顆鈕疊在
+   一起。 */
 .mapop-btn {
   background: var(--glass);
   -webkit-backdrop-filter: blur(16px);

@@ -257,7 +257,7 @@
       this.hasAudio = this.audios.length > 0;
       this.audioEl = this.audios[0] || null;
       // <audio> 吃 preload="none"（見 viewer.core.js audioPlayerHtml() 註解，避免捲過卡片牆就整批下載），
-      // duration 要等按下播放才會有值；.sl-aplay-dur 是同一顆音訊的「故事」版播放器，用投稿時存的
+      // duration 要等按下播放才會有值；.sl-aplay-dur 是同一顆音訊在說明區的播放器，用投稿時存的
       // 秒數欄位直接填字，不用等瀏覽器讀檔，借來當作播放前的預顯示值，播放後才換成 audio.duration 現測值。
       this.knownDurs = new Map(wraps.map(w => [w.querySelector('audio'), (w.querySelector('.sl-aplay-dur') || {}).textContent || '']));
       this.bigCtls = wraps.filter(w => w.classList.contains('sl-aplay-lg')).map(w => this.enhanceBigPlayer(w)).filter(Boolean);
@@ -297,7 +297,7 @@
       this.hideMini();
     }
 
-    // 故事區的大播放器（.sl-aplay-lg）是電腦版跟手機全卡共用的同一顆，核心 audioPlayerHtml()
+    // 說明區的大播放器（.sl-aplay-lg）是電腦版跟手機全卡共用的同一顆，核心 audioPlayerHtml()
     // 沒有循環／靜音鍵，時間跟播放鍵各自佔一列太鬆。這裡把時間搬進按鈕列兩端（時間仍左右
     // 分居），按鈕居中一組，進度條獨立一列在下面；.sl-aplay-time 淨空後隱藏。只搬動既有節點＋
     // 插入新按鈕，核心 wireAudioPlayer() 靠 class 選取＋事件監聽都不受影響。

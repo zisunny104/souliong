@@ -1,7 +1,7 @@
 /* 選用插件：投稿（見 souliong/docs/EXTENDING.md 第三、七節）
    只在該地圖 meta.json 的 features.upload 為 true 時，view.php 才會載入這個檔案。
    #uploadBtn／#unlockFab／#pickImages（插在 #resetBtn 之後）與投稿對話框 #contribModal（插在 #panel 之後）
-   都由這裡的 injectDom() 自己建立、插入固定位置，view.php 不再輸出這幾段 HTML。
+   都由這裡的 injectDom() 自己建立、插入固定位置。
 
    這個檔案是**與型別無關的殼**：批次佇列、進度、429 倒數重試、授權勾選、暱稱同步、u 快速鍵、
    小地圖定位校正都在這裡；「這個檔案是什麼、要怎麼轉檔、要送哪些欄位」全部問 assets/js/contrib/
@@ -77,8 +77,8 @@
       return out;
     }
 
-    // #uploadBtn／#unlockFab／#pickImages 原本緊接在 #resetBtn 之後、#myName 之前；
-    // #contribModal 原本緊接在 #panel 之後、#unlockDialog 之前——插入點沿用原本 view.php 的順序。
+    // #uploadBtn／#unlockFab／#pickImages 緊接在 #resetBtn 之後、#myName 之前；
+    // #contribModal 緊接在 #panel 之後、#unlockDialog 之前。
     injectDom() {
       const resetBtn = document.getElementById('resetBtn');
       if (resetBtn) {
@@ -92,7 +92,7 @@
 
       const panel = document.getElementById('panel');
       if (panel) {
-        // 只有一個分頁的地圖（沒設定 contrib 的舊地圖就是這種）不渲染分頁列，畫面跟改版前一樣
+        // 只有一個分頁的地圖（沒設定 contrib 的地圖就是這種）不渲染分頁列
         const tabsHtml = this.tabs.length < 2 ? '' :
           '<div class="sl-tabs" role="tablist">' + this.tabs.map(tb => {
             const m = this.tabMeta(tb);
@@ -182,7 +182,7 @@
       });
     }
 
-    // 「投稿到這個點」鈕：放在故事底下、第一則投稿之前（核心 renderEntries() 在故事區塊後、投稿牆前呼叫這裡）。
+    // 「投稿到這個點」鈕：放在說明區底下、第一則投稿之前（核心 renderEntries() 在說明區後、投稿牆前呼叫這裡）。
     // 沒有任何分頁可投（例如地圖 meta.json 的 contrib.kinds 只設了 spot 以外零種型別，理論上不會發生）
     // 時，通用投稿對話框沒有東西好顯示，不出現這顆鈕。
     entriesUploadButton(spot) {

@@ -1,5 +1,5 @@
 /* LeafletEngine —— MapEngine（assets/js/engine/map-engine.js）的 Leaflet 實作。
-   MapLayer/RasterLayer/ImageLayer/LayerStack 是從 viewer.leaflet.js 原封不動搬過來的圖層系統：
+   MapLayer/RasterLayer/ImageLayer/LayerStack 是這個引擎的圖層系統：
    新增圖層型別＝多一個 MapLayer 子類，核心（跟這個引擎）都不用再動，見 docs/EXTENDING.md §8.4。 */
 window.LeafletEngine = (() => {
   const LEAFLET_CREDIT = { text: 'Leaflet', url: 'https://leafletjs.com' };
@@ -131,7 +131,7 @@ window.LeafletEngine = (() => {
       this.mountOpButtons(o.opButtons, zoomPos);
     }
     // 把一個現成的 DOM 元素（不是重新刻一顆）包成 Leaflet 認得的 control，讓它掛進跟縮放鈕同一個
-    // 角落的堆疊——角落容器自己會排版，不用算高度數字去對齊（那正是先前 resetBtn 蓋住縮放鈕的原因）。
+    // 角落的堆疊——角落容器自己會排版，不用算高度數字去對齊（手算高度會讓 resetBtn 蓋住縮放鈕）。
     _addCornerControl(el, position) {
       const ElControl = L.Control.extend({ onAdd: () => el });
       new ElControl({ position }).addTo(this.map);
@@ -191,7 +191,7 @@ window.LeafletEngine = (() => {
       mk.on('dragend', ev => { const ll = ev.target.getLatLng(); emit(ll.lat, ll.lng); });
       mini.on('click', ev => { mk.setLatLng(ev.latlng); emit(ev.latlng.lat, ev.latlng.lng); });
       // 小地圖大多裝在剛展開、還在跑進場動畫的面板裡：容器當下的量測尺寸不可靠，
-      // 這組 rAF＋分段 timeout 是從原本 toggleSpotEditor()/buildPhotoEditorPanel() 原封不動搬來的修正。
+      // 所以先 rAF、再分段 timeout 重算一次尺寸。
       const fix = () => { try { mini.invalidateSize(false); } catch (e) {} };
       requestAnimationFrame(fix);
       const timers = [150, 500, 1200].map(ms => setTimeout(fix, ms));

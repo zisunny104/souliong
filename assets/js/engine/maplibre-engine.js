@@ -82,8 +82,7 @@ window.MapLibreEngine = (() => {
     onRemove() { this._el.classList.remove('maplibregl-ctrl'); }
   }
 
-  // MapLibre CustomLayerInterface（renderingMode:'3d'）＋ three.js 畫單一自訂模型，原本是
-  // map3d.js 自己的類別，3D 能力整併進引擎時一起搬過來（見 docs 規劃 Part D）。座標換算沿用官方
+  // MapLibre CustomLayerInterface（renderingMode:'3d'）＋ three.js 畫單一自訂模型。座標換算沿用官方
   // 文件那套 MercatorCoordinate 作法：模型原點換成麥卡托座標＋公尺→麥卡托單位的縮放係數，
   // render() 收到的 modelViewProjectionMatrix 只描述「地圖現在怎麼看整個世界」，疊上這個平移＋
   // 縮放矩陣才會變成「模型自己這個局部座標系怎麼被畫出來」。
@@ -160,8 +159,8 @@ window.MapLibreEngine = (() => {
       this._zoomThresholds = [];
       this._idSeq = 0;
       // 3D 能力狀態（見 enter3D()/exit3D()）：_3dCfg 是進入 3D 時收到的 {excludedBuildingIds,regions}，
-      // _modelLayerIds/_threeLoading/THREE/GLTFLoader 是自訂模型的延遲載入狀態，跟 map3d.js
-      // 舊版一致——這顆引擎不論是被當主引擎重用還是另開一顆給 3D 用，都走同一套。
+      // _modelLayerIds/_threeLoading/THREE/GLTFLoader 是自訂模型的延遲載入狀態；這顆引擎不論是被當主引擎重用
+      // 還是另開一顆給 3D 用，都走同一套。
       this._navControlAdded = false;
       this._3dCfg = null;
       this._modelLayerIds = [];

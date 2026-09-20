@@ -1,7 +1,5 @@
 /* ---------- 投稿對話框（#contribModal） ----------
-   這一整段原本寄居在 spot-panel.css 的尾巴（那個檔案是「地點面板」，批次上傳視窗放在裡面
-   本來就不對）。改成多型別分頁之後樣式又長了一截，索性拆成獨立檔案。
-   例外：.loc-src／.loc-hint 留在 spot-panel.css，因為地點面板裡的照片編輯器也用同一組。
+   另：.loc-src／.loc-hint 留在 spot-panel.css，因為地點面板裡的照片編輯器也用同一組。
    由 assets/js/plugins/contribution.js 產生 DOM，view.php 只在 upload 模組開啟時才載入。 */
 #contribModal {
   position: fixed;
