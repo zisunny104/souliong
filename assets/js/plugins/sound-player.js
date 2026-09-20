@@ -46,6 +46,8 @@
       this.buildMini();
       this.mapApp.registerEntriesHint(spot => { this.onRender(spot); return null; });
       this.mapApp.onHook('panelReset', () => this.onPanelReset());
+      // 分享連結指到某個聲音區塊時，手機的中卡狀態會把區塊藏起來，先展開成全卡
+      this.mapApp.onHook('blockFocus', () => this.setSize('full'));
     }
 
     isMobile() { return window.matchMedia('(max-width:640px)').matches; }

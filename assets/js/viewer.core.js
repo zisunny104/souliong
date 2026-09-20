@@ -1745,6 +1745,7 @@ window.MapApp = (() => {
   }
   // ?block=<id>：捲到該說明區塊，聲音就邀請點擊播放（播放後由播放器自己拿掉脈衝）
   function focusBlock(id) {
+    emitHook('blockFocus', id);
     const el = [...document.querySelectorAll('#entries .sc-block')].find(x => x.dataset.blockId === id);
     if (!el) return;
     const play = el.querySelector('.sl-play-btn');
