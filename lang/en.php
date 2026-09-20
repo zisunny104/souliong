@@ -918,4 +918,11 @@ return [
     'preview_mode_off' => 'Manager mode',
     'preview_mode_on' => 'Guest view mode',
     'identity_title_preview_suffix' => '(View mode: previewing as a guest, not actually signed out)',
+    'nav_btn' => 'Navigate',
+    'nav_menu_title' => 'Navigate with',
+    'nav_app_google' => 'Google Maps',
+    'nav_app_apple' => 'Apple Maps',
+    'nav_app_geo' => 'OsmAnd / Organic Maps (geo link)',
+    'nav_app_osm' => 'OpenStreetMap web directions',
+    'nav_no_coords' => 'This spot has no coordinates, so navigation is unavailable',
 ];

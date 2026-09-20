@@ -70,14 +70,22 @@ if ($ext === 'svg') {
     // 那等於「能放圖層檔的人＝能在本站執行腳本」。在回應層面直接關掉，不倚賴呼叫端怎麼用。
     header("Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; sandbox");
 }
-header('Cache-Control: public, max-age=31536000, immutable');
 if ($ext === 'json') {
+    // 樣式 json 會被改寫、也會被編輯，不能 immutable；no-cache 加 ETag 讓瀏覽器每次重新驗證，沒變就 304。
     // MapLibre 的 sprite 必須是絕對網址，相對值只有在這裡（知道自己的公開網址）才能補成對的
     $body = souliong_style_absolute_sprite((string)file_get_contents($real), $proj, $id, $rel);
+    $etag = '"' . md5($body) . '"';
+    header('Cache-Control: no-cache');
+    header('ETag: ' . $etag);
+    if (trim((string)($_SERVER['HTTP_IF_NONE_MATCH'] ?? '')) === $etag) {
+        http_response_code(304);
+        exit;
+    }
     header('Content-Length: ' . strlen($body));
     echo $body;
     exit;
 }
+header('Cache-Control: public, max-age=31536000, immutable');
 header('Content-Length: ' . filesize($real));
 readfile($real);
 

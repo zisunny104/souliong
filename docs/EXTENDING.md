@@ -113,6 +113,10 @@ license, owner_hash, src_hash, contrib_id, contrib_hash, edit_of, created_at
   實測 `finfo` 會把只有音軌的 WebM 判成 `video/webm`、把 AAC-in-MP4 判成 `audio/x-m4a`（它只看容器格式），
   而那兩種正是 MediaRecorder 在 Chrome／Firefox 與 Safari 的產物，所以 `audio` 的白名單要一起收下——
   否則現場錄音跟 iPhone 的語音備忘錄都會被自己的白名單擋掉。副檔名照「送進來的 kind」給，顯示端要的是 `<audio>`。
+- **伺服器端壓縮**（`uploadlib_store_file()`，投稿與點位內容區塊共用）：檔案收下後、落地前才壓，請求本身仍受 `post_max_size`／`upload_max_filesize` 限制。設定鍵都在 `api/config.php`（範本見 `config.example.php`），缺鍵用括號內的預設：
+  - `compress_photo`（`true`）：照片超過 `compress_photo_bytes`（1.5 MB，也是壓縮目標大小）就縮小，長邊上限 `compress_photo_max_dim`（2560 px）；用 GD 輸出 WebP，沒有 WebP 就 JPEG，帶透明的 PNG 在沒有 WebP 時原樣保留，動態 WebP 不動。
+  - `compress_media`（`true`）：影音超過 `compress_video_bytes`（16 MB）／`compress_audio_bytes`（4 MB）就用 `ffmpeg_bin` 重新編碼（影片 MP4、長邊 1280 px 內；音訊 MP3），單檔上限 `compress_media_timeout`（90 秒）；主機沒有 ffmpeg 或編碼失敗就原檔保留。
+  - 壓縮後比原檔大就丟棄壓縮結果。
 
 ### 3.5 `text` 投稿與點位的 `text` 內容區塊
 
@@ -146,6 +150,13 @@ license, owner_hash, src_hash, contrib_id, contrib_hash, edit_of, created_at
 點位記錄不指向任何投稿。`content` 是型別標記物件的陣列（目前有 `text`、`audio`、`photo`，形狀刻意設計成可擴充），
 只有具備 `edit_spots` 權限的人能經 `spotcontent.php` 寫入，`renderEntries()` 在故事區放大顯示它。
 它不會出現在投稿牆上；投稿牆只放 `entries.jsonl` 的投稿。
+
+**內容區是一個整體**：一次儲存就是一筆版本、一個編輯者，沒有逐區塊的個別儲存。`spotcontent.php` 只有 `op=save`，收 `blocks`（依顯示順序的 JSON 陣列）加 `media_N` 檔案欄位，欄位細節見該檔頭註解。
+
+- **區塊 id**：每個區塊有穩定的 `id`。送來的區塊帶現有 `id` 就沿用原區塊、只採用新的 `comment`；沒帶 `id` 是新區塊；現有區塊沒被列出就是刪除。伺服器一律以 `spot_effective()` 的現有內容為底重建，不信任前端送整包，所以 audio／photo 的檔案欄位無法被前端改寫。
+- **`content_rev` 與 409**：`content_rev` 是目前生效版本的紀錄 `id`。前端載入內容時記下它，儲存時當 `base_rev` 送回；與現況不同回 409、不寫入，前端據此提示重新載入。內容與現況完全相同就不寫版本，直接回傳現況。
+- **歷史還原**：每次儲存都是 `edit_of` 鏈上的一筆版本，歷史檢視列得出每一版的完整區塊。還原不是伺服器動作：前端把舊版區塊載成草稿（已不存在的聲音／照片先抓回檔案當新區塊），使用者檢查後按儲存，走一般的 `op=save`，因此也會產生一筆新版本並受 `content_rev` 保護。
+- **聲音區塊分享連結** `<base>/<project>?spot=<num>&block=<id>`：進站時展開該點位、捲到該區塊並邀請點擊播放；`?spot=` 單獨使用時只開啟點位卡片，社群預覽卡（OG）也吃同一個參數。
 
 權限由該地圖的 `contrib.newPoint` 決定：`off`（預設，端點直接 403）／`admin`（比照 `editspot.php`）／
 `contributor`（比照 `upload.php` 的停權與投稿代碼把關）。配號在 `store_append_locked()` 的 `LOCK_EX` 內完成，
@@ -367,6 +378,8 @@ MapLibre 沒有 Leaflet 的「pane／可疊多張獨立底圖」概念，向量 
 - **副檔名白名單**（`png`／`webp`／`jpg`／`jpeg`／`avif`／`svg`）。這道關卡同時保證 `layer.json` 本身拿不到——註冊表內容不該從公開端點外流。
 - **路徑**每一段只允許保守字元、整串不得出現 `..`，最後再用 `realpath()` 確認實體位置落在該圖層資料夾之內（符號連結一併攤平）。
 - **SVG 回應加 `Content-Security-Policy: default-src 'none'; sandbox`**：SVG 可以內嵌 `<script>`，放在 `<img>` 裡不會執行，但有人直接開這個網址就會——同源之下那等於「能放圖層檔的人＝能在本站執行腳本」。在回應層面關掉，不倚賴呼叫端怎麼用。
+- **快取分兩種**：樣式 json（有 `version` 與 `layers` 的 `.json`）是 `no-cache` 加 `ETag`，每次重新驗證、沒變回 304；其餘（sprite、圖磚、單張圖、字型）是 `max-age=31536000, immutable`。樣式 json 不能 immutable，因為它會被編輯，也會在輸出時被改寫。
+- **樣式 json 的 sprite 改寫**：MapLibre 要求 `sprite` 是絕對網址。樣式裡的相對 `sprite`（如 `"sprite-light"`）在輸出時改寫成同資料夾的 `Route::abs(Route::layerFile(...))`；已是絕對網址、路徑不合法或不是樣式的 json 原樣輸出。路徑字元集含 `@`，`sprite@2x.png` 才取得到。
 - **找不到檔案時分兩種**：稀疏疊圖的常態是「這一格根本沒畫」，所以圖磚形狀（`…/<z>/<x>/<y>.<ext>`）的請求回一張 68 bytes 的全透明 PNG（帶 `X-Souliong-Tile: miss`，分得出「空白」與「真的有一張全透明的磚」），Leaflet 就不會為每個空格印一行紅字；其餘（單張疊圖路徑打錯）照實回 404。
 
 `layers/demo-overlay/` 是可以照抄的參考範例：一張透明 SVG 蓋在底圖上，沒畫到的地方完全透出底圖。要用在自己的地圖上，複製整個資料夾、換掉 `overlay.svg`、把 `bounds` 改成插畫實際對應的西南／東北兩角，再把 id 加進 `meta.json` 的 `layers`。
@@ -564,7 +577,9 @@ MapLibre 沒有 Leaflet 的「pane／可疊多張獨立底圖」概念，向量 
 <base>/manager/<mapid>/layers/<id>.zip  專案圖層匯出
 ```
 
-要產生網址就呼叫 `Route::manager()`／`Route::logout()`／`Route::backupAll()`／`Route::backupProject()`／`Route::backupPack()`／`Route::backupLayer()`／`Route::tool()`／`Route::map()`／`Route::api()`，**不要自己黏字串**。前端也一樣：`view.php` 把 `Route::manager($proj)` 放進 `APP.manager`，`viewer.core.js` 讀 `MANAGER_URL` 就好。
+圖層圖檔網址（`<base>/layer/<project>/<id>/<路徑>`，見 8.5）由 `Route::layerFile()` 產生。
+
+要產生網址就呼叫 `Route::manager()`／`Route::logout()`／`Route::backupAll()`／`Route::backupProject()`／`Route::backupPack()`／`Route::backupLayer()`／`Route::tool()`／`Route::map()`／`Route::api()`／`Route::layerFile()`，**不要自己黏字串**。前端也一樣：`view.php` 把 `Route::manager($proj)` 放進 `APP.manager`，`viewer.core.js` 讀 `MANAGER_URL` 就好。
 
 之所以要這一層，是因為原本沒有：`?api=admin` 光一支 `manager.php` 就出現 47 次，「還原掛載根目錄」那段計算被複製了七份（其中兩份的邊界情況還算得不一樣）。改一次網址形狀就得全域搜尋改一輪，漏改的地方不會報錯，只會在某些部署下靜靜連到錯的地方。
 
@@ -598,4 +613,8 @@ MapLibre 沒有 Leaflet 的「pane／可疊多張獨立底圖」概念，向量 
 
 **寫入時機**：只有主要管理者手動 POST `action=storagerecalc`（`manager.php`）才會呼叫 `souliong_storage_compute()` 並覆寫快取，寫入時連帶記一筆 `computed_at` 時間戳，頁面上據此顯示「計算於 X」，讓數字的新舊誠實揭露，不假裝即時。這個動作本身可能跑上幾秒，跟既有的「備份全站」（同樣是單一請求裡遞迴打包全部 `projects_dir`／`state_dir`）是同一等級的操作，不需要額外的背景工作機制。
 
-**這階段刻意沒做的事**：清理／壓縮功能。使用者原始需求裡有提到，但清理範圍（刪什麼、怎麼判斷能刪）與壓縮定義（是重新壓縮圖片、還是別的意思）都還沒決定，留到之後單獨規劃再做——目前只有「看得到用了多少」，沒有任何會刪檔案或改檔案內容的動作。
+**刻意沒做的事**：清理已存在的檔案。清理範圍（刪什麼、怎麼判斷能刪）還沒決定；容量統計只有「看得到用了多少」，不會刪檔案或改檔案內容。上傳時的壓縮見 3.4。
+
+## 十二、檢查工具
+
+`php tools/checkall.php` 依序跑 `php -l`（全專案 php，不含 `vendor`／`projects`／`state`）、`authlint`、`authcheck`、`contentcheck`；環境有 `node` 時再對 `assets/js` 跑 `node --check`。全過結束碼 0，任一項失敗結束碼 1，最後列出每項結果與失敗摘要。`authcheck` 與 `contentcheck` 在臨時沙盒跑，不碰真實的 `projects/` 與 `state/`。改動端點、權限或前端腳本後跑一次。

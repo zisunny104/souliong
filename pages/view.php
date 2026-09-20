@@ -18,6 +18,7 @@ require_once __DIR__ . '/../api/i18n.php';
 require __DIR__ . '/../api/features.php';
 require_once __DIR__ . '/../api/packs.php';
 require_once __DIR__ . '/../api/layers.php';
+require_once __DIR__ . '/../api/navlinks.php';
 require_once __DIR__ . '/../api/regions3d.php';
 $apiCfg    = require __DIR__ . '/../api/config.php';
 require_once __DIR__ . '/../api/spotlib.php';
@@ -122,6 +123,8 @@ $APP = [
     'map3d'       => $map3d,
     // 封面快照（api/cover.php）：POST 目標網址＋前端節流用的最小間距，避免管理者每次開頁
     // 都白白擷圖編碼一次（伺服器端仍是權威判斷，這裡只是省一趟沒意義的請求）。
+    // 導航連結模板（api/navlinks.php）：前端只負責套值與顯示選單，有座標的點位才出現導航鈕
+    'nav'         => ['apps' => souliong_nav_apps()],
     'coverUrl'         => Route::api('cover', ['project' => $proj]),
     'coverMinInterval' => (int)($apiCfg['cover_min_interval'] ?? 3600),
 ];

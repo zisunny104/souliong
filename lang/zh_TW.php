@@ -920,4 +920,11 @@ return [
     'deny_edit_spot' => '沒有權限編輯定位點（僅限主要管理者，或已被授權的專案管理者）',
     'deny_edit_spot_content' => '沒有權限編輯點位內容（僅限主要管理者，或已被授權的專案管理者）',
     'deny_create_spot' => '這張地圖只有管理者能建立地點',
+    'nav_btn' => '導航',
+    'nav_menu_title' => '用哪個軟體導航',
+    'nav_app_google' => 'Google 地圖',
+    'nav_app_apple' => 'Apple 地圖',
+    'nav_app_geo' => 'OsmAnd／Organic Maps（geo 連結）',
+    'nav_app_osm' => 'OpenStreetMap 網頁路線',
+    'nav_no_coords' => '這個點位沒有座標，無法導航',
 ];

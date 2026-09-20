@@ -12,7 +12,7 @@
 - OSM 底圖 + 分類彩色圓點，深淺主題自動切換、骨架載入
 - **可堆疊的地圖圖層**：底圖與自繪插畫疊圖由下往上疊，附對位切圖磚工具（`<base>/tilecut`）
 - **3D 模式（可選）**：切換 MapLibre 向量底圖，建物自動立體擠出，並可用自訂 glTF 模型排除特定區域
-- 投稿**照片／影片／音訊／文字**，可版本化的**地點故事**、投稿者觀察路線、參與者自建地點
+- 投稿**照片／影片／音訊／文字**，可版本化的**點位內容區**（文字／音訊／照片區塊，可還原歷史，聲音區塊可分享連結）、投稿者觀察路線、參與者自建地點
 - **限特定人投稿**：投稿代碼（QR 掃描／邀請連結一點解鎖）
 - **只能刪自己的**（裝置匿名標記，append-only）
 - 批次上傳（EXIF/GPS、HEIC→WebP、可拖曳定位）
@@ -26,6 +26,7 @@ cp api/config.example.php api/config.php   # 填 primary_pin、ip_salt
 # projects/、state/ 已隨 repo 建好（各含 .gitkeep），確認 PHP 執行者可寫即可
 php -S localhost:8000                      # 或掛你的 Nginx/PHP-FPM
 # 開 http://localhost:8000/
+php tools/checkall.php                     # 語法、權限與內容區回歸檢查一次跑完
 ```
 
 ## 初始化設定（`api/config.php`）
@@ -38,6 +39,10 @@ php -S localhost:8000                      # 或掛你的 Nginx/PHP-FPM
 | `ip_salt` | 隨機鹽值（管理登入 cookie 與冒名鑑識用） |
 | `trust_forwarded` | 位於 Nginx 反代後設 `true` |
 | `debug` | 上線穩定後設 `false` |
+| `compress_photo`／`compress_photo_bytes`／`compress_photo_max_dim` | 伺服器端照片壓縮：開關、門檻與目標大小、長邊上限 |
+| `compress_media`／`compress_video_bytes`／`compress_audio_bytes`／`compress_media_timeout`／`ffmpeg_bin` | 影音重新編碼（需要 ffmpeg，沒有就略過）：開關、門檻、單檔秒數上限、執行檔 |
+
+其餘鍵見 `api/config.example.php` 的註解。
 
 ## 建立一張地圖（專案）
 
