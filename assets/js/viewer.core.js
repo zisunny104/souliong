@@ -113,12 +113,41 @@ window.MapApp = (() => {
   // 編輯他人投稿（edit_others）與投稿軸（canPost）互不相干：自己的投稿要能投稿才能改，改別人的只看權限
   const canEditEntry = (e) => !EMBED && ((canPost() && isMine(e)) || can('edit_others'));
 
+  // 上傳大小預檢（上限由 APP.upload 提供，位元組，null＝不限）。entries：[{ blob, kind }]，kind 為空的只計入單次總量
+  // （例如縮圖）。超過就丟出帶 .code='too_large' 的 Error，訊息已含實際大小與上限，呼叫端照一般錯誤顯示即可。
+  const mbText = (n) => (n / 1048576).toFixed(n < 10485760 ? 1 : 0);
+  function checkUploadSize(entries) {
+    const lim = APP.upload;
+    if (!lim) return;
+    const fail = (msg) => { const e = new Error(msg); e.code = 'too_large'; return e; };
+    let total = 0;
+    for (const { blob, kind } of entries) {
+      const size = blob && blob.size ? blob.size : 0;
+      total += size;
+      const max = kind && lim.kinds ? lim.kinds[kind] : null;
+      if (max && size > max) throw fail(t('upload_file_too_large', { kind: t('upload_kind_' + kind), size: mbText(size), max: mbText(max) }));
+    }
+    if (lim.total && total > lim.total) throw fail(t('upload_total_too_large', { size: mbText(total), max: mbText(lim.total) }));
+  }
+  // 回應非 2xx 時組成 Error：413 沿用後端訊息（沒有 JSON 本文時用通用說明）
+  function uploadError(res, j) {
+    const msg = j.error || (res.status === 413 ? t('upload_too_large_generic') : 'HTTP ' + res.status);
+    const err = new Error(msg + (j.detail ? '：' + j.detail : ''));
+    err.status = res.status;
+    if (res.status === 413) { err.code = 'too_large'; err.maxBytes = j.max_bytes || null; }
+    return err;
+  }
+
   // 新增一筆投稿（照片、文字、音訊等共用）：project/owner/code/ctoken 這些通用欄位統一在這裡補上，呼叫端只要給業務欄位（kind/name/comment/photo…）。
   // 欄位值傳 [blob, filename] 陣列可指定 Blob 的檔名（否則瀏覽器預設存成 "blob"）。
   // opts.maxRetry 搭配 opts.onRetry(waitSeconds, attempt, maxAttempt) 可在遇到伺服器限流（429）時自動倒數重試，不傳 opts 就只送一次。
   async function submitContribution(fields, opts) {
     opts = opts || {};
     const maxRetry = opts.maxRetry || 0;
+    checkUploadSize(Object.keys(fields).filter(k => fields[k] instanceof Blob || Array.isArray(fields[k])).map(k => {
+      const v = fields[k];
+      return { blob: Array.isArray(v) ? v[0] : v, kind: k === 'thumb' ? null : fields.kind };
+    }));
     for (let attempt = 0; attempt <= maxRetry; attempt++) {
       const fd = new FormData();
       fd.append('project', PROJECT);
@@ -136,8 +165,8 @@ window.MapApp = (() => {
         if (opts.onRetry) await opts.onRetry(wait, attempt + 1, maxRetry);
         continue;
       }
-      const j = await res.json().catch(() => ({ error: 'HTTP ' + res.status }));
-      if (!res.ok || j.error) throw new Error((j.error || ('HTTP ' + res.status)) + (j.detail ? '：' + j.detail : ''));
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || j.error) throw uploadError(res, j);
       CONTRIB.push(j.item);
       return j.item;
     }
@@ -937,14 +966,13 @@ window.MapApp = (() => {
     if (opts.baseRev) fd.append('base_rev', opts.baseRev);
     fd.append('blocks', JSON.stringify(opts.blocks || []));
     const files = opts.files || {};
+    const kindOf = {};
+    (opts.blocks || []).forEach(b => { if (b.file) kindOf[b.file] = b.kind; });
+    checkUploadSize(Object.keys(files).map(k => ({ blob: files[k][0], kind: kindOf[k] })));
     for (const k in files) fd.append(k, files[k][0], files[k][1]);
     const res = await fetch(apiUrl('spotcontent'), { method: 'POST', body: fd });
-    const j = await res.json().catch(() => ({ error: 'HTTP ' + res.status }));
-    if (!res.ok || j.error) {
-      const err = new Error((j.error || ('HTTP ' + res.status)) + (j.detail ? '：' + j.detail : ''));
-      err.status = res.status;
-      throw err;
-    }
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok || j.error) throw uploadError(res, j);
     // 回應只帶內容與版本資訊，這裡補成一筆修訂紀錄（跟 store 內的鏈結欄位一致）放進 CONTRIB
     const it = j.item, origin = effectiveSpots().find(p => p.num === itemNum);
     if (origin && it.content_rev && it.content_rev !== origin.contentRev) {

@@ -910,4 +910,10 @@ return [
     'content_photo_caption' => '說明，選填',
     'content_photo_pick' => '選擇照片',
     'upload_too_large' => '上傳內容超過伺服器允許的大小（單次約 {mb} MB），請減少檔案數量或換小一點的檔案。',
+    'upload_file_too_large' => '{kind}檔案太大（{size} MB），上限為 {max} MB，請換小一點的檔案。',
+    'upload_total_too_large' => '這次上傳的檔案總共 {size} MB，超過單次上限 {max} MB，請減少檔案數量或換小一點的檔案。',
+    'upload_too_large_generic' => '上傳內容超過伺服器允許的大小，請減少檔案數量或換小一點的檔案。',
+    'upload_kind_photo' => '照片',
+    'upload_kind_video' => '影片',
+    'upload_kind_audio' => '聲音',
 ];
