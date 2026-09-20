@@ -177,6 +177,8 @@ window.MapLibreEngine = (() => {
         preserveDrawingBuffer: true,   // 讓 getCanvasDataURL() 讀得到畫面（見下方快照擷圖）；WebGL 預設畫完就可能清緩衝區
       });
       this.map.on('load', () => this._mountOverlays());
+      // 每次樣式載入完成（含 setStyle 切深淺主題）都要重套一次，覆寫不會跟著新樣式留下來
+      this.map.on('style.load', () => this._applyLabelLang());
       this.map.on('zoomend', () => this._checkZoomThresholds());
     }
 
@@ -363,6 +365,55 @@ window.MapLibreEngine = (() => {
     }
     styleUrl() { return (this._baseManifest && this._baseManifest.url) || ''; }
     get hasDarkStyle() { return !!(this._baseManifest && this._baseManifest.urlDark); }
+
+    // 地名標註跟著語言：把樣式 symbol 圖層 text-field 裡的名稱部分換成 APP.labelFields 的 coalesce，
+    // 非名稱部分（道路編號、門牌）原樣保留；欄位優先序由伺服器決定（api/labellang.php）。
+    _labelExpr() {
+      const app = window.APP || {};
+      const lang = app.mapLabelLang === 'auto' ? window.LANG : app.mapLabelLang;
+      const fields = ((app.labelFields || {})[lang] || ['name']).slice();
+      if (fields[fields.length - 1] !== 'name') fields.push('name');
+      return ['coalesce'].concat(fields.map(f => ['get', f]));
+    }
+
+    _applyLabelLang() {
+      const isName = k => /^name([:_]|$)/.test(k);
+      const expr = this._labelExpr();
+      const valueOps = ['get', 'coalesce', 'concat', 'case', 'step', 'to-string', 'format'];
+      // 子樹裡出現的屬性鍵（只認 get／has）；有任何非名稱屬性就回 null 代表「不是純名稱運算式」
+      const keys = (n, acc) => {
+        if (!Array.isArray(n)) return acc;
+        if ((n[0] === 'get' || n[0] === 'has') && typeof n[1] === 'string') acc.push(n[1]);
+        n.forEach(c => keys(c, acc));
+        return acc;
+      };
+      const swap = n => {
+        if (!Array.isArray(n)) return n;
+        if (valueOps.includes(n[0])) {
+          const k = keys(n, []);
+          if (k.length && k.every(isName)) return expr;
+        }
+        return n.map(swap);
+      };
+      // 舊式 "{name}" 樣板：相連的名稱標記（含中間空白／換行）併成一個，其餘標記轉成 to-string(get)
+      const swapTemplate = str => {
+        const parts = str.replace(/\{name[^}]*\}(\s*\{name[^}]*\})+/g, '{name}').split(/(\{[^}]+\})/).filter(x => x !== '');
+        if (!parts.some(x => /^\{name[^}]*\}$/.test(x))) return str;
+        const out = parts.map(x => {
+          const m = /^\{([^}]+)\}$/.exec(x);
+          return !m ? x : isName(m[1]) ? expr : ['to-string', ['get', m[1]]];
+        });
+        return out.length === 1 ? out[0] : ['concat'].concat(out);
+      };
+      const map = this.map;
+      ((map.getStyle() || {}).layers || []).forEach(l => {
+        if (l.type !== 'symbol' || /^(sl-|m3d-)/.test(l.id)) return;
+        const tf = (l.layout || {})['text-field'];
+        if (tf == null) return;
+        const next = typeof tf === 'string' ? swapTemplate(tf) : swap(tf);
+        if (JSON.stringify(next) !== JSON.stringify(tf)) map.setLayoutProperty(l.id, 'text-field', next);
+      });
+    }
 
     // 只動底圖樣式自帶的 symbol 圖層；疊圖與 3D 模型圖層（sl-／m3d- 開頭）不是文字，不碰
     hideBaseLabels() {
