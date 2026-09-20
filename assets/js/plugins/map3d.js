@@ -4,10 +4,9 @@
    3D 渲染管線（建物排除、自訂模型、pitch 切換）本身在 MapLibreEngine（見
    assets/js/engine/maplibre-engine.js 的 enter3D()/exit3D()），這裡只剩下判斷「要不要另開
    一顆地圖」的膠水邏輯：
-   - 如果這張地圖的主引擎剛好就是 MapLibre、而且它現在的底圖 style 網址跟 3D 切換鈕自己設定的
-     style 完全一樣（sameStyle()），就直接在同一顆地圖上呼叫 enter3D()/exit3D()，不開第二個
-     WebGL context。
-   - 否則（主引擎是 Leaflet，或底圖 style 跟 3D style 不同），另開一顆獨立的 MapLibreEngine，
+   - 如果這張地圖的主引擎是 MapLibre（任何向量底圖），就直接在同一顆地圖上呼叫
+     enter3D()/exit3D()，3D 沿用專案原本的底圖樣式，不開第二個 WebGL context。
+   - 否則（主引擎是 Leaflet、底圖是光柵圖磚），另開一顆獨立的 MapLibreEngine 載入 3D 專用 style，
      蓋在 #map 上面、切換時互相隱藏顯示，兩顆地圖互不知情，2D 地圖的任何狀態（圖層、投稿、主題）
      都不會被這裡碰到、也不會反過來被 3D 影響。 */
 (() => {
@@ -17,13 +16,6 @@
     if (vars) for (const k in vars) s = s.replace('{' + k + '}', vars[k]);
     return s;
   };
-
-  // 3D 切換鈕自己的 style 網址跟專案另外選的向量底圖網址，比較時把兩邊的 ?key=... 查詢字串
-  // 都先拿掉——key 只是存取憑證，不代表底圖本身不同。
-  function stripKey(url) {
-    return String(url || '').replace(/([?&])key=[^&]*/, '').replace(/[?&]$/, '');
-  }
-  function sameStyle(a, b) { return !!a && !!b && stripKey(a) === stripKey(b); }
 
   class Map3DPlugin extends MapApp.Plugin {
     constructor() {
@@ -97,8 +89,7 @@
     enter() {
       this.mapApp.trackFeature('map3d');
       const primary = this.mapApp.getEngine();
-      const reuse = primary.type === 'maplibre' && sameStyle(primary.styleUrl(), this.cfg.styleUrl);
-      if (reuse) {
+      if (primary.type === 'maplibre') {
         this.activeEngine = primary;
       } else {
         document.getElementById('map').style.display = 'none';

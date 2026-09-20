@@ -173,6 +173,7 @@ window.MapLibreEngine = (() => {
       // 還是另開一顆給 3D 用，都走同一套。
       this._navControlAdded = false;
       this._3dCfg = null;
+      this._in3D = false;
       this._modelLayerIds = [];
       this._threeLoading = false;
       this.THREE = null;
@@ -188,7 +189,7 @@ window.MapLibreEngine = (() => {
       });
       this.map.on('load', () => this._mountOverlays());
       // 每次樣式載入完成（含 setStyle 切深淺主題）都要重套一次，覆寫不會跟著新樣式留下來
-      this.map.on('style.load', () => this._applyLabelLang());
+      this.map.on('style.load', () => { this._applyLabelLang(); if (this._in3D) this._apply3DStyle(); });
       this.map.on('zoomend', () => this._checkZoomThresholds());
     }
 
@@ -481,19 +482,37 @@ window.MapLibreEngine = (() => {
     // 一顆專給 3D 用，都走同一套 enter3D()/exit3D()，呼叫端不用區分）----
     enter3D(cfg) {
       this._3dCfg = cfg || {};
+      this._in3D = true;
       this.map.easeTo({ pitch: 55, duration: 300 });
       if (!this._navControlAdded) {
         this.map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'bottom-right');
         this._navControlAdded = true;
       }
-      const run = () => {
-        this._applyBuildingExclusion(this._3dCfg.excludedBuildingIds);
-        this._maybeLoadThree();
-      };
-      if (this.map.loaded()) run(); else this.map.once('load', run);
+      // map.loaded() 在圖磚載入中會是 false，且 'load' 只觸發一次；樣式還沒載完時交給 style.load 處理
+      if (this.map.isStyleLoaded()) this._apply3DStyle();
     }
     exit3D() {
+      this._in3D = false;
       this.map.easeTo({ pitch: 0, duration: 300 });
+      this._toggle3DLayers(false);
+    }
+
+    // 底圖樣式用圖層 metadata 'souliong:3d' 標出 3D 時要換的圖層（show＝3D 才顯示，hide＝3D 時隱藏），
+    // 引擎只認這個標記、不認任何樣式或圖層 id。樣式重載（切深淺色）後全部要重套。
+    _apply3DStyle() {
+      this._toggle3DLayers(true);
+      this._applyBuildingExclusion(this._3dCfg && this._3dCfg.excludedBuildingIds);
+      this._modelLayerIds = [];
+      if (this.THREE) this._renderCustomModels(); else this._maybeLoadThree();
+    }
+    _toggle3DLayers(on) {
+      const style = this.map.getStyle();
+      ((style && style.layers) || []).forEach((l) => {
+        const mode = (l.metadata || {})['souliong:3d'];
+        if (mode === 'show' || mode === 'hide') {
+          this.map.setLayoutProperty(l.id, 'visibility', (mode === 'show') === on ? 'visible' : 'none');
+        }
+      });
     }
 
     // 排除機制見 api/regions3d.php 開頭的說明：清單是管理員存檔當下算好的靜態 id，這裡只是
@@ -523,8 +542,7 @@ window.MapLibreEngine = (() => {
         ]);
         this.THREE = THREE;
         this.GLTFLoader = addon.GLTFLoader;
-        if (this.map.loaded()) this._renderCustomModels();
-        else this.map.once('load', () => this._renderCustomModels());
+        if (this._in3D && this.map.isStyleLoaded()) this._renderCustomModels();
       } catch (e) {
         console.error('[maplibre-engine] three.js 載入失敗', e);
       }
