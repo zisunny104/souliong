@@ -31,11 +31,21 @@ window.MapLibreEngine = (() => {
     return [noRetina];
   }
 
+  // 對應 Leaflet 的 minZoom／maxNativeZoom／tms／bounds：超出原生縮放範圍時由 MapLibre 放大既有圖磚，
+  // 不設 maxzoom 的話它會一直去要不存在的高層級圖磚而整片消失。
+  function rasterSource(m, dark) {
+    const src = { type: 'raster', tiles: rasterTileUrls(m, dark), tileSize: 256 };
+    if (m.minZoom != null) src.minzoom = m.minZoom;
+    if (m.maxNativeZoom != null) src.maxzoom = m.maxNativeZoom;
+    if (m.tms) src.scheme = 'tms';
+    if (m.bounds) src.bounds = [m.bounds[0][1], m.bounds[0][0], m.bounds[1][1], m.bounds[1][0]];
+    return src;
+  }
+
   function syntheticRasterStyle(m, dark) {
-    const tiles = rasterTileUrls(m, dark);
     return {
       version: 8,
-      sources: { 'sl-base': { type: 'raster', tiles, tileSize: 256 } },
+      sources: { 'sl-base': rasterSource(m, dark) },
       layers: [{ id: 'sl-base', type: 'raster', source: 'sl-base' }],
     };
   }
@@ -241,9 +251,9 @@ window.MapLibreEngine = (() => {
           this.map.addSource(id, { type: 'image', url, coordinates: cornersFromBounds(m.bounds) });
           this.map.addLayer({ id, type: 'raster', source: id, paint: m.opacity != null ? { 'raster-opacity': m.opacity } : {} });
         } else {
-          const tiles = rasterTileUrls(m, this._dark);
-          if (!tiles.length) return;
-          this.map.addSource(id, { type: 'raster', tiles, tileSize: 256 });
+          const src = rasterSource(m, this._dark);
+          if (!src.tiles.length) return;
+          this.map.addSource(id, src);
           this.map.addLayer({ id, type: 'raster', source: id, paint: m.opacity != null ? { 'raster-opacity': m.opacity } : {} });
         }
         this._overlayIds.push(id);
