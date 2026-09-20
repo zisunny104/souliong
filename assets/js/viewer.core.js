@@ -1059,7 +1059,7 @@ window.MapApp = (() => {
     const story = document.createElement('div'); story.className = 'story';
     story.innerHTML =
       (sole ? '' : '<div class="story-head">' + esc(t('location_story_title')) + '</div>') +
-      '<div class="sc-list">' + (blocks.length ? '' : '<div class="story-body"><span class="empty">' + esc(t('story_empty')) + '</span></div>') + '</div>' +
+      '<div class="sc-list">' + (blocks.length ? '' : '<div class="story-body"><span class="sc-empty">' + esc(t('story_empty')) + '</span></div>') + '</div>' +
       (blocks.length ? contentBylineHtml(current) : '') +
       '<div class="story-actions" id="storyActions">' +
       (!EMBED && versions.length > 1 ? '<button class="btn small" id="histBtn">' + esc(t('history_versions', { n: versions.length })) + '</button>' : '') +
@@ -1084,7 +1084,7 @@ window.MapApp = (() => {
     // 投稿牆：每一筆投稿一律出現在這裡
     const gwrap = document.createElement('div');
     gwrap.className = 'gallery';   // 大卡片模式時靠這個 class 排成多欄
-    if (!entries.length) gwrap.innerHTML = '<div class="empty" style="margin-top:12px">' + esc(t('photos_empty')) + '</div>';
+    if (!entries.length) gwrap.innerHTML = '<div class="sc-empty" style="margin-top:12px">' + esc(t('photos_empty')) + '</div>';
     entries.forEach(e => {
       const d = document.createElement('div'); d.className = 'entry sl-kind-' + kindOf(e); d.dataset.entryId = e.id;
       const alt = esc(e.comment || (current.chair || current.theme || t('contrib_photo_alt')));
@@ -1311,7 +1311,7 @@ window.MapApp = (() => {
           esc(v.name || t('anon_fallback')) + '・' + fmtTime(v.photo_time || v.created_at) +
           (isOrig ? esc(t('original_submission_tag')) : '') +
           (!EMBED && isMine(v) && !isOrig ? ' <button class="del-btn" type="button" data-id="' + esc(v.id) + '">' + esc(t('delete')) + '</button>' : '') + '</div>' +
-          '<div class="hist-txt">' + (v.comment ? esc(v.comment) : '<span class="empty">' + esc(t('no_comment')) + '</span>') + '</div></div>';
+          '<div class="hist-txt">' + (v.comment ? esc(v.comment) : '<span class="sc-empty">' + esc(t('no_comment')) + '</span>') + '</div></div>';
       }).join('');
     panel.querySelectorAll('.del-btn[data-id]').forEach(b => b.onclick = () => deleteEntry(b.dataset.id));
   }
@@ -1327,7 +1327,7 @@ window.MapApp = (() => {
       // 文字區塊的內容優先當預覽，沒有文字才退回其他區塊的說明文字
       const first = blocks.slice().sort((a, b) => (b.kind === 'text') - (a.kind === 'text'))
         .map(b => { const d = spotContentDef(b); return d && d.summary ? d.summary(b) : ''; }).find(x => x);
-      return first ? esc(first.length > 60 ? first.slice(0, 60) + '…' : first) : '<span class="empty">' + esc(t('no_comment')) + '</span>';
+      return first ? esc(first.length > 60 ? first.slice(0, 60) + '…' : first) : '<span class="sc-empty">' + esc(t('no_comment')) + '</span>';
     };
     el.innerHTML = '<div class="hist-title">' + esc(t('desc_history_title')) + '</div>' +
       versions.slice().reverse().map((v, i) =>
@@ -1360,7 +1360,7 @@ window.MapApp = (() => {
     if (shot.length) rows.push([t('info_params'), shot.join(' · ')]);
     if (x.sw) rows.push([t('info_software'), esc(x.sw)]);
     // 「沒有相機資訊」只對照片說得通；影音本來就不會有 EXIF，不必特地報告一次
-    if (!rows.length && kindDef(e).box === 'image') rows.push([t('info_camera'), '<span class="empty">' + esc(t('info_no_camera')) + '</span>']);
+    if (!rows.length && kindDef(e).box === 'image') rows.push([t('info_camera'), '<span class="sc-empty">' + esc(t('info_no_camera')) + '</span>']);
     const shotTime = e.photo_time || e.created_at;
     if (shotTime) rows.push([t('info_shot_time'), fmtTime(shotTime)]);
     if (e.lat != null && e.lon != null) rows.push([t('info_coords'), (+e.lat).toFixed(5) + ', ' + (+e.lon).toFixed(5)]);

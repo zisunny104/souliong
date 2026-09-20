@@ -271,9 +271,8 @@
 
 /* 還沒填的格子（見 pin-input.js 的 data-pin-slots）：壓淡當底線用，
    下一格要填的那個再提亮一點，取代被關掉的原生游標，指出現在填到哪。
-   class 名字一定要加 pin- 前綴，不能用 .empty/.next 這種通用字：spot-panel.css 已經有
-   一條沒有任何前綴的 .empty（面板「沒有資料」那種提示文字）在設 color: var(--muted)，
-   而對話框裡的 --muted 是主題包的墨色（深色材質時是白的），空格子的圈圈會被染成白色、
+   class 名字一定要加 pin- 前綴，不能用 .next 這種通用字，避免被面板的通用規則設成 color: var(--muted)：
+   對話框裡的 --muted 是主題包的墨色（深色材質時是白的），空格子的圈圈會被染成白色、
    在白底輸入框上整個看不見。這裡的規則只設 opacity 不設 color，搶不回來。 */
 .pin-mask-dot.pin-blank {
   opacity: .5

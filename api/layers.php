@@ -415,16 +415,6 @@ function souliong_credit_html(?array $part, array $DICT): string
     return (!empty($part['copyright']) ? '&copy;&nbsp;' : '') . $body . $suffix;
 }
 
-/** attribution 陣列（新格式）或純字串（管理端手打舊格式，沿用相容）整串轉成 HTML。 */
-function souliong_credit_list_html($attribution, array $DICT): string
-{
-    if (!is_array($attribution)) {
-        return htmlspecialchars(souliong_credit_i18n_sub((string)$attribution, $DICT), ENT_QUOTES, 'UTF-8');
-    }
-    $parts = array_filter(array_map(fn($p) => souliong_credit_html(is_array($p) ? $p : null, $DICT), $attribution));
-    return implode(' &middot; ', $parts);
-}
-
 /** 這組圖層裡只要有向量圖層，主引擎署名就換成 MapLibre；判斷方式跟 view.php 的 $primaryEngine 一致。 */
 function souliong_engine_credit(array $layers): array
 {

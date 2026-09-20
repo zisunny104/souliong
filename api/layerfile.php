@@ -11,6 +11,7 @@
 // <project> 只決定解析範圍（專案層 projects/<proj>/layers/ 優先於全站層 layers/），全站
 // 層也走同一條網址——這樣前端拿到的網址形狀永遠一致，不必知道圖層是誰的。
 require_once __DIR__ . '/layers.php';
+require_once __DIR__ . '/routes.php';
 $cfg = require __DIR__ . '/config.php';
 
 // 副檔名白名單（與後台匯出／匯入共用同一份，見 layers.php）。這道關卡同時是「layer.json
@@ -18,9 +19,9 @@ $cfg = require __DIR__ . '/config.php';
 $MIMES = souliong_layer_mimes();
 
 $raw = (string)($_GET['f'] ?? '');
-// <project>/<id>/<路徑>；路徑每一段都只允許保守字元，且整串不得出現 ".."
+// <project>/<id>/<路徑>；路徑每一段都只允許保守字元（含 @，sprite@2x 要用），且整串不得出現 ".."
 if (strpos($raw, '..') !== false
-    || !preg_match('#^([a-z0-9_-]+)/([a-z0-9_-]+)/([A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*)$#', $raw, $m)) {
+    || !preg_match('#^([a-z0-9_-]+)/([a-z0-9_-]+)/([A-Za-z0-9_.@-]+(?:/[A-Za-z0-9_.@-]+)*)$#', $raw, $m)) {
     http_response_code(400);
     exit;
 }
@@ -69,9 +70,37 @@ if ($ext === 'svg') {
     // 那等於「能放圖層檔的人＝能在本站執行腳本」。在回應層面直接關掉，不倚賴呼叫端怎麼用。
     header("Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; sandbox");
 }
-header('Content-Length: ' . filesize($real));
 header('Cache-Control: public, max-age=31536000, immutable');
+if ($ext === 'json') {
+    // MapLibre 的 sprite 必須是絕對網址，相對值只有在這裡（知道自己的公開網址）才能補成對的
+    $body = souliong_style_absolute_sprite((string)file_get_contents($real), $proj, $id, $rel);
+    header('Content-Length: ' . strlen($body));
+    echo $body;
+    exit;
+}
+header('Content-Length: ' . filesize($real));
 readfile($real);
+
+/**
+ * 向量樣式（有 version 與 layers 的 json）頂層 sprite 若是相對路徑，改寫成同圖層資料夾內的
+ * 絕對網址；已是絕對網址、解析失敗、不是樣式、路徑不合法一律原樣回傳。
+ */
+function souliong_style_absolute_sprite(string $json, string $proj, string $id, string $rel): string
+{
+    $st = json_decode($json, true);
+    if (!is_array($st) || !isset($st['version'], $st['layers']) || !is_string($st['sprite'] ?? null)) {
+        return $json;
+    }
+    $sprite = $st['sprite'];
+    if ($sprite === '' || preg_match('#^[a-z][a-z0-9+.-]*:|^//|^/#i', $sprite)
+        || strpos($sprite, '..') !== false || !preg_match('#^[A-Za-z0-9_.@-]+(?:/[A-Za-z0-9_.@-]+)*$#', $sprite)) {
+        return $json;
+    }
+    $dir = dirname($rel);
+    $st['sprite'] = Route::abs(Route::layerFile($proj, $id, ($dir === '.' ? '' : $dir . '/') . $sprite));
+    $out = json_encode($st, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    return $out === false ? $json : $out;
+}
 
 /**
  * 1×1 全透明 PNG（68 bytes）。刻意用 zlib 現組而不是塞一串 base64 魔術字串，也不另外放一個

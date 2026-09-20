@@ -23,6 +23,7 @@
  * 所以不論端點先載入哪一支都行；不要用 require 重複載入。
  */
 require_once __DIR__ . '/security.php';
+require_once __DIR__ . '/i18n.php';
 
 /**
  * 權限鍵註冊表。欄位：
@@ -168,6 +169,11 @@ final class Actor {
     }
 }
 
+/** 權限／CSRF 拒絕訊息，依請求語言取字典。 */
+function auth_msg(string $key): string {
+    return i18n_t(i18n_dict(i18n_resolve()), $key);
+}
+
 final class Auth {
     /** @var array<string, Actor> */
     private static array $actors = [];
@@ -194,12 +200,12 @@ final class Auth {
         $fail = $onFail ?? fn(string $reason, string $message) => json_out(['error' => $message], 403);
         $actor = self::actor($cfg, $project);
         if (!$actor->can($project, $key)) {
-            $fail('deny', $denyMessage ?? '沒有權限執行這個動作');
+            $fail('deny', $denyMessage ?? auth_msg('auth_deny_default'));
         }
         if ($csrf) {
             $expected = $actor->csrf($project);
             if ($expected === null || !hash_equals($expected, (string)($_POST['csrf'] ?? ''))) {
-                $fail('csrf', '憑證失效，請重新整理頁面後再操作一次');
+                $fail('csrf', auth_msg('auth_csrf_invalid'));
             }
         }
         return $actor;

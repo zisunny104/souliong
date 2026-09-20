@@ -1,8 +1,38 @@
-/* 投稿型別：照片
-   EXIF 讀取（exifr）、HEIC 轉檔（heic2any）、WebP 壓縮全部收在這裡——這三件事只有照片用得到，
-   view.php 也只在這張地圖啟用 photo 時才輸出那兩支 CDN script。 */
+/* 照片：EXIF 讀取（exifr）、HEIC 轉檔（heic2any）、WebP 壓縮全部收在這裡——這三件事只有照片用得到，
+   view.php 也只在需要照片的地圖才輸出那兩支 CDN script。
+
+   檔案分兩層：window.SLPhotoTools 是跟投稿無關的選檔判斷與 WebP 轉檔（點位內容編輯的
+   content-editor.js 也用，不需要 upload 模組與 kind-base.js）；「photo 投稿型別」則只在這張地圖
+   確實開了 upload 模組、且 contrib.kinds 含 photo 時才登記進投稿型別註冊表。 */
 (() => {
-  const { Kind, t, register } = window.SLContrib;
+  if (window.SLPhotoTools) return;
+
+  async function toWebp(file, max = 1600, q = 0.85) {
+    let src = file;
+    if (/heic|heif/i.test(file.type) || /\.hei[cf]$/i.test(file.name)) {
+      const j = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.92 });
+      src = Array.isArray(j) ? j[0] : j;
+    }
+    let bmp;
+    try { bmp = await createImageBitmap(src, { imageOrientation: 'from-image' }); }
+    catch (e) { bmp = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = URL.createObjectURL(src); }); }
+    let w = bmp.width, h = bmp.height;
+    if (Math.max(w, h) > max) { const s = max / Math.max(w, h); w = Math.round(w * s); h = Math.round(h * s); }
+    const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+    cv.getContext('2d').drawImage(bmp, 0, 0, w, h);
+    return await new Promise(r => cv.toBlob(r, 'image/webp', q));
+  }
+
+  window.SLPhotoTools = {
+    acceptAttr: () => 'image/*,.heic,.heif',
+    accepts: (file) => /^image\//i.test(file.type) || /\.(jpe?g|png|webp|heic|heif|gif|bmp|tiff?)$/i.test(file.name),
+    toWebp,
+  };
+
+  const SL = window.SLContrib;
+  const asContribKind = !!(SL && window.APP && APP.moduleState && APP.moduleState.upload && ((APP.contrib || {}).kinds || []).includes('photo'));
+  if (!asContribKind) return;
+  const { Kind, t, register } = SL;
 
   async function readExif(file) {
     const out = { time: null, lat: null, lon: null, source: null, cam: null };
@@ -28,36 +58,13 @@
     return out;
   }
 
-  async function toWebp(file, max = 1600, q = 0.85) {
-    let src = file;
-    if (/heic|heif/i.test(file.type) || /\.hei[cf]$/i.test(file.name)) {
-      const j = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.92 });
-      src = Array.isArray(j) ? j[0] : j;
-    }
-    let bmp;
-    try { bmp = await createImageBitmap(src, { imageOrientation: 'from-image' }); }
-    catch (e) { bmp = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = URL.createObjectURL(src); }); }
-    let w = bmp.width, h = bmp.height;
-    if (Math.max(w, h) > max) { const s = max / Math.max(w, h); w = Math.round(w * s); h = Math.round(h * s); }
-    const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
-    cv.getContext('2d').drawImage(bmp, 0, 0, w, h);
-    return await new Promise(r => cv.toBlob(r, 'image/webp', q));
-  }
-
-  // 點位內容編輯的照片區塊借用（不依賴投稿殼）
-  window.SLPhotoTools = {
-    acceptAttr: () => 'image/*,.heic,.heif',
-    accepts: (file) => /^image\//i.test(file.type) || /\.(jpe?g|png|webp|heic|heif|gif|bmp|tiff?)$/i.test(file.name),
-    toWebp,
-  };
-
   class PhotoKind extends Kind {
     get key() { return 'photo'; }
     get tab() { return 'media'; }
     get icon() { return 'fa-image'; }
 
-    acceptAttr() { return 'image/*,.heic,.heif'; }
-    accepts(file) { return /^image\//i.test(file.type) || /\.(jpe?g|png|webp|heic|heif|gif|bmp|tiff?)$/i.test(file.name); }
+    acceptAttr() { return window.SLPhotoTools.acceptAttr(); }
+    accepts(file) { return window.SLPhotoTools.accepts(file); }
     // 沒開放影片的地圖（例如 100chairs）媒體分頁只剩照片，按鈕就不該寫成「照片或影片」
     tabLabel() { return 'tab_photo'; }
     pickLabel() { return 'pick_photos_btn'; }

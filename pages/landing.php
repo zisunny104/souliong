@@ -4,7 +4,7 @@
  */
 $cfg = include __DIR__ . '/../config.php';
 require_once __DIR__ . '/../api/settings.php';
-require __DIR__ . '/../api/i18n.php';
+require_once __DIR__ . '/../api/i18n.php';
 $apiCfg = require __DIR__ . '/../api/config.php';
 $randomExplore = souliong_random_explore_on($apiCfg);
 [$LANG, $DICT] = i18n_init();

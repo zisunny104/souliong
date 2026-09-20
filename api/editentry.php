@@ -39,7 +39,7 @@ try {
     // 否則要有 edit_others，並照 Auth::require 的規則驗 CSRF（cookie 身分跨站會自動夾帶）。
     $who = Contributor::fromRequest();
     if (!$who->owns($orig)) {
-        Auth::require($cfg, $project, 'edit_others', true, '沒有權限編輯這則（只有原投稿者本人或管理者可以）');
+        Auth::require($cfg, $project, 'edit_others', true, auth_msg('deny_edit_entry'));
     }
 
     $comment    = clean_str($_POST['comment'] ?? null, $cfg['comment_max']);

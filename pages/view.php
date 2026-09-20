@@ -14,7 +14,7 @@ $metaF   = __DIR__ . '/../projects/' . $proj . '/meta.json';
 $meta    = is_file($metaF) ? json_decode(file_get_contents($metaF), true) : null;
 
 require_once __DIR__ . '/../api/security.php';   // 權限一律問 Auth（api/auth.php）：身分只解析一次，能力與 CSRF 從同一個 Actor 來
-require __DIR__ . '/../api/i18n.php';
+require_once __DIR__ . '/../api/i18n.php';
 require __DIR__ . '/../api/features.php';
 require_once __DIR__ . '/../api/packs.php';
 require_once __DIR__ . '/../api/layers.php';
@@ -81,6 +81,8 @@ if ($contribFiles && ($contribCfg['newPoint'] === 'contributor' || ($contribCfg[
 // 錄音／選檔，型別檔的載入獨立於 upload 模組——唯讀地圖的管理者一樣要能錄音，所以投稿型別沒載到 audio 時另外補載。
 $contentEditOn = $mod('contentEdit') && $canEditSpots;
 $needAudioKind = $contentEditOn && !in_array('audio', $contribFiles, true);
+// 照片區塊同理：編輯器要用 kind-photo.js 的 SLPhotoTools（縮圖、EXIF、HEIC），照片投稿沒開也要補載。
+$needPhotoKind = $contentEditOn && !in_array('photo', $contribFiles, true);
 // 3D 模式關掉時整個 key 是 null，前端 map3d.js 本身也不會被載入(見下方 $mod('map3d') 輸出)，
 // 兩邊一起判斷、不是只看其中一邊，plugin 缺席時 APP.map3d 也沒有殘留資料可用。
 $map3d = $mod('map3d') ? [
@@ -401,7 +403,7 @@ import * as maplibregl from 'https://unpkg.com/maplibre-gl@6.6.0/dist/maplibre-g
 window.maplibregl = maplibregl;
 </script>
 <?php endif; ?>
-<?php if (in_array('photo', $contribFiles, true)): /* EXIF 讀取與 HEIC 轉檔只有照片投稿用得到（見 assets/js/contrib/kind-photo.js） */ ?>
+<?php if (in_array('photo', $contribFiles, true) || $needPhotoKind): /* EXIF 讀取與 HEIC 轉檔只有載入照片型別檔時用得到（見 assets/js/contrib/kind-photo.js） */ ?>
 <script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
 <?php endif; ?>
@@ -418,13 +420,16 @@ window.maplibregl = maplibregl;
 <?php if ($mod('identity')): ?>
 <script src="<?= $assetUrl('assets/js/plugins/contributor-identity.js') ?>"></script>
 <?php endif; ?>
-<?php if ($contribFiles || $needAudioKind): /* 型別檔要在外掛之前載入：外掛開機時就要有完整的型別註冊表才能決定分頁 */ ?>
+<?php if ($contribFiles || $needAudioKind || $needPhotoKind): /* 型別檔要在外掛之前載入：外掛開機時就要有完整的型別註冊表才能決定分頁 */ ?>
 <script src="<?= $assetUrl('assets/js/contrib/kind-base.js') ?>"></script>
 <?php foreach ($contribFiles as $kf): ?>
 <script src="<?= $assetUrl('assets/js/contrib/kind-' . $kf . '.js') ?>"></script>
 <?php endforeach; ?>
 <?php if ($needAudioKind): ?>
 <script src="<?= $assetUrl('assets/js/contrib/kind-audio.js') ?>"></script>
+<?php endif; ?>
+<?php if ($needPhotoKind): ?>
+<script src="<?= $assetUrl('assets/js/contrib/kind-photo.js') ?>"></script>
 <?php endif; ?>
 <?php endif; ?>
 <?php if ($contribFiles): ?>

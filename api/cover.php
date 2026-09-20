@@ -42,7 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 rate_limit($cfg, 'manage');
 
-Auth::require($cfg, $project, 'edit_meta', true, '沒有權限管理這張地圖的封面圖片');
+Auth::require($cfg, $project, 'edit_meta', true, auth_msg('deny_manage_cover'));
 
 $meta = is_file($mf) ? json_decode((string)@file_get_contents($mf), true) : [];
 if (!is_array($meta)) $meta = [];

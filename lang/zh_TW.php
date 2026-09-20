@@ -184,9 +184,7 @@ return [
     'original_submission_tag' => '（原始投稿）',
     'no_comment'             => '（無留言）',
     'story_textarea_placeholder' => '寫下這個地點的故事…（送出後會成為新版本，舊版本仍永久保留）',
-    'submit_new_version'     => '送出新版本',
     'desc_history_title'     => '說明版本紀錄（新到舊）',
-    'original_source_tag'    => '原始（資料來源）',
     'enter_story_content'    => '請輸入說明內容',
     'submitting'             => '送出中…',
     'info_camera'            => '相機',
@@ -625,7 +623,6 @@ return [
 
     // 以下為維護工具頁（thumbfix.php／exiffix.php）用的翻譯 key
     'primary_login_required_msg'  => '需要主要管理者登入。請先到 <a href="{url}">後台</a> 登入後再回到這頁。',
-    'csrf_invalid_ajax_msg'      => '憑證失效，請重新整理頁面',
     'tool_select_project_label'  => '選擇專案',
     'connection_failed_retry_msg' => '連線失敗，請稍後再試',
     'error_prefix_label'          => '錯誤：',
@@ -916,4 +913,11 @@ return [
     'upload_kind_photo' => '照片',
     'upload_kind_video' => '影片',
     'upload_kind_audio' => '聲音',
+    'auth_deny_default' => '沒有權限執行這個動作',
+    'auth_csrf_invalid' => '憑證失效，請重新整理頁面後再操作一次',
+    'deny_manage_cover' => '沒有權限管理這張地圖的封面圖片',
+    'deny_edit_entry' => '沒有權限編輯這則（只有原投稿者本人或管理者可以）',
+    'deny_edit_spot' => '沒有權限編輯定位點（僅限主要管理者，或已被授權的專案管理者）',
+    'deny_edit_spot_content' => '沒有權限編輯點位內容（僅限主要管理者，或已被授權的專案管理者）',
+    'deny_create_spot' => '這張地圖只有管理者能建立地點',
 ];

@@ -8,7 +8,7 @@
 //     伺服器用「時間 + 座標」比對現有缺 exif 的投稿，找不到相符的就略過、絕不亂猜配對。
 require __DIR__ . '/store.php';
 require __DIR__ . '/security.php';
-require __DIR__ . '/i18n.php';
+require_once __DIR__ . '/i18n.php';
 require_once __DIR__ . '/routes.php';   // 網址表：後台網址只有這一份定義（見 api/routes.php）
 $cfg = require __DIR__ . '/config.php';
 rate_limit($cfg, 'manage');
@@ -480,6 +480,8 @@ $reqProject = preg_replace('/[^a-z0-9_-]/', '', $_GET['project'] ?? ($allProject
     ], JSON_UNESCAPED_UNICODE) ?>;
     const fmt = (str, vars) => str.replace(/\{(\w+)\}/g, (_, k) => (vars[k] != null ? vars[k] : ''));
     const csrf = <?= json_encode($csrf) ?>;
+    // 端點網址由 PHP 的 Route 產生，前端不自己拼查詢字串
+    const ROUTES = <?= json_encode(['api' => Route::abs(Route::api('exiffix'))], JSON_UNESCAPED_SLASHES) ?>;
     function renderResults(el, list) {
       el.innerHTML = '';
       list.forEach(r => {
@@ -507,7 +509,7 @@ $reqProject = preg_replace('/[^a-z0-9_-]/', '', $_GET['project'] ?? ($allProject
         fd.append('action', 'autofix');
         fd.append('csrf', csrf);
         fd.append('project', document.getElementById('project').value);
-        const res = await fetch('?api=exiffix', { method: 'POST', body: fd });
+        const res = await fetch(ROUTES.api, { method: 'POST', body: fd });
         const j = await res.json();
         if (!res.ok || !j.ok) { statusAutoEl.textContent = I18N.error_prefix + (j.error || res.status); goAuto.disabled = false; return; }
         statusAutoEl.textContent = j.results.length ? fmt(I18N.autofix_done, { n: j.results.length }) : I18N.autofix_done_none;
@@ -565,7 +567,7 @@ $reqProject = preg_replace('/[^a-z0-9_-]/', '', $_GET['project'] ?? ($allProject
         fd.append('csrf', csrf);
         fd.append('project', document.getElementById('project').value);
         fd.append('candidates', JSON.stringify(candidates));
-        const res = await fetch('?api=exiffix', { method: 'POST', body: fd });
+        const res = await fetch(ROUTES.api, { method: 'POST', body: fd });
         const j = await res.json();
         if (!res.ok || !j.ok) { statusEl.textContent = I18N.error_prefix + (j.error || res.status); go.disabled = false; return; }
         statusEl.textContent = fmt(I18N.match_done, { n: j.results.length });

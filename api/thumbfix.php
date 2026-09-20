@@ -4,7 +4,7 @@
 // 只補「沒有 thumb」的原始投稿，不動已有縮圖的紀錄與照片原檔。
 require __DIR__ . '/store.php';
 require __DIR__ . '/security.php';
-require __DIR__ . '/i18n.php';
+require_once __DIR__ . '/i18n.php';
 require_once __DIR__ . '/routes.php';   // 網址表：後台網址只有這一份定義（見 api/routes.php）
 $cfg = require __DIR__ . '/config.php';
 rate_limit($cfg, 'manage');
@@ -365,8 +365,8 @@ $reqProject = preg_replace('/[^a-z0-9_-]/', '', $_GET['project'] ?? ($allProject
     ], JSON_UNESCAPED_UNICODE) ?>;
     const fmt = (str, vars) => str.replace(/\{(\w+)\}/g, (_, k) => (vars[k] != null ? vars[k] : ''));
     const csrf = <?= json_encode($csrf) ?>;
-    // 跨端點請求一律用絕對 base：這頁可能是從 <base>/thumbfix 路徑進來的，相對 ?api= 會被路徑路由搶走
-    const BASE = <?= json_encode(Route::abs(Route::base()), JSON_UNESCAPED_SLASHES) ?>;
+    // 端點網址一律是絕對網址（這頁可能從 <base>/thumbfix 路徑進來，相對網址會被路徑路由搶走），由 Route 產生
+    const ROUTES = <?= json_encode(['api' => Route::abs(Route::api('thumbfix')), 'photo' => Route::abs(Route::api('photo', ['f' => ''])) ], JSON_UNESCAPED_SLASHES) ?>;
     const THUMB_MAX = 640, THUMB_Q = 0.78;   // 跟前端上傳的縮圖規格一致
     const go = document.getElementById('go');
     const statusEl = document.getElementById('status');
@@ -407,7 +407,7 @@ $reqProject = preg_replace('/[^a-z0-9_-]/', '', $_GET['project'] ?? ($allProject
         fd.append('action', 'list');
         fd.append('csrf', csrf);
         fd.append('project', project);
-        const res = await fetch(BASE + '?api=thumbfix', { method: 'POST', body: fd });
+        const res = await fetch(ROUTES.api, { method: 'POST', body: fd });
         const j = await res.json();
         if (!res.ok || !j.ok) { statusEl.textContent = I18N.error_prefix + (j.error || res.status); go.disabled = false; return; }
         const items = j.items || [];
@@ -416,7 +416,7 @@ $reqProject = preg_replace('/[^a-z0-9_-]/', '', $_GET['project'] ?? ($allProject
         for (const it of items) {
           statusEl.textContent = fmt(I18N.progress, { i: done + fail + 1, total: items.length });
           try {
-            const pr = await fetch(BASE + '?api=photo&f=' + encodeURIComponent(it.photo));
+            const pr = await fetch(ROUTES.photo + encodeURIComponent(it.photo));
             if (!pr.ok) throw new Error(fmt(I18N.orig_load_failed, { status: pr.status }));
             const thumb = await makeThumb(await pr.blob());
             const sfd = new FormData();
@@ -428,7 +428,7 @@ $reqProject = preg_replace('/[^a-z0-9_-]/', '', $_GET['project'] ?? ($allProject
             // 照片多時可能碰到限流（429）：照 Retry-After 等一下再試，不直接放棄這張
             let sr, sj;
             for (let attempt = 0; attempt < 5; attempt++) {
-              sr = await fetch(BASE + '?api=thumbfix', { method: 'POST', body: sfd });
+              sr = await fetch(ROUTES.api, { method: 'POST', body: sfd });
               if (sr.status !== 429) break;
               const wait = parseInt(sr.headers.get('Retry-After') || '10', 10) || 10;
               statusEl.textContent = fmt(I18N.rate_limited, { wait, i: done + fail + 1, total: items.length });

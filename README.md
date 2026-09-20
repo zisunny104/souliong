@@ -52,7 +52,7 @@ php -S localhost:8000                      # 或掛你的 Nginx/PHP-FPM
   "center":[23.95,120.69], "zoom":14, "points":"points.json",
   "numbering":"suffix", "categoryOrder":["green","pink","blue"] }
 ```
-點位每筆：`num, theme, area, chair, material, lat, lon, cat, catLabel, color, story`。詳見 [EXTENDING.md](docs/EXTENDING.md)（投稿型別、模組開關、圖層系統）。
+點位每筆：`num, theme, area, chair, material, lat, lon, cat, catLabel, color`。點位說明是原生 `content` 區塊（text／audio／photo），底稿若帶 `story` 只在遷移時轉成 content 的一個文字區塊，之後不再讀取。詳見 [EXTENDING.md](docs/EXTENDING.md)（投稿型別、模組開關、圖層系統）。
 
 網址：`/koilisu/souliong/<id>`；`/koilisu/souliong/` 首頁自動列出所有地圖；後台在 `/koilisu/souliong/manager`。
 

@@ -472,7 +472,7 @@
       const render = () => {
         pauseAll(items);
         items.innerHTML = '';
-        if (!draft.blocks.length) items.innerHTML = '<div class="story-body"><span class="empty">' + esc(t('story_empty')) + '</span></div>';
+        if (!draft.blocks.length) items.innerHTML = '<div class="story-body"><span class="sc-empty">' + esc(t('story_empty')) + '</span></div>';
         draft.blocks.forEach((block, i) => {
           const type = this.typeOf(block);
           const row = document.createElement('div');

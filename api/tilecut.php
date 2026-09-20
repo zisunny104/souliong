@@ -1256,7 +1256,7 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
     const fmt = (str, vars) => str.replace(/\{(\w+)\}/g, (_, k) => (vars[k] != null ? vars[k] : ''));
     const csrf = <?= json_encode($csrf) ?>;
     // 跨端點請求一律用絕對 base（同 thumbfix.php：這頁可能從 <base>/tilecut 進來，相對 ?api= 會被路徑路由搶走）
-    const BASE = <?= json_encode(Route::abs(Route::base()), JSON_UNESCAPED_SLASHES) ?>;
+    const ROUTES = <?= json_encode(['api' => Route::abs(Route::api('tilecut')), 'layerBase' => Route::abs(Route::layerFile('__P__', '__I__', '__R__'))], JSON_UNESCAPED_SLASHES) ?>;
     // 「重新編輯」帶進來的上一次狀態；null＝這是全新的一層。圖片本身不在裡面，逐張去 srcfile 抓。
     const EDIT = <?= json_encode($EDIT, JSON_UNESCAPED_UNICODE) ?>;
     // 沒留原稿、但圖磚還在時的降級重建資訊；null＝沒有可拼回去的圖磚。
@@ -2254,7 +2254,7 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
     async function post(body, soft) {
       // 磚很多時一定會撞到限流（manage bucket 120/分）：照 Retry-After 等一下再送，不放棄整批
       for (let attempt = 0; attempt < 6; attempt++) {
-        const res = await fetch(BASE + '?api=tilecut', { method: 'POST', body });
+        const res = await fetch(ROUTES.api, { method: 'POST', body });
         if (res.status !== 429) {
           const j = await res.json().catch(() => ({}));
           if (soft && soft.indexOf(res.status) >= 0) { j.status = res.status; return j; }
@@ -2326,7 +2326,7 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
       for (const it of EDIT.pieces) {
         let url = '';
         try {
-          const res = await fetch(BASE + '?api=tilecut&action=srcfile&project=' + encodeURIComponent(project)
+          const res = await fetch(ROUTES.api + '&action=srcfile&project=' + encodeURIComponent(project)
             + '&id=' + encodeURIComponent(EDIT.id) + '&file=' + encodeURIComponent(it.file));
           if (!res.ok) throw new Error('HTTP ' + res.status);
           const blob = await res.blob();
@@ -2390,8 +2390,8 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
             // 才不會因為佔位圖只有 1×1 而只畫出一個小點。抓失敗（真的壞掉）就當空白，不擋住整次重建。
             img.onload = () => { rctx.drawImage(img, (x - r.x0) * TILE, (y - r.y0) * TILE, TILE, TILE); done++; res(); };
             img.onerror = () => { done++; res(); };
-            img.src = BASE + 'layer/' + encodeURIComponent(project) + '/' + encodeURIComponent(RECON.id)
-              + '/tiles/' + RECON.z + '/' + x + '/' + y + '.' + RECON.ext;
+            img.src = ROUTES.layerBase.replace('__P__', encodeURIComponent(project)).replace('__I__', encodeURIComponent(RECON.id))
+              .replace('__R__', 'tiles/' + RECON.z + '/' + x + '/' + y + '.' + RECON.ext);
           })));
           statusEl.textContent = fmt(I18N.recon_progress, { done, total });
           barEl.style.width = (done / total * 100).toFixed(1) + '%';

@@ -5,7 +5,7 @@
 // 檢查、或需要看報告細節時用的手動入口。
 require __DIR__ . '/spotlib.php';
 require __DIR__ . '/security.php';
-require __DIR__ . '/i18n.php';
+require_once __DIR__ . '/i18n.php';
 require_once __DIR__ . '/routes.php';   // 網址表：後台網址只有這一份定義（見 api/routes.php）
 $cfg = require __DIR__ . '/config.php';
 rate_limit($cfg, 'manage');
@@ -298,6 +298,8 @@ $reqProject = preg_replace('/[^a-z0-9_-]/', '', $_GET['project'] ?? ($allProject
     ], JSON_UNESCAPED_UNICODE) ?>;
     const fmt = (str, vars) => str.replace(/\{(\w+)\}/g, (_, k) => (vars[k] != null ? vars[k] : ''));
     const csrf = <?= json_encode($csrf) ?>;
+    // 端點網址由 PHP 的 Route 產生，前端不自己拼查詢字串
+    const ROUTES = <?= json_encode(['api' => Route::abs(Route::api('spotmigrate'))], JSON_UNESCAPED_SLASHES) ?>;
 
     const go = document.getElementById('go');
     const statusEl = document.getElementById('status');
@@ -326,7 +328,7 @@ $reqProject = preg_replace('/[^a-z0-9_-]/', '', $_GET['project'] ?? ($allProject
         fd.append('action', 'migrate');
         fd.append('csrf', csrf);
         fd.append('project', document.getElementById('project').value);
-        const res = await fetch('?api=spotmigrate', { method: 'POST', body: fd });
+        const res = await fetch(ROUTES.api, { method: 'POST', body: fd });
         const j = await res.json();
         if (!res.ok || !j.ok) { statusEl.textContent = I18N.error_prefix + (j.error || res.status); go.disabled = false; return; }
         if (j.skipped) {

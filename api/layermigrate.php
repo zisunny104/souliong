@@ -6,7 +6,7 @@
 // 已經自己設定過 layers 的專案一律略過、絕不覆寫——不管內容是什麼，那都是已經做過的明確選擇。
 require __DIR__ . '/store.php';
 require __DIR__ . '/security.php';
-require __DIR__ . '/i18n.php';
+require_once __DIR__ . '/i18n.php';
 require __DIR__ . '/layers.php';
 require_once __DIR__ . '/routes.php';   // 網址表：後台網址只有這一份定義（見 api/routes.php）
 $cfg = require __DIR__ . '/config.php';

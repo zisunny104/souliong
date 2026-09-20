@@ -22,7 +22,7 @@
 // 多邊形不變，只重新查一次、覆寫排除清單。
 require __DIR__ . '/store.php';
 require __DIR__ . '/security.php';
-require __DIR__ . '/i18n.php';
+require_once __DIR__ . '/i18n.php';
 require_once __DIR__ . '/routes.php';
 require_once __DIR__ . '/regions3d.php';
 $cfg = require __DIR__ . '/config.php';
@@ -693,7 +693,7 @@ window.maplibregl = maplibregl;
     ], JSON_UNESCAPED_UNICODE) ?>;
     const fmt = (str, vars) => str.replace(/\{(\w+)\}/g, (_, k) => (vars[k] != null ? vars[k] : ''));
     const csrf = <?= json_encode($csrf) ?>;
-    const BASE = <?= json_encode(Route::abs(Route::base()), JSON_UNESCAPED_SLASHES) ?>;
+    const ROUTES = <?= json_encode(['api' => Route::abs(Route::api('region3d'))], JSON_UNESCAPED_SLASHES) ?>;
     const EDIT = <?= json_encode($EDIT, JSON_UNESCAPED_UNICODE) ?>;
     const SRCCHUNK = <?= (int)$srcChunk ?>;
     const STYLE_URL = <?= json_encode($map3dStyleUrl) ?>;
@@ -862,7 +862,7 @@ window.maplibregl = maplibregl;
     async function post(body, soft) {
       // 跟 tilecut.php 同一套限流重試：manage bucket 撞到 429 時照 Retry-After 等一下再送
       for (let attempt = 0; attempt < 6; attempt++) {
-        const res = await fetch(BASE + '?api=region3d', { method: 'POST', body });
+        const res = await fetch(ROUTES.api, { method: 'POST', body });
         if (res.status !== 429) {
           const j = await res.json().catch(() => ({}));
           if (soft && soft.indexOf(res.status) >= 0) { j.status = res.status; return j; }

@@ -15,7 +15,6 @@
     return s;
   };
   const esc = (s) => String(s).replace(/[&<>"]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m]));
-  const tv = (e) => new Date(e.photo_time || e.created_at).getTime() || 0;
 
   /* ---------- 注入自己的樣式：核心 style.css 完全不需要知道這個插件存在 ---------- */
   const style = document.createElement('style');

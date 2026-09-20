@@ -52,10 +52,6 @@ function pin_current_id(array $cfg, string $project): ?string {
 }
 /** primary 的權限表；鍵由 api/auth.php 的註冊表產生。 */
 function primary_perms(): array { return auth_perms_primary(); }
-/** 專案層級具名權限判斷，統一走 Auth（身分解析順序與 CSRF 衍生見 api/auth.php 檔頭）。 */
-function perm_check(array $cfg, string $project, string $permKey): bool { return Auth::can($cfg, $project, $permKey); }
-/** 全站層級（跨專案）具名權限：目前僅 primary 具備，供圖層搬遷／EXIF／縮圖修復／統計等維護工具使用。 */
-function site_perm(array $cfg, string $permKey): bool { return Auth::can($cfg, null, $permKey); }
 function _cookie_opts(): array { return ['expires' => time() + 7 * 86400, 'path' => '/', 'httponly' => true, 'secure' => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'), 'samesite' => 'Lax']; }
 function primary_set_cookie(array $cfg): void { setcookie(PRIMARY_COOKIE, primary_derived($cfg), _cookie_opts()); }
 function pin_set_cookie(array $cfg, string $project, string $pinId): void { setcookie(pin_cookie_name($project), $pinId . '.' . pin_derived($cfg, $project, $pinId), _cookie_opts()); }

@@ -44,7 +44,7 @@ if (!souliong_module_on($meta, 'upload')) {
 
 if ($who === 'admin') {
     // 管理者建點是點位軸：edit_spots＋CSRF 同一道關卡（api/auth.php），身分為 Auth 解析出的 Actor。
-    Auth::require($cfg, $project, 'edit_spots', true, '這張地圖只有管理者能建立地點');
+    Auth::require($cfg, $project, 'edit_spots', true, auth_msg('deny_create_spot'));
     $contributor = Contributor::fromRequest();
 } else {
     // contributor：訪客建點走投稿軸同一道關卡（停權名單 → bypass_code → 投稿代碼並計一次使用），

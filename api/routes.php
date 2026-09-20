@@ -35,9 +35,6 @@ final class Route
     /** 後台分頁。這份清單同時決定「網址上允許出現什麼」與前端 pane-<name> 的 id，只有這一份 */
     public const PANES = ['overview', 'records', 'access', 'tools'];
 
-    /** 後台維護工具（各自是 index.php 的一條路由） */
-    public const TOOLS = ['exiffix', 'thumbfix', 'tilecut', 'region3d', 'layermigrate', 'spotmigrate'];
-
     /** manager 路徑裡的保留字。地圖代號撞到這些字時，parseManager() 的 $isProject 會讓真實資料優先 */
     public const LOGOUT = 'logout';
     public const BACKUP = 'backup.zip';   // 地圖代號只允許 [a-z0-9_-]，含點的字串永遠不可能撞名
@@ -146,6 +143,13 @@ final class Route
     public static function api(string $action, array $qs = []): string
     {
         return self::base() . '?' . http_build_query(['api' => $action] + $qs);
+    }
+
+    /** 圖層圖檔（index.php 的 layer/ 路徑，實作在 api/layerfile.php）；$rel 是圖層內的相對路徑，各段分別編碼 */
+    public static function layerFile(string $project, string $id, string $rel): string
+    {
+        $segs = array_map('rawurlencode', explode('/', $rel));
+        return self::base() . 'layer/' . rawurlencode($project) . '/' . rawurlencode($id) . '/' . implode('/', $segs);
     }
 
     /** 維護工具頁（exiffix／thumbfix／tilecut）；$extra 是該工具自己的參數 */

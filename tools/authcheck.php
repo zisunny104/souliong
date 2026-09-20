@@ -206,6 +206,7 @@ $cfg = array_merge($real, [
 unset($cfg['admin_pin'], $cfg['admin_pin_label']);
 mkdir("$sb/state", 0777, true);
 ac_copy_dir($root . '/api', "$sb/api");
+ac_copy_dir($root . '/lang', "$sb/lang");
 ac_write("$sb/api/config.php", "<?php\nreturn json_decode(file_get_contents(__DIR__ . '/../cfg.json'), true);\n");
 ac_write("$sb/cfg.json", $cfg);
 

@@ -20,7 +20,7 @@ if ($project === '' || !is_dir($cfg['projects_dir'] . '/' . $project)) {
     json_out(['error' => 'bad request'], 400);
 }
 
-$actor = Auth::require($cfg, $project, 'edit_spots', true, '沒有權限編輯定位點（僅限主要管理者，或已被授權的專案管理者）');
+$actor = Auth::require($cfg, $project, 'edit_spots', true, auth_msg('deny_edit_spot'));
 
 $item_num = (isset($_POST['item_num']) && $_POST['item_num'] !== '') ? (int)$_POST['item_num'] : null;
 $lat      = num_or_null($_POST['lat'] ?? null);

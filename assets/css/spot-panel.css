@@ -524,7 +524,7 @@
   margin-top: 4px
 }
 
-.empty {
+.sc-empty {
   font-size: 0.8125rem;
   color: var(--muted);
   line-height: 1.6
@@ -819,14 +819,6 @@
 
 .sc-foot {
   margin-top: 12px
-}
-
-/* 錄音鈕／選檔鈕並排；手機寬度不夠時各自換行，避免橫向擠壓到看不清楚 */
-.sl-sndrec {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-top: 8px
 }
 
 .hist-title {
