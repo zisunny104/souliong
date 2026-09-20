@@ -194,8 +194,8 @@ try {
 
     $out = $record;
     unset($out['src_hash'], $out['contrib_hash']);                      // 不外流 IP 雜湊與身分驗刪雜湊
-    $out['photo_url'] = $photoRel ? ('photos/' . $photoRel) : null;
-    $out['media_url'] = $mediaRel ? ('media/' . $mediaRel) : null;
+    $out['photo_url'] = $photoRel ? Route::api('photo', ['f' => $photoRel]) : null;
+    $out['media_url'] = $mediaRel ? Route::api('media', ['f' => $mediaRel]) : null;
     if ($kind === 'text' && !empty($out['comment'])) $out['html'] = spot_markdown((string)$out['comment']);   // 與 list.php 同源，剛送出的貼文不必重載
     json_out(['ok' => true, 'item' => $out]);
 } catch (Throwable $e) {

@@ -18,7 +18,7 @@ try {
     });
     foreach ($rows as &$r) {
         unset($r['src_hash'], $r['contrib_hash']);   // 鑑識用 IP 雜湊、身分驗刪雜湊，不對外
-        $r['photo_url'] = !empty($r['photo']) ? ('photos/' . $r['photo']) : null;
+        $r['photo_url'] = !empty($r['photo']) ? Route::api('photo', ['f' => $r['photo']]) : null;
         if (is_array($r['content'] ?? null)) {   // 點位版本紀錄的內容區塊；content_rev 是寫入這份內容的紀錄 id
             $r['content'] = spot_content_render($r['content']);
             $r['content_rev'] = $r['id'] ?? null;
