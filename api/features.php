@@ -152,7 +152,7 @@ function souliong_modules(): array
         'contribBrowse' => ['label' => '投稿瀏覽切換', 'desc' => '地圖控制卡上的「全部／投稿」切換鈕與投稿者篩選下拉。關閉後只保留單一檢視、點地標一樣看得到內容，適合每個地點內容是策展而非群眾投稿的地圖。', 'default' => true],
         'categoryLegend' => ['label' => '分類圖例', 'desc' => '地圖控制卡上的分類色塊清單（可點擊切換各分類顯示／隱藏）。分類只有一種、或不想讓訪客切換顯示範圍時可關閉，地標本身與點開的內容不受影響。', 'default' => true],
         'spotList' => ['label' => '點位列表', 'desc' => '地圖控制卡上直接列出可點擊的點位清單，取代「跳到地點」下拉選單。開啟後下拉選單只在投稿者篩選模式（見 contribBrowse）才會出現。', 'default' => false],
-        'contentEdit' => ['label' => '點位內容編輯', 'desc' => '具編輯點位權限的管理者可在點位說明區新增、修改、刪除、排序內容區塊（文字、聲音），直接寫入該點位的原生內容（spots.jsonl 的 content 欄位）。這只是前端顯示開關，寫入權限看 edit_spots，與投稿代碼無關。', 'default' => true],
+        'contentEdit' => ['label' => '點位內容編輯', 'desc' => '具編輯點位權限的管理者可在點位說明區新增、修改、刪除、排序內容區塊（文字、聲音、照片），直接寫入該點位的原生內容（spots.jsonl 的 content 欄位）。這只是前端顯示開關，寫入權限看 edit_spots，與投稿代碼無關。', 'default' => true],
         'upload' => ['label' => '上傳投稿', 'desc' => '訪客上傳照片／文字紀錄；關閉後整張地圖唯讀，投稿代碼與解鎖流程一併隱藏。', 'default' => true],
         'embed'  => ['label' => '嵌入載入', 'desc' => '產生可嵌入其他網站的 iframe 碼。', 'default' => true],
         'share'  => ['label' => '分享', 'desc' => '分享連結／QR Code 彈窗。', 'default' => true],

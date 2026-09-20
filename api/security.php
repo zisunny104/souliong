@@ -50,8 +50,6 @@ function pin_current_id(array $cfg, string $project): ?string {
     if ($pinId === '' || !hash_equals(pin_derived($cfg, $project, $pinId), $sig)) return null;
     return $pinId;
 }
-/** 身分屬於此專案（純身分，不是能力）。放行條件請用 Auth::can()。 */
-function perm_can(array $cfg, string $project): bool { return Auth::actor($cfg, $project)->isMember($project); }
 /** primary 的權限表；鍵由 api/auth.php 的註冊表產生。 */
 function primary_perms(): array { return auth_perms_primary(); }
 /** 專案層級具名權限判斷，統一走 Auth（身分解析順序與 CSRF 衍生見 api/auth.php 檔頭）。 */
