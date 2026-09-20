@@ -89,3 +89,10 @@ manager.php 行為差異（c9 回報）：權限先於 CSRF；缺權限的刪除
 - 77：前端註解清理；upload 回應 html 接上；非管理者與 CSRF 路徑實測。
 
 尚待：manager.php 各 POST action 實測；content_migrate 多版本測試與 --apply（等使用者確認）；使用者待決策六項（見上）；A3 照片區塊尚未開始；記憶更新；auth-unification.md 更新後刪除。
+
+## 收尾狀態（2026-09-20）
+
+commit：6d7b30a、bfaee66、5f1e88f、59b00df、b6393da 皆已 push。auth-unification.md 已刪除。
+c9 冒煙：manager.php 79 項斷言 0 失敗（primary／權限全關 PIN／權限全開 PIN，涵蓋 meta、sharelink、delcode、delbyid、layerdelete、settings、backup）；content_migrate 合成專案 15 項斷言全過且冪等。
+77 實測：整體儲存、409、投稿牆 Markdown、匿名與 CSRF 路徑通過；未測「被授權的專案管理者」中間身分。
+仍待使用者：content_migrate --apply 真實資料；草稿保留、409 合併、離頁警告、歷史還原、聲音區塊分享連結；A3 照片區塊是否開始。
