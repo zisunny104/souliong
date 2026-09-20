@@ -30,9 +30,14 @@ if ($meta && spotmigrate_needed($apiCfg, $proj)) {
 }
 // 點位：spots.jsonl 裡的起點記錄（一定有 num、無 edit_of），含上面自動遷移與 api/spotmigrate.php
 // 從靜態底稿併入的、api/newspot.php 動態建立的——spots.jsonl 是點位唯一的真相來源，跟 assets/js/
-// viewer.core.js 的 effectiveSpots() 同一套判斷式。位置編輯疊加交給前端讀 CONTRIB 做，這裡只給
-// 原始起點座標。
+// viewer.core.js 的 effectiveSpots() 同一套判斷式。位置與內容的版本疊加交給前端讀 CONTRIB 做，這裡只給
+// 起點紀錄；起點自帶的 content 區塊附加衍生欄位 html（見 spot_content_render()）。
 $spots     = $meta ? array_values(array_filter(store_all($apiCfg, $proj), fn($r) => ($r['kind'] ?? null) === 'spot' && empty($r['edit_of']) && isset($r['num']))) : [];
+foreach ($spots as &$spotRec) {
+    if (is_array($spotRec['content'] ?? null)) $spotRec['content'] = spot_content_render($spotRec['content']);
+    $spotRec['content_rev'] = $spotRec['id'] ?? null;
+}
+unset($spotRec);
 // 這個請求在這張地圖的身分：能力（APP.perms）與 CSRF 都從同一個 Actor 來。
 // isMember 只是「這個身分屬於這張地圖」的純身分，只供顯示（APP.isManager），
 // 任何動作能不能做一律看具體權限鍵（APP.perms／APP.can(key)）。
@@ -71,6 +76,10 @@ $contribFiles = $mod('upload') ? $contribCfg['kinds'] : [];
 if ($contribFiles && ($contribCfg['newPoint'] === 'contributor' || ($contribCfg['newPoint'] === 'admin' && $canEditSpots))) {
     $contribFiles[] = 'newspot';
 }
+// 點位內容編輯器（content-editor.js）：只給具 edit_spots 的身分載入（純顯示判斷）。它借用 kind-audio.js 的
+// 錄音／選檔，型別檔的載入獨立於 upload 模組——唯讀地圖的管理者一樣要能錄音，所以投稿型別沒載到 audio 時另外補載。
+$contentEditOn = $mod('contentEdit') && $canEditSpots;
+$needAudioKind = $contentEditOn && !in_array('audio', $contribFiles, true);
 // 3D 模式關掉時整個 key 是 null，前端 map3d.js 本身也不會被載入(見下方 $mod('map3d') 輸出)，
 // 兩邊一起判斷、不是只看其中一邊，plugin 缺席時 APP.map3d 也沒有殘留資料可用。
 $map3d = $mod('map3d') ? [
@@ -143,7 +152,7 @@ if ($entryId !== '' && ($entry = souliong_og_resolve_entry($apiCfg, $proj, $entr
     $ogUrl = Route::abs(Route::map($proj) . '?entry=' . rawurlencode($entryId));
 } elseif ($spotNum !== null && ($sp = souliong_og_resolve_spot($apiCfg, $proj, $spotNum))) {
     $ogTitle = souliong_og_spot_title(souliong_og_spot_name($sp), $spotNum, $meta['numbering'] ?? 'suffix');
-    $ogDesc  = souliong_og_truncate((string)($sp['story'] ?: ($meta['desc'] ?? i18n_t($DICT, 'app_tagline'))));
+    $ogDesc  = souliong_og_truncate(spot_content_text($sp) ?: (string)($meta['desc'] ?? i18n_t($DICT, 'app_tagline')));
     $ogUrl = Route::abs(Route::map($proj) . '?spot=' . $spotNum);
 }
 ?><!DOCTYPE html>
@@ -186,11 +195,11 @@ if ($mod('upload')) {
     $cssFiles[] = 'contrib';
 }
 // 播放器／點位卡片的中卡、全卡、迷你列樣式：有兩種來源都可能需要播音訊，任一種成立就要備好
-// 這組樣式——開放 audio 投稿（$hasAudioKind，投稿牆上的音訊）、開了 soundEdit（點位自己的
+// 這組樣式——開放 audio 投稿（$hasAudioKind，投稿牆上的音訊）、開了 contentEdit（點位自己的
 // 原生音訊內容，見 api/spotcontent.php）。純顯示判斷，不查有沒有真的錄過內容：地圖錄過音訊
-// 後又把 soundEdit 關掉，播放器就不會載入，這種邊界情形本次接受不處理。
+// 後又把 contentEdit 關掉，播放器就不會載入，這種邊界情形本次接受不處理。
 $hasAudioKind = in_array('audio', $contribCfg['kinds'], true);
-if ($hasAudioKind || $mod('soundEdit')) {
+if ($hasAudioKind || $mod('contentEdit')) {
     $cssFiles[] = 'sound-player';
 }
 foreach ($cssFiles as $f) {
@@ -406,11 +415,16 @@ window.maplibregl = maplibregl;
 <?php if ($mod('identity')): ?>
 <script src="<?= $assetUrl('assets/js/plugins/contributor-identity.js') ?>"></script>
 <?php endif; ?>
-<?php if ($contribFiles): /* 型別檔要在外掛之前載入：外掛開機時就要有完整的型別註冊表才能決定分頁 */ ?>
+<?php if ($contribFiles || $needAudioKind): /* 型別檔要在外掛之前載入：外掛開機時就要有完整的型別註冊表才能決定分頁 */ ?>
 <script src="<?= $assetUrl('assets/js/contrib/kind-base.js') ?>"></script>
 <?php foreach ($contribFiles as $kf): ?>
 <script src="<?= $assetUrl('assets/js/contrib/kind-' . $kf . '.js') ?>"></script>
 <?php endforeach; ?>
+<?php if ($needAudioKind): ?>
+<script src="<?= $assetUrl('assets/js/contrib/kind-audio.js') ?>"></script>
+<?php endif; ?>
+<?php endif; ?>
+<?php if ($contribFiles): ?>
 <script src="<?= $assetUrl('assets/js/plugins/contribution.js') ?>"></script>
 <?php endif; ?>
 <?php if ($mod('embed')): ?>
@@ -424,16 +438,14 @@ window.maplibregl = maplibregl;
 <?php if ($mod('route')): ?>
 <script src="<?= $assetUrl('assets/js/plugins/route-tour.js') ?>"></script>
 <?php endif; ?>
-<?php if ($mod('story')): ?>
-<script src="<?= $assetUrl('assets/js/plugins/story-editor.js') ?>"></script>
+<?php // contentEdit 只決定「要不要輸出內容編輯器」，真正擋寫入的是 api/spotcontent.php 的
+      // Auth::require(edit_spots)；$canEditSpots 這裡只是不讓沒有該權限的人載入一個按了會
+      // 被 403 擋下的編輯器，純顯示邏輯，不是權限依據。編輯器借用 kind-audio.js 的錄音／選檔，
+      // 該型別檔的載入不看 upload 模組（見上方 $needAudioKind）。 ?>
+<?php if ($contentEditOn): ?>
+<script src="<?= $assetUrl('assets/js/plugins/content-editor.js') ?>"></script>
 <?php endif; ?>
-<?php // soundEdit 只決定「要不要輸出錄音這個 UI 元件」，真正擋寫入的是 api/spotcontent.php
-      // 的 perm_check(edit_spots)；$canEditSpots 這裡只是不讓沒有該權限的人看到一個按了會
-      // 被 403 擋下的按鈕，純顯示邏輯，不是權限依據。 ?>
-<?php if ($mod('soundEdit') && $canEditSpots): ?>
-<script src="<?= $assetUrl('assets/js/plugins/sound-editor.js') ?>"></script>
-<?php endif; ?>
-<?php if ($hasAudioKind || $mod('soundEdit')): ?>
+<?php if ($hasAudioKind || $mod('contentEdit')): ?>
 <script src="<?= $assetUrl('assets/js/plugins/sound-player.js') ?>"></script>
 <?php endif; ?>
 <?php if ($mod('personExplore')): ?>

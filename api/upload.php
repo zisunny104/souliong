@@ -5,7 +5,7 @@
 //   photo → photo(檔案) + thumb(檔案，選填)
 //   video → media(檔案) + thumb(檔案，選填) + duration(秒)
 //   audio → media(檔案) + duration(秒)
-//   text / desc → 無檔案，只要 comment
+//   text → 無檔案，只要 comment
 // append-only：本後端無刪除/修改端點。
 require_once __DIR__ . '/store.php';
 require_once __DIR__ . '/security.php';
@@ -29,20 +29,6 @@ if (!preg_match('/^[a-z0-9_-]{1,40}$/', $project) || !is_dir($cfg['projects_dir'
 // 跟 newspot.php 的 contributor 模式共用同一道關卡（api/contribgate.php）。
 $who = contrib_gate($cfg, $project);
 
-function clean_str(?string $s, int $max): ?string {
-    if ($s === null) return null;
-    $s = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F]/u', '', $s); // 去除控制字元
-    $s = trim($s);
-    if ($s === '') return null;
-    // 以 UTF-8 為單位截斷（用 PCRE /u，不依賴 mbstring）
-    if (preg_match('/^.{0,' . $max . '}/us', $s, $m)) $s = $m[0];
-    return $s;
-}
-function num_or_null($v) {
-    if ($v === null || $v === '') return null;
-    return is_numeric($v) ? (float)$v : null;
-}
-
 // kind 白名單看的是 postable 而不是「註冊表裡有沒有這個 key」——spot 也在註冊表裡，
 // 但它只能由 editspot.php／newspot.php 在權限檢查後寫入，放行等於開後門讓任何人偽造
 // 座標覆蓋紀錄（詳見 features.php 的 souliong_kinds() 說明）。
@@ -55,9 +41,8 @@ if ($kindIn !== '' && !souliong_kind_postable($kindIn)) {
 $kind    = $kindIn !== '' ? $kindIn : 'photo';
 $kindDef = souliong_kinds()[$kind];
 
-// 再確認這張地圖有沒有開放這個內容種類（meta.json 的 contrib.kinds）。desc 不在對話框的種類
-// 清單裡、由 story 模組自己把關，所以不受這條限制。沒設定 contrib 的舊地圖解析出來就是
-// ['photo']，前端不送 kind 時的預設值也是 photo，因此既有投稿流程完全不受影響。
+// 再確認這張地圖有沒有開放這個內容種類（meta.json 的 contrib.kinds）。沒設定 contrib 的舊地圖
+// 解析出來就是 ['photo']，前端不送 kind 時的預設值也是 photo，因此既有投稿流程完全不受影響。
 $metaU = json_decode((string)@file_get_contents($cfg['projects_dir'] . '/' . $project . '/meta.json'), true);
 $contribCfg = souliong_contrib_cfg($metaU);
 if (in_array($kind, souliong_contrib_kinds(), true) && !in_array($kind, $contribCfg['kinds'], true)) {
@@ -129,11 +114,7 @@ if ($fileField !== null && isset($_FILES[$fileField]) && $_FILES[$fileField]['er
     }
 }
 
-if ($kind === 'desc') {
-    // 說明版本：必須有文字與所屬點位
-    if ($comment === null) { json_out(['error' => 'need comment'], 400); }
-    if ($item_num === null) { json_out(['error' => 'need item_num'], 400); }
-} elseif ($kind === 'text') {
+if ($kind === 'text') {
     if ($comment === null) { json_out(['error' => 'need comment'], 400); }
 } elseif (!$isPhoto && $fileField !== null) {
     // 影片／音訊投稿沒有檔案就沒有意義（照片可以只留一段話，那是既有行為，維持不變）

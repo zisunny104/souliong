@@ -126,7 +126,9 @@
 #panel .photo-history,
 #panel #descEditor textarea,
 #panel #soundEditor textarea,
-#panel #soundEditor input {
+#panel #soundEditor input,
+#panel .sc-ta,
+#panel .sc-src {
   --fg: var(--fg-base);
   --muted: var(--muted-base);
   color: var(--fg);
@@ -438,8 +440,8 @@
   margin-left: 0.12em
 }
 
-/* 「邀請點擊」脈衝：有聲音但還沒按過播放時才顯示，開始播放後由 JS 拿掉 sl-invite（見
-   viewer.core.js wireAudioPlayer() 跟 sound-player.js 的 syncInvite()）。跟地圖標記播放中的
+/* 「邀請點擊」脈衝：預設不出現，只有從分享連結指向某則聲音時由 entry-link.js 加上 sl-invite，
+   開始播放後由 viewer.core.js wireAudioPlayer() 拿掉。跟地圖標記播放中的
    脈衝（map-markers.css .dot-pin.is-playing）用同一招：box-shadow 擴散半徑，不疊實色圖層，
    不會蓋住按鈕中央的圖示。 */
 .sl-play-btn.sl-invite {
@@ -644,6 +646,207 @@
   font-size: 0.875rem;
   background: var(--bg);
   font-family: inherit
+}
+
+/* ---------- 點位內容區塊（content-editor.js 與核心 renderEntries() 的 .sc-*） ---------- */
+.sc-block+.sc-block {
+  margin-top: 14px
+}
+
+/* 伺服器把 Markdown 轉成的 html 帶有換行，不能沿用 .story-body 的 pre-wrap，否則每個換行都會多撐一行 */
+.sc-md {
+  white-space: normal
+}
+
+.sc-md pre {
+  white-space: pre
+}
+
+.sc-md> :first-child {
+  margin-top: 0
+}
+
+.sc-md> :last-child {
+  margin-bottom: 0
+}
+
+.sc-md p,
+.sc-md ul,
+.sc-md ol,
+.sc-md blockquote,
+.sc-md pre,
+.sc-md table {
+  margin: 0 0 .7em
+}
+
+.sc-md ul,
+.sc-md ol {
+  padding-left: 1.4em
+}
+
+.sc-md h3,
+.sc-md h4,
+.sc-md h5,
+.sc-md h6 {
+  margin: 1em 0 .4em;
+  line-height: 1.4
+}
+
+.sc-md h3 {
+  font-size: 1.1em
+}
+
+.sc-md h4 {
+  font-size: 1.02em
+}
+
+.sc-md h5,
+.sc-md h6 {
+  font-size: .95em
+}
+
+.sc-md a {
+  color: inherit;
+  text-decoration: underline
+}
+
+.sc-md blockquote {
+  padding-left: 12px;
+  border-left: 3px solid var(--line);
+  color: var(--muted)
+}
+
+.sc-md code,
+.sc-md pre {
+  background: var(--line);
+  border-radius: var(--r-sm);
+  font-size: .875em
+}
+
+.sc-md code {
+  padding: 1px 5px
+}
+
+.sc-md pre {
+  padding: 10px;
+  overflow-x: auto
+}
+
+.sc-md pre code {
+  padding: 0;
+  background: none
+}
+
+.sc-md table {
+  display: block;
+  overflow-x: auto;
+  border-collapse: collapse
+}
+
+.sc-md th,
+.sc-md td {
+  border: 1px solid var(--line);
+  padding: 4px 8px
+}
+
+.sc-tools {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px
+}
+
+.sc-tools .btn.small {
+  padding: 4px 9px;
+  font-size: 0.6875rem
+}
+
+.sc-hint {
+  font-size: 0.6875rem;
+  color: var(--muted);
+  margin: -4px 0 8px
+}
+
+.sc-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap
+}
+
+.sc-ta {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 10px;
+  font-size: 0.875rem;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: inherit;
+  min-height: 76px;
+  resize: vertical;
+  margin: 10px 0;
+  line-height: 1.6
+}
+
+/* 整體編輯模式：草稿清單、新增列、儲存列；編輯中隱藏唯讀清單、署名與說明區動作列 */
+.story.sc-editing .sc-list,
+.story.sc-editing .story-by,
+.story.sc-editing .story-actions {
+  display: none
+}
+
+.sc-item {
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 10px;
+  margin-top: 10px
+}
+
+.sc-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px
+}
+
+.sc-item-tag {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--muted)
+}
+
+.sc-item-head .sc-tools {
+  margin-top: 0
+}
+
+.sc-item .sc-ta {
+  margin: 8px 0 0
+}
+
+.sc-item .sc-hint {
+  margin: 4px 0 0
+}
+
+.sc-src {
+  width: 100%;
+  margin-top: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 10px;
+  font-size: 0.875rem;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: inherit
+}
+
+.sc-addbar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px
+}
+
+.sc-foot {
+  margin-top: 12px
 }
 
 /* 錄音鈕／選檔鈕並排；手機寬度不夠時各自換行，避免橫向擠壓到看不清楚 */

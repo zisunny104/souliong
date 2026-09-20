@@ -1,10 +1,11 @@
 <?php
-// 建立新的定位點。POST project, name(建立者暱稱), title, cat, catLabel, color, story, lat, lon
+// 建立新的定位點。POST project, name(建立者暱稱), title, cat, catLabel, color, description, lat, lon, csrf(管理者模式)
 //
 // 點位資料只有 spots.jsonl 一個來源（靜態底稿已由 api/spotmigrate.php 併入）：往裡附加一筆
 // kind:'spot' 起點（無 edit_of，帶 num/title），前端讀取時把它併進點位清單（見 viewer.core.js
 // 的 effectiveSpots()）。建立出來的點之後一樣能被管理者用 editspot.php 搬位置——那條路徑會
-// 找到這筆當 edit_of 的鏈頭。
+// 找到這筆當 edit_of 的鏈頭。建立時填的說明（description）寫成起點紀錄 content 裡的一個 text 區塊，
+// 點位沒有獨立的說明欄位（區塊規則見 api/spotlib.php 的 spot_content_render()）。
 //
 // 權限跟 editspot.php 不同，是每張地圖自己決定的（meta.json 的 contrib.newPoint）：
 //   off（預設）  誰都不能建，端點直接 403——舊地圖不改設定檔就完全沒有這個功能
@@ -14,6 +15,7 @@ require_once __DIR__ . '/store.php';
 require_once __DIR__ . '/security.php';
 require_once __DIR__ . '/contribgate.php';
 require_once __DIR__ . '/features.php';
+require_once __DIR__ . '/spotlib.php';
 $cfg = require __DIR__ . '/config.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -56,26 +58,17 @@ if ($who === 'admin') {
 $ownerHash = $contributor->ownerHash();
 $contribId = $contributor->contribId();
 
-function clean_str_ns(?string $s, int $max): ?string {
-    if ($s === null) return null;
-    $s = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F]/u', '', $s);
-    $s = trim($s);
-    if ($s === '') return null;
-    if (preg_match('/^.{0,' . $max . '}/us', $s, $m)) $s = $m[0];
-    return $s;
-}
-
 $lat = is_numeric($_POST['lat'] ?? null) ? (float)$_POST['lat'] : null;
 $lon = is_numeric($_POST['lon'] ?? null) ? (float)$_POST['lon'] : null;
 if ($lat === null || $lon === null || $lat < -90 || $lat > 90 || $lon < -180 || $lon > 180) {
     json_out(['error' => 'bad request'], 400);
 }
-$title = clean_str_ns($_POST['title'] ?? null, 80);
+$title = clean_str($_POST['title'] ?? null, 80);
 if ($title === null) {
     json_out(['error' => '請給這個地點一個名稱'], 400);
 }
-$story = clean_str_ns($_POST['story'] ?? null, $cfg['comment_max']);
-$by    = clean_str_ns($_POST['name'] ?? null, $cfg['name_max']) ?? '匿名';
+$description = clean_str($_POST['description'] ?? null, $cfg['comment_max']);
+$by    = clean_str($_POST['name'] ?? null, $cfg['name_max']) ?? '匿名';
 
 // 分類：優先沿用這張地圖既有的分類（連 catLabel／color 一起繼承），圖例與篩選才對得上。
 // 送了不存在的分類就另外收下它的標籤與顏色，由前端的圖例自行補上這一類。
@@ -90,7 +83,7 @@ foreach (_store_read_lines(store_file($cfg, $project, 'spot')) as $r) {
     }
 }
 if ($catLabel === null) {
-    $catLabel = clean_str_np($_POST['catLabel'] ?? null, 30);
+    $catLabel = clean_str($_POST['catLabel'] ?? null, 30);
     $c = strtoupper(trim((string)($_POST['color'] ?? '')));
     $color = preg_match('/^#[0-9A-F]{6}$/', $c) ? $c : null;
 }
@@ -104,13 +97,14 @@ if ($color === null) $color = '#7a7f87';
 try {
     // 配號要在鎖裡做：num 是從「現有 spot 起點」取 max+1，用 store_all() 讀完再
     // store_append() 是兩段各自的鎖，兩個人同時建點會撞號。
-    $record = store_append_locked($cfg, $project, function (array $records) use ($project, $title, $cat, $catLabel, $color, $story, $lat, $lon, $by, $ownerHash, $contribId) {
+    $record = store_append_locked($cfg, $project, function (array $records) use ($project, $title, $cat, $catLabel, $color, $description, $lat, $lon, $by, $ownerHash, $contribId) {
         $max = 0;
         foreach ($records as $r) {
             // 只算起點（無 edit_of、有 num），搬移／內容那幾筆沒有自己的 num 可算
             if (empty($r['edit_of']) && isset($r['num'])) $max = max($max, (int)$r['num']);
         }
-        return [
+        $now = gmdate('c');
+        $rec = [
             'id'         => bin2hex(random_bytes(8)),
             'project'    => $project,
             'kind'       => 'spot',
@@ -122,16 +116,24 @@ try {
             'cat'        => $cat,
             'catLabel'   => $catLabel,
             'color'      => $color,
-            'story'      => $story,
             'lat'        => $lat,
             'lon'        => $lon,
             'name'       => $by,
             'owner_hash' => $ownerHash,
             'contrib_id' => $contribId,
-            'created_at' => gmdate('c'),
+            'created_at' => $now,
         ];
+        if ($description !== null) {
+            $rec['content'] = [[
+                'id'         => spot_new_block_id(),
+                'kind'       => 'text',
+                'comment'    => $description,
+            ]];
+        }
+        return $rec;
     }, 'spot');
 
+    if (isset($record['content'])) $record['content'] = spot_content_render($record['content']);
     json_out(['ok' => true, 'item' => $record]);
 } catch (Throwable $e) {
     error_log('souliong newspot: ' . $e->getMessage());

@@ -41,6 +41,8 @@
     placeholderHtml() { return esc(t('processing')); }
     // 插在留言框之前的自訂欄位（建立地點的標題／分類用）
     extraTopHtml() { return ''; }
+    // 插在留言框之後的提示（Markdown 語法說明等）
+    extraBottomHtml() { return ''; }
     wireExtra(state, card) {}
 
     // ---- 檔案處理 ----

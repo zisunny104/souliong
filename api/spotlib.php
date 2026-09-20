@@ -6,6 +6,7 @@
 // 兩個呼叫端：api/spotmigrate.php（後台手動觸發、看得到遷移報告）與 pages/view.php
 // （自動觸發：開頁時發現有底稿還沒併入就地補上，不必等人記得去後台按）。
 require_once __DIR__ . '/store.php';
+require_once __DIR__ . '/markdown.php';
 
 /**
  * 遷移前整包備份：把專案目錄現況打包成 ZIP，存在 projects/<proj>/_backup/ 底下——比 store_backup()
@@ -117,6 +118,16 @@ function spotmigrate_run(array $cfg, string $proj): array {
             $num = (int)$p['num'];
             if (isset($existingNums[$num])) continue;   // 已遷移過，跳過
             $rec = $p;
+            // 底稿的 story 是點位說明，轉成起點紀錄 content 裡的一個 text 區塊（撰寫者用專案的 source 或 credit）
+            $story = $rec['story'] ?? null;
+            unset($rec['story']);
+            if (!isset($rec['content']) && is_string($story) && trim($story) !== '') {
+                $rec['content'] = [[
+                    'id'         => spot_new_block_id(),
+                    'kind'       => 'text',
+                    'comment'    => trim($story),
+                ]];
+            }
             $rec['id']         = bin2hex(random_bytes(8));
             $rec['project']    = $proj;
             $rec['kind']       = 'spot';
@@ -180,7 +191,7 @@ function spotmigrate_run(array $cfg, string $proj): array {
 // ---------------------------------------------------------------------------
 
 /** 起點／編輯紀錄裡，哪些欄位是可被 edit_of 鏈覆寫的「有效狀態」欄位——spot_effective()／
- *  spot_merge_forward() 與其呼叫端都以這份清單為準，不要各自硬編一份欄位名單。 */
+ *  spot_append_version() 與其呼叫端都以這份清單為準，不要各自硬編一份欄位名單。 */
 function spot_overridable_fields(): array
 {
     return ['lat', 'lon', 'content'];
@@ -210,26 +221,17 @@ function spot_effective(array $cfg, string $project, int $itemNum): ?array
 
     $chain = $edits[$origin['id']] ?? [];
     usort($chain, fn($a, $b) => strcmp((string)($a['created_at'] ?? ''), (string)($b['created_at'] ?? '')));
+    // content_rev：目前內容是哪一筆紀錄寫的（鏈上最後一筆帶 content 的版本，沒有就是起點）。整體編輯內容時，
+    // 前端帶回它當 base_rev，伺服器據此擋掉兩人同時編輯互相覆蓋。前端 effectiveSpots() 用同一條規則算。
+    $rev = (string)$origin['id'];
     foreach ($chain as $e) {
         foreach (spot_overridable_fields() as $k) {
             if (array_key_exists($k, $e)) $origin[$k] = $e[$k];
         }
+        if (array_key_exists('content', $e)) $rev = (string)$e['id'];
     }
+    $origin['content_rev'] = $rev;
     return $origin;
-}
-
-/**
- * 把 $changes 疊到 $effective 上，只覆寫 $changes 裡「真的有出現」的可覆寫欄位（同樣用
- * array_key_exists() 判斷，讓呼叫端能明確傳 null 清空一個欄位，跟「根本沒打算改」區分開）。
- * 回傳完整一份可覆寫欄位（見 spot_overridable_fields()）。
- */
-function spot_merge_forward(array $effective, array $changes): array
-{
-    $out = [];
-    foreach (spot_overridable_fields() as $k) {
-        $out[$k] = array_key_exists($k, $changes) ? $changes[$k] : ($effective[$k] ?? null);
-    }
-    return $out;
 }
 
 /**
@@ -268,4 +270,26 @@ function spot_content_text(array $eff): string
         if (is_array($b) && ($b['kind'] ?? '') === 'text' && !empty($b['comment'])) return (string)$b['comment'];
     }
     return '';
+}
+
+/** 內容文字（點位 text 區塊、訪客 text 投稿）的 Markdown 算繪，全站唯一入口。 */
+function spot_markdown(string $md): string
+{
+    return Markdown::toHtml($md, ['heading_ids' => false, 'heading_offset' => 2]);
+}
+
+/**
+ * 點位內容區塊的輸出形式：text 區塊附加衍生欄位 html（comment 的 Markdown 算繪結果，全站只有
+ * Markdown::toHtml() 這一份定義）。html 只在輸出時算，不寫進 spots.jsonl；前端直接用 block.html。
+ */
+function spot_content_render(array $content): array
+{
+    $out = [];
+    foreach ($content as $b) {
+        if (is_array($b) && ($b['kind'] ?? '') === 'text' && !empty($b['comment'])) {
+            $b['html'] = spot_markdown((string)$b['comment']);
+        }
+        $out[] = $b;
+    }
+    return $out;
 }

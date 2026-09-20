@@ -18,9 +18,9 @@
 // 影像四角在 Web Mercator 投影空間線性對應，與 Leaflet 的 L.imageOverlay 一致——這是刻意的：
 // 同一張圖「切磚前用 ImageOverlay 預覽」與「切磚後用 tileLayer 顯示」必須長得一模一樣，
 // 否則對位工具就白做了。
-require __DIR__ . '/store.php';
-require __DIR__ . '/security.php';
-require __DIR__ . '/i18n.php';
+require_once __DIR__ . '/store.php';
+require_once __DIR__ . '/security.php';
+require_once __DIR__ . '/i18n.php';
 require_once __DIR__ . '/routes.php';   // 網址表：後台網址只有這一份定義（見 api/routes.php）
 require_once __DIR__ . '/layers.php';
 $cfg = require __DIR__ . '/config.php';
@@ -36,21 +36,14 @@ $adminUrl = $esc(Route::abs(Route::manager($backProject, 'tools')));
 
 // 這支寫的是專案層，所以權限跟著專案走（比照 manager.php 的 layerimport）：主要管理者通吃，
 // 專案管理者只能動自己那張地圖。thumbfix 之類的全站維護工具是 primary only，這支不是。
-$primary = primary_authed($cfg);
-$canProj = function (string $p) use ($cfg): bool {
-    return $p !== '' && preg_match('/^[a-z0-9_-]+$/', $p) === 1
-        && is_dir(project_dir($cfg, $p))
-        && perm_check($cfg, $p, 'edit_layers');
-};
-$auditWho = fn(string $p) => $primary ? 'primary' : (($acc = account_current($cfg)) !== null ? 'acct:' . $acc['id'] : 'pin:' . (string)pin_current_id($cfg, $p));
-// 依身份派生 CSRF token：primary 用 primary_derived()，帳號用 account_derived()，專案 PIN 用
-// pin_derived()。與 manager.php 的 $csrf 衍生邏輯同一套規則。
-$csrfFor = function (string $p) use ($cfg, $primary): string {
-    if ($primary) {
-        return primary_derived($cfg);
+$projectExists = fn(string $p): bool => $p !== '' && preg_match('/^[a-z0-9_-]+$/', $p) === 1 && is_dir(project_dir($cfg, $p));
+$canProj = fn(string $p): bool => $projectExists($p) && Auth::can($cfg, $p, 'edit_layers');
+// 寫入動作共用的關卡：專案存在、具備 edit_layers、CSRF 相符（Auth::require 一次做完）。
+$requireProj = function (string $p) use ($cfg, $projectExists, $tr): Actor {
+    if (!$projectExists($p)) {
+        json_out(['error' => $tr('no_permission_title')], 403);
     }
-    $acc = account_current($cfg);
-    return $acc !== null ? account_derived($cfg, (string)$acc['id']) : pin_derived($cfg, $p, (string)pin_current_id($cfg, $p));
+    return Auth::require($cfg, $p, 'edit_layers', true, $tr('no_permission_title'));
 };
 
 /** 這個圖層在磁碟上的位置；專案不合法或 projects_dir 沒設回 null。 */
@@ -97,12 +90,7 @@ if (($_GET['action'] ?? '') === 'srcfile') {
 // ── 開工：建立（或清空）圖層資料夾（POST，JSON 回應） ──
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'begin') {
     $project = preg_replace('/[^a-z0-9_-]/', '', $_POST['project'] ?? '');
-    if (!hash_equals($csrfFor($project), (string)($_POST['csrf'] ?? ''))) {
-        json_out(['error' => $tr('csrf_invalid_ajax_msg')], 403);
-    }
-    if (!$canProj($project)) {
-        json_out(['error' => $tr('no_permission_title')], 403);
-    }
+    $actor = $requireProj($project);
     $id  = strtolower(preg_replace('/[^A-Za-z0-9_-]/', '', $_POST['id'] ?? ''));
     $dir = tilecut_dir($cfg, $project, $id);
     if ($dir === null) {
@@ -137,12 +125,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'begin
 // 欄位名就是座標：tiles[<z>_<x>_<y>]。不用另外傳一份對照表，省掉「檔案與座標對不上」這種錯。
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'tile') {
     $project = preg_replace('/[^a-z0-9_-]/', '', $_POST['project'] ?? '');
-    if (!hash_equals($csrfFor($project), (string)($_POST['csrf'] ?? ''))) {
-        json_out(['error' => $tr('csrf_invalid_ajax_msg')], 403);
-    }
-    if (!$canProj($project)) {
-        json_out(['error' => $tr('no_permission_title')], 403);
-    }
+    $actor = $requireProj($project);
     $id  = strtolower(preg_replace('/[^A-Za-z0-9_-]/', '', $_POST['id'] ?? ''));
     $dir = tilecut_dir($cfg, $project, $id);
     if ($dir === null || !is_dir($dir)) {
@@ -192,12 +175,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'tile'
 // 這是分塊上傳唯一真正麻煩的地方（限流重試時一定會發生）。
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'srcput') {
     $project = preg_replace('/[^a-z0-9_-]/', '', $_POST['project'] ?? '');
-    if (!hash_equals($csrfFor($project), (string)($_POST['csrf'] ?? ''))) {
-        json_out(['error' => $tr('csrf_invalid_ajax_msg')], 403);
-    }
-    if (!$canProj($project)) {
-        json_out(['error' => $tr('no_permission_title')], 403);
-    }
+    $actor = $requireProj($project);
     $id  = strtolower(preg_replace('/[^A-Za-z0-9_-]/', '', $_POST['id'] ?? ''));
     $dir = tilecut_dir($cfg, $project, $id);
     $sdir = souliong_layersrc_dir($cfg, $project, $id);
@@ -275,12 +253,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'srcpu
 // ── 收尾：寫 layer.json（POST，JSON 回應） ──
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'finish') {
     $project = preg_replace('/[^a-z0-9_-]/', '', $_POST['project'] ?? '');
-    if (!hash_equals($csrfFor($project), (string)($_POST['csrf'] ?? ''))) {
-        json_out(['error' => $tr('csrf_invalid_ajax_msg')], 403);
-    }
-    if (!$canProj($project)) {
-        json_out(['error' => $tr('no_permission_title')], 403);
-    }
+    $actor = $requireProj($project);
     $id  = strtolower(preg_replace('/[^A-Za-z0-9_-]/', '', $_POST['id'] ?? ''));
     $dir = tilecut_dir($cfg, $project, $id);
     if ($dir === null || !is_dir($dir)) {
@@ -429,13 +402,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'finis
             );
         }
     }
-    audit_log($cfg, $auditWho($project), 'layer_tilecut', $project, $id . ($isVector ? ' vector' : ' x' . $count));
+    audit_log($cfg, $actor->audit(), 'layer_tilecut', $project, $id . ($isVector ? ' vector' : ' x' . $count));
     json_out(['ok' => true, 'id' => $id]);
 }
 
 // ── 頁面 ──
-$allProjects = array_values(array_filter(store_projects($cfg), fn($p) => perm_can($cfg, $p)));
-if (!$primary && !$allProjects) {
+$allProjects = Auth::projectsWith($cfg, 'edit_layers');
+if (Auth::actor($cfg, null)->kind() !== 'primary' && !$allProjects) {
     http_response_code(401);
     header('Content-Type: text/html; charset=utf-8');
     echo '<p>' . $tr('tilecut_login_required_msg', ['url' => $adminUrl]) . '</p>';
@@ -569,7 +542,7 @@ if (($_GET['help'] ?? '') !== '') {
 }
 
 $reqProject = in_array($backProject, $allProjects, true) ? $backProject : ($allProjects[0] ?? '');
-$csrf = $csrfFor($reqProject);
+$csrf = (string)Auth::actor($cfg, $reqProject)->csrf($reqProject);
 
 // 分塊多大：取 upload_max_filesize 與 post_max_size 的較小者再留兩成給表單其他欄位。
 // 寫死一個「安全值」的話，設定寬鬆的主機會白白多送幾十趟。

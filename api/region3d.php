@@ -35,25 +35,13 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 $backProject = preg_replace('/[^a-z0-9_-]/', '', $_GET['project'] ?? '');
 $adminUrl = $esc(Route::abs(Route::manager($backProject, 'tools')));
 
-// 頁面可不可以打開：跟 tilecut.php 一樣看專案管理權（perm_can）。實際會動到資料的四個動作
-// （begin/srcput/finish/rescan）另外再擋一層 edit_3d_regions——這把鑰匙才是「可以下放給特定
-// 專案 PIN」的那一把（security.php 的 pin_default_perms()），單純打開頁面看現有區域不需要它。
-$primary = primary_authed($cfg);
-$canProj = function (string $p) use ($cfg, $primary): bool {
-    return $p !== '' && preg_match('/^[a-z0-9_-]+$/', $p) === 1
-        && is_dir(project_dir($cfg, $p))
-        && ($primary || perm_can($cfg, $p));
-};
-$canEdit = fn(string $p): bool => perm_check($cfg, $p, 'edit_3d_regions');
-$auditWho = fn(string $p) => $primary ? 'primary' : (($acc = account_current($cfg)) !== null ? 'acct:' . $acc['id'] : 'pin:' . (string)pin_current_id($cfg, $p));
-// 依身份派生 CSRF token：primary 用 primary_derived()，帳號用 account_derived()，專案 PIN 用
-// pin_derived()。與 manager.php 的 $csrf 衍生邏輯同一套規則。
-$csrfFor = function (string $p) use ($cfg, $primary): string {
-    if ($primary) {
-        return primary_derived($cfg);
+// 寫入動作（begin/srcput/finish/rescan）與頁面都看 edit_3d_regions，這把鑰匙可下放給特定專案 PIN
+// （security.php 的 pin_default_perms()）。寫入動作的關卡由 Auth::require 一次做完專案存在、權限與 CSRF。
+$requireProj = function (string $p) use ($cfg, $tr): Actor {
+    if ($p === '' || preg_match('/^[a-z0-9_-]+$/', $p) !== 1 || !is_dir(project_dir($cfg, $p))) {
+        json_out(['error' => $tr('no_permission_title')], 403);
     }
-    $acc = account_current($cfg);
-    return $acc !== null ? account_derived($cfg, (string)$acc['id']) : pin_derived($cfg, $p, (string)pin_current_id($cfg, $p));
+    return Auth::require($cfg, $p, 'edit_3d_regions', true, $tr('no_permission_title'));
 };
 
 /** GeoJSON Polygon 驗證：單一外環、經緯度範圍合理、點數有上限。回傳整理過（只留 [lon,lat]）的結構，不合法回 null。 */
@@ -103,12 +91,7 @@ function region3d_valid_ids($raw): array
 // 舊模型必須原封不動留著（見檔頭說明）。
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'begin') {
     $project = preg_replace('/[^a-z0-9_-]/', '', $_POST['project'] ?? '');
-    if (!hash_equals($csrfFor($project), (string)($_POST['csrf'] ?? ''))) {
-        json_out(['error' => $tr('csrf_invalid_ajax_msg')], 403);
-    }
-    if (!$canProj($project) || !$canEdit($project)) {
-        json_out(['error' => $tr('no_permission_title')], 403);
-    }
+    $actor = $requireProj($project);
     $id  = strtolower(preg_replace('/[^A-Za-z0-9_-]/', '', $_POST['id'] ?? ''));
     $dir = souliong_region3d_dir($cfg, $project, $id);
     if ($dir === null) {
@@ -130,12 +113,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'begin
 // 或逾時，offset 對不上就回 409 附帶伺服器手上的長度，前端照那個續傳。
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'srcput') {
     $project = preg_replace('/[^a-z0-9_-]/', '', $_POST['project'] ?? '');
-    if (!hash_equals($csrfFor($project), (string)($_POST['csrf'] ?? ''))) {
-        json_out(['error' => $tr('csrf_invalid_ajax_msg')], 403);
-    }
-    if (!$canProj($project) || !$canEdit($project)) {
-        json_out(['error' => $tr('no_permission_title')], 403);
-    }
+    $actor = $requireProj($project);
     $id  = strtolower(preg_replace('/[^A-Za-z0-9_-]/', '', $_POST['id'] ?? ''));
     $dir = souliong_region3d_dir($cfg, $project, $id);
     if ($dir === null || !is_dir($dir)) {
@@ -192,12 +170,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'srcpu
 // ── 收尾：寫 region.json（POST，JSON 回應） ──
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'finish') {
     $project = preg_replace('/[^a-z0-9_-]/', '', $_POST['project'] ?? '');
-    if (!hash_equals($csrfFor($project), (string)($_POST['csrf'] ?? ''))) {
-        json_out(['error' => $tr('csrf_invalid_ajax_msg')], 403);
-    }
-    if (!$canProj($project) || !$canEdit($project)) {
-        json_out(['error' => $tr('no_permission_title')], 403);
-    }
+    $actor = $requireProj($project);
     $id  = strtolower(preg_replace('/[^A-Za-z0-9_-]/', '', $_POST['id'] ?? ''));
     $dir = souliong_region3d_dir($cfg, $project, $id);
     if ($dir === null || !is_dir($dir)) {
@@ -244,7 +217,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'finis
     if (@file_put_contents($dir . '/region.json', $json, LOCK_EX) === false) {
         json_out(['error' => $tr('region3d_mkdir_failed_msg')], 500);
     }
-    audit_log($cfg, $auditWho($project), 'region3d_save', $project, $id . ' x' . count($ids));
+    audit_log($cfg, $actor->audit(), 'region3d_save', $project, $id . ' x' . count($ids));
     json_out(['ok' => true, 'id' => $id]);
 }
 
@@ -253,12 +226,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'finis
 // queryRenderedFeatures，把新算出來的清單送過來，這裡只負責驗證與覆寫那一個欄位。
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'rescan') {
     $project = preg_replace('/[^a-z0-9_-]/', '', $_POST['project'] ?? '');
-    if (!hash_equals($csrfFor($project), (string)($_POST['csrf'] ?? ''))) {
-        json_out(['error' => $tr('csrf_invalid_ajax_msg')], 403);
-    }
-    if (!$canProj($project) || !$canEdit($project)) {
-        json_out(['error' => $tr('no_permission_title')], 403);
-    }
+    $actor = $requireProj($project);
     $id  = strtolower(preg_replace('/[^A-Za-z0-9_-]/', '', $_POST['id'] ?? ''));
     $dir = souliong_region3d_dir($cfg, $project, $id);
     $mf  = $dir !== null ? $dir . '/region.json' : null;
@@ -276,13 +244,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'resca
     if (@file_put_contents($mf, $json, LOCK_EX) === false) {
         json_out(['error' => $tr('region3d_mkdir_failed_msg')], 500);
     }
-    audit_log($cfg, $auditWho($project), 'region3d_rescan', $project, $id . ' x' . count($ids));
+    audit_log($cfg, $actor->audit(), 'region3d_rescan', $project, $id . ' x' . count($ids));
     json_out(['ok' => true, 'count' => count($ids)]);
 }
 
 // ── 頁面 ──
-$allProjects = array_values(array_filter(store_projects($cfg), fn($p) => $primary || perm_can($cfg, $p)));
-if (!$primary && !$allProjects) {
+$allProjects = Auth::projectsWith($cfg, 'edit_3d_regions');
+if (Auth::actor($cfg, null)->kind() !== 'primary' && !$allProjects) {
     http_response_code(401);
     header('Content-Type: text/html; charset=utf-8');
     echo '<p>' . $tr('region3d_login_required_msg', ['url' => $adminUrl]) . '</p>';
@@ -290,7 +258,7 @@ if (!$primary && !$allProjects) {
 }
 
 $reqProject = in_array($backProject, $allProjects, true) ? $backProject : ($allProjects[0] ?? '');
-$csrf = $csrfFor($reqProject);
+$csrf = (string)Auth::actor($cfg, $reqProject)->csrf($reqProject);
 
 // 分塊多大：跟 tilecut.php 同一套算法（取 upload_max_filesize 與 post_max_size 的較小者留兩成餘裕）。
 $iniBytes = function (string $k): int {

@@ -1,7 +1,7 @@
 /* 投稿型別：建立地點
    嚴格說它不是「投稿內容」而是「新增一個可以被投稿的地點」，所以走的是另一支端點
    （api/newspot.php，權限由 meta.json 的 contrib.newPoint 決定），送出的欄位也跟其他型別不一樣：
-   沒有 item_num、沒有授權勾選，留言框在這裡的身分是這個地點的「故事」。
+   沒有 item_num、沒有授權勾選，留言框在這裡的身分是這個地點的說明（description，伺服器寫成第一個文字區塊）。
 
    view.php 只在 contrib.newPoint 不是 off（且 admin 模式下確實是管理者）時才載入這個檔案。 */
 (() => {
@@ -34,6 +34,9 @@
         '<input type="color" class="c-catcolor" value="#7A7F87" style="display:none" aria-label="' + esc(t('newspot_cat_color')) + '"></div>';
     }
 
+    // 留言框會成為第一個文字區塊，同樣支援 Markdown
+    extraBottomHtml() { return '<div class="sc-hint">' + esc(t('content_md_hint')) + '</div>'; }
+
     wireExtra(state, card) {
       const sel = card.querySelector('.c-cat');
       const lab = card.querySelector('.c-catlabel');
@@ -56,7 +59,7 @@
       const cat = card.querySelector('.c-cat').value;
       const f = {
         title: card.querySelector('.c-title').value.trim(),
-        story: common.comment,
+        description: common.comment,
         name: common.name,
         lat: common.lat,
         lon: common.lon,

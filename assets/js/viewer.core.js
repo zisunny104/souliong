@@ -18,6 +18,9 @@ window.MapApp = (() => {
   // 後台網址由伺服器端的 Route::manager() 算好塞進 APP.manager；前端不自己拼路徑，
   // 後台網址形狀要改時只動 api/routes.php 一個檔案。
   const MANAGER_URL = APP.manager || '';
+  // 權限查詢單一入口：APP.perms 是 view.php 依當下身分算好的「此專案此身分具備的權限鍵」陣列
+  const can = (key) => Array.isArray(APP.perms) && APP.perms.includes(key);
+  APP.can = can;
   const catOrder = ['green', 'pink', 'blue'];
 
   // 這張地圖的投稿設定（由 view.php 依 souliong_contrib_cfg() 算好塞進 APP.contrib）。
@@ -107,6 +110,8 @@ window.MapApp = (() => {
     } catch (e) { myContribId = ''; }
   }
   const isMine = (e) => !!((myOwnerHash && e.owner_hash && e.owner_hash === myOwnerHash) || (myContribId && e.contrib_id && e.contrib_id === myContribId));
+  // 編輯他人投稿（edit_others）與投稿軸（canPost）互不相干：自己的投稿要能投稿才能改，改別人的只看權限
+  const canEditEntry = (e) => !EMBED && ((canPost() && isMine(e)) || can('edit_others'));
 
   // 新增一筆投稿（故事版本、照片…共用）：project/owner/code/ctoken 這些通用欄位統一在這裡補上，呼叫端只要給業務欄位（kind/name/comment/photo…）。
   // 欄位值傳 [blob, filename] 陣列可指定 Blob 的檔名（否則瀏覽器預設存成 "blob"）。
@@ -141,14 +146,14 @@ window.MapApp = (() => {
 
   // 建立新地點：身分欄位比照 submitContribution 統一在這裡補齊，但打的是 api/newspot.php——
   // 建點的權限是每張地圖自己設定的（meta.json 的 contrib.newPoint），由那支端點把關，
-  // 所以管理者模式下要一併帶上 csrf（見 api/newspot.php 的 admin 分支）。
+  // 所以有 csrf 的身分（admin 分支）要一併帶上（見 api/newspot.php）。
   async function submitNewSpot(fields) {
     const fd = new FormData();
     fd.append('project', PROJECT);
     fd.append('owner', ownerToken());
     fd.append('code', storedCode());
     const ct = contribToken(); if (ct) fd.append('ctoken', ct);
-    if (APP.isManager) fd.append('csrf', APP.csrf || '');
+    if (APP.csrf) fd.append('csrf', APP.csrf);
     for (const k in fields) {
       const v = fields[k];
       if (v === undefined || v === null) continue;
@@ -200,9 +205,9 @@ window.MapApp = (() => {
   }
 
   // 上傳權限：能不能投稿完全看投稿代碼。APP.gated＝這張地圖現在有還有效的碼（見 api/security.php contrib_open）；
-  // 一組都沒有＝目前未開放投稿，解鎖鈕也不出現。已用管理 PIN 登入者一律視為已解鎖。EMBED 一律不可上傳。
+  // 一組都沒有＝目前未開放投稿，解鎖鈕也不出現。具 bypass_code 權限者免碼視為已解鎖。EMBED 一律不可上傳。
   function storedCode() { try { return localStorage.getItem('uploadCode_' + PROJECT) || ''; } catch (e) { return ''; } }
-  function isUnlocked() { return !!APP.isManager || (!!APP.gated && !!storedCode()); }
+  function isUnlocked() { return can('bypass_code') || (!!APP.gated && !!storedCode()); }
   function canPost() { return !EMBED && MOD('upload') && isUnlocked(); }
   function applyPostState() {
     document.body.classList.toggle('noupload', !canPost());
@@ -211,15 +216,22 @@ window.MapApp = (() => {
     emitHook('identityChanged');
     if (current) renderEntries();   // 讓「編輯說明」鈕跟著出現/消失
   }
-  // 管理者「檢視模式」：直接覆寫 APP.isManager 本身，讓所有既有讀 APP.isManager 的地方
-  // （核心與各插件的管理者專屬 UI／CSRF 附加邏輯）不用個別修改，一次翻轉全部一起生效。
-  // 不做持久化，重新整理頁面就回到真實管理者狀態。
-  const REAL_IS_MANAGER = !!APP.isManager;
+  // 管理者「檢視模式」：把整組身分（actor／perms／csrf／isManager）蓋成訪客，能力判斷一律走 can()
+  // 與 APP.csrf，所以一次蓋掉全部一起生效；真實值另存一份快照，切回時還原。
+  // 不做持久化，重新整理頁面就回到真實身分。
+  const REAL_IDENTITY = {
+    actor: APP.actor, perms: Array.isArray(APP.perms) ? APP.perms.slice() : [],
+    csrf: APP.csrf || null, isManager: !!APP.isManager,
+  };
   let PREVIEW_MODE = false;
+  const canPreview = () => REAL_IDENTITY.actor != null && REAL_IDENTITY.actor !== 'anon';
   function setPreviewMode(on) {
-    if (!REAL_IS_MANAGER || on === PREVIEW_MODE) return;
+    if (!canPreview() || on === PREVIEW_MODE) return;
     PREVIEW_MODE = on;
-    APP.isManager = on ? false : true;
+    APP.actor = on ? 'anon' : REAL_IDENTITY.actor;
+    APP.perms = on ? [] : REAL_IDENTITY.perms.slice();
+    APP.csrf = on ? null : REAL_IDENTITY.csrf;
+    APP.isManager = on ? false : REAL_IDENTITY.isManager;
     applyPostState();
     refreshAll();
     if (current) openPanel(current);
@@ -251,7 +263,7 @@ window.MapApp = (() => {
   // 封面統一用淺色主題擷圖：管理者當下若開著深色主題，擷圖前先暫時切回淺色、擷完再切回去，
   // 避免同一批專案的封面卡片因為各管理者擷圖當下開的主題不同而深淺不一。
   function trySnapshotCover(force) {
-    if (!APP.isManager || !engine || !engine.supportsSnapshot) return;
+    if (!can('edit_meta') || !engine || !engine.supportsSnapshot) return;
     const cov = (APP.meta && APP.meta.cover) || null;
     if (!force) {
       if (cov && cov.mode === 'custom') return;
@@ -267,7 +279,7 @@ window.MapApp = (() => {
       fd.append('action', 'auto');
       if (force) fd.append('force', '1');
       fd.append('image', dataUrl);
-      fd.append('csrf', APP.csrf || '');
+      if (APP.csrf) fd.append('csrf', APP.csrf);
       fetch(APP.coverUrl, { method: 'POST', body: fd }).then(r => r.json()).then(d => {
         if (d && d.ok) {
           APP.meta = APP.meta || {};
@@ -508,16 +520,16 @@ window.MapApp = (() => {
     return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
   }
 
-  // 哪些記錄是「排在投稿牆上的一則投稿」。desc（地點故事版本）不算，它顯示在故事區；
-  // spot 也不算，它是地點本身而不是掛在地點底下的內容。每一種投稿型別（含音訊）一律算。
-  const isEntry = (e) => !!(e && (KINDS[e.kind] || (!e.kind && e.photo)) && e.kind !== 'desc');
+  // 哪些記錄是「排在投稿牆上的一則投稿」。spot 不算，它是地點本身而不是掛在地點底下的內容。
+  // 每一種投稿型別（含音訊）一律算。
+  const isEntry = (e) => !!(e && (KINDS[e.kind] || (!e.kind && e.photo)));
 
   // 合併「原始投稿」與其 edit_of 編輯紀錄，算出目前應顯示的內容：
   // 留言/關聯地點/定位取最新一筆編輯，但檔案本身與原始拍攝時間永遠沿用原始那筆（編輯不能換照片/影音檔）。
   function effectiveEntries() {
     const originals = {}, edits = {};
     CONTRIB.forEach(e => {
-      if (e.kind === 'desc' || e.kind === 'spot') return;
+      if (e.kind === 'spot') return;
       if (e.edit_of) (edits[e.edit_of] = edits[e.edit_of] || []).push(e);
       // photo 記錄要有圖才算（純留言的照片投稿沿用舊行為不上牆）；其餘型別各有自己的成立條件
       else if (isEntry(e) && (e.photo || e.media || (e.kind === 'text' && e.comment))) originals[e.id] = e;
@@ -546,10 +558,19 @@ window.MapApp = (() => {
   function effectivePhotos() { return effectiveEntries().filter(e => !!e.photo); }
 
   // 合併「地點本身」的建立與後續編輯：起點（api/newspot.php 或 api/spotmigrate.php 寫入的
-  // kind:'spot'，一定帶 num、無 edit_of）疊上指向它的 edit_of 鏈最新一筆（api/editspot.php
-  // 寫入的搬移紀錄、api/spotcontent.php 寫入的內容紀錄）。spots.jsonl 是點位唯一的真相來源（含匯入的靜態底稿，見
-  // api/spotmigrate.php），這裡不再另外處理 SPOTS 靜態陣列。origLat/origLon 一律保留起點
-  // 原始座標，供編輯面板「還原初始位置」使用。
+  // kind:'spot'，一定帶 num、無 edit_of）疊上指向它的 edit_of 版本鏈（api/editspot.php、
+  // api/spotcontent.php 寫入）。spots.jsonl 是點位唯一的真相來源（含匯入的靜態底稿，見
+  // api/spotmigrate.php），這裡不再另外處理 SPOTS 靜態陣列。
+  // 疊加規則與 api/spotlib.php 的 spot_effective() 同一份規格：逐欄疊加，每個可覆寫欄位取
+  // 「版本鏈上帶有該 key 的最新一筆」，created_at 相同時檔案裡較後面那筆勝出（sort 是穩定的，
+  // list.php 也保持檔案順序）。欄位清單由伺服器給（APP.spotFields），這裡不硬編。
+  // origLat/origLon 一律保留起點原始座標，供編輯面板「還原初始位置」使用；
+  // contentVersions 是內容的版本序列（舊到新）：起點若帶 content 為基線，之後接鏈上每一筆帶 content 的紀錄。
+  // contentRev 是目前內容由哪一筆紀錄寫成（鏈上最後一筆帶 content 的 id，沒有就是起點 id），
+  // 整體儲存內容時當 base_rev 帶回去，跟 api/spotlib.php 的 content_rev 同一條規則。
+  const SPOT_FIELDS = Array.isArray(APP.spotFields) ? APP.spotFields : [];
+  const hasOwn = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+  const byCreatedAt = (a, b) => { const x = String(a.created_at || ''), y = String(b.created_at || ''); return x < y ? -1 : x > y ? 1 : 0; };
   function effectiveSpots() {
     const origins = {}, edits = {};
     CONTRIB.forEach(e => {
@@ -559,14 +580,21 @@ window.MapApp = (() => {
     });
     return Object.keys(origins).map(id => {
       const o = origins[id];
-      const list = edits[id];
-      const latest = list && list.length ? list.slice().sort((a, b) => new Date(a.created_at) - new Date(b.created_at)).pop() : null;
+      const chain = (edits[id] || []).slice().sort(byCreatedAt);
+      const eff = { ...o };
+      const asBlocks = (c) => Array.isArray(c) ? c : [];
+      let contentRev = o.id;
+      const contentVersions = hasOwn(o, 'content') ? [{ baseline: true, name: o.name, created_at: o.created_at, blocks: asBlocks(o.content) }] : [];
+      chain.forEach(r => {
+        SPOT_FIELDS.forEach(k => { if (hasOwn(r, k)) eff[k] = r[k]; });
+        if (hasOwn(r, 'content')) { contentVersions.push({ name: r.name, created_at: r.created_at, blocks: asBlocks(r.content) }); contentRev = r.id; }
+      });
+      eff.content = asBlocks(eff.content);
       return {
-        ...o, cat: o.cat || 'new', color: o.color || '#7a7f87',
-        lat: latest ? latest.lat : o.lat, lon: latest ? latest.lon : o.lon,
+        ...eff, cat: o.cat || 'new', color: o.color || '#7a7f87',
         addedBy: o.name, addedAt: o.created_at,
-        content: latest ? latest.content : o.content,
-        posEdited: !!latest, origLat: o.lat, origLon: o.lon,
+        posEdited: eff.lat !== o.lat || eff.lon !== o.lon, origLat: o.lat, origLon: o.lon,
+        contentVersions, contentRev,
       };
     });
   }
@@ -803,7 +831,7 @@ window.MapApp = (() => {
     document.getElementById('pSub').innerHTML = spotSub(c);
     document.getElementById('panel').classList.add('open');
     const peBtn = document.getElementById('spotEditBtn');
-    if (peBtn) peBtn.style.display = (!EMBED && APP.canEditSpots) ? '' : 'none';
+    if (peBtn) peBtn.style.display = (!EMBED && can('edit_spots')) ? '' : 'none';
     resetSpotEditor();
     renderEntries();
     statSend('spot', c.num);
@@ -855,66 +883,119 @@ window.MapApp = (() => {
       state.lat = c.origLat; state.lon = c.origLon;
     };
     el.querySelector('.pt-cancel').onclick = () => resetSpotEditor();
-    el.querySelector('.pt-save').onclick = () => submitSpotEdit(c, state, el, picker);
+    el.querySelector('.pt-save').onclick = () => savePositionEdit(c, state, el);
   }
-  async function submitSpotEdit(orig, state, panel, picker) {
+  async function savePositionEdit(orig, state, panel) {
     const btn = panel.querySelector('.pt-save'); const status = panel.querySelector('.pt-status');
     btn.disabled = true; status.textContent = t('saving');
     try {
-      const fd = new FormData();
-      fd.append('project', PROJECT);
-      fd.append('item_num', orig.num);
-      fd.append('lat', state.lat);
-      fd.append('lon', state.lon);
-      // 只送座標：沒送的欄位（點位原生內容 content）由 spot_merge_forward() 自動沿用目前有效值。
-      fd.append('name', displayName());
-      fd.append('csrf', APP.csrf || '');
-      const res = await fetch(apiUrl('editspot'), { method: 'POST', body: fd });
-      const j = await res.json();
-      if (!res.ok || j.error) throw new Error(j.error || ('HTTP ' + res.status));
-      CONTRIB.push(j.item);
+      await submitSpotEdit(orig.num, { lat: state.lat, lon: state.lon });
       resetSpotEditor();
-      renderSpots(); rebuildPersonFilter();
-      const updated = effectiveSpots().find(p => p.num === orig.num);
-      if (updated) {
-        current = updated;
-        document.getElementById('pTitle').textContent = spotTitle(updated);
-        document.getElementById('pSub').innerHTML = spotSub(updated);
-        renderEntries();
-      }
     } catch (err) {
       status.textContent = t('save_failed', { err: err.message });
       btn.disabled = false;
     }
   }
-  // 寫入點位自己的原生內容（目前只有音訊，見 api/spotcontent.php）。這次只開放管理者，身分
-  // 只靠 csrf——跟拖曳定位的 submitSpotEdit() 同一組權限（edit_spots），不是投稿的 owner/code/
-  // ctoken 那一套。不送 lat/lon：伺服器用 spot_effective() 算目前有效值再疊上 content，
-  // 前端就算送了也會被忽略。
-  async function submitSpotContent(itemNum, fields) {
+  // 點位寫入後重算：目前開著的點位面板換成最新有效狀態（標題、副標、故事區）
+  function refreshCurrentSpot(itemNum) {
+    const updated = effectiveSpots().find(p => p.num === itemNum);
+    if (!updated) return;
+    current = updated;
+    document.getElementById('pTitle').textContent = spotTitle(updated);
+    document.getElementById('pSub').innerHTML = spotSub(updated);
+    renderEntries();
+  }
+  // 寫入點位的座標（editspot.php）：fields 可帶 lat、lon（至少一個）與選填的 name，
+  // 沒帶的欄位沿用目前有效值。身分靠 csrf，權限是 edit_spots，不是投稿的 owner/code/ctoken 那一套。
+  async function submitSpotEdit(itemNum, fields) {
     const fd = new FormData();
     fd.append('project', PROJECT);
     fd.append('item_num', itemNum);
-    fd.append('csrf', APP.csrf || '');
-    for (const k in fields) {
-      const v = fields[k];
-      if (v === undefined || v === null) continue;
-      if (Array.isArray(v)) fd.append(k, v[0], v[1]); else fd.append(k, v);
-    }
+    fd.append('name', fields.name || displayName());
+    if (APP.csrf) fd.append('csrf', APP.csrf);
+    ['lat', 'lon'].forEach(k => { if (fields[k] !== undefined && fields[k] !== null) fd.append(k, fields[k]); });
+    const res = await fetch(apiUrl('editspot'), { method: 'POST', body: fd });
+    const j = await res.json().catch(() => ({ error: 'HTTP ' + res.status }));
+    if (!res.ok || j.error) throw new Error(j.error || ('HTTP ' + res.status));
+    CONTRIB.push(j.item);
+    renderSpots(); rebuildPersonFilter();
+    refreshCurrentSpot(itemNum);
+    return j.item;
+  }
+  // 點位內容的整體儲存（api/spotcontent.php，權限 edit_spots，跟 submitSpotEdit() 同一組）：一次送出整份
+  // 區塊清單，產生一個版本、一個編輯者。opts：
+  //   blocks   依顯示順序的區塊陣列；既有區塊帶 id（伺服器只採用 comment），新聲音區塊沒有 id、file 填 media_N
+  //   files    { media_N: [blob, 檔名] }，跟 blocks 裡的 file 對應
+  //   baseRev  進入編輯時的 spot.contentRev；別人在這之間改過內容，伺服器回 409（err.status），草稿由呼叫端保留
+  async function saveSpotContent(itemNum, opts) {
+    const fd = new FormData();
+    fd.append('project', PROJECT);
+    fd.append('item_num', itemNum);
+    fd.append('op', 'save');
+    fd.append('name', opts.name || displayName());
+    if (APP.csrf) fd.append('csrf', APP.csrf);
+    if (opts.baseRev) fd.append('base_rev', opts.baseRev);
+    fd.append('blocks', JSON.stringify(opts.blocks || []));
+    const files = opts.files || {};
+    for (const k in files) fd.append(k, files[k][0], files[k][1]);
     const res = await fetch(apiUrl('spotcontent'), { method: 'POST', body: fd });
     const j = await res.json().catch(() => ({ error: 'HTTP ' + res.status }));
-    if (!res.ok || j.error) throw new Error((j.error || ('HTTP ' + res.status)) + (j.detail ? '：' + j.detail : ''));
+    if (!res.ok || j.error) {
+      const err = new Error((j.error || ('HTTP ' + res.status)) + (j.detail ? '：' + j.detail : ''));
+      err.status = res.status;
+      throw err;
+    }
     CONTRIB.push(j.item);
     // content 會改變地圖標記要不要顯示音訊脈動，跟一般投稿不一樣要重算 audioSpots（見 recount()）
     recount(); renderSpots();
-    const updated = effectiveSpots().find(p => p.num === itemNum);
-    if (updated) {
-      current = updated;
-      document.getElementById('pTitle').textContent = spotTitle(updated);
-      document.getElementById('pSub').innerHTML = spotSub(updated);
-      renderEntries();
-    }
+    refreshCurrentSpot(itemNum);
     return j.item;
+  }
+  // 出處與授權附註（引用外部來源時填的 source_url／source_license），放在該區塊下方
+  function sourceLineHtml(item) {
+    if (!item || !item.source_url) return '';
+    let host = item.source_url;
+    try { host = new URL(item.source_url).host || host; } catch (e) {}
+    const lic = item.source_license === 'cc-by' ? 'CC BY' : (item.source_license === 'cc0' ? 'CC0' : '');
+    return '<div class="story-source">' + esc(t('field_source_label')) + '：<a href="' + esc(item.source_url) + '" target="_blank" rel="noopener">' + esc(host) + '</a>' +
+      (lic ? '<span class="story-source-lic">' + lic + '</span>' : '') + '</div>';
+  }
+  // 點位內容區塊（content 陣列，見 api/spotcontent.php）的算繪器註冊表：區塊的 kind 對應一個 handler，
+  // 核心依序把每個區塊交給它畫，新增型別不必動核心。handler 欄位：
+  //   valid(item)          這一項能不能顯示（例如音訊要有檔案）
+  //   bodyHtml(item, spot) 區塊主體 HTML
+  //   footHtml(item, spot) 選填，主體下方的附註
+  //   standalone           選填，true＝點位只有這一個區塊時不畫「地點故事」標題，單獨成為說明區主體
+  //   audible              選填，true＝地圖標記要顯示聲音脈動（見 recount()）
+  //   summary(item)        選填，歷史版本列表用的純文字摘要
+  //   wire(el, spot, item) 選填，區塊畫好後綁事件
+  const spotContentTypes = {};
+  function registerSpotContent(kind, def) { spotContentTypes[kind] = def; }
+  const spotContentDef = (item) => (item && spotContentTypes[item.kind]) || null;
+  // 目前有效 content 裡有註冊、可顯示的區塊（依序）
+  const spotBlocks = (spot) => (spot.content || []).filter(c => { const d = spotContentDef(c); return d && d.valid(c); });
+  // 文字區塊：伺服器算好的 html（Markdown 轉出、已逸出）直接使用；沒有時退回純文字，換行靠 .story-body 的 pre-wrap
+  registerSpotContent('text', {
+    valid: (c) => !!(c.html || c.comment),
+    bodyHtml: (c) => c.html ? '<div class="story-body sc-md">' + c.html + '</div>' : '<div class="story-body sc-plain">' + esc(c.comment) + '</div>',
+    summary: (c) => String(c.comment || ''),
+  });
+  // 音訊：大播放鍵＋進度條的自訂播放器（不用瀏覽器原生介面），錄音當時附的文字說明（如果有）放在播放器下方
+  registerSpotContent('audio', {
+    standalone: true, audible: true,
+    valid: (c) => !!c.media,
+    bodyHtml: (c) => '<div class="story-body">' + audioPlayerHtml(mediaFullUrl(c), c.duration, { big: true }) +
+      (c.comment ? '<div class="story-caption">' + esc(c.comment) + '</div>' : '') + '</div>',
+    footHtml: (c) => sourceLineHtml(c),
+    summary: (c) => String(c.comment || ''),
+    wire: (el, spot) => wireAudioPlayer(el, spot.num),
+  });
+  // 說明區只署名一次：最新一個內容版本的編輯者與時間（內容是整體編輯，沒有各區塊各自的作者）
+  function contentBylineHtml(spot) {
+    const vs = spot.contentVersions || [];
+    const last = vs[vs.length - 1] || { name: spot.addedBy, created_at: spot.addedAt };
+    if (!last.name) return '';
+    return '<div class="story-by">— ' + esc(last.name) + (last.created_at ? '・' + fmtTime(last.created_at) : '') + '</div>';
   }
   function renderEntries() {
     if (!current) return;
@@ -922,54 +1003,32 @@ window.MapApp = (() => {
     // 重繪前先暫停舊的播放器：光把節點丟掉不保證觸發 pause 事件，標記的播放脈衝會卡住不消失
     box.querySelectorAll('audio').forEach(el => { try { el.pause(); } catch (err) {} });
     box.innerHTML = '';
-    const descs = CONTRIB.filter(e => e.item_num === current.num && e.kind === 'desc' && !e.edit_of && e.comment).sort((a, b) => tv(a) - tv(b));
     const entries = effectiveEntries().filter(e => e.item_num === current.num && photoFilters.every(f => f(e, current))).sort((a, b) => tv(a) - tv(b));
-    // 版本序列：原始（story 欄位——一般地圖是匯入資料的 META.source，訪客建立地點時則是當場輸入的
-    // 說明文字）在最舊，之後接使用者送出的 desc 版本。
-    const versions = [];
-    if (current.story) versions.push({ name: t('original_source_tag'), comment: current.story, created_at: null, baseline: true });
-    descs.forEach(d => versions.push(d));
-    const latest = versions[versions.length - 1];
-    // 點位自己的原生內容（見 api/spotcontent.php）：直接從 effectiveSpots() 疊好的 content 陣列裡找，
-    // 找到就放大顯示在故事區；沒有就照一般地圖的 desc 版本顯示故事文字。
-    const nativeAudio = (current.content || []).find(c => c && c.kind === 'audio' && c.media);
-    const byLine = (!nativeAudio && latest)
-      ? (latest.baseline ? esc(t('source_label', { src: META.source || META.credit || '' })) : '— ' + esc(latest.name || t('anon_fallback')) + '・' + fmtTime(latest.photo_time || latest.created_at))
-      : '';
-    const sourceLic = latest && latest.source_license === 'cc-by' ? 'CC BY' : (latest && latest.source_license === 'cc0' ? 'CC0' : '');
-    let sourceLine = '';
-    if (latest && latest.source_url) {
-      let sourceHost = latest.source_url;
-      try { sourceHost = new URL(latest.source_url).host || sourceHost; } catch (e) {}
-      sourceLine = '<div class="story-source">' + esc(t('field_source_label')) + '：<a href="' + esc(latest.source_url) + '" target="_blank" rel="noopener">' + esc(sourceHost) + '</a>' +
-        (sourceLic ? '<span class="story-source-lic">' + sourceLic + '</span>' : '') +
-        '</div>';
-    }
 
-    // 主要內容本身：一般是故事文字；點位帶原生音訊內容時，改成大播放鍵＋進度條的自訂播放器
-    // （不用瀏覽器原生介面），錄音當時附的文字說明（如果有）放在播放器下方當作附註。
-    let bodyHtml;
-    if (nativeAudio) {
-      bodyHtml = audioPlayerHtml(mediaFullUrl(nativeAudio), nativeAudio.duration, { big: true }) +
-        (nativeAudio.comment ? '<div class="story-caption">' + esc(nativeAudio.comment) + '</div>' : '');
-    } else if (latest) {
-      bodyHtml = esc(latest.comment);
-    } else {
-      bodyHtml = '<span class="empty">' + esc(t('story_empty')) + '</span>';
-    }
-
-    // 故事 / 說明（版本化，預設只顯示最新版）
+    // 說明區：點位的 content 區塊依序渲染（見 registerSpotContent()）。只有一個獨立型區塊（例如單一音訊）
+    // 時維持該型別自己的樣貌、不畫標題；沒有任何可顯示區塊時顯示空狀態。
+    const blocks = spotBlocks(current);
+    const sole = blocks.length === 1 && spotContentDef(blocks[0]).standalone;
+    const versions = current.contentVersions || [];
     const story = document.createElement('div'); story.className = 'story';
     story.innerHTML =
-      (nativeAudio ? '' : '<div class="story-head">' + esc(t('location_story_title')) + '</div>') +
-      '<div class="story-body">' + bodyHtml + '</div>' +
-      (byLine ? '<div class="story-by">' + byLine + '</div>' : '') +
-      sourceLine +
+      (sole ? '' : '<div class="story-head">' + esc(t('location_story_title')) + '</div>') +
+      '<div class="sc-list">' + (blocks.length ? '' : '<div class="story-body"><span class="empty">' + esc(t('story_empty')) + '</span></div>') + '</div>' +
+      (blocks.length ? contentBylineHtml(current) : '') +
       '<div class="story-actions" id="storyActions">' +
       (!EMBED && versions.length > 1 ? '<button class="btn small" id="histBtn">' + esc(t('history_versions', { n: versions.length })) + '</button>' : '') +
       '</div><div id="descHistory" style="display:none"></div>';
+    const list = story.querySelector('.sc-list');
+    blocks.forEach(item => {
+      const def = spotContentDef(item);
+      const el = document.createElement('div');
+      el.className = 'sc-block sc-block-' + item.kind;
+      if (item.id) el.dataset.blockId = item.id;
+      el.innerHTML = def.bodyHtml(item, current) + (def.footHtml ? def.footHtml(item, current) : '');
+      list.appendChild(el);
+      if (def.wire) def.wire(el, current, item);
+    });
     box.appendChild(story);
-    if (nativeAudio) wireAudioPlayer(story, current.num);
     const hb = story.querySelector('#histBtn'); if (hb) hb.onclick = () => toggleHistory(versions);
 
     // 插件掛勾點：讓插件（例如上傳、依序探索）在照片牆前面插入自己的提示區塊或按鈕（如「上傳照片到這個點」「僅顯示 X 的照片・顯示全部」）
@@ -982,12 +1041,12 @@ window.MapApp = (() => {
     entries.forEach(e => {
       const d = document.createElement('div'); d.className = 'entry sl-kind-' + kindOf(e); d.dataset.entryId = e.id;
       const alt = esc(e.comment || (current.chair || current.theme || t('contrib_photo_alt')));
-      const canEdit = canPost() && (isMine(e) || APP.isManager);
+      const canEdit = canEditEntry(e);
       // 只有預覽區依型別換掉，底下的 meta／編輯／刪除／歷史四段所有型別完全共用
       d.innerHTML = entryPreviewHtml(e, alt) + '<div class="meta"><div class="who">' + esc(e.name || t('anon_fallback')) +
         (e.edited ? ' <span class="edited-tag">' + esc(t('edited_tag')) + '</span>' : '') + '</div>' +
         '<div class="time">' + fmtTime(e.photo_time || e.created_at) + '</div>' +
-        (e.comment ? '<div class="txt">' + esc(e.comment) + '</div>' : '') +
+        (e.comment ? (kindOf(e) === 'text' && e.html ? '<div class="txt sc-md">' + e.html + '</div>' : '<div class="txt">' + esc(e.comment) + '</div>') : '') +
         '<div class="entry-actions">' +
         (canEdit ? '<button class="btn small edit-btn" type="button"><i class="fa-solid fa-pen"></i> ' + esc(t('edit')) + '</button>' : '') +
         (!EMBED && e.editHistory && e.editHistory.length > 1 ? '<button class="btn small hist-btn" type="button">' + esc(t('history_versions', { n: e.editHistory.length })) + '</button>' : '') +
@@ -1036,7 +1095,7 @@ window.MapApp = (() => {
     opts = opts || {};
     return '<div class="sl-aplay' + (opts.big ? ' sl-aplay-lg' : '') + '">' +
       '<audio preload="none" src="' + esc(src || '') + '"></audio>' +
-      '<button class="sl-play-btn sl-aplay-btn sl-invite" type="button" aria-label="' + esc(t('play_audio_btn')) + '"><i class="fa-solid fa-play"></i></button>' +
+      '<button class="sl-play-btn sl-aplay-btn" type="button" aria-label="' + esc(t('play_audio_btn')) + '"><i class="fa-solid fa-play"></i></button>' +
       '<div class="sl-aplay-main">' +
         '<div class="sl-aplay-bar"><div class="sl-aplay-fill"></div></div>' +
         '<div class="sl-aplay-time"><span class="sl-aplay-cur">0:00</span><span class="sl-aplay-dur">' + esc(dur ? fmtDur(dur) : '') + '</span></div>' +
@@ -1162,7 +1221,7 @@ window.MapApp = (() => {
       fd.append('name', displayName());
       fd.append('owner', ownerToken());
       const ct = contribToken(); if (ct) fd.append('ctoken', ct);
-      if (APP.isManager) fd.append('csrf', APP.csrf || '');
+      if (APP.csrf) fd.append('csrf', APP.csrf);
       const res = await fetch(apiUrl('editentry'), { method: 'POST', body: fd });
       const j = await res.json();
       if (!res.ok || j.error) throw new Error(j.error || ('HTTP ' + res.status));
@@ -1196,18 +1255,24 @@ window.MapApp = (() => {
     panel.querySelectorAll('.del-btn[data-id]').forEach(b => b.onclick = () => deleteEntry(b.dataset.id));
   }
 
-  function toggleHistory(descs) {
+  // 說明區的內容版本歷史：versions 是 effectiveSpots() 算出的 contentVersions（舊到新），這裡新到舊列出
+  // （時間、編輯者、區塊數、文字預覽），先不做還原。
+  function toggleHistory(versions) {
     const el = document.getElementById('descHistory');
-    if (el.style.display === 'none') {
-      el.style.display = 'block';
-      el.innerHTML = '<div class="hist-title">' + esc(t('desc_history_title')) + '</div>' +
-        descs.slice().reverse().map((d, i) =>
-          '<div class="hist-item"><div class="hist-meta">' + (i === 0 ? '<b>' + esc(t('latest_tag')) + '</b>・' : '') +
-          (d.baseline ? esc(t('original_source_tag')) : esc(d.name || t('anon_fallback')) + '・' + fmtTime(d.photo_time || d.created_at)) +
-          (!EMBED && isMine(d) ? ' <button class="del-btn" type="button" data-id="' + esc(d.id) + '">' + esc(t('delete')) + '</button>' : '') + '</div>' +
-          '<div class="hist-txt">' + (d.comment ? esc(d.comment) : '<span class="empty">' + esc(t('no_comment')) + '</span>') + '</div></div>').join('');
-      el.querySelectorAll('.del-btn[data-id]').forEach(b => b.onclick = () => deleteEntry(b.dataset.id));
-    } else { el.style.display = 'none'; el.innerHTML = ''; }
+    if (el.style.display !== 'none') { el.style.display = 'none'; el.innerHTML = ''; return; }
+    el.style.display = 'block';
+    const preview = (blocks) => {
+      // 文字區塊的內容優先當預覽，沒有文字才退回其他區塊的說明文字
+      const first = blocks.slice().sort((a, b) => (b.kind === 'text') - (a.kind === 'text'))
+        .map(b => { const d = spotContentDef(b); return d && d.summary ? d.summary(b) : ''; }).find(x => x);
+      return first ? esc(first.length > 60 ? first.slice(0, 60) + '…' : first) : '<span class="empty">' + esc(t('no_comment')) + '</span>';
+    };
+    el.innerHTML = '<div class="hist-title">' + esc(t('desc_history_title')) + '</div>' +
+      versions.slice().reverse().map((v, i) =>
+        '<div class="hist-item"><div class="hist-meta">' + (i === 0 ? '<b>' + esc(t('latest_tag')) + '</b>・' : '') +
+        esc(v.name || t('anon_fallback')) + '・' + fmtTime(v.created_at) + '・' + esc(t('content_blocks_count', { n: v.blocks.length })) +
+        (v.baseline ? esc(t('original_submission_tag')) : '') + '</div>' +
+        '<div class="hist-txt">' + preview(v.blocks) + '</div></div>').join('');
   }
   /* ---------- lightbox ---------- */
   // 單張的「i」資訊內容：相機 EXIF（機身/鏡頭/光圈/快門/焦段/ISO）、拍攝時間、座標與定位來源
@@ -1268,7 +1333,7 @@ window.MapApp = (() => {
     const who = esc(e.name || t('anon_fallback')) + ' ・ ' + fmtTime(e.photo_time || e.created_at) +
       ' <button class="lb-info-i" type="button" id="lbInfoBtn" title="' + esc(t('photo_info_title')) + '" aria-label="' + esc(t('photo_info_title')) + '"><i class="fa-solid fa-circle-info" aria-hidden="true"></i></button>';
     const txt = e.comment ? '<div class="lb-txt">' + esc(e.comment) + '</div>' : '';
-    const canEdit = canPost() && (isMine(e) || APP.isManager);
+    const canEdit = canEditEntry(e);
     const actions =
       (canEdit ? '<button class="btn small" type="button" id="lbEditBtn"><i class="fa-solid fa-pen"></i> ' + esc(t('edit')) + '</button>' : '') +
       (!EMBED && isMine(e) ? '<button class="btn small danger" type="button" id="lbDelBtn"><i class="fa-solid fa-trash"></i> ' + esc(t('delete')) + '</button>' : '');
@@ -1338,7 +1403,7 @@ window.MapApp = (() => {
     // 點位自己的原生內容（目前只有音訊）不是投稿，不計進 counts／contribTotal，
     // 但一樣要讓地圖標記顯示音訊脈動（has-audio，見 spotIcon()）。
     effectiveSpots().forEach(s => {
-      if ((s.content || []).some(c => c && c.kind === 'audio' && c.media)) audioSpots.add(s.num);
+      if (spotBlocks(s).some(c => spotContentDef(c).audible)) audioSpots.add(s.num);
     });
     updatePhotoBtn();
   }
@@ -1362,7 +1427,14 @@ window.MapApp = (() => {
       const res = await fetch(apiUrl('list') + '&project=' + encodeURIComponent(PROJECT));
       const j = await res.json();
       if (j.error) throw new Error(j.error + (j.detail ? '：' + j.detail : ''));
-      CONTRIB = (j.items || []).map(x => ({ ...x, lat: x.lat != null ? +x.lat : null, lon: x.lon != null ? +x.lon : null }));
+      // 點位的版本紀錄是稀疏的：沒帶 lat／lon 的 edit_of 紀錄要維持「沒有這個 key」，補成 null 會被
+      // 逐欄疊加（見 effectiveSpots()）當成明確清空座標。
+      CONTRIB = (j.items || []).map(x => {
+        const r = { ...x };
+        const sparse = x.kind === 'spot' && x.edit_of;
+        ['lat', 'lon'].forEach(k => { if (!sparse || hasOwn(x, k)) r[k] = x[k] != null ? +x[k] : null; });
+        return r;
+      });
       // 投稿裡可能含 kind:'newspot'（訪客建立的地點），分類與圖例得重算一次才看得到那些點
       rebuildCats(); buildLegend();
       recount(); renderSpots(); renderContribLayer(); rebuildPersonFilter(); emitHook('stateChange');
@@ -1808,7 +1880,7 @@ window.MapApp = (() => {
     getFilterPerson: () => filterPerson, isPhotoLayerOn: () => photoLayerOn,
     getCurrentSpot: () => current,
     isUnlocked, isEmbedMode: () => EMBED,
-    canTogglePreview: () => REAL_IS_MANAGER, isPreviewMode: () => PREVIEW_MODE, setPreviewMode,
+    canTogglePreview: canPreview, isPreviewMode: () => PREVIEW_MODE, setPreviewMode,
     hasIdentity: () => !!contribToken(),
     trackFeature: feature, currentScopeParams, getProjectId: () => PROJECT,
     // effectivePhotos／photoFullUrl 是「只有照片」的那份，route-tour／person-explore 兩個插件在用
@@ -1816,10 +1888,11 @@ window.MapApp = (() => {
     effectivePhotos, effectiveEntries, entryFullUrl, entryThumbUrl, effectiveSpots, spotMarkerSpecs,
     kindOf, contribCfg: () => CONTRIB_CFG, fmtDur,
     // 自訂聲音播放器元件（大播放鍵＋進度條，取代預設 <audio controls>）：故事區、投稿卡片預覽共用，
-    // 供插件（如 sound-editor.js 錄音後的即時試聽）也能用同一套外觀，見 renderEntries() 內的用法。
-    audioPlayerHtml, wireAudioPlayer,
+    // 供插件（如 content-editor.js 錄音後的即時試聽）也能用同一套外觀，見 renderEntries() 內的用法。
+    audioPlayerHtml, wireAudioPlayer, mediaFullUrl,
     personColor, toast,
-    displayName, anonName: () => SESSION_ANON, submitContribution, submitNewSpot, submitSpotContent,
+    displayName, anonName: () => SESSION_ANON, submitContribution, submitNewSpot, submitSpotEdit, saveSpotContent,
+    can, registerSpotContent,
     rerollAnon, identityChipClick,
     spotOptionsHtml, nearestSpot, locNote, srcTone, fmtTime,
     getMeta: () => META, getCats: () => CATS.slice(),

@@ -132,8 +132,8 @@ license, owner_hash, src_hash, contrib_id, contrib_hash, edit_of, created_at
 - **起點**：`api/newspot.php` 附加一筆 `kind:'spot'`、帶 `title`、無 `edit_of`——這是「建立地點」事件。
 - **後續搬移／寫入內容**：`api/editspot.php`（改座標）與 `api/spotcontent.php`（寫入 `content`）各附加一筆
   `kind:'spot'`、帶 `edit_of` 指回起點的 `id` 的記錄。可覆寫欄位只有 `lat`／`lon`／`content`
-  （單一清單見 `spot_overridable_fields()`），伺服器端用 `spot_effective()` 算出目前有效狀態再以
-  `spot_merge_forward()` 疊上這次要改的欄位，沒改的欄位沿用舊值，兩支端點寫出的記錄都帶齊這三個欄位。
+  （單一清單見 `spot_overridable_fields()`），伺服器端用 `spot_effective()` 算出目前有效狀態，再以
+  `spot_append_version()` 寫一筆稀疏版本紀錄：只帶這次改的欄位，沒提到的欄位不寫、也不會被蓋掉。
   寫入前會掃 `spots.jsonl` 找同 `item_num` 的起點記錄來解析 `edit_of`；找不到（點位來自靜態底稿
   `chairs.json`／`points.json`，從沒被建立過 `spot` 記錄）就把 `edit_of` 留空，退回用 `item_num`
   取最新一筆覆蓋——這是唯一沒辦法納入 `edit_of` 鏈的情況，因為靜態底稿的點位天生沒有 jsonl id 可指。

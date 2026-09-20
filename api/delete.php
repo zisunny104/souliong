@@ -1,7 +1,8 @@
 <?php
 // 刪除自己的投稿：POST project, id, owner(token) 或 ctoken(投稿者跨裝置身分)。兩者擇一相符即可刪。
-require __DIR__ . '/store.php';
-require __DIR__ . '/security.php';
+require_once __DIR__ . '/store.php';
+require_once __DIR__ . '/security.php';
+require_once __DIR__ . '/contribgate.php';
 $cfg = require __DIR__ . '/config.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') { json_out(['error' => 'POST only'], 405); }
@@ -9,20 +10,15 @@ rate_limit($cfg, 'write');
 
 $project = preg_replace('/[^a-z0-9_-]/', '', $_POST['project'] ?? '');
 $id      = (string)($_POST['id'] ?? '');
-$owner   = (string)($_POST['owner'] ?? '');
-$ctoken  = (string)($_POST['ctoken'] ?? '');
-if ($project === '' || $id === '' || ($owner === '' && $ctoken === '') || strlen($id) > 64 || !is_dir($cfg['projects_dir'] . '/' . $project)) {
+$who     = Contributor::fromRequest();
+if ($project === '' || $id === '' || ($who->ownerHash() === null && $who->contribId() === null) || strlen($id) > 64 || !is_dir($cfg['projects_dir'] . '/' . $project)) {
     json_out(['error' => 'bad request'], 400);
 }
 
 try {
     $rec = store_find($cfg, $project, $id);
     if (!$rec) { json_out(['error' => 'not found'], 404); }
-    $ownerStored  = (string)($rec['owner_hash'] ?? '');
-    $contribStored = (string)($rec['contrib_hash'] ?? '');
-    $ownerOk   = $owner !== '' && $ownerStored !== '' && hash_equals($ownerStored, hash('sha256', $owner));
-    $contribOk = $ctoken !== '' && $contribStored !== '' && hash_equals($contribStored, contrib_hash_of($ctoken));
-    if (!$ownerOk && !$contribOk) {
+    if (!$who->owns($rec)) {
         json_out(['error' => '沒有權限刪除這則（可能是別人上傳的，或此裝置/身分的標記已更換）'], 403);
     }
     // 點位本身（kind:'spot'）不能自刪，即使 owner_hash 對得上：那是地點的識別記錄，

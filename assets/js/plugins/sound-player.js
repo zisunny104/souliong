@@ -20,7 +20,10 @@
   class SoundPlayerPlugin extends MapApp.Plugin {
     constructor() {
       super('soundPlayer');
-      this.audioEl = null;
+      this.audioEl = null;      // 中卡／迷你列目前操作的那一顆（預設第一顆，哪顆開始播就換成哪顆）
+      this.audios = [];         // 說明區內所有音訊區塊的 <audio>
+      this.bigCtls = [];        // 每個大播放器各自的循環／靜音鍵：{ audio, loopBtn, muteBtn }
+      this.knownDurs = new Map();
       this.hasAudio = false;
       this.lastNum = null;
       this.miniSpot = null;
@@ -247,42 +250,17 @@
 
     onRender(spot) {
       const panel = document.getElementById('panel');
-      const audio = document.querySelector('#entries .story .sl-aplay audio');
-      this.hasAudio = !!(audio && audio.getAttribute('src'));
-      this.audioEl = this.hasAudio ? audio : null;
+      // 說明區可以有多個音訊區塊：每個大播放器都套用插件版面，中卡／迷你列跟著最近一次播放的那一顆
+      const wraps = Array.from(document.querySelectorAll('#entries .story .sc-list .sl-aplay'))
+        .filter(w => { const a = w.querySelector('audio'); return a && a.getAttribute('src'); });
+      this.audios = wraps.map(w => w.querySelector('audio'));
+      this.hasAudio = this.audios.length > 0;
+      this.audioEl = this.audios[0] || null;
       // <audio> 吃 preload="none"（見 viewer.core.js audioPlayerHtml() 註解，避免捲過卡片牆就整批下載），
       // duration 要等按下播放才會有值；.sl-aplay-dur 是同一顆音訊的「故事」版播放器，用投稿時存的
       // 秒數欄位直接填字，不用等瀏覽器讀檔，借來當作播放前的預顯示值，播放後才換成 audio.duration 現測值。
-      const durEl = this.hasAudio ? document.querySelector('#entries .story .sl-aplay .sl-aplay-dur') : null;
-      this.knownDurText = durEl ? durEl.textContent : '';
-
-      // 故事區的大播放器（.sl-aplay-lg）是電腦版跟手機全卡共用的同一顆，核心 audioPlayerHtml()
-      // 沒有循環／靜音鍵，時間跟播放鍵各自佔一列太鬆。這裡把時間搬進按鈕列兩端（時間仍左右
-      // 分居），按鈕居中一組，進度條獨立一列在下面；.sl-aplay-time 淨空後隱藏。只搬動既有節點＋
-      // 插入新按鈕，核心 wireAudioPlayer() 靠 class 選取＋事件監聽都不受影響。
-      const bigWrap = this.hasAudio ? document.querySelector('#entries .story .sl-aplay-lg') : null;
-      const bigPlayBtn = bigWrap ? bigWrap.querySelector('.sl-aplay-btn') : null;
-      const bigCurEl = bigWrap ? bigWrap.querySelector('.sl-aplay-cur') : null;
-      const bigDurEl = bigWrap ? bigWrap.querySelector('.sl-aplay-dur') : null;
-      if (bigWrap && bigPlayBtn) {
-        const controls = document.createElement('div');
-        controls.className = 'sl-mp-big-controls';
-        bigWrap.insertBefore(controls, bigPlayBtn);
-
-        const btns = document.createElement('div');
-        btns.className = 'sl-mp-big-btns';
-        btns.insertAdjacentHTML('beforeend', '<button class="sl-mp-side-btn sl-mp-big-loop" type="button"><i class="fa-solid fa-repeat" aria-hidden="true"></i></button>');
-        btns.appendChild(bigPlayBtn);
-        btns.insertAdjacentHTML('beforeend', '<button class="sl-mp-side-btn sl-mp-big-mute" type="button"><i class="fa-solid fa-volume-high" aria-hidden="true"></i></button>');
-
-        if (bigCurEl) controls.appendChild(bigCurEl);
-        controls.appendChild(btns);
-        if (bigDurEl) controls.appendChild(bigDurEl);
-      }
-      this.bigLoopBtn = bigWrap ? bigWrap.querySelector('.sl-mp-big-loop') : null;
-      this.bigMuteBtn = bigWrap ? bigWrap.querySelector('.sl-mp-big-mute') : null;
-      if (this.bigLoopBtn) this.bigLoopBtn.onclick = () => this.toggleLoop();
-      if (this.bigMuteBtn) this.bigMuteBtn.onclick = () => this.toggleMute();
+      this.knownDurs = new Map(wraps.map(w => [w.querySelector('audio'), (w.querySelector('.sl-aplay-dur') || {}).textContent || '']));
+      this.bigCtls = wraps.filter(w => w.classList.contains('sl-aplay-lg')).map(w => this.enhanceBigPlayer(w)).filter(Boolean);
 
       const isNewSpot = spot.num !== this.lastNum;
       this.lastNum = spot.num;
@@ -317,6 +295,36 @@
 
       this.onAudioChanged();
       this.hideMini();
+    }
+
+    // 故事區的大播放器（.sl-aplay-lg）是電腦版跟手機全卡共用的同一顆，核心 audioPlayerHtml()
+    // 沒有循環／靜音鍵，時間跟播放鍵各自佔一列太鬆。這裡把時間搬進按鈕列兩端（時間仍左右
+    // 分居），按鈕居中一組，進度條獨立一列在下面；.sl-aplay-time 淨空後隱藏。只搬動既有節點＋
+    // 插入新按鈕，核心 wireAudioPlayer() 靠 class 選取＋事件監聽都不受影響。
+    enhanceBigPlayer(wrap) {
+      const audio = wrap.querySelector('audio');
+      const playBtn = wrap.querySelector('.sl-aplay-btn');
+      if (!audio || !playBtn) return null;
+      const controls = document.createElement('div');
+      controls.className = 'sl-mp-big-controls';
+      wrap.insertBefore(controls, playBtn);
+
+      const btns = document.createElement('div');
+      btns.className = 'sl-mp-big-btns';
+      btns.insertAdjacentHTML('beforeend', '<button class="sl-mp-side-btn sl-mp-big-loop" type="button"><i class="fa-solid fa-repeat" aria-hidden="true"></i></button>');
+      btns.appendChild(playBtn);
+      btns.insertAdjacentHTML('beforeend', '<button class="sl-mp-side-btn sl-mp-big-mute" type="button"><i class="fa-solid fa-volume-high" aria-hidden="true"></i></button>');
+
+      const curEl = wrap.querySelector('.sl-aplay-cur');
+      const durEl = wrap.querySelector('.sl-aplay-dur');
+      if (curEl) controls.appendChild(curEl);
+      controls.appendChild(btns);
+      if (durEl) controls.appendChild(durEl);
+
+      const ctl = { audio, loopBtn: btns.querySelector('.sl-mp-big-loop'), muteBtn: btns.querySelector('.sl-mp-big-mute') };
+      ctl.loopBtn.onclick = () => this.toggleLoop(audio);
+      ctl.muteBtn.onclick = () => this.toggleMute(audio);
+      return ctl;
     }
 
     onPanelReset() {
@@ -452,35 +460,44 @@
       if (a.paused) a.play().catch(() => {}); else a.pause();
     }
 
-    // 循環／靜音只作用在中卡（迷你列本來就沒有這兩顆鍵），狀態直接讀寫同一顆 <audio>，
-    // 不另外存一份旗標——renderEntries() 每次都重建 <audio>，換點位時自然重置回預設值。
-    toggleLoop() {
-      const a = this.audioEl;
+    // 循環／靜音的狀態直接讀寫 <audio> 本身，不另外存旗標——renderEntries() 每次都重建 <audio>，
+    // 換點位時自然重置回預設值。中卡的按鈕作用在 this.audioEl，大播放器的按鈕作用在自己那一顆。
+    toggleLoop(a) {
+      a = a || this.audioEl;
       if (!a) return;
       a.loop = !a.loop;
-      this.syncLoopIcon(a.loop);
+      this.syncLoopIcon();
     }
 
-    toggleMute() {
-      const a = this.audioEl;
+    toggleMute(a) {
+      a = a || this.audioEl;
       if (!a) return;
       a.muted = !a.muted;
-      this.syncMuteIcon(a.muted);
+      this.syncMuteIcon();
     }
 
     onAudioChanged() {
+      this.syncAll();
+      const onlyCurrent = (el, fn) => () => { if (el === this.audioEl) fn(); };
+      this.audios.forEach(el => {
+        el.addEventListener('play', () => {
+          this.audios.forEach(o => { if (o !== el && !o.paused) o.pause(); });
+          this.audioEl = el;
+          this.syncAll();
+        });
+        el.addEventListener('pause', onlyCurrent(el, () => this.syncPlayIcon(false)));
+        el.addEventListener('ended', onlyCurrent(el, () => this.syncPlayIcon(false)));
+        el.addEventListener('timeupdate', onlyCurrent(el, () => this.syncProgress()));
+        el.addEventListener('loadedmetadata', onlyCurrent(el, () => this.syncProgress()));
+      });
+    }
+
+    syncAll() {
       const a = this.audioEl;
       this.syncPlayIcon(!!a && !a.paused);
-      this.syncLoopIcon(!!a && a.loop);
-      this.syncMuteIcon(!!a && a.muted);
-      this.syncInvite(!!a);
+      this.syncLoopIcon();
+      this.syncMuteIcon();
       this.syncProgress();
-      if (!a) return;
-      a.addEventListener('play', () => { this.syncPlayIcon(true); this.syncInvite(false); });
-      a.addEventListener('pause', () => this.syncPlayIcon(false));
-      a.addEventListener('ended', () => this.syncPlayIcon(false));
-      a.addEventListener('timeupdate', () => this.syncProgress());
-      a.addEventListener('loadedmetadata', () => this.syncProgress());
     }
 
     syncPlayIcon(playing) {
@@ -489,35 +506,31 @@
       this.miniBtn.querySelector('i').className = cls;
     }
 
-    // 邀請點擊脈衝（spot-panel.css .sl-invite）：每次換點位／renderEntries() 都是全新的
-    // <audio>，一律先當作沒播過；一按下播放（見上面 play 監聽）就整個頁面生命週期內不再回來。
-    syncInvite(on) {
-      this.mediumBtn.classList.toggle('sl-invite', on);
-      this.miniBtn.classList.toggle('sl-invite', on);
-    }
-
-    syncLoopIcon(on) {
-      const label = t(on ? 'loop_off_btn' : 'loop_on_btn');
-      [this.mediumLoopBtn, this.bigLoopBtn].forEach(btn => {
+    syncLoopIcon() {
+      const paint = (btn, on) => {
         if (!btn) return;
+        const label = t(on ? 'loop_off_btn' : 'loop_on_btn');
         btn.classList.toggle('on', on);
         btn.title = label;
         btn.setAttribute('aria-label', label);
         btn.setAttribute('aria-pressed', String(on));
-      });
+      };
+      paint(this.mediumLoopBtn, !!this.audioEl && this.audioEl.loop);
+      this.bigCtls.forEach(c => paint(c.loopBtn, c.audio.loop));
     }
 
-    syncMuteIcon(on) {
-      const label = t(on ? 'mute_off_btn' : 'mute_on_btn');
-      const iconCls = 'fa-solid ' + (on ? 'fa-volume-xmark' : 'fa-volume-high');
-      [this.mediumMuteBtn, this.bigMuteBtn].forEach(btn => {
+    syncMuteIcon() {
+      const paint = (btn, on) => {
         if (!btn) return;
+        const label = t(on ? 'mute_off_btn' : 'mute_on_btn');
         btn.classList.toggle('on', on);
         btn.title = label;
         btn.setAttribute('aria-label', label);
         btn.setAttribute('aria-pressed', String(on));
-        btn.querySelector('i').className = iconCls;
-      });
+        btn.querySelector('i').className = 'fa-solid ' + (on ? 'fa-volume-xmark' : 'fa-volume-high');
+      };
+      paint(this.mediumMuteBtn, !!this.audioEl && this.audioEl.muted);
+      this.bigCtls.forEach(c => paint(c.muteBtn, c.audio.muted));
     }
 
     syncProgress() {
@@ -526,7 +539,7 @@
       this.mediumFill.style.width = pct + '%';
       this.miniFill.style.width = pct + '%';
       this.mediumCur.textContent = a ? this.mapApp.fmtDur(a.currentTime) : '0:00';
-      this.mediumDur.textContent = (a && a.duration) ? this.mapApp.fmtDur(a.duration) : this.knownDurText;
+      this.mediumDur.textContent = (a && a.duration) ? this.mapApp.fmtDur(a.duration) : (this.knownDurs.get(a) || '');
       const dur = (a && a.duration) ? a.duration : 0;
       const cur = a ? a.currentTime : 0;
       const valuetext = (a && a.duration)

@@ -2,9 +2,10 @@
 // 編輯自己（或管理者可管理的）投稿：只能改文字/關聯地點/定位，不能換檔案本身（照片、影片、音訊皆同）。
 // POST project, edit_of(原始投稿 id), item_num(可留空), comment, source_url, lat, lon, loc_source, name, owner 或 ctoken（需與原投稿相符，或具管理權限）。
 // 比照「故事」的版本化精神：不覆寫舊資料，而是新增一筆引用原始 id 的版本紀錄；原始紀錄與所有舊版本永久保留。
-require __DIR__ . '/store.php';
-require __DIR__ . '/security.php';
-require __DIR__ . '/features.php';
+require_once __DIR__ . '/store.php';
+require_once __DIR__ . '/security.php';
+require_once __DIR__ . '/contribgate.php';
+require_once __DIR__ . '/features.php';
 $cfg = require __DIR__ . '/config.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -16,19 +17,6 @@ $project = preg_replace('/[^a-z0-9_-]/', '', $_POST['project'] ?? '');
 $editOf  = (string)($_POST['edit_of'] ?? '');
 if ($project === '' || $editOf === '' || strlen($editOf) > 64 || !is_dir($cfg['projects_dir'] . '/' . $project)) {
     json_out(['error' => 'bad request'], 400);
-}
-
-function clean_str_ee(?string $s, int $max): ?string {
-    if ($s === null) return null;
-    $s = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F]/u', '', $s);
-    $s = trim($s);
-    if ($s === '') return null;
-    if (preg_match('/^.{0,' . $max . '}/us', $s, $m)) $s = $m[0];
-    return $s;
-}
-function num_or_null_ee($v) {
-    if ($v === null || $v === '') return null;
-    return is_numeric($v) ? (float)$v : null;
 }
 
 try {
@@ -47,45 +35,28 @@ try {
         json_out(['error' => 'not found'], 404);
     }
 
-    // 權限：原投稿者本人（owner 或 ctoken 相符）或管理者（主 PIN 或此專案 PIN）
-    $owner  = (string)($_POST['owner'] ?? '');
-    $ctoken = (string)($_POST['ctoken'] ?? '');
-    $ownerStored   = (string)($orig['owner_hash'] ?? '');
-    $contribStored = (string)($orig['contrib_hash'] ?? '');
-    $ownerOk   = $owner !== '' && $ownerStored !== '' && hash_equals($ownerStored, hash('sha256', $owner));
-    $contribOk = $ctoken !== '' && $contribStored !== '' && hash_equals($contribStored, contrib_hash_of($ctoken));
-    $isAdmin   = !$ownerOk && !$contribOk && perm_check($cfg, $project, 'edit_others');
-    if (!$ownerOk && !$contribOk && !$isAdmin) {
-        json_out(['error' => '沒有權限編輯這則（只有原投稿者本人或管理者可以）'], 403);
-    }
-    // CSRF：owner／ctoken 是跨站讀不到的 bearer 秘密，本身就有等同 CSRF token 的防偽效果，不需再檢查；
-    // 但管理者是靠 cookie 驗證，跨站請求會自動夾帶 cookie，比照 editspot.php 另加一道 CSRF 驗證。
-    if ($isAdmin) {
-        $isPrimary = primary_authed($cfg);
-        $acctCsrf = $isPrimary ? null : account_current($cfg);
-        $csrfExpected = $isPrimary
-            ? primary_derived($cfg)
-            : ($acctCsrf !== null ? account_derived($cfg, (string)$acctCsrf['id']) : pin_derived($cfg, $project, (string)pin_current_id($cfg, $project)));
-        if (!hash_equals($csrfExpected, (string)($_POST['csrf'] ?? ''))) {
-            json_out(['error' => '憑證失效，請重新整理頁面後再操作一次'], 403);
-        }
+    // 權限：原投稿者本人（owner 或 ctoken 相符）不需 CSRF（bearer 秘密本身跨站讀不到）；
+    // 否則要有 edit_others，並照 Auth::require 的規則驗 CSRF（cookie 身分跨站會自動夾帶）。
+    $who = Contributor::fromRequest();
+    if (!$who->owns($orig)) {
+        Auth::require($cfg, $project, 'edit_others', true, '沒有權限編輯這則（只有原投稿者本人或管理者可以）');
     }
 
-    $comment    = clean_str_ee($_POST['comment'] ?? null, $cfg['comment_max']);
-    $source_url = clean_str_ee($_POST['source_url'] ?? null, 500);
+    $comment    = clean_str($_POST['comment'] ?? null, $cfg['comment_max']);
+    $source_url = clean_str($_POST['source_url'] ?? null, 500);
     if ($source_url !== null && (!preg_match('#^https?://#i', $source_url) || filter_var($source_url, FILTER_VALIDATE_URL) === false)) {
         $source_url = null;
     }
     $item_num   = (isset($_POST['item_num']) && $_POST['item_num'] !== '') ? (int)$_POST['item_num'] : null;
-    $lat        = num_or_null_ee($_POST['lat'] ?? null);
-    $lon        = num_or_null_ee($_POST['lon'] ?? null);
-    $loc_source = clean_str_ee($_POST['loc_source'] ?? null, 16) ?? 'manual';
+    $lat        = num_or_null($_POST['lat'] ?? null);
+    $lon        = num_or_null($_POST['lon'] ?? null);
+    $loc_source = clean_str($_POST['loc_source'] ?? null, 16) ?? 'manual';
     if ($lat !== null && ($lat < -90 || $lat > 90)) $lat = null;
     if ($lon !== null && ($lon < -180 || $lon > 180)) $lon = null;
 
-    $editorName  = clean_str_ee($_POST['name'] ?? null, $cfg['name_max']) ?? '匿名';
-    $contribId   = $ctoken !== '' ? contrib_id_of($ctoken) : null;
-    $contribHash = $ctoken !== '' ? contrib_hash_of($ctoken) : null;
+    $editorName  = clean_str($_POST['name'] ?? null, $cfg['name_max']) ?? '匿名';
+    $contribId   = $who->contribId();
+    $contribHash = $who->contribHash();
     $srcHash     = !empty($cfg['log_src']) ? substr(hash('sha256', ($cfg['ip_salt'] ?? '') . '|' . client_ip($cfg)), 0, 16) : null;
 
     $record = [
@@ -106,7 +77,7 @@ try {
         'lon'          => $lon,
         'loc_source'   => $loc_source,
         'exif'         => $orig['exif'] ?? null,  // 相機資訊是拍攝當下的不變事實，跟 photo_time 一樣要沿用原始值，不能因為編輯就清空
-        'owner_hash'   => $owner !== '' ? hash('sha256', $owner) : null,
+        'owner_hash'   => $who->ownerHash(),
         'src_hash'     => $srcHash,
         'contrib_id'   => $contribId,
         'contrib_hash' => $contribHash,

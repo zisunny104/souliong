@@ -309,6 +309,7 @@
           '<input type="text" class="c-name" placeholder="' + anon + '">' +
           kind.extraTopHtml() +
           '<textarea class="c-cmt" placeholder="' + esc(t(kind.key === 'newspot' ? 'newspot_story_placeholder' : 'write_something_placeholder')) + '"></textarea>' +
+          kind.extraBottomHtml() +
           (kind.needsSpot()
             ? '<label class="c-lab">' + esc(t('related_spot_label_multi')) + '</label>' +
               '<div class="row"><select class="c-spot"></select><button class="btn small c-nearest" type="button">' + esc(t('nearest_btn')) + '</button></div>'

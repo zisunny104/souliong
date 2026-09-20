@@ -1,14 +1,10 @@
 <?php
-// 編輯點位本身的座標：預設僅限主要管理者；主 PIN 可個別開啟特定專案 PIN 的 edit_spots 權限。
-// 點位不論是原本來自靜態底稿（api/spotmigrate.php 併入 spots.jsonl 的官方/共享資料，無個別投稿者）
-// 還是 newspot.php 建立的動態點位，此刻都已是 spots.jsonl 裡同一種起點記錄（一定有 num），因此不比照
-// editentry.php 驗證 owner/ctoken，而是單純以 Auth::require('edit_spots') 把關。
-// 比照「故事」的版本化精神：不覆寫起點，而是新增一筆 kind:'spot' 版本紀錄，帶 edit_of 指回這個點位的
-// 起點記錄 id。前端讀取時把同一條 edit_of 鏈的最新一筆疊加到起點原始狀態上（見 api/spotlib.php 的
-// spot_effective()，viewer.core.js 的 effectiveSpots() 是同一套算法的前端版本）。
-// 可覆寫欄位（lat/lon/content，見 spot_overridable_fields()）採 merge-forward：伺服器先算出
-// 目前有效狀態，只疊上這次請求裡「真的有送」的欄位（這支只改 lat/lon），沒送的欄位（content）沿用舊值。
-// POST project, item_num（必填，對應起點的 num）, lat, lon, name(可留空)。
+// 編輯點位本身的座標。權限是點位軸的 edit_spots（含 CSRF），預設僅限主要管理者，可個別授權給專案管理者。
+// 點位不論來自靜態底稿（api/spotmigrate.php 併入的官方資料）還是 newspot.php 建立的動態點位，此刻都是
+// spots.jsonl 裡同一種起點紀錄（一定有 num），因此不比照 editentry.php 驗 owner/ctoken。
+// 不覆寫起點，而是新增一筆 kind:'spot' 版本紀錄（spot_append_version()），edit_of 指回起點紀錄 id；
+// 版本紀錄是稀疏的，這支只寫 lat、lon，content 不動（疊加規則見 spot_effective()）。
+// POST project, item_num（必填，起點的 num）, lat, lon, csrf, name（選填）。
 require_once __DIR__ . '/store.php';
 require_once __DIR__ . '/security.php';
 require_once __DIR__ . '/spotlib.php';
@@ -24,21 +20,11 @@ if ($project === '' || !is_dir($cfg['projects_dir'] . '/' . $project)) {
     json_out(['error' => 'bad request'], 400);
 }
 
-// 權限與 CSRF 同一道關卡（api/auth.php）：先具備 edit_spots，再比對這個身分在 view.php 拿到的 APP.csrf。
-Auth::require($cfg, $project, 'edit_spots', true, '沒有權限編輯定位點（僅限主要管理者，或已被授權的專案管理者）');
-
-function clean_str_es(?string $s, int $max): ?string {
-    if ($s === null) return null;
-    $s = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F]/u', '', $s);
-    $s = trim($s);
-    if ($s === '') return null;
-    if (preg_match('/^.{0,' . $max . '}/us', $s, $m)) $s = $m[0];
-    return $s;
-}
+$actor = Auth::require($cfg, $project, 'edit_spots', true, '沒有權限編輯定位點（僅限主要管理者，或已被授權的專案管理者）');
 
 $item_num = (isset($_POST['item_num']) && $_POST['item_num'] !== '') ? (int)$_POST['item_num'] : null;
-$lat      = is_numeric($_POST['lat'] ?? null) ? (float)$_POST['lat'] : null;
-$lon      = is_numeric($_POST['lon'] ?? null) ? (float)$_POST['lon'] : null;
+$lat      = num_or_null($_POST['lat'] ?? null);
+$lon      = num_or_null($_POST['lon'] ?? null);
 if ($item_num === null || $lat === null || $lon === null || $lat < -90 || $lat > 90 || $lon < -180 || $lon > 180) {
     json_out(['error' => 'bad request'], 400);
 }
@@ -48,25 +34,8 @@ try {
     if ($eff === null) {
         json_out(['error' => '找不到這個點位'], 404);
     }
-
-    $editorName = clean_str_es($_POST['name'] ?? null, $cfg['name_max']) ?? '管理者';
-
-    $fields = spot_merge_forward($eff, ['lat' => $lat, 'lon' => $lon]);
-
-    $record = [
-        'id'         => bin2hex(random_bytes(8)),
-        'project'    => $project,
-        'kind'       => 'spot',
-        'item_num'   => $item_num,
-        'edit_of'    => (string)$eff['id'],
-        'name'       => $editorName,
-        'lat'        => $fields['lat'],
-        'lon'        => $fields['lon'],
-        'content'    => $fields['content'],
-        'created_at' => gmdate('c'),
-    ];
-    store_append($cfg, $project, $record);
-
+    $name   = clean_str($_POST['name'] ?? null, $cfg['name_max']) ?? '管理者';
+    $record = spot_append_version($cfg, $project, $eff, ['lat' => $lat, 'lon' => $lon], $actor->audit(), $name);
     json_out(['ok' => true, 'item' => $record]);
 } catch (Throwable $e) {
     error_log('souliong editspot: ' . $e->getMessage());

@@ -11,9 +11,9 @@
  * meta.json 的 cover 區塊。實際的存檔／meta 寫入邏輯在 api/coverlib.php，後台「封面圖片」
  * 對話框的手動上傳／重設（api/manager.php）走同一套。
  */
-require __DIR__ . '/store.php';
-require __DIR__ . '/security.php';
-require __DIR__ . '/coverlib.php';
+require_once __DIR__ . '/store.php';
+require_once __DIR__ . '/security.php';
+require_once __DIR__ . '/coverlib.php';
 $cfg = require __DIR__ . '/config.php';
 
 $project = preg_replace('/[^a-z0-9_-]/', '', $_GET['project'] ?? $_POST['project'] ?? '');
@@ -42,20 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 rate_limit($cfg, 'manage');
 
-if (!perm_check($cfg, $project, 'edit_meta')) {
-    json_out(['error' => '沒有權限管理這張地圖的封面圖片'], 403);
-}
-
-// CSRF：三種登入身分（主 PIN／帳號／專案 PIN）各自對應的衍生值，跟 pages/view.php 輸出給前端的
-// APP.csrf 用同一套算法，否則其中一種身分送出的請求會被誤判失效（見該檔開頭的三選一說明）。
-$isPrimary = primary_authed($cfg);
-$acctCsrf = $isPrimary ? null : account_current($cfg);
-$csrfExpected = $isPrimary
-    ? primary_derived($cfg)
-    : ($acctCsrf !== null ? account_derived($cfg, (string)$acctCsrf['id']) : pin_derived($cfg, $project, (string)pin_current_id($cfg, $project)));
-if (!hash_equals($csrfExpected, (string)($_POST['csrf'] ?? ''))) {
-    json_out(['error' => '憑證失效，請重新整理頁面後再操作一次'], 403);
-}
+Auth::require($cfg, $project, 'edit_meta', true, '沒有權限管理這張地圖的封面圖片');
 
 $meta = is_file($mf) ? json_decode((string)@file_get_contents($mf), true) : [];
 if (!is_array($meta)) $meta = [];

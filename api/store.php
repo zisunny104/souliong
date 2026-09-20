@@ -311,6 +311,22 @@ function souliong_storage_compute(array $cfg): array {
     return ['computed_at' => time(), 'layers' => $layers, 'packs' => $packs, 'uploads' => $uploads];
 }
 
+/** 表單字串的共用清理：去控制字元、trim、空字串回 null、以 UTF-8 字元為單位截到 $max（用 PCRE /u，不依賴 mbstring）。 */
+function clean_str(?string $s, int $max): ?string {
+    if ($s === null) return null;
+    $s = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F]/u', '', $s);
+    $s = trim($s);
+    if ($s === '') return null;
+    if (preg_match('/^.{0,' . $max . '}/us', $s, $m)) $s = $m[0];
+    return $s;
+}
+
+/** 表單數字：空值或非數字回 null。 */
+function num_or_null($v): ?float {
+    if ($v === null || $v === '') return null;
+    return is_numeric($v) ? (float)$v : null;
+}
+
 function json_out($data, int $code = 200): void {
     http_response_code($code);
     header('Content-Type: application/json; charset=utf-8');
