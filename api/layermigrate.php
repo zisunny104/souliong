@@ -20,13 +20,13 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 $backProject = preg_replace('/[^a-z0-9_-]/', '', $_GET['project'] ?? '');
 $adminUrl = $esc(Route::abs(Route::manager($backProject, 'tools')));
 
-if (!site_perm($cfg, 'manage_layers')) {
+if (!Auth::can($cfg, null, 'manage_layers')) {
     http_response_code(401);
     header('Content-Type: text/html; charset=utf-8');
     echo '<p>' . $tr('primary_login_required_msg', ['url' => $adminUrl]) . '</p>';
     exit;
 }
-$csrf = primary_derived($cfg);
+$csrf = (string)Auth::actor($cfg, null)->csrf(null);
 
 /** 這個專案目前的圖層狀態：跟 souliong_layers_for() 用同一套「有沒有非空 layers 欄位」判斷式，
  *  不能自己另外土法重猜一次，否則這裡顯示的跟頁面實際生效的圖層可能各講各的。 */
@@ -70,11 +70,7 @@ function layermigrate_freeze(array $cfg, string $proj): bool
 
 // ── 單一專案套用 ──
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'freeze') {
-    if (!hash_equals($csrf, (string)($_POST['csrf'] ?? ''))) {
-        http_response_code(403);
-        header('Content-Type: text/plain; charset=utf-8');
-        exit($tr('csrf_invalid_ajax_msg'));
-    }
+    Auth::require($cfg, null, 'manage_layers', true);
     $p = preg_replace('/[^a-z0-9_-]/', '', $_POST['project'] ?? '');
     $done = $p !== '' && layermigrate_freeze($cfg, $p);
     header('Location: ' . Route::tool('layermigrate', $backProject, ['done' => $done ? 'freeze_ok' : 'freeze_skip', 'p' => $p]));
@@ -83,11 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'freez
 
 // ── 批次套用：對所有還沒凍結的專案跑同一套邏輯，回傳處理了幾個 ──
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'freeze_all') {
-    if (!hash_equals($csrf, (string)($_POST['csrf'] ?? ''))) {
-        http_response_code(403);
-        header('Content-Type: text/plain; charset=utf-8');
-        exit($tr('csrf_invalid_ajax_msg'));
-    }
+    Auth::require($cfg, null, 'manage_layers', true);
     $n = 0;
     foreach (store_projects($cfg) as $p) {
         if (layermigrate_freeze($cfg, $p)) $n++;

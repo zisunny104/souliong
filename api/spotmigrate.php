@@ -17,19 +17,17 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 $backProject = preg_replace('/[^a-z0-9_-]/', '', $_GET['project'] ?? '');
 $adminUrl = $esc(Route::abs(Route::manager($backProject, 'tools')));
 
-if (!site_perm($cfg, 'migrate_spots')) {
+if (!Auth::can($cfg, null, 'migrate_spots')) {
     http_response_code(401);
     header('Content-Type: text/html; charset=utf-8');
     echo '<p>' . $tr('primary_login_required_msg', ['url' => $adminUrl]) . '</p>';
     exit;
 }
-$csrf = primary_derived($cfg);
+$csrf = (string)Auth::actor($cfg, null)->csrf(null);
 
 // ── 單一專案執行遷移（POST，JSON 回應）──
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'migrate') {
-    if (!hash_equals($csrf, (string)($_POST['csrf'] ?? ''))) {
-        json_out(['error' => $tr('csrf_invalid_ajax_msg')], 403);
-    }
+    Auth::require($cfg, null, 'migrate_spots', true);
     $project = preg_replace('/[^a-z0-9_-]/', '', $_POST['project'] ?? '');
     if ($project === '' || !is_dir($cfg['projects_dir'] . '/' . $project)) {
         json_out(['error' => 'bad project'], 400);

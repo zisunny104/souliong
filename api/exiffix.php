@@ -24,13 +24,13 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 $backProject = preg_replace('/[^a-z0-9_-]/', '', $_GET['project'] ?? '');
 $adminUrl = $esc(Route::abs(Route::manager($backProject, 'tools')));
 
-if (!site_perm($cfg, 'fix_exif')) {
+if (!Auth::can($cfg, null, 'fix_exif')) {
     http_response_code(401);
     header('Content-Type: text/html; charset=utf-8');
     echo '<p>' . $tr('primary_login_required_msg', ['url' => $adminUrl]) . '</p>';
     exit;
 }
-$csrf = primary_derived($cfg);
+$csrf = (string)Auth::actor($cfg, null)->csrf(null);
 
 function exiffix_dist_m(float $lat1, float $lon1, float $lat2, float $lon2): float {
     $R = 6371000;
@@ -51,9 +51,7 @@ function exiffix_clean_str(?string $s, int $max): ?string {
 // 編輯版本（edit_of 指向原始投稿 id）自己的 exif 若是空的，而它指向的原始投稿有 exif，直接複製過去。
 // 這是最主要的修復路徑：多數「編輯後相機資訊不見」的案例，資料本來就沒真的丟，只是編輯版本自己那筆沒有而已。
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'autofix') {
-    if (!hash_equals($csrf, (string)($_POST['csrf'] ?? ''))) {
-        json_out(['error' => $tr('csrf_invalid_ajax_msg')], 403);
-    }
+    Auth::require($cfg, null, 'fix_exif', true);
     $project = preg_replace('/[^a-z0-9_-]/', '', $_POST['project'] ?? '');
     if ($project === '' || !is_dir($cfg['projects_dir'] . '/' . $project)) {
         json_out(['error' => 'bad project'], 400);
@@ -84,9 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'autof
 
 // ── 方式二：上傳原始檔比對並修補（POST，JSON 回應） ──
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'match') {
-    if (!hash_equals($csrf, (string)($_POST['csrf'] ?? ''))) {
-        json_out(['error' => $tr('csrf_invalid_ajax_msg')], 403);
-    }
+    Auth::require($cfg, null, 'fix_exif', true);
     $project = preg_replace('/[^a-z0-9_-]/', '', $_POST['project'] ?? '');
     if ($project === '' || !is_dir($cfg['projects_dir'] . '/' . $project)) {
         json_out(['error' => 'bad project'], 400);

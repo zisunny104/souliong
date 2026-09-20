@@ -18,13 +18,13 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 $backProject = preg_replace('/[^a-z0-9_-]/', '', $_GET['project'] ?? '');
 $adminUrl = $esc(Route::abs(Route::manager($backProject, 'tools')));
 
-if (!site_perm($cfg, 'fix_thumbnails')) {
+if (!Auth::can($cfg, null, 'fix_thumbnails')) {
     http_response_code(401);
     header('Content-Type: text/html; charset=utf-8');
     echo '<p>' . $tr('primary_login_required_msg', ['url' => $adminUrl]) . '</p>';
     exit;
 }
-$csrf = primary_derived($cfg);
+$csrf = (string)Auth::actor($cfg, null)->csrf(null);
 
 /** 這個專案裡「有照片、還沒有縮圖」的原始投稿（編輯版本 photo 為 null，天然不在名單裡） */
 function thumbfix_missing(array $cfg, array $dict, string $project): array {
@@ -49,9 +49,7 @@ function thumbfix_missing(array $cfg, array $dict, string $project): array {
 
 // ── 待補名單（POST，JSON 回應） ──
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'list') {
-    if (!hash_equals($csrf, (string)($_POST['csrf'] ?? ''))) {
-        json_out(['error' => $tr('csrf_invalid_ajax_msg')], 403);
-    }
+    Auth::require($cfg, null, 'fix_thumbnails', true);
     $project = preg_replace('/[^a-z0-9_-]/', '', $_POST['project'] ?? '');
     if ($project === '' || !is_dir($cfg['projects_dir'] . '/' . $project)) {
         json_out(['error' => 'bad project'], 400);
@@ -61,9 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'list'
 
 // ── 存回單張縮圖（POST，JSON 回應） ──
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save') {
-    if (!hash_equals($csrf, (string)($_POST['csrf'] ?? ''))) {
-        json_out(['error' => $tr('csrf_invalid_ajax_msg')], 403);
-    }
+    Auth::require($cfg, null, 'fix_thumbnails', true);
     $project = preg_replace('/[^a-z0-9_-]/', '', $_POST['project'] ?? '');
     $id = (string)($_POST['id'] ?? '');
     if ($project === '' || $id === '' || strlen($id) > 64 || !is_dir($cfg['projects_dir'] . '/' . $project)) {
