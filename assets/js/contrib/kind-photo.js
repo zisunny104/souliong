@@ -44,6 +44,13 @@
     return await new Promise(r => cv.toBlob(r, 'image/webp', q));
   }
 
+  // 點位內容編輯的照片區塊借用（不依賴投稿殼）
+  window.SLPhotoTools = {
+    acceptAttr: () => 'image/*,.heic,.heif',
+    accepts: (file) => /^image\//i.test(file.type) || /\.(jpe?g|png|webp|heic|heif|gif|bmp|tiff?)$/i.test(file.name),
+    toWebp,
+  };
+
   class PhotoKind extends Kind {
     get key() { return 'photo'; }
     get tab() { return 'media'; }

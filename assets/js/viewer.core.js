@@ -994,6 +994,20 @@ window.MapApp = (() => {
     summary: (c) => String(c.comment || ''),
     wire: (el, spot) => wireAudioPlayer(el, spot.num),
   });
+  // 照片：縮圖用伺服器附的 thumb_url，點擊用 photo_url 走現有燈箱（燈箱吃投稿形狀的資料，這裡補上署名與時間）
+  registerSpotContent('photo', {
+    valid: (c) => !!c.photo,
+    bodyHtml: (c) => '<div class="story-body"><button type="button" class="sc-photo-open"><img class="sc-photo-img" loading="lazy" src="' +
+      esc(c.thumb_url || photoThumbUrl(c)) + '" alt="' + esc(c.comment || '') + '"></button>' +
+      (c.comment ? '<div class="story-caption">' + esc(c.comment) + '</div>' : '') + '</div>',
+    footHtml: (c) => sourceLineHtml(c),
+    summary: (c) => String(c.comment || ''),
+    wire: (el, spot, item) => {
+      const vs = spot.contentVersions || [], last = vs[vs.length - 1] || {};
+      el.querySelector('.sc-photo-open').onclick = () =>
+        openLightbox({ kind: 'photo', spotBlock: true, item_num: spot.num, photo: item.photo, thumb: item.thumb, comment: item.comment, name: last.name, created_at: last.created_at }, item.photo_url || photoFullUrl(item));
+    },
+  });
   // 說明區只署名一次：最新一個內容版本的編輯者與時間（內容是整體編輯，沒有各區塊各自的作者）
   function contentBylineHtml(spot) {
     const vs = spot.contentVersions || [];
@@ -1031,6 +1045,7 @@ window.MapApp = (() => {
       el.innerHTML = def.bodyHtml(item, current) + (def.footHtml ? def.footHtml(item, current) : '');
       list.appendChild(el);
       if (def.wire) def.wire(el, current, item);
+      if (!EMBED && item.kind === 'audio' && item.id) el.appendChild(blockLinkButton(current.num, item.id));
     });
     box.appendChild(story);
     const hb = story.querySelector('#histBtn'); if (hb) hb.onclick = () => toggleHistory(versions);
@@ -1070,6 +1085,20 @@ window.MapApp = (() => {
       gwrap.appendChild(d);
     });
     box.appendChild(gwrap);
+  }
+  // 聲音區塊的分享連結：?spot=<num>&block=<id>，進站時由 boot() 展開點位並標出這個聲音。
+  // 網址形式沿用 share-link 插件（origin + base + 專案 ID），這裡不依賴該插件。
+  function blockLinkButton(num, blockId) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'btn small sc-block-link';
+    b.innerHTML = '<i class="fa-solid fa-link"></i> ' + esc(t('copy_link'));
+    b.onclick = async () => {
+      const url = location.origin + window.APP.base + PROJECT + '?spot=' + encodeURIComponent(num) + '&block=' + encodeURIComponent(blockId);
+      try { await navigator.clipboard.writeText(url); } catch (e) { }
+      b.innerHTML = '<i class="fa-solid fa-check"></i> ' + esc(t('copied'));
+      setTimeout(() => { b.innerHTML = '<i class="fa-solid fa-link"></i> ' + esc(t('copy_link')); }, 2000);
+    };
+    return b;
   }
   // 卡片牆的預覽區。`.sl-open` 是「點了會開燈箱」的標記，只有需要放大／播放的型別才給。
   function entryPreviewHtml(e, alt) {
@@ -1260,11 +1289,12 @@ window.MapApp = (() => {
   }
 
   // 說明區的內容版本歷史：versions 是 effectiveSpots() 算出的 contentVersions（舊到新），這裡新到舊列出
-  // （時間、編輯者、區塊數、文字預覽），先不做還原。
+  // （時間、編輯者、區塊數、文字預覽）；有編輯器插件時每個舊版本多一個「還原此版本」，還原只是載入成草稿。
   function toggleHistory(versions) {
     const el = document.getElementById('descHistory');
     if (el.style.display !== 'none') { el.style.display = 'none'; el.innerHTML = ''; return; }
     el.style.display = 'block';
+    const canRestore = !EMBED && can('edit_spots') && window.SLContentEditor && window.SLContentEditor.restore;
     const preview = (blocks) => {
       // 文字區塊的內容優先當預覽，沒有文字才退回其他區塊的說明文字
       const first = blocks.slice().sort((a, b) => (b.kind === 'text') - (a.kind === 'text'))
@@ -1276,7 +1306,12 @@ window.MapApp = (() => {
         '<div class="hist-item"><div class="hist-meta">' + (i === 0 ? '<b>' + esc(t('latest_tag')) + '</b>・' : '') +
         esc(v.name || t('anon_fallback')) + '・' + fmtTime(v.created_at) + '・' + esc(t('content_blocks_count', { n: v.blocks.length })) +
         (v.baseline ? esc(t('original_submission_tag')) : '') + '</div>' +
-        '<div class="hist-txt">' + preview(v.blocks) + '</div></div>').join('');
+        '<div class="hist-txt">' + preview(v.blocks) + '</div>' +
+        (i > 0 && canRestore ? '<button class="btn small sc-restore" type="button" data-i="' + i + '">' + esc(t('content_history_restore_btn')) + '</button>' : '') +
+        '</div>').join('');
+    el.querySelectorAll('.sc-restore').forEach(b => {
+      b.onclick = () => window.SLContentEditor.restore(current, versions.slice().reverse()[+b.dataset.i].blocks);
+    });
   }
   /* ---------- lightbox ---------- */
   // 單張的「i」資訊內容：相機 EXIF（機身/鏡頭/光圈/快門/焦段/ISO）、拍攝時間、座標與定位來源
@@ -1337,7 +1372,7 @@ window.MapApp = (() => {
     const who = esc(e.name || t('anon_fallback')) + ' ・ ' + fmtTime(e.photo_time || e.created_at) +
       ' <button class="lb-info-i" type="button" id="lbInfoBtn" title="' + esc(t('photo_info_title')) + '" aria-label="' + esc(t('photo_info_title')) + '"><i class="fa-solid fa-circle-info" aria-hidden="true"></i></button>';
     const txt = e.comment ? '<div class="lb-txt">' + esc(e.comment) + '</div>' : '';
-    const canEdit = canEditEntry(e);
+    const canEdit = !e.spotBlock && canEditEntry(e);   // 說明區的照片區塊不是投稿，沒有可編輯的投稿紀錄
     const actions =
       (canEdit ? '<button class="btn small" type="button" id="lbEditBtn"><i class="fa-solid fa-pen"></i> ' + esc(t('edit')) + '</button>' : '') +
       (!EMBED && isMine(e) ? '<button class="btn small danger" type="button" id="lbDelBtn"><i class="fa-solid fa-trash"></i> ' + esc(t('delete')) + '</button>' : '');
@@ -1698,11 +1733,23 @@ window.MapApp = (() => {
     const urlSpot = params.get('spot');
     if (urlSpot) {
       const pt = effectiveSpots().find(p => p.num === +urlSpot);
-      if (pt) { openPanel(pt); engine.panTo(pt.lat, pt.lon, { animate: true }); }
+      if (pt) {
+        openPanel(pt); engine.panTo(pt.lat, pt.lon, { animate: true });
+        const urlBlock = params.get('block');
+        if (urlBlock) focusBlock(urlBlock);
+      }
     }
 
     statVisit();                 // 匿名累加瀏覽 / 工作階段 / 裝置別
     hideSkeleton();
+  }
+  // ?block=<id>：捲到該說明區塊，聲音就邀請點擊播放（播放後由播放器自己拿掉脈衝）
+  function focusBlock(id) {
+    const el = [...document.querySelectorAll('#entries .sc-block')].find(x => x.dataset.blockId === id);
+    if (!el) return;
+    const play = el.querySelector('.sl-play-btn');
+    if (play) play.classList.add('sl-invite');
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }
   function hideSkeleton() {
     const sk = document.getElementById('skeleton');
@@ -1900,7 +1947,7 @@ window.MapApp = (() => {
     rerollAnon, identityChipClick,
     spotOptionsHtml, nearestSpot, locNote, srcTone, fmtTime,
     getMeta: () => META, getCats: () => CATS.slice(),
-    refreshCounts: recount, refreshAll,
+    refreshCounts: recount, refreshAll, refreshCurrentSpot, reloadContributions: loadContributions,
     Plugin: SouliongPlugin,
   };
 })();
