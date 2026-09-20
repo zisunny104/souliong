@@ -100,7 +100,7 @@ try {
             $isPhoto  = ($kind === 'photo');
             $maxBytes = (int)($cfg['max_bytes_' . $kind] ?? $kindDef['max_bytes'] ?? $cfg['max_bytes']);
             $mimes    = ($isPhoto && !empty($cfg['allowed_mime'])) ? $cfg['allowed_mime'] : ($kindDef['mimes'] ?? []);
-            $saved    = uploadlib_store_file($cfg, $project, $_FILES[$field], $isPhoto ? 'photos' : 'media', $mimes, $maxBytes);
+            $saved    = uploadlib_store_file($cfg, $project, $_FILES[$field], $isPhoto ? 'photos' : 'media', $mimes, $maxBytes, null, $kind);
             $duration = is_numeric($in['duration'] ?? null) ? round((float)$in['duration'], 2) : null;
             if ($duration !== null && ($duration <= 0 || $duration > 86400)) $duration = null;
             $sourceUrl = clean_str(isset($in['source_url']) ? (string)$in['source_url'] : null, 500);

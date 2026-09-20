@@ -97,7 +97,7 @@ if ($fileField !== null && isset($_FILES[$fileField]) && $_FILES[$fileField]['er
     $mimes = ($isPhoto && !empty($cfg['allowed_mime'])) ? $cfg['allowed_mime'] : ($kindDef['mimes'] ?? []);
     // 檔名用「內容實際的時間」（照片 EXIF／檔案修改時間），不是伺服器收到上傳的時間，方便直接依檔名辨識先後
     $shotTs = $photo_time !== null ? strtotime($photo_time) : false;
-    $saved = uploadlib_store_file($cfg, $project, $_FILES[$fileField], $isPhoto ? 'photos' : 'media', $mimes, $maxBytes, $shotTs !== false ? $shotTs : null);
+    $saved = uploadlib_store_file($cfg, $project, $_FILES[$fileField], $isPhoto ? 'photos' : 'media', $mimes, $maxBytes, $shotTs !== false ? $shotTs : null, $kind);
     $fbase = $saved['fbase'];
     $destDir = project_dir($cfg, $project) . '/' . ($isPhoto ? 'photos' : 'media');
     if ($isPhoto) { $photoRel = $saved['rel']; }
