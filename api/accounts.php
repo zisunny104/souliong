@@ -97,7 +97,7 @@ function account_current(array $cfg): ?array {
 }
 
 // ── 登入（含失敗鎖定，userid 常常等於公開暱稱、可預測，靠這個擋暴力破解）──
-function _account_default_perms(): array { return ['delete_others' => false, 'edit_others' => false, 'edit_spots' => false, 'grant_access' => false, 'edit_3d_regions' => false, 'edit_meta' => false, 'edit_layers' => false, 'manage_contrib' => false, 'export_backup' => false]; }
+function _account_default_perms(): array { return auth_perms_default(); }
 // 帳號不存在時仍跑一次 password_verify()（比對這組固定的假雜湊），耗時比照真的驗證，
 // 避免「帳號不存在」比「帳號存在但密碼錯」明顯更快，讓人用回應時間差猜中哪些 userid 有註冊。
 define('ACCOUNT_DUMMY_HASH', '$2y$10$dTLVeAjwEKpp0FwAqcPLUuP/YC2K5g4zJ/yQDyGTjXv8YDV/M9GEm');
@@ -173,28 +173,10 @@ function project_perms_load(array $cfg, string $project): array {
     $d = is_file($f) ? json_decode((string)@file_get_contents($f), true) : null;
     $d = is_array($d) ? $d : [];
     $d['members'] = $d['members'] ?? [];
-    // 舊資料 delegate_admin → grant_access、edit_points → edit_spots 改名搬遷（一次性、自我修復）
+    // 舊鍵名搬遷與缺鍵回填的規則都在註冊表（api/auth.php 的 auth_perms_migrate()），跟 pins_load() 共用
     $dirty = false;
     foreach ($d['members'] as &$m) {
-        if (isset($m['perms']) && is_array($m['perms']) && array_key_exists('delegate_admin', $m['perms']) && !array_key_exists('grant_access', $m['perms'])) {
-            $m['perms']['grant_access'] = $m['perms']['delegate_admin'];
-            unset($m['perms']['delegate_admin']);
-            $dirty = true;
-        }
-        if (isset($m['perms']) && is_array($m['perms']) && array_key_exists('edit_points', $m['perms']) && !array_key_exists('edit_spots', $m['perms'])) {
-            $m['perms']['edit_spots'] = $m['perms']['edit_points'];
-            unset($m['perms']['edit_points']);
-            $dirty = true;
-        }
-        // 同 pins_load()：新具名權限上線前就存在的帳號授權，缺鍵一律回填 true 保留現有能力
-        if (isset($m['perms']) && is_array($m['perms'])) {
-            foreach (['edit_meta', 'edit_layers', 'manage_contrib', 'export_backup'] as $gk) {
-                if (!array_key_exists($gk, $m['perms'])) {
-                    $m['perms'][$gk] = true;
-                    $dirty = true;
-                }
-            }
-        }
+        if (isset($m['perms']) && is_array($m['perms']) && auth_perms_migrate($m['perms'])) $dirty = true;
     }
     unset($m);
     if ($dirty) project_perms_save($cfg, $project, $d);

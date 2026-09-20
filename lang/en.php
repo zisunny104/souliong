@@ -488,6 +488,7 @@ return [
     'perm_edit_layers'                => 'Manage layers/packs',
     'perm_manage_contrib'             => 'Manage contributors',
     'perm_export_backup'              => 'Export project backup',
+    'perm_bypass_code'                => 'Contribute without a code',
     'invite_redeemed_tag'            => 'Redeemed from invite',
     'grant_perm_title'                => 'Grant this permission to this project PIN; off by default, only the main PIN can toggle it',
     'primary_only_pin_visible_title'  => 'Non-main administrators only see the nickname, not the PIN',

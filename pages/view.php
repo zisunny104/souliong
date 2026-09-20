@@ -13,8 +13,7 @@ $proj    = preg_replace('/[^a-z0-9_-]/', '', $_GET['p'] ?? ($cfg['default_projec
 $metaF   = __DIR__ . '/../projects/' . $proj . '/meta.json';
 $meta    = is_file($metaF) ? json_decode(file_get_contents($metaF), true) : null;
 
-// 已用管理 PIN 登入者（主 PIN 或此專案的 PIN）直接視為已解鎖投稿身分，不受投稿代碼限制
-require __DIR__ . '/../api/security.php';
+require_once __DIR__ . '/../api/security.php';   // 權限一律問 Auth（api/auth.php）：身分只解析一次，能力與 CSRF 從同一個 Actor 來
 require __DIR__ . '/../api/i18n.php';
 require __DIR__ . '/../api/features.php';
 require_once __DIR__ . '/../api/packs.php';
@@ -34,22 +33,17 @@ if ($meta && spotmigrate_needed($apiCfg, $proj)) {
 // viewer.core.js 的 effectiveSpots() 同一套判斷式。位置編輯疊加交給前端讀 CONTRIB 做，這裡只給
 // 原始起點座標。
 $spots     = $meta ? array_values(array_filter(store_all($apiCfg, $proj), fn($r) => ($r['kind'] ?? null) === 'spot' && empty($r['edit_of']) && isset($r['num']))) : [];
-$isManager = perm_can($apiCfg, $proj);
-// perm_can() 只問「這個身份對這個專案有沒有任何權限」，跟「有沒有 edit_spots 這個具體權限」是
-// 兩回事——寫入點位內容（含定位、錄音）的顯示條件要用這個，不能用籠統的 $isManager（見
-// api/spotcontent.php／api/editspot.php 的權限鏈，兩者都只認 edit_spots，不是任一種管理者）。
-$canEditSpots = perm_check($apiCfg, $proj, 'edit_spots');
+// 這個請求在這張地圖的身分：能力（APP.perms）與 CSRF 都從同一個 Actor 來。
+// isMember 只是「這個身分屬於這張地圖」的純身分，只供顯示（APP.isManager），
+// 任何動作能不能做一律看具體權限鍵（APP.perms／APP.can(key)）。
+$actor     = Auth::actor($apiCfg, $proj);
+$isManager = $actor->isMember($proj);
+$canEditSpots = $actor->can($proj, 'edit_spots');   // 過渡期保留給舊前端；新前端改用 APP.can('edit_spots')
 // 投稿開關＝有沒有還有效的投稿代碼（真正的碼在伺服器端 codes.json，前端拿不到）。
 // APP.gated 因此變成「現在有碼可解鎖」：一組都沒有時前端連解鎖鈕都不出現。
 $gated = contrib_open($apiCfg, $proj);
-// 定位點編輯（editspot.php）走的是這個公開頁面而非後台頁，因此比照 manager.php 的作法，
-// 帶一份「同源才讀得到」的 CSRF 驗證值，只在已登入管理者時計算並輸出。
-// 管理者三種登入方式都要各自對應到正確的衍生值，否則其中一種身分送出的請求會被誤判成 CSRF 失效。
-$isPrimaryAuthed = primary_authed($apiCfg);
-$acctForCsrf    = ($isManager && !$isPrimaryAuthed) ? account_current($apiCfg) : null;
-$csrfTok   = !$isManager ? null : ($isPrimaryAuthed
-    ? primary_derived($apiCfg)
-    : ($acctForCsrf !== null ? account_derived($apiCfg, (string)$acctForCsrf['id']) : pin_derived($apiCfg, $proj, (string)pin_current_id($apiCfg, $proj))));
+// 寫入類端點（Auth::require）比對的 CSRF 值：跟端點用同一個 Actor 衍生，anon 為 null。
+$csrfTok   = $actor->csrf($proj);
 [$LANG, $DICT] = i18n_init();
 $t = fn(string $key, array $vars = []): string => htmlspecialchars(i18n_t($DICT, $key, $vars), ENT_QUOTES);
 $mod = fn(string $key): bool => souliong_module_on($meta, $key);
@@ -74,7 +68,7 @@ $contribCfg = souliong_contrib_cfg($meta);
 // 前端不需要再對 contrib.kinds 過濾一次，純文字的地圖也不會載到影片抽幀那段程式碼。
 // 建立地點是權限而非型別：設成 admin 時只有已登入的管理者拿得到那支檔案。
 $contribFiles = $mod('upload') ? $contribCfg['kinds'] : [];
-if ($contribFiles && ($contribCfg['newPoint'] === 'contributor' || ($contribCfg['newPoint'] === 'admin' && $isManager))) {
+if ($contribFiles && ($contribCfg['newPoint'] === 'contributor' || ($contribCfg['newPoint'] === 'admin' && $canEditSpots))) {
     $contribFiles[] = 'newspot';
 }
 // 3D 模式關掉時整個 key 是 null，前端 map3d.js 本身也不會被載入(見下方 $mod('map3d') 輸出)，
@@ -96,9 +90,16 @@ $APP = [
     'gated'       => $gated,
     'meta'        => $meta,
     'spots'       => $spots,
+    // 權限契約：actor 是身分種類，perms 是此身分在這張地圖具備的專案層級權限鍵（primary 為全部），
+    // csrf 是寫入類端點要帶的憑證（anon 為 null）。前端判斷能力一律看 perms。
+    'actor'       => $actor->kind(),
+    'perms'       => $actor->grantedKeys($proj),
+    'csrf'        => $csrfTok,
+    // 純身分（顯示身分小標籤用），不是能力
     'isManager'   => $isManager,
     'canEditSpots' => $canEditSpots,
-    'csrf'        => $csrfTok,
+    // 點位版本紀錄裡可被覆寫的欄位（前端疊加點位版本時的欄位清單，跟 spot_effective() 同一份）
+    'spotFields'  => spot_overridable_fields(),
     'moduleState' => $moduleState,
     'contrib'     => $contribCfg,
     'pack'        => $pack,

@@ -187,10 +187,11 @@ function spot_overridable_fields(): array
 }
 
 /**
- * 算出一個點位「目前有效」的狀態：起點（kind:'spot'、有 num、edit_of 留空）疊上 edit_of 鏈
- * 裡 created_at 最新一筆覆寫。疊加用 array_key_exists() 而非 isset()——舊紀錄可能整個 key
- * 都不存在（例如遷移前的底稿沒有 content 欄位），isset() 會把「沒帶這個 key」誤判成「明確
- * 覆寫成 null」，把起點原本的值蓋掉。找不到這個 item_num 的起點回傳 null。
+ * 算出一個點位「目前有效」的狀態：起點（kind:'spot'、有 num、edit_of 留空）疊上 edit_of 鏈。
+ * 逐欄疊加：每個可覆寫欄位取「鏈上帶有該 key 的最新一筆」的值，created_at 相同時檔案裡較後
+ * 面那筆勝出，所以一筆版本紀錄只需要寫它真的改到的欄位。疊加用 array_key_exists() 而非
+ * isset()——「沒帶這個 key」與「明確覆寫成 null／空陣列」是兩回事。
+ * 找不到這個 item_num 的起點回傳 null。
  */
 function spot_effective(array $cfg, string $project, int $itemNum): ?array
 {
@@ -207,13 +208,11 @@ function spot_effective(array $cfg, string $project, int $itemNum): ?array
     }
     if ($origin === null) return null;
 
-    $latest = null;
-    foreach ($edits[$origin['id']] ?? [] as $e) {
-        if ($latest === null || (string)($e['created_at'] ?? '') > (string)($latest['created_at'] ?? '')) $latest = $e;
-    }
-    if ($latest !== null) {
+    $chain = $edits[$origin['id']] ?? [];
+    usort($chain, fn($a, $b) => strcmp((string)($a['created_at'] ?? ''), (string)($b['created_at'] ?? '')));
+    foreach ($chain as $e) {
         foreach (spot_overridable_fields() as $k) {
-            if (array_key_exists($k, $latest)) $origin[$k] = $latest[$k];
+            if (array_key_exists($k, $e)) $origin[$k] = $e[$k];
         }
     }
     return $origin;
@@ -222,9 +221,7 @@ function spot_effective(array $cfg, string $project, int $itemNum): ?array
 /**
  * 把 $changes 疊到 $effective 上，只覆寫 $changes 裡「真的有出現」的可覆寫欄位（同樣用
  * array_key_exists() 判斷，讓呼叫端能明確傳 null 清空一個欄位，跟「根本沒打算改」區分開）。
- * 回傳完整一份可覆寫欄位（見 spot_overridable_fields()）；呼叫端寫新版本紀錄時要把這幾欄
- * 都明確寫出去，不能只挑改到的那幾欄——否則下一次 spot_effective() 疊加時，沒寫出去的欄位
- * 會被 array_key_exists() 誤判成「這筆紀錄明確覆寫成 null」，而不是「沒改」。
+ * 回傳完整一份可覆寫欄位（見 spot_overridable_fields()）。
  */
 function spot_merge_forward(array $effective, array $changes): array
 {
@@ -233,4 +230,42 @@ function spot_merge_forward(array $effective, array $changes): array
         $out[$k] = array_key_exists($k, $changes) ? $changes[$k] : ($effective[$k] ?? null);
     }
     return $out;
+}
+
+/**
+ * 寫一筆點位版本紀錄：稀疏——只帶 $changes 裡屬於可覆寫欄位的 key，沒提到的欄位不寫、也不會被
+ * 蓋掉（見 spot_effective() 的逐欄疊加）。$eff 是 spot_effective() 的結果，用來取起點 id 與
+ * item_num；$audit 是操作者稽核字串（Actor 的 audit()），$name 是顯示用的編輯者名稱。
+ * 全部寫版本紀錄的地方（editspot、spotcontent、遷移工具）都走這裡，不各自組紀錄。
+ */
+function spot_append_version(array $cfg, string $project, array $eff, array $changes, string $audit, string $name): array
+{
+    $fields = array_intersect_key($changes, array_flip(spot_overridable_fields()));
+    if (!$fields) throw new InvalidArgumentException('spot version has no overridable field');
+    $record = [
+        'id'         => bin2hex(random_bytes(8)),
+        'project'    => $project,
+        'kind'       => 'spot',
+        'item_num'   => (int)($eff['num'] ?? $eff['item_num']),
+        'edit_of'    => (string)$eff['id'],
+        'name'       => $name,
+        'actor'      => $audit,
+    ] + $fields + ['created_at' => gmdate('c')];
+    store_append($cfg, $project, $record);
+    return $record;
+}
+
+/** 點位內容區塊的穩定 id（區塊之間靠它指名編輯、刪除、排序）。 */
+function spot_new_block_id(): string
+{
+    return bin2hex(random_bytes(6));
+}
+
+/** 點位內容裡第一個文字區塊的文字，給 OG 描述等只需要一段字的地方用；沒有回空字串。 */
+function spot_content_text(array $eff): string
+{
+    foreach ((array)($eff['content'] ?? []) as $b) {
+        if (is_array($b) && ($b['kind'] ?? '') === 'text' && !empty($b['comment'])) return (string)$b['comment'];
+    }
+    return '';
 }

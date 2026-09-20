@@ -4,7 +4,7 @@
  * 無外部相依；限流本身失敗時「放行」而非拒服務（避免自我 DoS）。
  * 位於 Nginx 反代後，需在 config 開 trust_forwarded 才會用 X-Forwarded-For。
  */
-require_once __DIR__ . '/accounts.php';   // primary_authed/perm_can/perm_check 疊加帳號登入判斷，需要 account_current() 等函式
+require_once __DIR__ . '/accounts.php';   // primary_authed() 疊加帳號登入判斷，需要 account_current() 等函式
 
 function client_ip(array $cfg): string {
     if (!empty($cfg['trust_forwarded']) && !empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
@@ -22,7 +22,7 @@ function client_ip(array $cfg): string {
  * - 每把 PIN 可帶暱稱 label。
  * - 主 PIN 的簽章不含特定 PIN id（所有主 PIN 共用同一把簽章），移除某把主 PIN 不會讓已登入的
  *   cookie 失效，需全面登出得換 ip_salt——這是共用簽章架構下無法避免的限制。
- * - 專案 PIN 的簽章有綁 pinId，perm_can()／perm_check() 都會即時核對 pins.json 是否還有這筆 id，
+ * - 專案 PIN 的簽章有綁 pinId，Auth（api/auth.php）都會即時核對 pins.json 是否還有這筆 id，
  *   移除後下一次請求就失效，不必更換 ip_salt。
  */
 define('PRIMARY_COOKIE', 'souliong_primary');
@@ -50,48 +50,14 @@ function pin_current_id(array $cfg, string $project): ?string {
     if ($pinId === '' || !hash_equals(pin_derived($cfg, $project, $pinId), $sig)) return null;
     return $pinId;
 }
-function perm_can(array $cfg, string $project): bool {
-    if (primary_authed($cfg)) return true;
-    $pinId = pin_current_id($cfg, $project);
-    if ($pinId !== null) {
-        foreach (pins_load($cfg)['projects'][$project] ?? [] as $e) {
-            if ((string)($e['id'] ?? '') === $pinId) return true;
-        }
-    }
-    $acc = account_current($cfg);
-    return $acc !== null && project_account_perms($cfg, $project, (string)$acc['id']) !== null;
-}
-/** primary／primary 帳號在每個具名權限下皆視為開啟，供 perm_check()／site_perm() 統一查表，
- *  而非各自硬編碼略過檢查——新權限鍵一律要在這裡明列才會對 primary 生效，不會無聲預設全開。 */
-function primary_perms(): array {
-    return [
-        'delete_others' => true, 'edit_others' => true, 'edit_spots' => true,
-        'grant_access' => true, 'edit_3d_regions' => true,
-        'edit_meta' => true, 'edit_layers' => true, 'manage_contrib' => true, 'export_backup' => true,
-        'manage_layers' => true, 'fix_exif' => true, 'fix_thumbnails' => true, 'view_stats' => true,
-        'migrate_spots' => true,
-    ];
-}
-/** 專案層級具名權限判斷：primary 查 primary_perms()；專案 PIN 或專案帳號則需 perms[$permKey] 已被開啟才通過。 */
-function perm_check(array $cfg, string $project, string $permKey): bool {
-    if (primary_authed($cfg)) return !empty(primary_perms()[$permKey]);
-    $pinId = pin_current_id($cfg, $project);
-    if ($pinId !== null) {
-        foreach (pins_load($cfg)['projects'][$project] ?? [] as $e) {
-            if ((string)($e['id'] ?? '') === $pinId) return !empty($e['perms'][$permKey]);
-        }
-    }
-    $acc = account_current($cfg);
-    if ($acc !== null) {
-        $perms = project_account_perms($cfg, $project, (string)$acc['id']);
-        if ($perms !== null) return !empty($perms[$permKey]);
-    }
-    return false;
-}
+/** 身分屬於此專案（純身分，不是能力）。放行條件請用 Auth::can()／perm_check()。 */
+function perm_can(array $cfg, string $project): bool { return Auth::actor($cfg, $project)->isMember($project); }
+/** primary 的權限表；鍵由 api/auth.php 的註冊表產生。 */
+function primary_perms(): array { return auth_perms_primary(); }
+/** 專案層級具名權限判斷，統一走 Auth（身分解析順序與 CSRF 衍生見 api/auth.php 檔頭）。 */
+function perm_check(array $cfg, string $project, string $permKey): bool { return Auth::can($cfg, $project, $permKey); }
 /** 全站層級（跨專案）具名權限：目前僅 primary 具備，供圖層搬遷／EXIF／縮圖修復／統計等維護工具使用。 */
-function site_perm(array $cfg, string $permKey): bool {
-    return primary_authed($cfg) && !empty(primary_perms()[$permKey]);
-}
+function site_perm(array $cfg, string $permKey): bool { return Auth::can($cfg, null, $permKey); }
 function _cookie_opts(): array { return ['expires' => time() + 7 * 86400, 'path' => '/', 'httponly' => true, 'secure' => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'), 'samesite' => 'Lax']; }
 function primary_set_cookie(array $cfg): void { setcookie(PRIMARY_COOKIE, primary_derived($cfg), _cookie_opts()); }
 function pin_set_cookie(array $cfg, string $project, string $pinId): void { setcookie(pin_cookie_name($project), $pinId . '.' . pin_derived($cfg, $project, $pinId), _cookie_opts()); }
@@ -108,8 +74,8 @@ function pins_file(array $cfg): string {
     if (!is_file($new) && is_file($legacy)) @rename($legacy, $new);
     return $new;
 }
-/** 新專案 PIN 的預設權限：一律從全關始（等同僅主 PIN 才能動別人的東西），需主 PIN 逐項開啟下放。 */
-function pin_default_perms(): array { return ['delete_others' => false, 'edit_others' => false, 'edit_spots' => false, 'grant_access' => false, 'edit_3d_regions' => false, 'edit_meta' => false, 'edit_layers' => false, 'manage_contrib' => false, 'export_backup' => false]; }
+/** 新專案 PIN 的預設權限：專案層級鍵一律從全關開始，需主 PIN 逐項開啟下放（鍵由註冊表產生）。 */
+function pin_default_perms(): array { return auth_perms_default(); }
 // manager.php 單次頁面渲染常對同一專案連續呼叫多次 perm_check()，各自都會讀這份清單；
 // 用行程內靜態快取避免同一請求重複讀檔／解碼，pins_save() 寫入後會同步更新快取。
 function _pins_cache(?array $set = null): ?array {
@@ -123,7 +89,7 @@ function pins_load(array $cfg): array {
     $d = is_file(pins_file($cfg)) ? json_decode((string)@file_get_contents(pins_file($cfg)), true) : null;
     if (!is_array($d)) $d = [];
     $d['projects'] = $d['projects'] ?? [];
-    // 舊資料補齊 id/perms（一次性、自我修復），含 delegate_admin → grant_access、edit_points → edit_spots、master → primary 改名搬遷、
+    // 舊資料補齊 id/perms（一次性、自我修復），含權限舊鍵名搬遷／缺鍵回填、master → primary 改名搬遷、
     // 明文 pin → pin_hash 雜湊搬遷（主 PIN／專案 PIN 清單皆適用）
     $dirty = false;
     if (array_key_exists('master', $d)) {
@@ -142,26 +108,8 @@ function pins_load(array $cfg): array {
             if (empty($e['id'])) { $e['id'] = bin2hex(random_bytes(4)); $dirty = true; }
             if (!isset($e['perms']) || !is_array($e['perms'])) { $e['perms'] = pin_default_perms(); $dirty = true; }
             if (!isset($e['kind'])) { $e['kind'] = 'pin'; $dirty = true; }
-            if (array_key_exists('delegate_admin', $e['perms']) && !array_key_exists('grant_access', $e['perms'])) {
-                $e['perms']['grant_access'] = $e['perms']['delegate_admin'];
-                unset($e['perms']['delegate_admin']);
-                $dirty = true;
-            }
-            if (array_key_exists('edit_points', $e['perms']) && !array_key_exists('edit_spots', $e['perms'])) {
-                $e['perms']['edit_spots'] = $e['perms']['edit_points'];
-                unset($e['perms']['edit_points']);
-                $dirty = true;
-            }
-            // edit_meta/edit_layers/manage_contrib/export_backup 上線前就存在的 PIN：這幾類動作原本
-            // 只靠 perm_can()（有沒有任何授權）把關，現在改具名權限，既有 PIN 缺這幾個 key 一律回填
-            // true（保留現有能力），不能讓它們悄悄被鎖出；全新 PIN 走 pin_default_perms() 一開始就
-            // 帶著這些 key（false），不會落入這個分支。
-            foreach (['edit_meta', 'edit_layers', 'manage_contrib', 'export_backup'] as $gk) {
-                if (!array_key_exists($gk, $e['perms'])) {
-                    $e['perms'][$gk] = true;
-                    $dirty = true;
-                }
-            }
+            // 舊鍵名搬遷與缺鍵回填的規則都在註冊表（見 auth_perms_migrate()）
+            if (auth_perms_migrate($e['perms'])) $dirty = true;
             if (isset($e['pin'])) { $e['pin_hash'] = pin_hash_of($cfg, (string)$e['pin']); unset($e['pin']); $dirty = true; }
         }
         unset($e);
@@ -504,3 +452,5 @@ function rate_limit(array $cfg, string $bucket = 'default'): void {
     ftruncate($fp, 0); rewind($fp); fwrite($fp, implode(',', $hits));
     flock($fp, LOCK_UN); fclose($fp);
 }
+
+require_once __DIR__ . '/auth.php';   // 權限單一入口（Actor／Auth／權限鍵註冊表）；perm_can／perm_check／site_perm 都是它的薄封裝

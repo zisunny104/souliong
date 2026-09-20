@@ -2,18 +2,18 @@
 // POST spotcontent.php：把內容直接寫入點位自己的 content 欄位（spots.jsonl 的 edit_of 覆寫鏈）。
 // 投稿與點位是兩個平行的域：投稿在 entries.jsonl，content 是點位自己的原生內容，兩者不互相引用。
 // content 是通用欄位，目前唯一型別是音訊，但資料形狀（型別標記物件陣列）刻意設計成可擴充。
-// 把關比照 editspot.php 逐字同款（perm_check('edit_spots') + CSRF）——這是點位權限，跟投稿軸的
+// 把關比照 editspot.php 逐字同款（Auth::require('edit_spots')，含 CSRF）——這是點位權限，跟投稿軸的
 // 投稿代碼／contrib_open() 無關，也跟這張地圖有沒有開 soundEdit／upload 模組無關（模組開關只影響
 // 前端要不要顯示錄音入口，不是後端的把關條件）。本次只做管理者可寫，訪客投稿之後再單獨討論。
 // 伺服器端一律用 spot_effective() 算出目前有效的 lat/lon 重新寫回去，不信任前端送來的值，
 // 只覆寫 content——避免竄改位置。item_num 對不到起點直接 404，不產生孤兒紀錄。
 // POST project, item_num（必填，對應起點的 num）, media(檔案), duration(秒，選填), comment(選填),
 // name(選填), source_url(選填), source_license(選填), license(選填，cc0/cc-by)。
-require __DIR__ . '/store.php';
-require __DIR__ . '/security.php';
-require __DIR__ . '/spotlib.php';
-require __DIR__ . '/uploadlib.php';
-require __DIR__ . '/features.php';
+require_once __DIR__ . '/store.php';
+require_once __DIR__ . '/security.php';
+require_once __DIR__ . '/spotlib.php';
+require_once __DIR__ . '/uploadlib.php';
+require_once __DIR__ . '/features.php';
 $cfg = require __DIR__ . '/config.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -26,15 +26,8 @@ if ($project === '' || !is_dir($cfg['projects_dir'] . '/' . $project)) {
     json_out(['error' => 'bad request'], 400);
 }
 
-if (!perm_check($cfg, $project, 'edit_spots')) {
-    json_out(['error' => '沒有權限編輯點位內容（僅限主要管理者，或已被授權的專案管理者）'], 403);
-}
-
-// CSRF：值＝同一支登入身分在 view.php 才拿得到的衍生值（見 $APP.csrf），跨站請求讀不到頁面內容故無法偽造
-$csrfExpected = primary_authed($cfg) ? primary_derived($cfg) : pin_derived($cfg, $project, (string)pin_current_id($cfg, $project));
-if (!hash_equals($csrfExpected, (string)($_POST['csrf'] ?? ''))) {
-    json_out(['error' => '憑證失效，請重新整理頁面後再操作一次'], 403);
-}
+// 權限與 CSRF 同一道關卡（api/auth.php）：先具備 edit_spots，再比對這個身分在 view.php 拿到的 APP.csrf。
+Auth::require($cfg, $project, 'edit_spots', true, '沒有權限編輯點位內容（僅限主要管理者，或已被授權的專案管理者）');
 
 function clean_str_sc(?string $s, int $max): ?string {
     if ($s === null) return null;

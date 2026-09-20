@@ -499,6 +499,7 @@ return [
     'perm_edit_layers'                => '管圖層/主題包',
     'perm_manage_contrib'             => '管投稿名單',
     'perm_export_backup'              => '匯出專案備份',
+    'perm_bypass_code'                => '免投稿代碼直接投稿',
     'invite_redeemed_tag'            => '邀請兌換',
     'grant_perm_title'                => '下放權限給此專案 PIN；預設關閉，只有主 PIN 能切換',
     'primary_only_pin_visible_title'  => '非主要管理者只看得到暱稱，看不到 PIN',

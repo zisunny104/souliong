@@ -2,16 +2,16 @@
 // 編輯點位本身的座標：預設僅限主要管理者；主 PIN 可個別開啟特定專案 PIN 的 edit_spots 權限。
 // 點位不論是原本來自靜態底稿（api/spotmigrate.php 併入 spots.jsonl 的官方/共享資料，無個別投稿者）
 // 還是 newspot.php 建立的動態點位，此刻都已是 spots.jsonl 裡同一種起點記錄（一定有 num），因此不比照
-// editentry.php 驗證 owner/ctoken，而是單純以 perm_check() 把關。
+// editentry.php 驗證 owner/ctoken，而是單純以 Auth::require('edit_spots') 把關。
 // 比照「故事」的版本化精神：不覆寫起點，而是新增一筆 kind:'spot' 版本紀錄，帶 edit_of 指回這個點位的
 // 起點記錄 id。前端讀取時把同一條 edit_of 鏈的最新一筆疊加到起點原始狀態上（見 api/spotlib.php 的
 // spot_effective()，viewer.core.js 的 effectiveSpots() 是同一套算法的前端版本）。
 // 可覆寫欄位（lat/lon/content，見 spot_overridable_fields()）採 merge-forward：伺服器先算出
 // 目前有效狀態，只疊上這次請求裡「真的有送」的欄位（這支只改 lat/lon），沒送的欄位（content）沿用舊值。
 // POST project, item_num（必填，對應起點的 num）, lat, lon, name(可留空)。
-require __DIR__ . '/store.php';
-require __DIR__ . '/security.php';
-require __DIR__ . '/spotlib.php';
+require_once __DIR__ . '/store.php';
+require_once __DIR__ . '/security.php';
+require_once __DIR__ . '/spotlib.php';
 $cfg = require __DIR__ . '/config.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -24,15 +24,8 @@ if ($project === '' || !is_dir($cfg['projects_dir'] . '/' . $project)) {
     json_out(['error' => 'bad request'], 400);
 }
 
-if (!perm_check($cfg, $project, 'edit_spots')) {
-    json_out(['error' => '沒有權限編輯定位點（僅限主要管理者，或已被授權的專案管理者）'], 403);
-}
-
-// CSRF：值＝同一支登入身分在 view.php 才拿得到的衍生值（見 $APP.csrf），跨站請求讀不到頁面內容故無法偽造
-$csrfExpected = primary_authed($cfg) ? primary_derived($cfg) : pin_derived($cfg, $project, (string)pin_current_id($cfg, $project));
-if (!hash_equals($csrfExpected, (string)($_POST['csrf'] ?? ''))) {
-    json_out(['error' => '憑證失效，請重新整理頁面後再操作一次'], 403);
-}
+// 權限與 CSRF 同一道關卡（api/auth.php）：先具備 edit_spots，再比對這個身分在 view.php 拿到的 APP.csrf。
+Auth::require($cfg, $project, 'edit_spots', true, '沒有權限編輯定位點（僅限主要管理者，或已被授權的專案管理者）');
 
 function clean_str_es(?string $s, int $max): ?string {
     if ($s === null) return null;

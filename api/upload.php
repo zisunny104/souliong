@@ -7,11 +7,12 @@
 //   audio → media(檔案) + duration(秒)
 //   text / desc → 無檔案，只要 comment
 // append-only：本後端無刪除/修改端點。
-require __DIR__ . '/store.php';
-require __DIR__ . '/security.php';
-require __DIR__ . '/stats.php';
-require __DIR__ . '/features.php';
-require __DIR__ . '/uploadlib.php';
+require_once __DIR__ . '/store.php';
+require_once __DIR__ . '/security.php';
+require_once __DIR__ . '/contribgate.php';
+require_once __DIR__ . '/stats.php';
+require_once __DIR__ . '/features.php';
+require_once __DIR__ . '/uploadlib.php';
 $cfg = require __DIR__ . '/config.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -24,25 +25,9 @@ if (!preg_match('/^[a-z0-9_-]{1,40}$/', $project) || !is_dir($cfg['projects_dir'
     json_out(['error' => 'unknown project'], 400);
 }
 
-// 停權檢查：被主辦者鎖定的身分（PIN 投稿者或匿名裝置）一律擋下，不論投稿代碼是否有效（不影響已投稿內容）。
-$blockOwnerHash = !empty($_POST['owner']) ? hash('sha256', (string)$_POST['owner']) : null;
-$blockContribId = !empty($_POST['ctoken']) ? contrib_id_of((string)$_POST['ctoken']) : null;
-if (is_blocked($cfg, $project, $blockOwnerHash, $blockContribId)) {
-    json_out(['error' => '此身分已被主辦者停權，無法繼續投稿'], 403);
-}
-
-// 投稿代碼：限特定人上傳（碼存後端檔案，前端拿不到，這裡才是真正把關）。已用管理 PIN 登入者視為已解鎖。
-// 能不能投稿完全看投稿代碼（codes.json，各自可設到期/次數）：一組有效碼都沒有＝這張地圖現在沒開放投稿；
-// 有碼就一定要附碼，這裡順便計一次使用。
-$givenCode = preg_replace('/\D/', '', (string)($_POST['code'] ?? ''));
-if (!perm_can($cfg, $project)) {
-    if (!contrib_open($cfg, $project)) {
-        json_out(['error' => '這張地圖目前未開放投稿'], 403);
-    }
-    if (!code_check($cfg, $project, $givenCode, true)) {
-        json_out(['error' => '需要正確的投稿代碼才能上傳（碼可能已到期或用完次數）'], 403);
-    }
-}
+// 投稿軸把關（停權名單 → bypass_code → 是否開放投稿 → 投稿代碼並計一次使用）全在 contrib_gate()，
+// 跟 newspot.php 的 contributor 模式共用同一道關卡（api/contribgate.php）。
+$who = contrib_gate($cfg, $project);
 
 function clean_str(?string $s, int $max): ?string {
     if ($s === null) return null;
@@ -101,7 +86,7 @@ if ($lon !== null && ($lon < -180 || $lon > 180)) $lon = null;
 
 // 授權：CC BY（姓名標示）只對已建立身分（有 ctoken）的投稿者開放，沒有穩定身分就沒有名字可標示，
 // 一律以伺服器端這裡認定的身分為準，不採信前端畫面上勾選框當下是否可見。
-$hasIdentity = !empty($_POST['ctoken']);
+$hasIdentity = $who->hasIdentity();
 $license     = ($hasIdentity && ($_POST['license'] ?? '') === 'cc-by') ? 'cc-by' : 'cc0';
 $wikidataOk  = !empty($_POST['wikidata_ok']);
 
@@ -158,8 +143,7 @@ if ($kind === 'desc') {
 }
 
 try {
-    $owner = (string)($_POST['owner'] ?? '');
-    $ownerHash = $blockOwnerHash;
+    $ownerHash = $who->ownerHash();
 
     // 相機 EXIF 參數（前端送 JSON；白名單欄位、限縮長度與大小）
     $exif = null;
@@ -182,9 +166,8 @@ try {
     $srcHash = !empty($cfg['log_src']) ? substr(hash('sha256', ($cfg['ip_salt'] ?? '') . '|' . client_ip($cfg)), 0, 16) : null;
 
     // 可選的投稿者身分（ctoken 由 localStorage 帶入）：存公開短 ID 供分組顯示、存 hash 供跨裝置驗刪
-    $ctoken = (string)($_POST['ctoken'] ?? '');
-    $contribId = $blockContribId;
-    $contribHash = $ctoken !== '' ? contrib_hash_of($ctoken) : null;
+    $contribId = $who->contribId();
+    $contribHash = $who->contribHash();
 
     $record = [
         'id'         => bin2hex(random_bytes(8)),
