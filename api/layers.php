@@ -3,7 +3,7 @@
 // 資料夾本身，沒有中央 index 檔，新增一層只要新增一個資料夾。
 //
 // 跟主題包的差別在「數量與順序」：一張地圖只套一個 pack，卻可以疊好幾層圖層，而且由下往上的
-// 順序有意義，所以 meta.json 存的是有序陣列 "layers": ["carto-voyager", "chungshing-art"]。
+// 順序有意義，所以 meta.json 存的是有序陣列 "layers": ["paper-ink", "chungshing-art"]。
 // 沒有這個欄位 → 退回 config 的 default_layers，舊地圖行為與拆分之前完全一致。
 //
 // 為什麼底圖不做成插件（見 docs/EXTENDING.md 第七節的判準）：插件是「可以整包關掉、關掉後
@@ -182,14 +182,13 @@ function souliong_layersrc_limits(array $cfg): array
 /**
  * 沒有自己指定圖層的地圖套用哪一組。
  *
- * 預設值不是空陣列而是 ['carto-voyager']：這是「圖層化之前寫死在 viewer.core.js 裡的
- * 那張底圖」，沒更新設定檔的舊部署因此得到與從前完全相同的畫面（api/config.php 不進版控，
- * 所以「設定檔沒有這個欄位」是常態而不是意外）。後台要顯示「跟隨全站預設（…）」時也叫這裡，
- * 免得說明文字跟實際生效的圖層各講各的。
+ * 預設值不是空陣列而是 ['paper-ink']：api/config.php 不進版控，「設定檔沒有這個欄位」
+ * 是常態而不是意外，這時仍要有一張底圖，地圖才不會開天窗。後台要顯示「跟隨全站預設（…）」時
+ * 也叫這裡，免得說明文字跟實際生效的圖層各講各的。
  */
 function souliong_default_layers(array $cfg): array
 {
-    return (array)($cfg['default_layers'] ?? ['carto-voyager']);
+    return (array)($cfg['default_layers'] ?? ['paper-ink']);
 }
 
 /**

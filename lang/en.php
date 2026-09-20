@@ -11,6 +11,7 @@ return [
     'filter_by_contrib'    => 'Filter by submissions',
     'contrib'              => 'Submissions',
     'route_by_number'      => 'Connect points by number',
+    'route_need_person' => 'Pick a contributor first to see their route',
     'route'                => 'Route',
     'filter_person'        => 'Filter by contributor to see their map',
     'all_contributors'     => 'All contributors',

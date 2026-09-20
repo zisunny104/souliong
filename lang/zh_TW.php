@@ -10,6 +10,7 @@ return [
     'filter_by_contrib'      => '依投稿篩選顯示',
     'contrib'                 => '投稿',
     'route_by_number'        => '依編號串連路徑',
+    'route_need_person' => '請先選一位投稿者，才能看其路徑',
     'route'                   => '路徑',
     'filter_person'          => '篩選投稿者，看他的觀察地圖',
     'all_contributors'       => '所有投稿者',

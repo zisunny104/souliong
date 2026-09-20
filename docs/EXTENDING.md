@@ -293,16 +293,18 @@ CSS 全部前綴 `.stat-card .col`，因為要蓋過同層的 `.stat-card .col o
 比照 `api/packs.php`：註冊表就是目錄底下的資料夾本身，沒有中央 index 檔，新增一層只要新增一個資料夾（內含 `layer.json`）。解析在 `api/layers.php`：
 
 - `souliong_layer_list($cfg, $proj)` — 掃兩層作用域，回傳 `[id => manifest]`，manifest 會被補上 `id`（資料夾名稱才算數，`layer.json` 內容不可覆寫）與 `scope`。
-- `souliong_layers_for($cfg, $meta, $proj)` — 這張地圖生效的**有序**陣列。`meta.json` 的 `"layers": ["carto-voyager", "chungshing-art"]` 由下往上；沒有這個欄位就退回 `config` 的 `default_layers`（預設 `['carto-voyager']`，也就是圖層化之前寫死在檢視器裡的那張底圖，所以舊地圖零影響）。選到不存在的 id 會被靜靜略過，不讓整張地圖開天窗。
+- `souliong_layers_for($cfg, $meta, $proj)` — 這張地圖生效的**有序**陣列。`meta.json` 的 `"layers": ["paper-ink", "chungshing-art"]` 由下往上；沒有這個欄位就退回 `config` 的 `default_layers`（預設 `['paper-ink']`）。選到不存在的 id 會被靜靜略過，不讓整張地圖開天窗。
 - `souliong_layers_public($cfg, $meta, $proj, $base)` — 前端版本，額外把相對 `url` 改寫成絕對網址。
 
 「特定專案才有插畫疊圖」不需要額外的開關：`meta.json` 沒寫就是沒有。
 
-**內建的全站層**（`layers/`，都是外部圖磚服務，一個檔案都不落地）：
+**內建的全站層**（`layers/`，圖磚都來自外部服務；`paper-ink` 另附本地的樣式與圖示檔）：
 
 | id | 用途 |
 | --- | --- |
-| `carto-voyager` | 通用底圖，道路較寬、有淡彩。`default_layers` 的預設值。深色模式換 Dark Matter。 |
+| `paper-ink` | 向量底圖（MapLibre），淺色如紙、深色如墨，道路加寬。`default_layers` 的預設值。 |
+| `openfreemap-liberty` | OpenFreeMap 的 Liberty 向量底圖，深色模式換其 Dark 風格。 |
+| `carto-voyager` | 光柵底圖，道路較寬、有淡彩。深色模式換 Dark Matter。 |
 | `carto-positron` | 配色極淡，幾乎只剩路網輪廓與地名。要讓自繪插畫當主角時選這張。深色模式換 Dark Matter。 |
 | `carto-positron-nolabels` | Positron 拿掉所有文字。手繪稿自己寫了地名時，底圖不必再標一次。 |
 | `demo-overlay` | 透明 SVG 疊圖的參考範例，不是給正式地圖用的。 |
