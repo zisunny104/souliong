@@ -21,6 +21,7 @@ require_once __DIR__ . '/../api/layers.php';
 require_once __DIR__ . '/../api/regions3d.php';
 $apiCfg    = require __DIR__ . '/../api/config.php';
 require_once __DIR__ . '/../api/spotlib.php';
+require_once __DIR__ . '/../api/uploadlib.php';
 // 自動升級：這個專案的靜態點位底稿如果還有 num 沒併入 spots.jsonl（新加入的專案、還原自舊備份、
 // 或當初手動遷移漏跑），開頁時就地補上，不必仰賴後台手動點「點位資料遷移」——spotmigrate_needed()
 // 是不加鎖的輕量預檢，已遷移過的專案（絕大多數請求）幾乎不花成本，只有真的偵測到落差才會呼叫
@@ -111,6 +112,8 @@ $APP = [
     'spotFields'  => spot_overridable_fields(),
     'moduleState' => $moduleState,
     'contrib'     => $contribCfg,
+    // 上傳大小上限（位元組，null＝不限制），前端送出前預檢用；欄位說明見 uploadlib_limits()
+    'upload'      => uploadlib_limits($apiCfg),
     'pack'        => $pack,
     'layers'      => $layers,
     'engine'      => $primaryEngine,

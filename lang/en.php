@@ -899,6 +899,7 @@ return [
     'content_add_photo' => 'Add photo',
     'content_photo_caption' => 'Caption (optional)',
     'content_photo_pick' => 'Choose photo',
+    'upload_too_large' => 'The upload exceeds the size the server allows (about {mb} MB per upload). Use fewer or smaller files.',
     'play_audio_btn' => 'Play audio',
     'sound_source_placeholder' => 'Source link (optional, e.g. the original page of a quoted sound)',
     'sound_source_license_hint' => 'When quoting an external sound, you can state its license',

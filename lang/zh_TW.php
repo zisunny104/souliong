@@ -909,4 +909,5 @@ return [
     'content_add_photo' => '新增照片',
     'content_photo_caption' => '說明，選填',
     'content_photo_pick' => '選擇照片',
+    'upload_too_large' => '上傳內容超過伺服器允許的大小（單次約 {mb} MB），請減少檔案數量或換小一點的檔案。',
 ];

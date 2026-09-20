@@ -88,7 +88,7 @@ $png = cc_png(40, 30); $thumb = cc_png(8, 6); $wav = cc_wav();
 // ── 內建伺服器 ──────────────────────────────────────────────────
 
 $log = "$sb/server.log";
-$server = proc_open([PHP_BINARY, '-S', "127.0.0.1:$port", '-t', $sb, "$sb/index.php"], [0 => ['pipe', 'r'], 1 => ['file', $log, 'a'], 2 => ['file', $log, 'a']], $pipes, $sb);
+$server = proc_open([PHP_BINARY, '-d', 'post_max_size=256K', '-d', 'upload_max_filesize=128K', '-S', "127.0.0.1:$port", '-t', $sb, "$sb/index.php"], [0 => ['pipe', 'r'], 1 => ['file', $log, 'a'], 2 => ['file', $log, 'a']], $pipes, $sb);
 $up = false;
 for ($i = 0; $i < 50 && !$up; $i++) {
     usleep(100000);
@@ -258,6 +258,16 @@ ck($c === 400, '重複 id 回 400', [$c, $r]);
 ck(versions() === $v + 1, '被拒絕的輸入都沒有寫版本（只有 dup 那一筆）', [versions(), $v]);
 [$c, $r] = save([['kind' => 'text', 'comment' => 'x']], $rev6, [], ['fields' => ['item_num' => '99']]);
 ck($c === 404, '不存在的點位回 404', [$c, $r]);
+
+// 超過上限：整個請求超過 post_max_size 與單檔超過 upload_max_filesize 都要回明確的 413
+$v = versions();
+[$c, $r] = save([['kind' => 'photo', 'file' => 'media_0']], $rev6, ['media_0' => ['big.png', str_repeat('x', 300 * 1024)]]);
+ck($c === 413 && ($r['code'] ?? '') === 'too_large' && strpos((string)($r['error'] ?? ''), 'MB') !== false, '請求超過 post_max_size 回 413', [$c, $r]);
+[$c, $r] = save([['kind' => 'photo', 'file' => 'media_0']], $rev6, ['media_0' => ['big.png', str_repeat('x', 160 * 1024)]]);
+ck($c === 413, 'photo 單檔超過 upload_max_filesize 回 413', [$c, $r]);
+[$c, $r] = save([['kind' => 'audio', 'file' => 'media_0']], $rev6, ['media_0' => ['big.wav', str_repeat('x', 160 * 1024)]]);
+ck($c === 413, 'audio 單檔超過 upload_max_filesize 回 413', [$c, $r]);
+ck(versions() === $v, '超過上限的請求不寫版本', [versions(), $v]);
 
 echo "\n";
 if ($fails) {

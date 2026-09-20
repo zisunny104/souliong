@@ -25,6 +25,7 @@ $cfg = require __DIR__ . '/config.php';
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     json_out(['error' => 'POST only'], 405);
 }
+uploadlib_reject_oversized_request();
 rate_limit($cfg, 'write');
 
 $project = preg_replace('/[^a-z0-9_-]/', '', $_POST['project'] ?? '');
@@ -88,6 +89,10 @@ try {
             $block['comment'] = $comment;
         } elseif ($kind === 'audio' || $kind === 'photo') {
             $field = (string)($in['file'] ?? '');
+            if (preg_match('/^media_\d+$/', $field) && isset($_FILES[$field]) && uploadlib_file_too_large($_FILES[$field])) {
+                $lim = uploadlib_limits($cfg)['kinds'][$kind] ?? uploadlib_limits($cfg)['file'] ?? 0;
+                json_out(['error' => uploadlib_too_large_message((int)$lim), 'code' => 'too_large', 'max_bytes' => $lim], 413);
+            }
             if (!preg_match('/^media_\d+$/', $field) || !isset($_FILES[$field]) || $_FILES[$field]['error'] !== UPLOAD_ERR_OK) {
                 json_out(['error' => 'need media file'], 400);
             }

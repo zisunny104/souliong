@@ -19,6 +19,7 @@ $cfg = require __DIR__ . '/config.php';
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     json_out(['error' => 'POST only'], 405);
 }
+uploadlib_reject_oversized_request();
 rate_limit($cfg, 'upload');
 
 $project = $_POST['project'] ?? '';
@@ -85,6 +86,10 @@ $mediaRel  = null;
 $mediaMime = null;
 
 $fileField = $kindDef['file'] ?? null;
+if ($fileField !== null && isset($_FILES[$fileField]) && uploadlib_file_too_large($_FILES[$fileField])) {
+    $lim = uploadlib_limits($cfg)['kinds'][$kind] ?? 0;
+    json_out(['error' => uploadlib_too_large_message((int)$lim), 'code' => 'too_large', 'max_bytes' => $lim], 413);
+}
 $isPhoto   = ($fileField === 'photo');
 if ($fileField !== null && isset($_FILES[$fileField]) && $_FILES[$fileField]['error'] === UPLOAD_ERR_OK) {
     $maxBytes = (int)($cfg['max_bytes_' . $kind] ?? $kindDef['max_bytes'] ?? $cfg['max_bytes']);

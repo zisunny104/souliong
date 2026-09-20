@@ -4000,6 +4000,10 @@ if (!$authed) {
       };
       $featLabels = souliong_features();
       $feats = $s['features'] ?? [];
+      // 舊統計的 story／sound 鍵已併入 content
+      foreach (['story', 'sound'] as $oldKey) {
+          if (isset($feats[$oldKey])) { $feats['content'] = ($feats['content'] ?? 0) + $feats[$oldKey]; unset($feats[$oldKey]); }
+      }
       arsort($feats);
       $byHour = $s['by_hour'] ?? [];
       arsort($byHour);
