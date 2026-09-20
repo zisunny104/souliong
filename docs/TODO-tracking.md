@@ -77,3 +77,15 @@
 ## 回報紀錄
 
 - 77 已回報（見上）；c9 尚未回報清單。
+
+## 15:10 檢查（2026-09-20）
+
+已完成並 push：6d7b30a（內容區整體編輯＋Phase B 前半）、bfaee66（Phase B 站台端點）、5f1e88f（manager.php 收進 Auth、前端整體儲存修正）。authlint 0 違規、authcheck 1603 項通過。
+77 已用 _packdemo 實測：整體儲存、409、投稿牆 Markdown、newspot description、投稿分頁過濾、錄音 abort、手機寬度與深色模式，資料已還原。
+manager.php 行為差異（c9 回報）：權限先於 CSRF；缺權限的刪除類動作改顯示 403 頁；站層動作改看 manage_layers／manage_site；專案鍵沒帶專案一律拒絕；permLabels 由 registry 產生並多出 bypass_code。各 POST action 尚未實際發送實測。
+
+進行中：
+- c9：PHP 註解清理；upload 回應補 kind:text 的 html；oglib OG 純文字；EXTENDING.md 其餘舊敘述。
+- 77：前端註解清理；upload 回應 html 接上；非管理者與 CSRF 路徑實測。
+
+尚待：manager.php 各 POST action 實測；content_migrate 多版本測試與 --apply（等使用者確認）；使用者待決策六項（見上）；A3 照片區塊尚未開始；記憶更新；auth-unification.md 更新後刪除。
