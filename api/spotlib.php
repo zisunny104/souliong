@@ -7,6 +7,7 @@
 // （自動觸發：開頁時發現有底稿還沒併入就地補上，不必等人記得去後台按）。
 require_once __DIR__ . '/store.php';
 require_once __DIR__ . '/markdown.php';
+require_once __DIR__ . '/routes.php';
 
 /**
  * 遷移前整包備份：把專案目錄現況打包成 ZIP，存在 projects/<proj>/_backup/ 底下——比 store_backup()
@@ -288,6 +289,9 @@ function spot_content_render(array $content): array
     foreach ($content as $b) {
         if (is_array($b) && ($b['kind'] ?? '') === 'text' && !empty($b['comment'])) {
             $b['html'] = spot_markdown((string)$b['comment']);
+        } elseif (is_array($b) && ($b['kind'] ?? '') === 'photo' && !empty($b['photo'])) {
+            $b['photo_url'] = Route::api('photo', ['f' => $b['photo']]);
+            $b['thumb_url'] = Route::api('photo', ['f' => $b['thumb'] ?: $b['photo']] + (empty($b['thumb']) ? ['th' => 1] : []));
         }
         $out[] = $b;
     }

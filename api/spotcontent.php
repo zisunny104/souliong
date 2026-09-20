@@ -6,10 +6,11 @@
 // 前端要不要顯示編輯入口，不是後端的把關條件。item_num 對不到起點回 404，不產生孤兒紀錄。
 // POST project, item_num（必填，起點的 num）, csrf, op=save, name（選填，編輯者顯示名稱）,
 //   base_rev（前端載入內容時的 content_rev）, blocks（JSON 陣列，依顯示順序）,
-//   media_0、media_1…（新增音訊區塊的檔案，由區塊的 file 欄位指名）。
-// blocks 元素：{id?, kind, comment?, file?, source_url?, source_license?, license?, duration?}
+//   media_0、media_1…（新增音訊／照片區塊的檔案，由區塊的 file 欄位指名；照片區塊可再用 thumb 欄位
+//   指名一張前端縮好的縮圖，沒給就由 photo.php 首次請求時產生）。
+// blocks 元素：{id?, kind, comment?, file?, thumb?, source_url?, source_license?, license?, duration?}
 //   有 id 且存在於現有內容：保留原區塊，只採用送來的 comment，其餘欄位一律沿用原值；
-//   沒有 id：新區塊，text 須有非空 comment，audio 須有 file 指向 media_N；
+//   沒有 id：新區塊，text 須有非空 comment，audio／photo 須有 file 指向 media_N（photo 的 comment 是選填說明）；
 //   現有內容中沒被列出的區塊即刪除；順序即 blocks 順序；空陣列表示清空內容。
 // 伺服器一律以 spot_effective() 的現有內容為底重建，不信任前端送整包。內容與現況完全相同就不寫版本、
 // 直接回傳現況；base_rev 與現有 content_rev 不同回 409，不寫入。
@@ -85,14 +86,16 @@ try {
         if ($kind === 'text') {
             if ($comment === null) json_out(['error' => 'need comment'], 400);
             $block['comment'] = $comment;
-        } elseif ($kind === 'audio') {
+        } elseif ($kind === 'audio' || $kind === 'photo') {
             $field = (string)($in['file'] ?? '');
             if (!preg_match('/^media_\d+$/', $field) || !isset($_FILES[$field]) || $_FILES[$field]['error'] !== UPLOAD_ERR_OK) {
                 json_out(['error' => 'need media file'], 400);
             }
             $kindDef  = souliong_kinds()[$kind];
+            $isPhoto  = ($kind === 'photo');
             $maxBytes = (int)($cfg['max_bytes_' . $kind] ?? $kindDef['max_bytes'] ?? $cfg['max_bytes']);
-            $saved    = uploadlib_store_file($cfg, $project, $_FILES[$field], 'media', $kindDef['mimes'] ?? [], $maxBytes);
+            $mimes    = ($isPhoto && !empty($cfg['allowed_mime'])) ? $cfg['allowed_mime'] : ($kindDef['mimes'] ?? []);
+            $saved    = uploadlib_store_file($cfg, $project, $_FILES[$field], $isPhoto ? 'photos' : 'media', $mimes, $maxBytes);
             $duration = is_numeric($in['duration'] ?? null) ? round((float)$in['duration'], 2) : null;
             if ($duration !== null && ($duration <= 0 || $duration > 86400)) $duration = null;
             $sourceUrl = clean_str(isset($in['source_url']) ? (string)$in['source_url'] : null, 500);
@@ -101,15 +104,29 @@ try {
             }
             // CC BY（姓名標示）只對已建立身分（有 ctoken）的撰寫者開放，跟 upload.php 同一條規則
             $license = (!empty($_POST['ctoken']) && ($in['license'] ?? '') === 'cc-by') ? 'cc-by' : 'cc0';
-            $block += [
-                'media'          => $saved['rel'],
-                'media_mime'     => $saved['mime'],
-                'duration'       => $duration,
+            $extra = [
                 'comment'        => $comment,
                 'source_url'     => $sourceUrl,
                 'source_license' => in_array($in['source_license'] ?? '', ['cc0', 'cc-by'], true) ? $in['source_license'] : null,
                 'license'        => $license,
             ];
+            if ($isPhoto) {
+                // 欄位名沿用投稿的 photo／thumb，前端的 photoFullUrl()／photoThumbUrl() 才能通用
+                $block += ['photo' => $saved['rel'], 'thumb' => null] + $extra;
+                $tfield = (string)($in['thumb'] ?? '');
+                if (preg_match('/^media_\d+$/', $tfield) && $tfield !== $field
+                    && isset($_FILES[$tfield]) && $_FILES[$tfield]['error'] === UPLOAD_ERR_OK) {
+                    $tf = $_FILES[$tfield];
+                    if ($tf['size'] <= 1024 * 1024 && isset($mimes[detect_mime($tf['tmp_name'])])) {
+                        $tname = $saved['fbase'] . '_t.' . $mimes[detect_mime($tf['tmp_name'])];
+                        if (@move_uploaded_file($tf['tmp_name'], project_dir($cfg, $project) . '/photos/' . $tname)) {
+                            $block['thumb'] = $project . '/' . $tname;
+                        }
+                    }
+                }
+            } else {
+                $block += ['media' => $saved['rel'], 'media_mime' => $saved['mime'], 'duration' => $duration] + $extra;
+            }
         } else {
             json_out(['error' => 'bad kind'], 400);
         }

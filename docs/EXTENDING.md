@@ -143,7 +143,7 @@ license, owner_hash, src_hash, contrib_id, contrib_hash, edit_of, created_at
   沒有起點可循的（`item_num` 覆蓋那批）疊到靜態底稿對應 `num` 上。
 
 **`content` 是點位自己的原生內容**：投稿（`entries.jsonl`）與點位（`spots.jsonl`）是兩個平行的域，
-點位記錄不指向任何投稿。`content` 是型別標記物件的陣列（目前只有 `audio`，形狀刻意設計成可擴充），
+點位記錄不指向任何投稿。`content` 是型別標記物件的陣列（目前有 `text`、`audio`、`photo`，形狀刻意設計成可擴充），
 只有具備 `edit_spots` 權限的人能經 `spotcontent.php` 寫入，`renderEntries()` 在故事區放大顯示它。
 它不會出現在投稿牆上；投稿牆只放 `entries.jsonl` 的投稿。
 
@@ -251,7 +251,7 @@ CSS 全部前綴 `.stat-card .col`，因為要蓋過同層的 `.stat-card .col o
 - `assets/js/plugins/embed-code.js`（`embed` 旗標——產生 `<iframe>` 嵌入代碼；`class EmbedCodePlugin extends MapApp.Plugin` 寫法，是目前符合完整標準的範例）。
 - `assets/js/plugins/share-link.js`（`share` 旗標——全螢幕分享卡片＋QR code；`class ShareLinkPlugin extends MapApp.Plugin` 寫法。連帶的 vendor 函式庫 `qrcode-generator.js` 也一併只在 `share` 開啟時由 `view.php` 條件載入，避免關閉時仍多載一支用不到的腳本）。
 - `assets/js/plugins/route-tour.js`（`route` 旗標——多投稿者路徑／單人路徑／連點彩蛋動畫；`class RouteTourPlugin extends MapApp.Plugin` 寫法。這個模組原本跟核心主渲染流程（新增／刪除／編輯／篩選）交纏最深，改法是把核心那些散落各處的 `drawRoute()`/`drawPersonRoute()` 呼叫全部收斂成統一的 `'stateChange'` 事件——資料或篩選狀態一變就發送一次，插件訂閱這個事件自己決定要不要重繪，核心不用再認得「路徑」這個概念。`#routeBtn` 也已改為插件自己在 `mount()` 建立並插入 `#ctlBody` 第一個 `.ctl-row`，`view.php` 不再輸出這顆按鈕）。
-- `assets/js/plugins/content-editor.js`（`contentEdit` 旗標——點位內容區塊的編輯：新增／修改／刪除／排序 text 與 audio 區塊，整體送 `spotcontent.php` 的 `op=save`；寫入權限看 `edit_spots`，旗標只決定前端顯不顯示入口）。
+- `assets/js/plugins/content-editor.js`（`contentEdit` 旗標——點位內容區塊的編輯：新增／修改／刪除／排序 text、audio、photo 區塊，整體送 `spotcontent.php` 的 `op=save`；寫入權限看 `edit_spots`，旗標只決定前端顯不顯示入口）。
 - `assets/js/plugins/contribution.js`（`upload` 旗標——目前最大的一個插件：投稿按鈕、分頁式批次投稿視窗、每張卡片的小地圖／定位來源／地點下拉、送出（含 429 限流自動重試）。型別專屬的知識（EXIF、WebP 轉檔、抽影格、錄音、建立地點表單）全都不在這個檔案裡，而在 `assets/js/contrib/kind-*.js`，見第三節。`#uploadBtn`/`#unlockFab`/`#pickImages`（插在 `#resetBtn` 之後）與批次投稿彈窗 `#contribModal`（插在 `#panel` 之後）都已改為插件自己在 `mount()` 的 `injectDom()` 建立並插入固定位置，`view.php` 不再輸出這幾段 HTML。解鎖對話框（掃碼／投稿代碼／PIN）與 `?code=` 網址參數自動解鎖仍留在核心，完全不受此旗標影響——「能不能寫入」是核心原生功能，「怎麼上傳」才是這個模組的範圍，見上面第 5 點規則。身分小標籤點擊快速開啟批次視窗改用 `'identityUploadShortcut'` 事件（核心不再直接呼叫插件內部函式），`u` 鍵快速鍵與地點卡片裡的「投稿到這個點」按鈕都用 `MapApp.getCurrentSpot()`／`MapApp.isUnlocked()` 等核心原生功能拿到需要的狀態，不假設自己知道核心內部變數）。
 - `assets/js/plugins/contributor-identity.js`（`identity` 旗標——右上角身分小標籤的渲染（暱稱／管理者／匿名預覽名、解鎖狀態圖示）、點擊與長按換名的事件綁定、解鎖對話框裡「建立身分」PIN／暱稱欄位的展開收合按鈕。`#identity` 小標籤已改為插件自己在 `mount()` 建立並插入 `#trItems` 的最前面，`view.php` 不再輸出這段 HTML；旗標關閉時整個檔案不會被載入，`#identity` 自然不存在。`#idToggleBtn`/`#idFields` 仍是 `view.php` 在 `#unlockDialog` 裡輸出的既有 HTML（原因見下段），解鎖對話框其餘部分（投稿代碼輸入、QR 掃描）不受影響，純代碼解鎖照常可用。PIN／暱稱欄位本身的讀取（送出解鎖時）與重置（對話框重開時）仍留在核心——它們跟純代碼解鎖共用同一個對話框與送出按鈕，沒有乾淨的切點，且已對 DOM 是否存在做防呆（`if (el)`），旗標關閉時安全略過；`contribToken`/`contribInfo`/`myContribId` 這些「有無設定過 PIN」的實際存取也留在核心，因為 `submitContribution`／刪除／照片編輯等核心自身送出流程都要用到，且沒設 PIN 時它們本來就是無害的空字串，不受這個模組開關影響。`personExplore` 透過 `dependsOn` 相依這個模組，見下一節）。
 - `assets/js/plugins/person-explore.js`（`personExplore` 旗標——選了投稿者後可依序探索他的地標／零散照片時間軸；這個檔案早於 `MapApp.Plugin` 基底類別存在，尚未改寫成 `extends` 寫法，但其餘規則——旗標自我檢查、`<style>` 自己注入、DOM 自己插入 `#ctlBody`——仍是有效範例）。

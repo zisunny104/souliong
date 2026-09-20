@@ -25,7 +25,7 @@ function souliong_kinds(): array
 {
     return [
         'photo' => [
-            'label' => '照片', 'tab' => 'media', 'postable' => true,
+            'label' => '照片', 'tab' => 'media', 'postable' => true, 'spotContent' => true,
             'file' => 'photo', 'thumb' => true,
             'mimes' => ['image/webp' => 'webp', 'image/jpeg' => 'jpg', 'image/png' => 'png'],
         ],
