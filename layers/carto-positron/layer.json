@@ -1,6 +1,7 @@
 {
-  "label": "CARTO Positron",
-  "desc": "跟 Voyager 同一家、同一份 OpenStreetMap 資料，但配色極淡，幾乎只剩路網輪廓與地名。自繪插畫疊上去時，底圖不會跟插畫的顏色打架——想讓插畫當主角就選這一張。深色模式自動換成 Dark Matter。",
+  "label": "CARTO Positron（已封存）",
+  "desc": "【已封存／過時，不建議使用】CARTO 免費圖磚會蓋「REQUIRED」浮水印，新地圖請改用 paper-ink 或 openfreemap-liberty；保留只為了讓既有地圖不壞。 跟 Voyager 同一家、同一份 OpenStreetMap 資料，但配色極淡，幾乎只剩路網輪廓與地名。自繪插畫疊上去時，底圖不會跟插畫的顏色打架——想讓插畫當主角就選這一張。深色模式自動換成 Dark Matter。",
+  "deprecated": true,
   "type": "raster",
   "pane": "base",
   "url": "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",

@@ -11,7 +11,7 @@ window.MapLibreEngine = (() => {
 
   // 3D 期間允許壓到接近水平的視角；MapLibre 預設上限 60 度
   const DEFAULT_MAX_PITCH = 60;
-  const MAX_PITCH_3D = 80;
+  const MAX_PITCH_3D = 70;
   const paneKey = (m) => (m && m.pane) || 'art';
 
   // 同一條規則跟 LeafletEngine 的 baseManifests() 精神一致（同 pane 後面蓋前面，取最後一筆）；
@@ -524,6 +524,8 @@ window.MapLibreEngine = (() => {
       this._in3D = false;
       this.map.easeTo({ pitch: 0, duration: 300 }).setMaxPitch(DEFAULT_MAX_PITCH);
       this._toggle3DLayers(false);
+      this.map.setSky(undefined);
+      this._alignLabels(false);
       extensions3D.forEach((e) => e.clear(this));
     }
     get dark() { return this._dark; }
@@ -533,10 +535,37 @@ window.MapLibreEngine = (() => {
     // 引擎只認這個標記、不認任何樣式或圖層 id。樣式重載（切深淺色）後全部要重套。
     _apply3DStyle() {
       this._toggle3DLayers(true);
+      this._applySky();
+      this._alignLabels(true);
       this._applyBuildingExclusion(this._3dCfg && this._3dCfg.excludedBuildingIds);
       this._modelLayerIds = [];
       if (this.THREE) this._renderCustomModels(); else this._maybeLoadThree();
       extensions3D.forEach((e) => e.apply(this, this._3dCfg || {}));
+    }
+    // 大傾角時地平線以外沒有東西擋著，遠處低縮放圖磚會直接露出來；天空與霧的顏色取底圖背景色，
+    // 讓遠景淡入底色（深淺色切換重載樣式後跟著換），同時把地平線收成柔和的漸層。
+    _applySky() {
+      const bg = ((this.map.getStyle() || {}).layers || []).find((l) => l.type === 'background');
+      const c = bg && this.map.getPaintProperty(bg.id, 'background-color');
+      if (typeof c !== 'string') return;
+      this.map.setSky({
+        'sky-color': c, 'horizon-color': c, 'fog-color': c,
+        'sky-horizon-blend': 0.5, 'horizon-fog-blend': 0.6, 'fog-ground-blend': 0.6, 'atmosphere-blend': 0,
+      });
+    }
+    // 點狀地名預設貼著螢幕（viewport）：傾斜時近處字大、遠處字擠成一片，跟有透視的建築不搭。
+    // 3D 時改貼地面隨透視縮放（近大遠小），旋轉維持朝上；線狀（路名）本來就貼地，不動。
+    _alignLabels(on) {
+      const keys = ['text-pitch-alignment', 'text-rotation-alignment'];
+      const orig = this._labelAlign || (this._labelAlign = {});
+      ((this.map.getStyle() || {}).layers || []).forEach((l) => {
+        if (l.type !== 'symbol' || /^(sl-|m3d-)/.test(l.id) || !('text-field' in (l.layout || {}))) return;
+        if ((l.layout['symbol-placement'] || 'point') !== 'point') return;
+        if (on && !(l.id in orig)) orig[l.id] = keys.map((k) => l.layout[k]);
+        if (!(l.id in orig)) return;
+        keys.forEach((k, i) => this.map.setLayoutProperty(l.id, k, on ? (i ? 'viewport' : 'map') : orig[l.id][i]));
+      });
+      if (!on) this._labelAlign = {};
     }
     _toggle3DLayers(on) {
       const style = this.map.getStyle();

@@ -1283,8 +1283,8 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
 
     // ── 地圖 ──
     const map = L.map('map', { center: [23.95, 120.69], zoom: 14 });
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-      { subdomains: 'abcd', detectRetina: true, maxZoom: 20, attribution: '&copy; OpenStreetMap, CARTO' }).addTo(map);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+      { maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors' }).addTo(map);
 
     /** 四個邊界值合不合理。與後端的 souliong_layer_bounds_valid() 同一套判準。 */
     function validBounds(b) {
@@ -1856,7 +1856,7 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
 
     // ── 匯出範圍底稿 ──
     // 這裡選的是「要匯出的範圍」本身，不是任何一張 Piece，跟對位把手（selRect／swM／neM／mvM）
-    // 完全分開；地圖也不共用主地圖（那張是 CARTO 光柵，高 zoom 會糊/馬賽克，不適合拿來當
+    // 完全分開；地圖也不共用主地圖（那張是光柵圖磚，高 zoom 會糊/馬賽克，不適合拿來當
     // 「畫面上看到的就是匯出結果」的依據）——另開一張向量圖磚地圖，見下方 exMap。
     const exmsgEl = $('exmsg');
     const exPreviewEl = $('exsnapPreview');
@@ -2103,8 +2103,8 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
 
     /**
      * 用站內既有的向量圖磚引擎（MapLibre GL + openfreemap-liberty，跟選區地圖 exMap 同一份 style，
-     * MAPLIBRE_STYLE_URL／waitForMapLibre() 見上方選區地圖那段）離屏渲染這塊範圍——不用 CARTO
-     * 光柵圖磚：那組免費圖磚會蓋「REQUIRED」浮水印，拿來描圖底稿會失真。離屏容器要接在 DOM 上
+     * MAPLIBRE_STYLE_URL／waitForMapLibre() 見上方選區地圖那段）離屏渲染這塊範圍——不用光柵圖磚：
+     * 高 zoom 會糊，拿來描圖底稿會失真。離屏容器要接在 DOM 上
      * 才有真實版面（display:none 不會觸發渲染），preserveDrawingBuffer 開起來 toBlob() 才讀得到
      * 畫面；等 idle 事件（圖磚全部載完、渲染完成）才擷圖，最長等 20 秒，逾時當失敗處理。
      */

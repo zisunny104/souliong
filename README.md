@@ -75,6 +75,6 @@ php tools/checkall.php                     # 語法、權限與內容區回歸�
 
 ## 授權
 
-程式碼採 **MIT**（見 [LICENSE](LICENSE)）。地圖圖資 © OpenStreetMap 貢獻者（ODbL）、圖磚 © CARTO；使用者投稿預設以 **CC0** 公開分享，已建立身分的投稿者可改選 **CC BY**（見投稿條款）。隱私說明見 [PRIVACY.md](docs/PRIVACY.md)、部署與安全見 [DEPLOY.md](docs/DEPLOY.md)。
+程式碼採 **MIT**（見 [LICENSE](LICENSE)）。地圖圖資 © OpenStreetMap 貢獻者（ODbL）、向量圖磚 © OpenFreeMap；使用者投稿預設以 **CC0** 公開分享，已建立身分的投稿者可改選 **CC BY**（見投稿條款）。隱私說明見 [PRIVACY.md](docs/PRIVACY.md)、部署與安全見 [DEPLOY.md](docs/DEPLOY.md)。
 
 © 2026 prjToka

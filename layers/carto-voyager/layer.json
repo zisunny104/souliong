@@ -1,6 +1,7 @@
 {
-  "label": "CARTO Voyager",
-  "desc": "OpenStreetMap 資料、CARTO 繪製的通用底圖。淺色用 Voyager（道路較寬、有淡彩），深色用 Dark Matter。這是圖層化之前寫死在檢視器裡的那張底圖，也是 default_layers 的預設值。",
+  "label": "CARTO Voyager（已封存）",
+  "desc": "【已封存／過時，不建議使用】CARTO 免費圖磚會蓋「REQUIRED」浮水印，新地圖請改用 paper-ink 或 openfreemap-liberty；保留只為了讓既有地圖不壞。 OpenStreetMap 資料、CARTO 繪製的通用底圖。淺色用 Voyager（道路較寬、有淡彩），深色用 Dark Matter。這是圖層化之前寫死在檢視器裡的那張底圖，也是 default_layers 的預設值。",
+  "deprecated": true,
   "type": "raster",
   "pane": "base",
   "url": "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",

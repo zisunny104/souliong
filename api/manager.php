@@ -1444,7 +1444,7 @@ if (!$authed) {
           if ($op >= 1.0) { unset($manifest['opacity']); } else { $manifest['opacity'] = $op; }
 
           $attr = trim((string)($_POST['attribution'] ?? ''));
-          // 500 而不是 200：內建的 CARTO 那三層光是 attribution 就 215 字（兩個帶 target/rel 的
+          // 500 而不是 200：帶連結的 attribution 動輒 200 字以上（兩個帶 target/rel 的
           // <a>），砍在 200 會把使用者從沒碰過的欄位默默截斷，正是不該發生的那種資料遺失。
           if ($attr === '') { unset($manifest['attribution']); } else { $manifest['attribution'] = mb_substr($attr, 0, 500); }
 
@@ -3451,6 +3451,13 @@ if (!$authed) {
                 foreach (array_keys($layAll) as $lid) {
                   if (!in_array($lid, $layRows, true)) $layRows[] = $lid;
                 }
+                // 已封存的圖層沒被勾選時沉到最後（穩定排序，其餘維持原順序）
+                $layTail = array_slice($layRows, count($layCur));
+                $layTail = array_merge(
+                  array_values(array_filter($layTail, fn($l) => !souliong_layer_deprecated($layAll[$l]))),
+                  array_values(array_filter($layTail, fn($l) => souliong_layer_deprecated($layAll[$l])))
+                );
+                $layRows = array_merge($layCur, $layTail);
                 $layDefault = implode('、', souliong_default_layers($cfg));
               ?>
               <input type="hidden" name="layers_submitted" value="1">
@@ -3463,7 +3470,7 @@ if (!$authed) {
                   <div class="lyrow">
                     <label class="lypick">
                       <input type="checkbox" name="layers[]" value="<?= $esc($lid) ?>" <?= in_array($lid, $layCur, true) ? 'checked' : '' ?>>
-                      <span><b><?= $esc($li['label'] ?? $lid) ?></b>
+                      <span><b><?= $esc($li['label'] ?? $lid) ?></b><?= souliong_layer_deprecated($li) ? ' <span class="tag">' . $t('layer_deprecated_tag') . '</span>' : '' ?>
                         <span class="hint mono"><?= $esc($lid) ?> · <?= $esc($li['pane'] ?? 'art') ?><?= ($li['scope'] ?? '') === 'project' ? ' · ' . $t('layer_scope_project') : '' ?></span></span>
                     </label>
                     <span class="lymove">
@@ -4350,12 +4357,13 @@ if (!$authed) {
       <div class="card section-card">
         <div class="badge"><i class="fa-solid fa-layer-group"></i> <?= $t('layers_heading') ?></div>
         <div class="hint" style="margin-top:6px"><?= $t('site_layers_hint') ?></div>
-        <?php $siteLayers = souliong_layer_list($cfg); ?>
+        <?php $siteLayers = souliong_layer_list($cfg);
+          uksort($siteLayers, fn($a, $b) => souliong_layer_deprecated($siteLayers[$a]) <=> souliong_layer_deprecated($siteLayers[$b])); ?>
         <?php if ($siteLayers): ?>
         <div class="lylist" style="margin-top:10px">
           <?php foreach ($siteLayers as $lid => $linfo): ?>
           <div class="lyrow">
-            <span style="flex:1 1 auto;min-width:0;font-size:0.8125rem"><b><?= $esc($linfo['label'] ?? $lid) ?></b> <span class="hint mono"><?= $esc($lid) ?> · <?= $esc($linfo['type'] ?? 'raster') ?></span></span>
+            <span style="flex:1 1 auto;min-width:0;font-size:0.8125rem"><b><?= $esc($linfo['label'] ?? $lid) ?></b><?= souliong_layer_deprecated($linfo) ? ' <span class="tag">' . $t('layer_deprecated_tag') . '</span>' : '' ?> <span class="hint mono"><?= $esc($lid) ?> · <?= $esc($linfo['type'] ?? 'raster') ?></span></span>
             <?php $layerAdminRow($lid, $linfo, ""); ?>
           </div>
           <?php endforeach; ?>

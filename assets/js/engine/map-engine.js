@@ -66,18 +66,17 @@ window.MapEngine = (() => {
     return '<span class="cr-ext">' + src.join(SEP) + '</span>' + CREDIT_OWN;
   }
 
-  // APP.layers 缺席時的保命底圖（獨立部署，或 view.php 還沒更新到有 layers 的版本）。內容與
-  // layers/carto-voyager/layer.json 一致——寧可重複一份設定，也不要因為少一個設定就整張地圖開天窗。
+  // APP.layers 缺席時的保命底圖（獨立部署，或 view.php 還沒更新到有 layers 的版本）。寧可在這裡放一份
+  // 設定，也不要因為少一個設定就整張地圖開天窗；因為此時主引擎一定是 Leaflet（畫不了向量），
+  // 只能用不會蓋浮水印的 OSM 標準光柵圖磚，沒有深色版。
   // 放在這裡（而非某個引擎檔或 viewer.core.js）是因為兩邊都要用同一份：viewer.core.js 的
   // layerManifests() 解析 APP.layers 時要用它兜底，各引擎自己的圖層系統做第二層防禦時也要用它。
   const FALLBACK_LAYER = {
-    id: 'carto-voyager', type: 'raster', pane: 'base',
-    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-    urlDark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    subdomains: 'abcd', detectRetina: true, maxZoom: 20,
+    id: 'osm-standard', type: 'raster', pane: 'base',
+    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    maxZoom: 19,
     attribution: [
       { text: 'OpenStreetMap', url: 'https://www.openstreetmap.org/copyright', copyright: true, suffix: '{osm_contributors}' },
-      { text: 'CARTO', url: 'https://carto.com/attributions' },
     ],
   };
 

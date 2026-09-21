@@ -391,6 +391,7 @@ return [
     'layers_heading'             => '地圖圖層',
     'layers_pick_hint'           => '由上到下＝由頂層到底層，上面的蓋住下面的。路徑線與點位一律在所有圖層之上。全部不勾＝跟隨全站預設（{default}）。',
     'layer_scope_project'        => '本地圖專屬',
+    'layer_deprecated_tag'       => '已封存',
     'layer_move_up_aria'         => '往上一層移動',
     'layer_move_down_aria'       => '往下一層移動',
     'no_layers_msg'              => '尚未安裝任何圖層',
@@ -932,5 +933,5 @@ return [
     'maplabel_auto_option' => '跟隨介面語言',
     'maplabel_lang_zh_TW' => '繁體中文',
     'maplabel_lang_en' => 'English',
-    'maplabel_hint' => '只對向量底圖有效；光柵底圖（如 CARTO）的標註烤在圖磚裡，無法更換。',
+    'maplabel_hint' => '只對向量底圖有效；光柵底圖的標註烤在圖磚裡，無法更換。',
 ];

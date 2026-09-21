@@ -286,14 +286,14 @@ CSS 全部前綴 `.stat-card .col`，因為要蓋過同層的 `.stat-card .col o
 
 專案層放在 `projects/` 底下不是隨便選的：那整棵目錄本來就在 `.gitignore`，所以自繪插畫、切好的圖磚金字塔這種「內容而非程式」的檔案天然不進版控，不必為了體積另立規則。同名 id 時**專案層覆蓋全站層**，讓單一地圖能在不影響其他地圖的前提下改掉內建圖層。
 
-反過來說，`url` 直接指向外部圖磚服務的圖層（CARTO、國土測繪中心…）一個檔案都不落地，連數量問題都不存在。
+反過來說，`url` 直接指向外部圖磚服務的圖層（國土測繪中心、Esri…）一個檔案都不落地，連數量問題都不存在。
 
 ### 8.2 註冊表與選用
 
 比照 `api/packs.php`：註冊表就是目錄底下的資料夾本身，沒有中央 index 檔，新增一層只要新增一個資料夾（內含 `layer.json`）。解析在 `api/layers.php`：
 
 - `souliong_layer_list($cfg, $proj)` — 掃兩層作用域，回傳 `[id => manifest]`，manifest 會被補上 `id`（資料夾名稱才算數，`layer.json` 內容不可覆寫）與 `scope`。
-- `souliong_layers_for($cfg, $meta, $proj)` — 這張地圖生效的**有序**陣列。`meta.json` 的 `"layers": ["paper-ink", "chungshing-art"]` 由下往上；沒有這個欄位就退回 `config` 的 `default_layers`（預設 `['paper-ink']`）。選到不存在的 id 會被靜靜略過，不讓整張地圖開天窗。
+- `souliong_layers_for($cfg, $meta, $proj)` — 這張地圖生效的**有序**陣列。`meta.json` 的 `"layers": ["paper-ink", "chungshing-art"]` 由下往上；沒有這個欄位就退回 `config` 的 `default_layers`（預設 `['paper-ink']`）。選到不存在的 id 會被靜靜略過；指定的 id 全都不存在時退回 `default_layers`，不讓整張地圖開天窗。
 - `souliong_layers_public($cfg, $meta, $proj, $base)` — 前端版本，額外把相對 `url` 改寫成絕對網址。
 
 「特定專案才有插畫疊圖」不需要額外的開關：`meta.json` 沒寫就是沒有。
@@ -304,14 +304,14 @@ CSS 全部前綴 `.stat-card .col`，因為要蓋過同層的 `.stat-card .col o
 | --- | --- |
 | `paper-ink` | 向量底圖（MapLibre），淺色如紙、深色如墨，道路加寬。`default_layers` 的預設值。 |
 | `openfreemap-liberty` | OpenFreeMap 的 Liberty 向量底圖，深色模式換其 Dark 風格。 |
-| `carto-voyager` | 光柵底圖，道路較寬、有淡彩。深色模式換 Dark Matter。 |
-| `carto-positron` | 配色極淡，幾乎只剩路網輪廓與地名。要讓自繪插畫當主角時選這張。深色模式換 Dark Matter。 |
-| `carto-positron-nolabels` | Positron 拿掉所有文字。手繪稿自己寫了地名時，底圖不必再標一次。 |
+| `carto-voyager` | **已封存**，不建議使用（免費圖磚會蓋浮水印）。光柵底圖，深色模式換 Dark Matter。 |
+| `carto-positron` | **已封存**，不建議使用。配色極淡的光柵底圖。 |
+| `carto-positron-nolabels` | **已封存**，不建議使用。Positron 拿掉所有文字。 |
 | `demo-overlay` | 透明 SVG 疊圖的參考範例，不是給正式地圖用的。 |
 
-三張 CARTO 底圖都在 `sl-base` pane，同時勾兩張只有上面那張看得到——它們是彼此的替代品，不是可以疊加的東西。
+`layer.json` 的 `deprecated: true` 標示已封存（後台清單加「已封存」標籤並排在後面；前端不讀這個欄位）。底圖都在 `sl-base` pane，同時勾兩張只有上面那張看得到——它們是彼此的替代品，不是可以疊加的東西。
 
-要再加一個外部來源（國土測繪中心的電子地圖與正射航照、Esri 的衛星影像、中研院的歷史地圖…）就是「多一個資料夾放 `layer.json`」，不必動任何程式碼。注意 `attribution` 必須跟著來源走：CARTO 圖磚的資料是 OpenStreetMap，換一家就要換一份標註。
+要再加一個外部來源（國土測繪中心的電子地圖與正射航照、Esri 的衛星影像、中研院的歷史地圖…）就是「多一個資料夾放 `layer.json`」，不必動任何程式碼。注意 `attribution` 必須跟著來源走：OpenFreeMap 的資料是 OpenStreetMap，換一家就要換一份標註。
 
 ### 8.3 `layer.json`
 
@@ -331,7 +331,7 @@ CSS 全部前綴 `.stat-card .col`，因為要蓋過同層的 `.stat-card .col o
 
 **這些欄位必須整組跟著 manifest，不能只抽 URL**：`subdomains`／`detectRetina`／`maxNativeZoom` 都是跟著來源走的屬性，少一個就破圖。
 
-`attribution` 也一樣跟著來源走——CARTO 的圖磚是 OSM 資料，國土測繪中心的不是，寫死在檢視器裡一定會錯。格式是一個物件陣列，每則署名 `{text, url, copyright, suffix}`：`url` 有值才會包成連結，`copyright` 是 `true` 時前面加 `&copy;`，`suffix` 接在連結後面（例 `{osm_contributors}`，跟 `text` 一樣可以用 `{key}` 引用翻譯字串，不必為每種語言各寫一份）。標籤怎麼組（要不要連結、要不要 `&copy;`）固定由 `assets/js/engine/map-engine.js` 的 `buildCredit()`/`creditHtml()` 決定，manifest 只描述資料，不寫 HTML——這樣同一份框架換圖磚來源只是換這幾個欄位的值，不會因為換供應商就要在別的地方另刻一份標註邏輯。透過「建立圖層」／去背裁切工具（`api/manager.php`／`region3d.php`／`tilecut.php`）產生的圖層目前仍存純字串（管理員手打的單行署名），`creditListHtml()` 相容這個舊格式，原樣沿用不轉換。各層的 attribution 由 `buildCredit()` 去重串接，再接上固定的引擎（Leaflet／MapLibre）＋自家連結。
+`attribution` 也一樣跟著來源走——OpenFreeMap 的圖磚是 OSM 資料，國土測繪中心的不是，寫死在檢視器裡一定會錯。格式是一個物件陣列，每則署名 `{text, url, copyright, suffix}`：`url` 有值才會包成連結，`copyright` 是 `true` 時前面加 `&copy;`，`suffix` 接在連結後面（例 `{osm_contributors}`，跟 `text` 一樣可以用 `{key}` 引用翻譯字串，不必為每種語言各寫一份）。標籤怎麼組（要不要連結、要不要 `&copy;`）固定由 `assets/js/engine/map-engine.js` 的 `buildCredit()`/`creditHtml()` 決定，manifest 只描述資料，不寫 HTML——這樣同一份框架換圖磚來源只是換這幾個欄位的值，不會因為換供應商就要在別的地方另刻一份標註邏輯。透過「建立圖層」／去背裁切工具（`api/manager.php`／`region3d.php`／`tilecut.php`）產生的圖層目前仍存純字串（管理員手打的單行署名），`creditListHtml()` 相容這個舊格式，原樣沿用不轉換。各層的 attribution 由 `buildCredit()` 去重串接，再接上固定的引擎（Leaflet／MapLibre）＋自家連結。
 
 `pane` 決定疊放層級。Leaflet 預設只有 `tilePane`(200)／`overlayPane`(400)／`markerPane`(600)，圖層之間沒有可指定的層級，所以檢視器替四種角色各開一個 pane：
 
@@ -427,7 +427,7 @@ MapLibre 沒有 Leaflet 的「pane／可疊多張獨立底圖」概念，向量 
 - `maxNativeZoom` **不開放編輯**。那是「圖磚實際切到第幾級」，由切圖工具寫入；改它只會讓 Leaflet 去要不存在的磚。
 - 邊界四格**要嘛全填、要嘛全空**，只填一兩格當成錯誤。全空＝移除 `bounds`（外部圖磚服務本來就沒有範圍），不是「保持原樣」。
 - 不透明度設回 `1` 就把整個 key 拿掉——1 是 Leaflet 的預設，寫進去只是雜訊。
-- 版權標註上限 500 字：內建那三張 CARTO 光是 `attribution` 就 215 字（兩個帶 `target`／`rel` 的 `<a>`），砍在 200 會把使用者從沒碰過的欄位默默截斷。
+- 版權標註上限 500 字：帶連結的 `attribution` 動輒 200 字以上（兩個帶 `target`／`rel` 的 `<a>`），砍在 200 會把使用者從沒碰過的欄位默默截斷。
 
 留著原稿的圖層（見 8.7）會在「設定」旁邊多一顆**「重新編輯」**，連到 `tilecut` 的 `?load=<id>`。沒留原稿的就沒有這顆按鈕——按鈕在不在，本身就是「這一層還能不能改」的答案，不必按下去才知道。
 

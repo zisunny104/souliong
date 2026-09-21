@@ -1,7 +1,7 @@
 # 未完成事項追蹤
 
 由 100chairs-53 彙整維護（唯一寫入者）。全部完成後刪除本檔。
-最後更新：2026-09-21（OSM 驅動 3D 一併提交）
+最後更新：2026-09-21（高傾角文字貼地、CARTO 封存）
 
 ## 已定案的設計原則
 
@@ -35,6 +35,7 @@ OSM 驅動 3D：屋頂造型（Simple 3D Buildings）、顏色、窗戶、low-po
 ## 尚未驗證
 
 - OSM 3D：新資料需在每個專案跑 tools/osm_fetch.php（`--contact` 請用專案網址，不用個人信箱）；針葉樹實景、電塔切日夜、type=building 關係式成員、multipolygon 主體分件歸屬、「點位深連結加 3D 還原」組合、玻璃圓頂 way/1172959614 的新比例，皆未實測。
+- 3D 高傾角：最大傾角降為 70，文字貼地（text-pitch-alignment map）與 sky／霧已實測淺色；深色底圖畫面、觸控傾斜未測。Leaflet 光柵備援（OSM 標準圖磚）未實機開圖。
 - 管理端 mapLabelLang 下拉（未做登入後的 POST 測試）。
 - 導航選單在展開（.wide）面板與無座標點位；真機的 geo:／Apple 連結。
 - 3D：管理員畫區域、存檔、排除的完整流程；自訂模型（three.js）在地圖內的顯示；Leaflet 光柵主引擎走獨立引擎的路徑。
@@ -44,7 +45,7 @@ OSM 驅動 3D：屋頂造型（Simple 3D Buildings）、顏色、窗戶、low-po
 
 ## 待辦
 
-- assets/js/engine/map-engine.js:70-74 仍有 carto-voyager 備援清單（77 的檔）。
+- VPS 部署前依 docs/DEPLOY.md 第 8 項檢查 meta.json／config 有無引用 carto-*（已封存，保留支援）。
 
 ## 低優先
 

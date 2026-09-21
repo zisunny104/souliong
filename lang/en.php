@@ -381,6 +381,7 @@ return [
     'layers_heading'             => 'Map layers',
     'layers_pick_hint'           => 'Top to bottom = topmost to bottommost; upper layers cover lower ones. Route lines and points always sit above every layer. Tick nothing to follow the site default ({default}).',
     'layer_scope_project'        => 'this map only',
+    'layer_deprecated_tag'       => 'Archived',
     'layer_move_up_aria'         => 'Move one layer up',
     'layer_move_down_aria'       => 'Move one layer down',
     'no_layers_msg'              => 'No layers installed yet',
@@ -930,5 +931,5 @@ return [
     'maplabel_auto_option' => 'Follow interface language',
     'maplabel_lang_zh_TW' => '繁體中文',
     'maplabel_lang_en' => 'English',
-    'maplabel_hint' => 'Vector base maps only; raster base maps (e.g. CARTO) have labels baked into the tiles and cannot be changed.',
+    'maplabel_hint' => 'Vector base maps only; raster base maps have labels baked into the tiles and cannot be changed.',
 ];

@@ -20,7 +20,7 @@
 // 圖檔怎麼送出去：url 若是相對路徑（不含 "://"），代表圖檔就放在該層自己的資料夾裡，由
 // <base>/layer/<project>/<id>/<路徑> 端點輸出——框架不供應靜態檔，理由同 api/photo.php。
 // 全站層也走同一條網址，<project> 只是決定解析範圍。反過來說，url 直接指向外部圖磚服務的
-// 圖層（CARTO、國土測繪中心…）一個檔案都不落地，自然也沒有檔案數量的問題。
+// 圖層（國土測繪中心、Esri…）一個檔案都不落地，自然也沒有檔案數量的問題。
 
 /** 平台內建 layers/ 目錄；layers_dir 沒設也要能運作（舊部署的 api/config.php 不會有這個 key）。 */
 function souliong_layers_dir(array $cfg): string
@@ -193,7 +193,7 @@ function souliong_default_layers(array $cfg): array
 
 /**
  * $meta 是專案 meta.json 解析後的陣列（可能是 null）。
- * 回傳該地圖生效的圖層 manifest 陣列，由下往上排序；選到不存在的 id 會被靜靜略過
+ * 回傳該地圖生效的圖層 manifest 陣列，由下往上排序；選到不存在的 id 會被靜靜略過，全部都不存在則退回 default_layers
  * （比照 souliong_pack_for()：資料指到已刪除的資源時退回預設，不讓整張地圖開天窗）。
  */
 function souliong_layers_for(array $cfg, ?array $meta, string $proj = ''): array
@@ -202,13 +202,23 @@ function souliong_layers_for(array $cfg, ?array $meta, string $proj = ''): array
     $want = (is_array($meta) && isset($meta['layers']) && is_array($meta['layers']) && $meta['layers'])
         ? $meta['layers']
         : souliong_default_layers($cfg);
-    $out = [];
-    foreach ($want as $id) {
-        if (is_string($id) && isset($all[$id])) {
-            $out[] = $all[$id];
+    $pick = function (array $ids) use ($all): array {
+        $out = [];
+        foreach ($ids as $id) {
+            if (is_string($id) && isset($all[$id])) {
+                $out[] = $all[$id];
+            }
         }
-    }
-    return $out;
+        return $out;
+    };
+    // 指定的 id 全都不存在（圖層資料夾已刪）時退回預設，不讓整張地圖沒有底圖
+    return $pick($want) ?: $pick(souliong_default_layers($cfg));
+}
+
+/** 已封存（過時、保留只為相容）的圖層：manifest 的 deprecated 為 true。後台清單據此加標籤、排在新選項之後。 */
+function souliong_layer_deprecated(array $manifest): bool
+{
+    return ($manifest['deprecated'] ?? false) === true;
 }
 
 /** 這個 manifest 的圖檔是不是放在自己資料夾裡（相對 url）＝要走 layer 端點輸出。 */

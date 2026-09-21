@@ -1,6 +1,7 @@
 {
-  "label": "CARTO Positron（無地名）",
-  "desc": "Positron 拿掉所有文字標註，只留路網與地物形狀。手繪稿本身多半已經寫了地名，底圖再標一次會疊成一團——這一張是為了那種情況準備的。深色模式自動換成 Dark Matter 的無地名版。",
+  "label": "CARTO Positron（無地名，已封存）",
+  "desc": "【已封存／過時，不建議使用】CARTO 免費圖磚會蓋「REQUIRED」浮水印，新地圖請改用 paper-ink 或 openfreemap-liberty；保留只為了讓既有地圖不壞。 Positron 拿掉所有文字標註，只留路網與地物形狀。手繪稿本身多半已經寫了地名，底圖再標一次會疊成一團——這一張是為了那種情況準備的。深色模式自動換成 Dark Matter 的無地名版。",
+  "deprecated": true,
   "type": "raster",
   "pane": "base",
   "url": "https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png",

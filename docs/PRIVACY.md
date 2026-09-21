@@ -41,8 +41,8 @@ This service is not directed at children; do not upload content identifying mino
 
 ## 第三方 / Third parties
 
-地圖以 Leaflet 顯示、預設圖磚 © CARTO、圖資 © OpenStreetMap 貢獻者（ODbL）；啟用 3D／向量底圖模式的地圖改以 MapLibre GL JS 顯示，圖磚預設來自 openfreemap.org（同樣源自 OpenStreetMap）。QR 在你的瀏覽器本機產生。個別地圖可能改用其他圖磚來源或自繪疊圖，實際來源標示在地圖的圖資出處列。皆用於顯示功能，非廣告或追蹤。授權詳見 [LICENSE](https://github.com/zisunny104/souliong/blob/main/LICENSE)。
-Map via Leaflet, default tiles © CARTO, data © OpenStreetMap contributors (ODbL); maps with 3D/vector mode enabled render via MapLibre GL JS instead, with vector tiles from openfreemap.org by default (also OpenStreetMap-derived). QR generated locally in your browser. Individual maps may use other tile sources or hand-drawn overlays — the actual source is credited in the map's attribution line. For display only. See [LICENSE](https://github.com/zisunny104/souliong/blob/main/LICENSE).
+地圖以 MapLibre GL JS 顯示，預設向量圖磚來自 openfreemap.org，圖資 © OpenStreetMap 貢獻者（ODbL）；改用光柵底圖的地圖以 Leaflet 顯示。管理者在切圖工具選取範圍時，預覽底圖會向 tile.openstreetmap.org 取圖磚。封存的 CARTO 圖層若被選用會連線 basemaps.cartocdn.com，圖磚 © CARTO。QR 在你的瀏覽器本機產生。個別地圖可能改用其他圖磚來源或自繪疊圖，實際來源標示在地圖的圖資出處列。皆用於顯示功能，非廣告或追蹤。授權詳見 [LICENSE](https://github.com/zisunny104/souliong/blob/main/LICENSE)。
+Maps render via MapLibre GL JS with vector tiles from openfreemap.org by default, data © OpenStreetMap contributors (ODbL); maps using a raster base map render via Leaflet instead. When an admin selects an area in the tile-cutting tool, its preview map fetches tiles from tile.openstreetmap.org. Archived CARTO layers, if selected, connect to basemaps.cartocdn.com (tiles © CARTO). QR generated locally in your browser. Individual maps may use other tile sources or hand-drawn overlays — the actual source is credited in the map's attribution line. For display only. See [LICENSE](https://github.com/zisunny104/souliong/blob/main/LICENSE).
 
 ---
 

@@ -62,6 +62,13 @@ Nginx：`client_max_body_size 70m;`　PHP：`upload_max_filesize=64M`、`post_ma
 ### 7. HTTPS
 定位、相機、`crypto.subtle`（刪除判斷）都需安全情境。全站 HTTPS。
 
+### 8. 已封存的 CARTO 圖層
+`layers/carto-*` 三層（Voyager、Positron、Positron 無地名）保留但已封存：不建議使用，CARTO 免費圖磚會蓋浮水印。保留只為了讓既有地圖不壞，後台清單會標示「已封存」並排在新選項之後，不會被預設勾選。每個環境部署前確認：
+1. `api/config.php` 的 `default_layers` 不含 `carto-*`（舊部署的預設值可能是 `carto-voyager`），應為 `['paper-ink']`。
+2. `grep -l carto projects/*/meta.json`：有命中的專案仍能運作，但建議在後台圖層分頁改用 `paper-ink` 或 `openfreemap-liberty`。
+被選用時瀏覽器會連線 `basemaps.cartocdn.com`；若強制執行 CSP，該情況需在 `img-src` 放行 `https://*.basemaps.cartocdn.com`。
+指定的圖層 id 全都不存在時，後端會退回 `default_layers`，不會整張地圖沒有底圖。
+
 ## 二、投稿代碼（限特定人上傳）
 
 - 開不開放投稿：看這張地圖現在有沒有還有效的投稿代碼——有＝要碼才能投稿，一組都沒有＝除管理者外不能投稿。碼本身就是開關，不必改 `meta.json`。
@@ -85,9 +92,9 @@ Nginx：`client_max_body_size 70m;`　PHP：`upload_max_filesize=64M`、`post_ma
 ```
 script-src  'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com;
 style-src   'unsafe-inline' https://unpkg.com https://cdnjs.cloudflare.com;
-img-src     'self' data: blob: https://*.basemaps.cartocdn.com;
+img-src     'self' data: blob: https://tile.openstreetmap.org;   # 後者只有切圖工具的選區預覽用
 media-src   'self' blob:;
-connect-src 'self' https://tiles.openfreemap.org;  # 後者只有啟用 3D／向量底圖模式才需要，來源看 map3d_style_url
+connect-src 'self' https://tiles.openfreemap.org;  # 向量底圖（預設 paper-ink）與 3D 模式用，來源看 map3d_style_url
 font-src    https://cdnjs.cloudflare.com;
 worker-src  blob:;
 ```
