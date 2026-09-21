@@ -176,8 +176,11 @@
     // 單坡：往 +t 方向下降，方向由 roof:direction 轉進外接矩形座標系時另外處理，這裡不需要折線
     skillion: (hs, ht) => ({ h: (s, t) => (ht - t) / (2 * ht), lines: [] }),
     round: (hs, ht) => ({ h: (s, t) => Math.sqrt(Math.max(0, 1 - (t / ht) ** 2)), lines: arcGrid(12, ht, 't') }),
+    // radial：h 吃的是「到中心距離 / 沿該方向到輪廓邊的距離」，所以圓弧在輪廓每一點都貼齊牆頂，
+    // 多邊形近似的圓也不會在弦與弧之間露出一圈鋸齒狀裙邊
     dome: (hs, ht) => ({
-      h: (s, t) => Math.sqrt(Math.max(0, 1 - Math.min(1, Math.hypot(s / hs, t / ht)) ** 2)),
+      radial: true,
+      h: (r) => Math.sqrt(Math.max(0, 1 - Math.min(1, r) ** 2)),
       lines: arcGrid(14, hs, 's').concat(arcGrid(14, ht, 't')),
     }),
     onion: (hs, ht) => ({
@@ -531,7 +534,28 @@
       let tris = THREE.ShapeUtils.triangulateShape(contour, holes).map((t) => t.map((i) => all[i]));
       const shp = make ? make(hs, ht) : null;
       if (shp) tris = splitTriangles(tris, shp.lines.map((l) => frame.line(l[0], l[1], l[2])));
-      const heightAt = shp ? (q) => roofH * Math.max(0, Math.min(1, shp.h(frame.s(q[0], q[1]), frame.t(q[0], q[1])))) : () => 0;
+      // 中心射向 q 的射線與外輪廓的交點距離（取不小於 q 距離的最近一個）
+      const edgeDist = (q, d) => {
+        const ux = (q[0] - frame.cx) / d, uy = (q[1] - frame.cy) / d;
+        let best = Infinity;
+        for (let i = 0; i < outer.length; i++) {
+          const a = outer[i], c = outer[(i + 1) % outer.length];
+          const ex = c[0] - a[0], ey = c[1] - a[1], den = ux * ey - uy * ex;
+          if (Math.abs(den) < 1e-12) continue;
+          const ax = a[0] - frame.cx, ay = a[1] - frame.cy;
+          const t = (ax * ey - ay * ex) / den, u = (ax * uy - ay * ux) / den;
+          if (u >= -1e-9 && u <= 1 + 1e-9 && t >= d - 1e-6 && t < best) best = t;
+        }
+        return best;
+      };
+      const heightAt = !shp ? () => 0 : shp.radial
+        ? (q) => {
+          const d = Math.hypot(q[0] - frame.cx, q[1] - frame.cy);
+          if (d < 1e-9) return roofH;
+          const e = edgeDist(q, d);
+          return roofH * shp.h(Number.isFinite(e) ? d / e : 1);
+        }
+        : (q) => roofH * Math.max(0, Math.min(1, shp.h(frame.s(q[0], q[1]), frame.t(q[0], q[1]))));
 
       const segs = [];
       wallRings.forEach((pts) => { for (let i = 0; i < pts.length; i++) segs.push([pts[i], pts[(i + 1) % pts.length]]); });
