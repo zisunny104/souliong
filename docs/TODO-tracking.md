@@ -1,7 +1,7 @@
 # 未完成事項追蹤
 
 由 100chairs-53 彙整維護（唯一寫入者）。全部完成後刪除本檔。
-最後更新：2026-09-21（已 push 至 8958e9c）
+最後更新：2026-09-21（OSM 驅動 3D 一併提交）
 
 ## 已定案的設計原則
 
@@ -23,17 +23,18 @@
 ## 已完成（近期）
 
 伺服器端壓縮、Route:: 遷移、樣式 json 縮短快取、tools/checkall.php、點位導航（Google、Apple、geo、OSM 選單）、封面快照隱藏底圖地名並重拍三個專案、地名跟隨語言、路徑需先選投稿者、光柵底圖 minZoom／maxNativeZoom／tms／bounds、預設底圖對齊 paper-ink、3D 建物沿用原底圖（紙墨）、燈箱說明置中。
+OSM 驅動 3D：屋頂造型（Simple 3D Buildings）、顏色、窗戶、low-poly 樹、電塔與電線，資料由 tools/osm_fetch.php 預抓成 projects/<p>/{roofs,trees,power}.geojson（git 忽略），經 Route::osm 供應；日夜光照、3D 重新整理後還原、3D 控制鈕與深色羅盤修正。
 
 ## 等使用者決定
 
 - soundspace 預設縮放 19.6 超過向量圖磚 z14，建議降到 17 至 18，或以 meta.json 限制最大縮放（需確認 PHP 端是否輸出該欄位）。
-- 3D 圓頂：c9 已備測試 glb（scratchpad dome-test.glb），是否在 _packdemo 建區域實測上傳與顯示。
 - _packdemo 是否移除 `pack: demo-loud` 以免蓋掉 paper-ink。
 - 播放鍵脈動：77 無法重現，需使用者提供裝置、瀏覽器、當時聲音是否在播、完整網址。
 - 部署到 VPS 的時機。
 
 ## 尚未驗證
 
+- OSM 3D：新資料需在每個專案跑 tools/osm_fetch.php（`--contact` 請用專案網址，不用個人信箱）；針葉樹實景、電塔切日夜、type=building 關係式成員、multipolygon 主體分件歸屬、「點位深連結加 3D 還原」組合、玻璃圓頂 way/1172959614 的新比例，皆未實測。
 - 管理端 mapLabelLang 下拉（未做登入後的 POST 測試）。
 - 導航選單在展開（.wide）面板與無座標點位；真機的 geo:／Apple 連結。
 - 3D：管理員畫區域、存檔、排除的完整流程；自訂模型（three.js）在地圖內的顯示；Leaflet 光柵主引擎走獨立引擎的路徑。

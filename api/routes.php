@@ -152,6 +152,12 @@ final class Route
         return self::base() . 'layer/' . rawurlencode($project) . '/' . rawurlencode($id) . '/' . implode('/', $segs);
     }
 
+    /** 專案預先抓取的 OSM 資料集（index.php 的 osm/ 路徑，實作在 api/osmfile.php）；$kind 見 api/osmdata.php */
+    public static function osm(string $project, string $kind): string
+    {
+        return self::base() . 'osm/' . rawurlencode($project) . '/' . rawurlencode($kind);
+    }
+
     /** 維護工具頁（exiffix／thumbfix／tilecut）；$extra 是該工具自己的參數 */
     public static function tool(string $tool, string $project = '', array $extra = []): string
     {

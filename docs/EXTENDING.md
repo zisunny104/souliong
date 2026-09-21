@@ -561,6 +561,14 @@ MapLibre 沒有 Leaflet 的「pane／可疊多張獨立底圖」概念，向量 
 
 **跟正常上傳流程共用、沒有另開一套的部分**：`Piece` 類別、`tileRange()`、`applyNativeZoom()`、`select()`/`refresh()`、`MAX_TILES` 上限、切磚／上傳的 `finish` 端點。這條路徑刻意不支援中途停止（`#stop`）——張數上限已經跟正常切磚共用，最壞情況耗時跟切一次磚相當，加一套獨立的中止/續傳語意不划算。
 
+### 8.12 預先抓取的 OSM 資料（屋頂造型、樹木、電力設施）
+
+3D 模式要畫的建築外觀（屋頂造型 `roof:shape`、`building:levels`、顏色與材質；有任一項的整棟建築與全部分件才輸出）、樹木（`natural=tree`、`tree_row`）與電力設施（`power=tower`／`pole`／`line`／`minor_line`）來自 OpenStreetMap，但**不在訪客端即時查 Overpass**：公開 Overpass 有配額與逾時，會拖慢頁面，也把流量丟給公益服務。管理者在維護時用命令列抓一次，落地成專案資料：
+
+- `php tools/osm_fetch.php <project> [--kind=roofs|trees|power] [--bbox=南,西,北,東] [--contact=…] [--dry-run]` → `projects/<p>/roofs.geojson`、`trees.geojson`、`power.geojson`。範圍預設是點位外框加邊距；一次一個請求、自訂 User-Agent、逾時與重試；筆數超過資料集上限（範圍太大）或回應被截斷時不動既有檔案。
+- 供應端點 `Route::osm($project, $kind)`＝`<base>/osm/<project>/<roofs|trees|power>`（實作在 `api/osmfile.php`），公開讀取，no-cache 加 ETag；檔案不存在回空的 FeatureCollection，不是 404。`pages/view.php` 把已抓過的網址放進 `APP.map3d.roofsUrl`／`treesUrl`／`powerUrl`，沒抓過是 `null`。
+- 資料集登記表與共用驗證在 `api/osmdata.php`，欄位規則在 `api/roofslib.php`、`api/treeslib.php`、`api/powerlib.php`。屬性都已驗證並正規化（長度轉公尺、顏色統一成 `#rrggbb`、無法解析的欄位直接省略），前端不必再處理 OSM 的各種寫法。
+
 ## 九、網址表：`api/routes.php`
 
 網址長什麼樣，全站只寫在一個檔案裡。`Route` 同時負責**拆**（`index.php` 收到請求時）與**組**（其他檔案要產生連結時），兩邊共用同一組常數，所以不會出現「拆得開卻組不回去」的歪斜。

@@ -45,7 +45,35 @@
           this.activeEngine.setMarkerLayer('spots', this.mapApp.spotMarkerSpecs());
         }
       });
+      // 重新整理後回到 3D：首次 stateChange 時主引擎和點位都已就緒。只還原模式與傾斜／旋轉，
+      // 不動中心與縮放，?spot= 之類的深連結照舊決定畫面位置
+      const saved = this.loadState();
+      if (saved) {
+        let done = false;
+        this.mapApp.onHook('stateChange', () => {
+          if (done || this.active) return;
+          done = true;
+          this.enter();
+          this.activeEngine.getRawMap().jumpTo({ pitch: saved.pitch, bearing: saved.bearing });
+        });
+      }
     }
+
+    // 3D 狀態只存在這個瀏覽器、以專案為單位；儲存被擋（無痕、停用）時靜默略過
+    stateKey() { return 'souliong3d_' + ((window.APP && window.APP.project) || 'chairs'); }
+    loadState() {
+      try {
+        const o = JSON.parse(localStorage.getItem(this.stateKey()) || 'null');
+        return o && Number.isFinite(o.pitch) && Number.isFinite(o.bearing) ? o : null;
+      } catch (e) { return null; }
+    }
+    saveState() {
+      try {
+        const m = this.activeEngine.getRawMap();
+        localStorage.setItem(this.stateKey(), JSON.stringify({ pitch: m.getPitch(), bearing: m.getBearing() }));
+      } catch (e) {}
+    }
+    clearState() { try { localStorage.removeItem(this.stateKey()); } catch (e) {} }
 
     injectStyle() {
       const style = document.createElement('style');
@@ -111,10 +139,17 @@
       this.activeEngine.setMarkerLayer('spots', this.mapApp.spotMarkerSpecs());
       this.active = true;
       this.btn.classList.add('on');
+      this.onMoveEnd = () => this.saveState();
+      this.activeEngine.getRawMap().on('moveend', this.onMoveEnd);
+      this.saveState();
     }
 
     exit() {
-      if (this.activeEngine) this.activeEngine.exit3D();
+      if (this.activeEngine) {
+        this.activeEngine.getRawMap().off('moveend', this.onMoveEnd);
+        this.activeEngine.exit3D();
+      }
+      this.clearState();
       if (this.activeEngine === this.standaloneEngine) {
         this.container.style.display = 'none';
         document.getElementById('map').style.display = '';

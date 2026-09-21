@@ -21,6 +21,7 @@ require_once __DIR__ . '/../api/layers.php';
 require_once __DIR__ . '/../api/navlinks.php';
 require_once __DIR__ . '/../api/labellang.php';
 require_once __DIR__ . '/../api/regions3d.php';
+require_once __DIR__ . '/../api/osmdata.php';
 $apiCfg    = require __DIR__ . '/../api/config.php';
 require_once __DIR__ . '/../api/spotlib.php';
 require_once __DIR__ . '/../api/uploadlib.php';
@@ -92,6 +93,10 @@ $map3d = $mod('map3d') ? [
     'key'                 => (string)($apiCfg['map3d_key'] ?? ''),
     'regions'             => souliong_region3d_public_list($apiCfg, $proj, $base),
     'excludedBuildingIds' => souliong_region3d_excluded_ids($apiCfg, $proj),
+    // 預先抓取的 OSM 資料集網址（tools/osm_fetch.php）；沒抓過就是 null，前端據此跳過請求
+    'roofsUrl'            => is_file((string)souliong_osm_path($apiCfg, $proj, 'roofs')) ? Route::osm($proj, 'roofs') : null,
+    'treesUrl'            => is_file((string)souliong_osm_path($apiCfg, $proj, 'trees')) ? Route::osm($proj, 'trees') : null,
+    'powerUrl'            => is_file((string)souliong_osm_path($apiCfg, $proj, 'power')) ? Route::osm($proj, 'power') : null,
 ] : null;
 
 $APP = [
@@ -468,6 +473,10 @@ window.maplibregl = maplibregl;
 <?php endif; ?>
 <?php if ($mod('map3d')): ?>
 <script type="module" src="<?= $assetUrl('assets/js/plugins/map3d.js') ?>"></script>
+<?php /* 三個資料插件向 MapLibreEngine 登記 3D 擴充，各自只在對應的 APP.map3d.*Url 有值時動作 */ ?>
+<script type="module" src="<?= $assetUrl('assets/js/plugins/map3d-roofs.js') ?>"></script>
+<script type="module" src="<?= $assetUrl('assets/js/plugins/map3d-trees.js') ?>"></script>
+<script type="module" src="<?= $assetUrl('assets/js/plugins/map3d-power.js') ?>"></script>
 <?php endif; ?>
 </body>
 </html>

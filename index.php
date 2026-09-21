@@ -55,6 +55,11 @@ switch ($action) {
         $_GET['f'] = count($seg) > 1 ? implode('/', array_slice($seg, 1)) : ($_GET['f'] ?? '');
         require __DIR__ . '/api/model3dfile.php';   // 自訂 3D 模型檔：<base>/model3d/<project>/<id>/model.glb
         return;
+    case 'osm':
+        $_GET['project'] = $seg[1] ?? '';
+        $_GET['kind'] = $seg[2] ?? '';
+        require __DIR__ . '/api/osmfile.php';   // 預先抓取的 OSM 資料集（屋頂、樹木、電力）：<base>/osm/<project>/<roofs|trees|power>
+        return;
     case 'appasset':
         require __DIR__ . '/api/appasset.php';   // 第一方 CSS／JS 靜態資源：<base>?api=appasset&f=...
         return;

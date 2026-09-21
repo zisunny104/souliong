@@ -9,6 +9,9 @@
 window.MapLibreEngine = (() => {
   const MAPLIBRE_CREDIT = { text: 'MapLibre', url: 'https://maplibre.org' };
 
+  // 3D 期間允許壓到接近水平的視角；MapLibre 預設上限 60 度
+  const DEFAULT_MAX_PITCH = 60;
+  const MAX_PITCH_3D = 80;
   const paneKey = (m) => (m && m.pane) || 'art';
 
   // 同一條規則跟 LeafletEngine 的 baseManifests() 精神一致（同 pane 後面蓋前面，取最後一筆）；
@@ -92,66 +95,89 @@ window.MapLibreEngine = (() => {
     onRemove() { this._el.classList.remove('maplibregl-ctrl'); }
   }
 
-  // MapLibre CustomLayerInterface（renderingMode:'3d'）＋ three.js 畫單一自訂模型。座標換算沿用官方
-  // 文件那套 MercatorCoordinate 作法：模型原點換成麥卡托座標＋公尺→麥卡托單位的縮放係數，
+  // MapLibre CustomLayerInterface（renderingMode:'3d'）＋ three.js 的共用底座。座標換算沿用官方
+  // 文件那套 MercatorCoordinate 作法：場景原點換成麥卡托座標＋公尺→麥卡托單位的縮放係數，
   // render() 收到的 modelViewProjectionMatrix 只描述「地圖現在怎麼看整個世界」，疊上這個平移＋
-  // 縮放矩陣才會變成「模型自己這個局部座標系怎麼被畫出來」。
-  class Map3DModelLayer {
-    constructor(id, region, THREE, GLTFLoaderCtor) {
+  // 縮放矩陣才會變成「場景自己這個局部座標系（東為 +x、北為 +y、上為 +z，單位公尺）怎麼被畫出來」。
+  // 光線由呼叫端給（日夜不同），場景內容由 populate(scene, map) 填。
+  const sharedRenderers = new WeakMap();
+  class Map3DSceneLayer {
+    constructor(id, THREE, anchor, altitude, lights) {
       this.id = id;
       this.type = 'custom';
       this.renderingMode = '3d';
-      this.region = region;
       this.THREE = THREE;
-      this.GLTFLoaderCtor = GLTFLoaderCtor;
+      this.anchor = anchor;
+      this.altitude = Number(altitude) || 0;
+      this.lights = lights || { ambient: 1.2, sun: 0.8 };
     }
+
+    populate() {}
 
     onAdd(map, gl) {
       const THREE = this.THREE;
-      const m = this.region.model;
       this.map = map;
       this.camera = new THREE.Camera();
       this.scene = new THREE.Scene();
-      this.scene.add(new THREE.AmbientLight(0xffffff, 1.2));
-      const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+      this.scene.add(new THREE.AmbientLight(0xffffff, this.lights.ambient));
+      const sun = new THREE.DirectionalLight(this.lights.sunColor || 0xffffff, this.lights.sun);
       sun.position.set(0, -70, 100);
       this.scene.add(sun);
 
       this.origin = maplibregl.MercatorCoordinate.fromLngLat(
-        { lng: m.anchor[1], lat: m.anchor[0] },
-        Number(m.altitudeOffset) || 0
+        { lng: this.anchor[1], lat: this.anchor[0] },
+        this.altitude
       );
       this.mercatorScale = this.origin.meterInMercatorCoordinateUnits();
+      this.populate(this.scene, map);
 
+      // 同一個 GL context 只建一顆 renderer，多個自訂圖層（模型、屋頂、樹木）共用
+      this.renderer = sharedRenderers.get(gl);
+      if (!this.renderer) {
+        this.renderer = new THREE.WebGLRenderer({ canvas: map.getCanvas(), context: gl, antialias: true });
+        this.renderer.autoClear = false;
+        sharedRenderers.set(gl, this.renderer);
+      }
+    }
+
+    // 不主動 triggerRepaint：場景是靜態的，鏡頭移動時地圖本來就會重繪；動態內容（glTF 載入完成）自行觸發
+    render(gl, args) {
+      const THREE = this.THREE;
+      const mvp = (args.defaultProjectionData && args.defaultProjectionData.mainMatrix) || args.modelViewProjectionMatrix;
+      const l = new THREE.Matrix4()
+        .makeTranslation(this.origin.x, this.origin.y, this.origin.z)
+        .scale(new THREE.Vector3(this.mercatorScale, -this.mercatorScale, this.mercatorScale));
+      this.camera.projectionMatrix = new THREE.Matrix4().fromArray(mvp).multiply(l);
+      this.renderer.resetState();
+      this.renderer.render(this.scene, this.camera);
+    }
+  }
+
+  class Map3DModelLayer extends Map3DSceneLayer {
+    constructor(id, region, THREE, GLTFLoaderCtor) {
+      const m = region.model;
+      super(id, THREE, m.anchor, m.altitudeOffset);
+      this.region = region;
+      this.GLTFLoaderCtor = GLTFLoaderCtor;
+    }
+
+    populate(scene, map) {
+      const m = this.region.model;
       new this.GLTFLoaderCtor().load(
         this.region.modelUrl,
         (gltf) => {
-          const s = (Number(m.scale) || 1) * this.mercatorScale;
+          const s = Number(m.scale) || 1;   // 公尺→麥卡托的換算已在 render() 的矩陣裡，這裡只放使用者給的倍率
           gltf.scene.scale.set(s, s, s);
           // glTF 是 Y-up，麥卡托世界是「地面 XY、高度 Z」，先繞 X 轉正，水平朝向（管理員填的角度）
           // 才能單純疊在轉正後的 Z 軸上，不會跟這個座標系轉正操作互相纏在一起
           gltf.scene.rotation.x = Math.PI / 2;
           gltf.scene.rotation.z = -(Number(m.rotationDeg) || 0) * Math.PI / 180;
-          this.scene.add(gltf.scene);
+          scene.add(gltf.scene);
           map.triggerRepaint();
         },
         undefined,
         (err) => console.error('[maplibre-engine] glTF 載入失敗', this.region.id, err)
       );
-
-      this.renderer = new THREE.WebGLRenderer({ canvas: map.getCanvas(), context: gl, antialias: true });
-      this.renderer.autoClear = false;
-    }
-
-    render({ gl, modelViewProjectionMatrix }) {
-      const THREE = this.THREE;
-      const l = new THREE.Matrix4()
-        .makeTranslation(this.origin.x, this.origin.y, this.origin.z)
-        .scale(new THREE.Vector3(this.mercatorScale, -this.mercatorScale, this.mercatorScale));
-      this.camera.projectionMatrix = new THREE.Matrix4().fromArray(modelViewProjectionMatrix).multiply(l);
-      this.renderer.resetState();
-      this.renderer.render(this.scene, this.camera);
-      this.map.triggerRepaint();
     }
   }
 
@@ -171,10 +197,11 @@ window.MapLibreEngine = (() => {
       // 3D 能力狀態（見 enter3D()/exit3D()）：_3dCfg 是進入 3D 時收到的 {excludedBuildingIds,regions}，
       // _modelLayerIds/_threeLoading/THREE/GLTFLoader 是自訂模型的延遲載入狀態；這顆引擎不論是被當主引擎重用
       // 還是另開一顆給 3D 用，都走同一套。
-      this._navControlAdded = false;
       this._3dCfg = null;
       this._in3D = false;
       this._modelLayerIds = [];
+      this._bldBase = undefined;
+      this._bldExcl = {};
       this._threeLoading = false;
       this.THREE = null;
       this.GLTFLoader = null;
@@ -189,7 +216,11 @@ window.MapLibreEngine = (() => {
       });
       this.map.on('load', () => this._mountOverlays());
       // 每次樣式載入完成（含 setStyle 切深淺主題）都要重套一次，覆寫不會跟著新樣式留下來
-      this.map.on('style.load', () => { this._applyLabelLang(); if (this._in3D) this._apply3DStyle(); });
+      this.map.on('style.load', () => {
+        this._applyLabelLang();
+        this._bldBase = undefined;
+        if (this._in3D) this._apply3DStyle();
+      });
       this.map.on('zoomend', () => this._checkZoomThresholds());
     }
 
@@ -285,7 +316,7 @@ window.MapLibreEngine = (() => {
     mountControls(opts) {
       const o = opts || {};
       const zoomPos = mapPos(o.zoomPosition, 'bottom-left');
-      this.map.addControl(new maplibregl.NavigationControl(), zoomPos);
+      this.map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), zoomPos);
       this.mountOpButtons(o.opButtons, zoomPos);
       this.map.addControl(new CreditControl(this.credit), mapPos(o.attributionPosition, 'bottom-right'));
     }
@@ -483,19 +514,20 @@ window.MapLibreEngine = (() => {
     enter3D(cfg) {
       this._3dCfg = cfg || {};
       this._in3D = true;
+      this.map.setMaxPitch(MAX_PITCH_3D);
       this.map.easeTo({ pitch: 55, duration: 300 });
-      if (!this._navControlAdded) {
-        this.map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'bottom-right');
-        this._navControlAdded = true;
-      }
-      // map.loaded() 在圖磚載入中會是 false，且 'load' 只觸發一次；樣式還沒載完時交給 style.load 處理
-      if (this.map.isStyleLoaded()) this._apply3DStyle();
+      // map.loaded()／isStyleLoaded() 在圖磚載入中都會是 false，'load' 又只觸發一次；用 getStyle() 判斷樣式本身有沒有載好，
+      // 還沒載好時交給 style.load 處理
+      if (this.map.getStyle()) this._apply3DStyle();
     }
     exit3D() {
       this._in3D = false;
-      this.map.easeTo({ pitch: 0, duration: 300 });
+      this.map.easeTo({ pitch: 0, duration: 300 }).setMaxPitch(DEFAULT_MAX_PITCH);
       this._toggle3DLayers(false);
+      extensions3D.forEach((e) => e.clear(this));
     }
+    get dark() { return this._dark; }
+    get in3D() { return this._in3D; }
 
     // 底圖樣式用圖層 metadata 'souliong:3d' 標出 3D 時要換的圖層（show＝3D 才顯示，hide＝3D 時隱藏），
     // 引擎只認這個標記、不認任何樣式或圖層 id。樣式重載（切深淺色）後全部要重套。
@@ -504,6 +536,7 @@ window.MapLibreEngine = (() => {
       this._applyBuildingExclusion(this._3dCfg && this._3dCfg.excludedBuildingIds);
       this._modelLayerIds = [];
       if (this.THREE) this._renderCustomModels(); else this._maybeLoadThree();
+      extensions3D.forEach((e) => e.apply(this, this._3dCfg || {}));
     }
     _toggle3DLayers(on) {
       const style = this.map.getStyle();
@@ -518,14 +551,33 @@ window.MapLibreEngine = (() => {
     // 排除機制見 api/regions3d.php 開頭的說明：清單是管理員存檔當下算好的靜態 id，這裡只是
     // 原樣套成 filter，不做任何即時查詢或重算——圖層建立當下就生效，訪客怎麼平移都一樣。
     _applyBuildingExclusion(excludedIds) {
-      if (!excludedIds || !excludedIds.length) return;
+      this.setBuildingExclusion('regions', excludedIds && excludedIds.length ? ['in', ['id'], ['literal', excludedIds]] : null);
+    }
+
+    // 各來源（自訂模型區域、屋頂資料…）各自登記「要從公用建物擠出圖層拿掉的條件」，這裡統一
+    // 疊在樣式原本的 filter 上；原 filter 只在每次樣式載入後第一次讀取，重複套用不會越疊越多。
+    // expr 是「命中就排除」的表達式，傳 null 取消該來源。
+    setBuildingExclusion(key, expr) {
       const style = this.map.getStyle();
       const layer = style && style.layers && style.layers.find(
         (l) => l.type === 'fill-extrusion' && (l['source-layer'] === 'building' || /building/i.test(l.id))
       );
-      if (!layer) { console.warn('[maplibre-engine] 找不到公用建物 fill-extrusion 圖層，排除清單未套用'); return; }
-      const exclude = ['!', ['in', ['id'], ['literal', excludedIds]]];
-      this.map.setFilter(layer.id, layer.filter ? ['all', layer.filter, exclude] : exclude);
+      if (!layer) { if (expr) console.warn('[maplibre-engine] 找不到公用建物 fill-extrusion 圖層，排除條件未套用'); return; }
+      if (this._bldBase === undefined) this._bldBase = layer.filter || null;
+      if (expr) this._bldExcl[key] = expr; else delete this._bldExcl[key];
+      const parts = Object.values(this._bldExcl).map((e) => ['!', e]);
+      if (this._bldBase) parts.unshift(this._bldBase);
+      this.map.setFilter(layer.id, parts.length ? (parts.length === 1 ? parts[0] : ['all', ...parts]) : null);
+    }
+
+    // 公用建物擠出圖層目前的主色（字串才回傳），給 3D 插件畫出的建物取預設色，跟底圖樣式（含深淺）保持一致
+    buildingExtrusionColor() {
+      const style = this.map.getStyle();
+      const layer = style && style.layers && style.layers.find(
+        (l) => l.type === 'fill-extrusion' && (l['source-layer'] === 'building' || /building/i.test(l.id))
+      );
+      const c = layer && this.map.getPaintProperty(layer.id, 'fill-extrusion-color');
+      return typeof c === 'string' ? c : null;
     }
 
     // three.js（~600KB）只有在這張地圖真的存了至少一個自訂模型時才載入，跟 kind-*.js
@@ -542,7 +594,7 @@ window.MapLibreEngine = (() => {
         ]);
         this.THREE = THREE;
         this.GLTFLoader = addon.GLTFLoader;
-        if (this._in3D && this.map.isStyleLoaded()) this._renderCustomModels();
+        if (this._in3D && this.map.getStyle()) this._renderCustomModels();
       } catch (e) {
         console.error('[maplibre-engine] three.js 載入失敗', e);
       }
@@ -558,6 +610,24 @@ window.MapLibreEngine = (() => {
       });
     }
   }
+
+  // 3D 擴充點：選用插件（屋頂、樹木…）登記 {apply(engine, cfg), clear(engine)}。apply 在進入 3D 與
+  // 每次樣式重載後呼叫，clear 在退出 3D 時呼叫；引擎不知道也不關心擴充做什麼。
+  const extensions3D = [];
+  MapLibreEngine.register3DExtension = (ext) => { extensions3D.push(ext); };
+  MapLibreEngine.SceneLayer = Map3DSceneLayer;
+  // 經緯度 [lon, lat] → SceneLayer 局部座標 [東, 北]（公尺）。與圖層矩陣同一套麥卡托換算，
+  // 不用「度數乘係數」：離原點數公里時後者會有數公尺的水平誤差。anchor 同 SceneLayer 的 [lat, lon]
+  MapLibreEngine.localMeters = (anchor) => {
+    const o = maplibregl.MercatorCoordinate.fromLngLat({ lng: anchor[1], lat: anchor[0] }, 0);
+    const mpu = o.meterInMercatorCoordinateUnits();
+    return (c) => {
+      const m = maplibregl.MercatorCoordinate.fromLngLat({ lng: c[0], lat: c[1] }, 0);
+      return [(m.x - o.x) / mpu, -(m.y - o.y) / mpu];
+    };
+  };
+  // 3D 插件畫出的建物／樹木共用的光線：白天柔和日照，夜間壓低並偏冷藍
+  MapLibreEngine.lights3D = (dark) => (dark ? { ambient: 1.1, sun: 0.5, sunColor: 0xa5b8e6 } : { ambient: 2.2, sun: 1.5 });
 
   return MapLibreEngine;
 })();

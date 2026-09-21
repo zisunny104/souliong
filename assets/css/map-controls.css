@@ -68,27 +68,6 @@
   }
 }
 
-/* 羅盤圖示例外：深色三角形指北、淺色三角形指南，兩個色階本身就是方向語意，整組 invert
-   顏色會讓指南的三角形變成視覺上比較顯眼的那個，看起來像箭頭反過來指北。羅盤圖示改成不
-   參與 invert，維持原始配色，改讓按鈕底色亮一點，兩個三角形在任何主題下都看得清楚 */
-:root[data-theme="dark"] .maplibregl-ctrl-compass .maplibregl-ctrl-icon {
-  filter: none
-}
-
-:root[data-theme="dark"] .maplibregl-ctrl-compass {
-  background: #eee
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .maplibregl-ctrl-compass .maplibregl-ctrl-icon {
-    filter: none
-  }
-
-  :root:not([data-theme="light"]) .maplibregl-ctrl-compass {
-    background: #eee
-  }
-}
-
 .leaflet-touch .leaflet-bar a {
   width: 36px;
   height: 36px;
@@ -168,9 +147,9 @@
 }
 
 /* 版權置中於下方（縮放留在左下）。Leaflet 是把整個 bottom-right 角搬去置中——那個角本來就只擺
-   版權控制項，搬整角安全。MapLibre 的 bottom-right 角在 3D 模式會多疊一顆 NavigationControl（見
-   maplibre-engine.js 的 enter3D()），搬整角會連它一起搬走，改成只讓 .cr-bar 自己用 fixed 定位
-   置中，跳出 MapLibre 控制項容器的排版，兩邊視覺效果一致，只是各自用適合自己容器結構的手法。 */
+   版權控制項，搬整角安全。MapLibre 的 bottom-right 角除了版權還可能有其他控制項（如插件加的），
+   搬整角會連它們一起搬走，改成只讓 .cr-bar 自己用 fixed 定位置中，跳出 MapLibre 控制項容器的排版，
+   兩邊視覺效果一致，只是各自用適合自己容器結構的手法。 */
 .leaflet-bottom.leaflet-right {
   left: 50%;
   right: auto;
