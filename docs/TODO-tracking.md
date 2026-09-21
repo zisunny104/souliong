@@ -44,7 +44,6 @@ OSM 驅動 3D：屋頂造型（Simple 3D Buildings）、顏色、窗戶、low-po
 
 ## 待辦
 
-- 交付點位、投稿與權限架構報告。
 - assets/js/engine/map-engine.js:70-74 仍有 carto-voyager 備援清單（77 的檔）。
 
 ## 低優先
