@@ -1,7 +1,7 @@
 # 未完成事項追蹤
 
-由 100chairs-53 彙整維護（唯一寫入者）。全部完成後刪除本檔。
-最後更新：2026-09-21（高傾角文字貼地、CARTO 封存）
+由統一 commit 的視窗彙整維護（唯一寫入者，視窗代號會變動，見 docs/COLLABORATION.md）。全部完成後刪除本檔。
+最後更新：2026-10-01（tilecut 擴增選區浮點誤差修正；導航選單改版進行中）
 
 ## 已定案的設計原則
 
@@ -24,6 +24,11 @@
 
 伺服器端壓縮、Route:: 遷移、樣式 json 縮短快取、tools/checkall.php、點位導航（Google、Apple、geo、OSM 選單）、封面快照隱藏底圖地名並重拍三個專案、地名跟隨語言、路徑需先選投稿者、光柵底圖 minZoom／maxNativeZoom／tms／bounds、預設底圖對齊 paper-ink、3D 建物沿用原底圖（紙墨）、燈箱說明置中。
 OSM 驅動 3D：屋頂造型（Simple 3D Buildings）、顏色、窗戶、low-poly 樹、電塔與電線，資料由 tools/osm_fetch.php 預抓成 projects/<p>/{roofs,trees,power}.geojson（git 忽略），經 Route::osm 供應；日夜光照、3D 重新整理後還原、3D 控制鈕與深色羅盤修正。
+tilecut.php 擴增選區「不拉伸原圖」功能（程式碼、lang 檔、docs/TILECUT.md 先前已完成）：修正 isPureGrow() 沒容忍 toFixed(6) 浮點誤差、導致按鈕誤判為不可用的 bug；已用 _packdemo 實測按鈕啟用/停用、平移貼上＋透明留白、檔名帶新座標轉 webp、單張 SVG 整列隱藏。
+
+## 進行中
+
+- 點位導航選單改版：觸發鈕改 icon-only、選單改真浮動（portal 到 document.body，position:fixed 定位），視覺質感比照 Tocas UI dropdown 但不引入該框架；前端角色處理中，待截圖驗證多種寬度與深淺主題後回報。
 
 ## 等使用者決定
 
