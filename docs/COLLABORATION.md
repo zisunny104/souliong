@@ -8,7 +8,7 @@
 
 - 統一 commit、push、清理與進度彙整；唯一可執行 git 的視窗。目前代號：100chairs-2a（原 100chairs-53）。
 - 後端 PHP、語言檔與工具。目前代號：100chairs-b3（原 100chairs-c9）。
-- 前端 assets/js 與 assets/css。目前代號：待確認（原 100chairs-77）。
+- 前端 assets/js 與 assets/css。目前代號：100chairs-27（原 100chairs-77）。
 
 ## 回覆格式
 

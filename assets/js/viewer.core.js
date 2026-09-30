@@ -911,25 +911,32 @@ window.MapApp = (() => {
     row.className = 'p-actions';
     editBtn.parentNode.insertBefore(row, editBtn);
     const wrap = document.createElement('div');
+    const navLabel = esc(t('nav_btn'));
+    const icon = ((window.APP || {}).nav || {}).icon;
+    // 觸發鈕改純 icon，文字改進 title/aria-label 保留無障礙標示
     wrap.innerHTML =
-      '<button class="btn small" type="button" id="spotNavBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="spotNavMenu">' +
-      navIcon(((window.APP || {}).nav || {}).icon) + esc(t('nav_btn')) + '</button>';
+      '<button class="btn small p-nav-trigger" type="button" id="spotNavBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="spotNavMenu" title="' + navLabel + '" aria-label="' + navLabel + '">' +
+      (icon ? '<i class="' + esc(icon) + '" aria-hidden="true"></i>' : '') + '</button>';
+    // 選單本來就不該受 #panel 裁切管轄，portal 到 document.body 用 position:fixed 浮動，
+    // 跟 row 不是同一棵 DOM 子樹了，關閉判斷、鍵盤導覽都要跟著改成看 menu 自己
     const menu = document.createElement('div');
     menu.className = 'p-nav-menu'; menu.id = 'spotNavMenu'; menu.setAttribute('role', 'menu');
-    menu.setAttribute('aria-label', t('nav_menu_title')); menu.style.display = 'none';
+    menu.setAttribute('aria-label', t('nav_menu_title'));
+    document.body.appendChild(menu);
     row.appendChild(wrap);
     row.appendChild(editBtn);
-    row.appendChild(menu);
     const btn = wrap.querySelector('#spotNavBtn');
-    btn.onclick = () => { if (menu.style.display === 'none') openNavMenu(); else closeNavMenu(true); };
-    row.addEventListener('keydown', ev => {
-      if (menu.style.display === 'none') return;
+    btn.onclick = () => { menu.classList.contains('open') ? closeNavMenu(true) : openNavMenu(); };
+    menu.addEventListener('keydown', ev => {
       const items = [...menu.querySelectorAll('[role=menuitem]')];
       const i = items.indexOf(document.activeElement);
       if (ev.key === 'ArrowDown') { ev.preventDefault(); items[(i + 1) % items.length].focus(); }
       else if (ev.key === 'ArrowUp') { ev.preventDefault(); items[(i <= 0 ? items.length : i) - 1].focus(); }
     });
-    document.addEventListener('click', ev => { if (!row.contains(ev.target)) closeNavMenu(); });
+    document.addEventListener('click', ev => { if (!row.contains(ev.target) && !menu.contains(ev.target)) closeNavMenu(); });
+    // 選單位置是量觸發鈕座標後寫死的 inline style，捲動或視窗尺寸一變就對不準，直接關掉比重新定位乾淨
+    window.addEventListener('resize', () => closeNavMenu());
+    document.addEventListener('scroll', () => closeNavMenu(), true);
     navBox = { row, wrap, btn, menu };
     return navBox;
   }
@@ -942,6 +949,23 @@ window.MapApp = (() => {
     const editShown = document.getElementById('spotEditBtn').style.display !== 'none';
     box.row.style.display = (ok || editShown) ? '' : 'none';
   }
+  // 貼著觸發鈕定位：預設左對齊（鈕本身在容器裡的位置不一定靠右緣，例如面板內容區
+  // 偏左，右對齊反而會把選單往左硬拉、蓋到不相干的東西上），視窗右緣放不下才翻成右對齊；
+  // 下方放不下就翻到上面，兩軸都夾在視窗內
+  // （手機版 #panel 貼底，觸發鈕通常離視窗下緣很近，這裡多半會翻成往上開）
+  function positionNavMenu() {
+    const { btn, menu } = navBox;
+    const r = btn.getBoundingClientRect();
+    const margin = 8;
+    const mw = menu.offsetWidth, mh = menu.offsetHeight;
+    let left = r.left;
+    if (left + mw > window.innerWidth - margin) left = r.right - mw;
+    left = Math.max(margin, Math.min(left, window.innerWidth - mw - margin));
+    let top = r.bottom + 6;
+    if (top + mh > window.innerHeight - margin) top = r.top - mh - 6;
+    menu.style.left = left + 'px';
+    menu.style.top = Math.max(margin, top) + 'px';
+  }
   function openNavMenu() {
     if (!navBox || !current) return;
     const c = current;
@@ -951,14 +975,20 @@ window.MapApp = (() => {
         navIcon(a.icon) + esc(t(a.lang)) + '</a>';
     }).join('');
     navBox.menu.querySelectorAll('.p-nav-item').forEach(a => a.addEventListener('click', () => setTimeout(closeNavMenu, 0)));
-    navBox.menu.style.display = '';
+    // 定位要用量到的實際尺寸：先用 visibility 量完再放開，避免選單從左上角 (0,0) 飛到定位點的閃爍
+    navBox.menu.style.visibility = 'hidden';
+    navBox.menu.style.display = 'block';
+    positionNavMenu();
+    navBox.menu.style.visibility = '';
+    requestAnimationFrame(() => navBox.menu.classList.add('open'));
     navBox.btn.setAttribute('aria-expanded', 'true');
     const first = navBox.menu.querySelector('.p-nav-item');
     if (first) first.focus();
   }
   // 回傳是否真的關了一個開著的選單，讓 Esc 可以「先關選單、不順便關面板」
   function closeNavMenu(refocus) {
-    if (!navBox || navBox.menu.style.display === 'none') return false;
+    if (!navBox || !navBox.menu.classList.contains('open')) return false;
+    navBox.menu.classList.remove('open');
     navBox.menu.style.display = 'none';
     navBox.btn.setAttribute('aria-expanded', 'false');
     if (refocus) navBox.btn.focus();

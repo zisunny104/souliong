@@ -208,14 +208,41 @@
   margin-top: 0
 }
 
-/* 選單在標頭內就地展開、不浮在別的內容上：#panel 用 overflow:clip 裁切，
-   而 #panel > * 的 z-index 又壓過標頭自己的層級，浮動選單會被裁掉或蓋住 */
+.p-nav-trigger {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9375rem
+}
+
+/* 選單原本掛在 #panel 底下，跟 #panel 用 overflow:clip 放行主題包角標的需求卡在一起，
+   兩件事其實不相干——選單本來就不該受面板裁切管轄，改成 portal 到 document.body、
+   position:fixed 浮動（見 viewer.core.js ensureNavBox()），是修正擺放位置，
+   不是在繞過 CSS 限制；#panel 的 overflow:clip 不用跟著動。
+   座標由 JS 量觸發鈕位置後寫成 inline style（top/left），這裡只管外觀 */
 .p-nav-menu {
-  flex: 0 0 100%;
+  position: fixed;
+  z-index: 1150;
+  display: none;
+  min-width: 200px;
+  max-width: min(280px, calc(100vw - 16px));
   padding: 6px;
-  background: var(--bg);
+  background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: var(--r-md)
+  border-radius: var(--r-md);
+  box-shadow: var(--sh-3);
+  transform-origin: top left;
+  transform: scale(.96) translateY(-4px);
+  opacity: 0;
+  transition: transform .16s cubic-bezier(.4, 0, .2, 1), opacity .16s
+}
+
+.p-nav-menu.open {
+  transform: none;
+  opacity: 1
 }
 
 .p-nav-item {
