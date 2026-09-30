@@ -1489,11 +1489,17 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
         : { w: b.w, n: b.n, e: b.e, s: latOf(y0 + need) };   // 西北固定，調南緣
     }
 
-    /** nb 是否單純比 cur 大（四邊都沒往內縮，至少一邊真的變大）。擴增選區的可用性判斷。 */
+    /**
+     * nb 是否單純比 cur 大（四邊都沒往內縮，至少一邊真的變大）。擴增選區的可用性判斷。
+     * EPS 用來吸收數字框 toFixed(6) 的四捨五入雜訊——cur 來自 baseBounds（原始未四捨五入的
+     * 浮點數），沒被使用者動過的邊經過「寫回欄位再讀回來」一輪後，常會比原值小了不到
+     * 0.5e-6 度，若不容忍會被誤判成「縮小」而永遠點不亮按鈕。
+     */
     function isPureGrow(cur, nb) {
+      const EPS = 1e-6;
       return validBounds(cur) && validBounds(nb)
-        && nb.n >= cur.n && nb.s <= cur.s && nb.w <= cur.w && nb.e >= cur.e
-        && (nb.n > cur.n || nb.s < cur.s || nb.w < cur.w || nb.e > cur.e);
+        && nb.n >= cur.n - EPS && nb.s <= cur.s + EPS && nb.w <= cur.w + EPS && nb.e >= cur.e - EPS
+        && (nb.n > cur.n + EPS || nb.s < cur.s - EPS || nb.w < cur.w - EPS || nb.e > cur.e + EPS);
     }
 
     /**
