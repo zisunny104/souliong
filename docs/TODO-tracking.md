@@ -40,7 +40,7 @@ tilecut.php 擴增選區「不拉伸原圖」功能（程式碼、lang 檔、doc
 - OSM 3D：新資料需在每個專案跑 tools/osm_fetch.php（`--contact` 請用專案網址，不用個人信箱）；針葉樹實景、電塔切日夜、type=building 關係式成員、multipolygon 主體分件歸屬、「點位深連結加 3D 還原」組合、玻璃圓頂 way/1172959614 的新比例，皆未實測。
 - 3D 高傾角：最大傾角降為 70，文字貼地（text-pitch-alignment map）與 sky／霧已實測淺色；深色底圖畫面、觸控傾斜未測。Leaflet 光柵備援（OSM 標準圖磚）未實機開圖。
 - 管理端 mapLabelLang 下拉（未做登入後的 POST 測試）。
-- 導航選單在展開（.wide）面板與無座標點位；真機的 geo:／Apple 連結。
+- 導航選單在無座標點位時的顯示；真機的 geo:／Apple 連結（.wide 展開面板與手機寬度已於導航選單改版時用 Playwright 驗證過不越界）。
 - 3D：管理員畫區域、存檔、排除的完整流程；自訂模型（three.js）在地圖內的顯示；Leaflet 光柵主引擎走獨立引擎的路徑。
 - 光柵圖磚只驗到請求層，沒有視覺確認。
 - paper-ink 深色模式的地名證據；Leaflet 2D 模糊；Windows 顯示縮放造成的預覽模糊（看 devicePixelRatio）。
@@ -48,7 +48,7 @@ tilecut.php 擴增選區「不拉伸原圖」功能（程式碼、lang 檔、doc
 
 ## 待辦
 
-- VPS 部署前依 docs/DEPLOY.md 第 8 項檢查 meta.json／config 有無引用 carto-*（已封存，保留支援）。
+- VPS 部署前依 docs/DEPLOY.md 第 8 項檢查 carto-*：本機（git 內）已確認乾淨——`projects/*/meta.json` 無命中、本機 api/config.php 的 `default_layers` 已是 `['paper-ink']`；但 VPS 上自己的 api/config.php 不在 git 內，本機無從檢查，實際部署當下仍要在 VPS 上重跑這兩項確認。
 
 ## 低優先
 
