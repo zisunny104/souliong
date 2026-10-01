@@ -11,7 +11,7 @@ else
   BOLD=''; DIM=''; RED=''; GREEN=''; YELLOW=''; CYAN=''; RESET=''
 fi
 
-step() { echo "${BOLD}${CYAN}==>${RESET} ${BOLD}$1${RESET}"; }
+step() { echo "${BOLD}${CYAN}$1${RESET}"; }
 ok()   { echo "  ${GREEN}✓${RESET} $1"; }
 warn() { echo "  ${YELLOW}!${RESET} $1"; }
 fail() { echo "  ${RED}✗${RESET} $1"; }
