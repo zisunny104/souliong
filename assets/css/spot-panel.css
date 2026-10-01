@@ -218,11 +218,8 @@
   font-size: 0.9375rem
 }
 
-/* 選單原本掛在 #panel 底下，跟 #panel 用 overflow:clip 放行主題包角標的需求卡在一起，
-   兩件事其實不相干——選單本來就不該受面板裁切管轄，改成 portal 到 document.body、
-   position:fixed 浮動（見 viewer.core.js ensureNavBox()），是修正擺放位置，
-   不是在繞過 CSS 限制；#panel 的 overflow:clip 不用跟著動。
-   座標由 JS 量觸發鈕位置後寫成 inline style（top/left），這裡只管外觀 */
+/* portal 到 document.body（見 viewer.core.js ensureNavBox()），不受 #panel 裁切；
+   座標由 JS 寫成 inline style（top/left），這裡只管外觀 */
 .p-nav-menu {
   position: fixed;
   z-index: 1150;

@@ -913,12 +913,10 @@ window.MapApp = (() => {
     const wrap = document.createElement('div');
     const navLabel = esc(t('nav_btn'));
     const icon = ((window.APP || {}).nav || {}).icon;
-    // 觸發鈕改純 icon，文字改進 title/aria-label 保留無障礙標示
     wrap.innerHTML =
       '<button class="btn small p-nav-trigger" type="button" id="spotNavBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="spotNavMenu" title="' + navLabel + '" aria-label="' + navLabel + '">' +
       (icon ? '<i class="' + esc(icon) + '" aria-hidden="true"></i>' : '') + '</button>';
-    // 選單本來就不該受 #panel 裁切管轄，portal 到 document.body 用 position:fixed 浮動，
-    // 跟 row 不是同一棵 DOM 子樹了，關閉判斷、鍵盤導覽都要跟著改成看 menu 自己
+    // menu 是 portal 到 document.body 的獨立節點，不是 row 的子樹，外側點擊判斷與鍵盤導覽都直接看 menu
     const menu = document.createElement('div');
     menu.className = 'p-nav-menu'; menu.id = 'spotNavMenu'; menu.setAttribute('role', 'menu');
     menu.setAttribute('aria-label', t('nav_menu_title'));
@@ -949,10 +947,7 @@ window.MapApp = (() => {
     const editShown = document.getElementById('spotEditBtn').style.display !== 'none';
     box.row.style.display = (ok || editShown) ? '' : 'none';
   }
-  // 貼著觸發鈕定位：預設左對齊（鈕本身在容器裡的位置不一定靠右緣，例如面板內容區
-  // 偏左，右對齊反而會把選單往左硬拉、蓋到不相干的東西上），視窗右緣放不下才翻成右對齊；
-  // 下方放不下就翻到上面，兩軸都夾在視窗內
-  // （手機版 #panel 貼底，觸發鈕通常離視窗下緣很近，這裡多半會翻成往上開）
+  // 貼著觸發鈕定位：預設左對齊，右緣放不下才翻右對齊；下方放不下就翻到上面，兩軸都夾在視窗內
   function positionNavMenu() {
     const { btn, menu } = navBox;
     const r = btn.getBoundingClientRect();
