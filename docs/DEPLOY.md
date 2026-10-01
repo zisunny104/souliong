@@ -2,6 +2,8 @@
 
 Souliong 是 KoiLiSu 框架下的一個 app（`apps/souliong`）。純 PHP + 檔案儲存，零資料庫、零額外常駐服務。
 
+更新版本用根目錄的 `./deploy.sh`：fetch 後若有新 commit，先在獨立 git worktree 對新版本完整跑一次 `tools/checkall.php`，全過才 `git merge --ff-only`，沒過或 local 有未 push 的 commit 一律中止、線上檔案不動；merge 完順便檢查 `api/config.php` 是否仍是範本預設值（`primary_pin`／`ip_salt`／`debug`／`trust_forwarded`／`default_layers`）與 `projects`／`state` 可寫性，但只警示不代勞——改密鑰、`chown` 需要人判斷。`DEPLOY_BRANCH`（預設 `main`）、`DEPLOY_RELOAD_CMD`（例如 PHP-FPM 開了 opcache 需要重載時設 `systemctl reload php8.3-fpm`）可用環境變數覆寫。Nginx／HTTPS／上傳大小等系統層級設定不在腳本涵蓋範圍，仍照下面清單逐項確認。
+
 ## 一、上線前必做（安全關鍵）
 
 ### 1. ★ 擋掉 `projects/` 與 `state/` 的直接存取
