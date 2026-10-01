@@ -311,6 +311,7 @@ return [
     'pack_is_default_msg'        => '"{id}" is the site-wide default theme pack — deleting it would strip the look from every map that hasn\'t set its own. Change the site-wide default in the Tools tab first.',
     'pack_delete_failed_msg'     => 'Could not delete everything - directory permissions, or a file is locked. The pack may be partly deleted; check it and try again.',
     'primary_only_layers_msg'    => 'Only the main administrator can manage site-wide layers; map-specific layers are handled by that map\'s administrator.',
+    'primary_only_newproject_msg' => 'Only the main administrator can create new projects.',
     'layer_not_found_msg'       => 'This layer could not be found, or it has no layer.json.',
     'layer_too_big_msg'         => 'This layer has too many files, or is too large, to package for download. Fetch pre-cut tile pyramids straight off the server.',
     'layer_dest_missing_msg'    => 'The destination folder for layers could not be found — check layers_dir in the config file.',
@@ -610,6 +611,8 @@ return [
     'region3d_edit_link_btn'           => 'Edit',
     'open_layermigrate_btn'            => 'Layer settings migration',
     'layermigrate_entry_hint'          => 'Freeze old projects that still follow the site default layers, so a future default change won\'t affect them',
+    'new_project_btn'                  => 'New project',
+    'open_newproject_btn'              => 'New project',
     'qr_click_hint'                    => 'Click to show fullscreen, easier to scan',
 
     // Keys below are for the maintenance tool pages (thumbfix.php / exiffix.php)
@@ -677,6 +680,31 @@ return [
     'layermigrate_done_freeze_ok'      => 'Froze the layer setting for "{p}"',
     'layermigrate_done_freeze_skip'    => '"{p}" already has its own layer setting, left unchanged',
     'layermigrate_done_freeze_all_ok'  => 'Batch freeze complete — {n} projects processed',
+
+    // Keys below back the new-project tool (newproject.php)
+    'newproject_title'                 => 'New Project · Souliong',
+    'newproject_heading'               => 'New project',
+    'newproject_basic_heading'         => 'Basic info',
+    'newproject_map_heading'           => 'Map location',
+    'newproject_lat_label'              => 'Latitude',
+    'newproject_lon_label'              => 'Longitude',
+    'newproject_zoom_label'             => 'Zoom level',
+    'newproject_id_label'              => 'Project id',
+    'newproject_id_hint'               => 'Lowercase letters, digits, underscore and hyphen only, and can\'t be changed later — it\'s also the URL and folder name.',
+    'newproject_id_checking'           => 'Checking…',
+    'newproject_id_available_msg'      => 'This id is available',
+    'newproject_id_taken_hint_msg'     => 'This id is already taken',
+    'newproject_center_hint'           => 'Drag the marker on the map to set this map\'s default view position and zoom level.',
+    'newproject_reset_defaults_btn'    => 'Reset to defaults',
+    'newproject_modules_summary'       => 'All on by default, except {off}',
+    'newproject_contrib_summary_default' => 'By default only photo contributions are open; visitors can\'t create new spots',
+    'newproject_submit_btn'            => 'Create project',
+    'newproject_bad_id_msg'            => 'Please enter a valid project id (lowercase letters, digits, underscore, hyphen)',
+    'newproject_id_taken_msg'          => 'This id is already taken',
+    'newproject_title_required_msg'    => 'Please enter a project title',
+    'newproject_bad_center_msg'        => 'Map location is out of range, please drag the marker again',
+    'newproject_mkdir_failed_msg'      => 'Failed to create the project folder, please check server permissions',
+    'newproject_write_failed_msg'      => 'Failed to write project settings, please try again later',
 
     // Keys below back the tile-slicing tool (tilecut.php)
     'tilecut_title'            => 'Slice Tiles · Souliong',

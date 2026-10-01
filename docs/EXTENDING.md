@@ -682,8 +682,9 @@ MapLibre 沒有 Leaflet 的「pane／可疊多張獨立底圖」概念，向量 
 | `fix_thumbnails` | site | `thumbfix.php`：批次重建縮圖 |
 | `view_stats` | site | `stat.php` 的原始統計 JSON 讀取 |
 | `manage_site` | site | 全站設定、權限管理（授權／撤銷其他身分的鍵）、全站備份匯入、容量重算等「工具」分頁的全站專屬操作 |
+| `create_project` | site | 建立新專案（`newproject.php`） |
 
-後六個 `scope: 'site'` 的鍵事實上等於「僅 primary」，不是「預設關閉、可授權」——這是刻意的區別，不要把它們當成可以下放給專案管理者的鍵。
+後七個 `scope: 'site'` 的鍵事實上等於「僅 primary」，不是「預設關閉、可授權」——這是刻意的區別，不要把它們當成可以下放給專案管理者的鍵。
 
 ### 13.4 `manager.php` 怎麼用：`$gate` / `$gateLayers`
 

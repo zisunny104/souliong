@@ -2865,7 +2865,15 @@ if (!$authed) {
       align-items: center;
       gap: var(--sp-3);
       flex-wrap: wrap;
-      margin: var(--sp-6) 0 var(--sp-3)
+      margin: var(--sp-6) 0 var(--sp-3);
+      border-radius: var(--r-md);
+      outline: 2px solid transparent;
+      outline-offset: 4px;
+      transition: outline-color 1.6s ease-out
+    }
+
+    .projhead.just-created {
+      outline-color: var(--accent)
     }
 
     .projactions {
@@ -3136,6 +3144,9 @@ if (!$authed) {
         $frontUrl = $mapUrl($scopeProject);
       ?>
       <a class="btn" href="<?= $esc($frontUrl) ?>"><i class="fa-solid fa-arrow-left"></i> <?= $t($scopeProject !== '' ? 'back_to_map_btn' : 'back_to_site_btn') ?></a>
+      <?php if ($primary && $scopeProject === ''): ?>
+      <a class="btn solid" href="<?= $esc(Route::tool('newproject')) ?>"><i class="fa-solid fa-plus"></i> <?= $t('new_project_btn') ?></a>
+      <?php endif; ?>
       <a class="btn" href="<?= $esc(Route::logout()) ?>"><i class="fa-solid fa-right-from-bracket"></i> <?= $t('logout_btn') ?></a>
     </div>
 
@@ -3351,7 +3362,7 @@ if (!$authed) {
       $realPins = array_values(array_filter($ppinsAll, fn($e) => ($e['kind'] ?? 'pin') !== 'invite'));
       $invites = array_values(array_filter($ppinsAll, fn($e) => ($e['kind'] ?? 'pin') === 'invite'));
     ?>
-      <div class="projhead">
+      <div class="projhead" id="proj-<?= $esc($p) ?>">
         <div class="projtitle"><i class="fa-solid fa-map-location-dot"></i> <?= $esc($meta['title'] ?? $p) ?>（<?= $esc($p) ?>）</div>
         <div class="projactions">
           <a class="btn" href="<?= $esc(Route::backupProject($p)) ?>"><i class="fa-solid fa-download"></i> <?= $t('backup_project_btn') ?></a>
@@ -4328,7 +4339,8 @@ if (!$authed) {
         <div class="row" style="margin-top:8px"><a class="btn" href="<?= $esc(Route::tool('exiffix', $scopeProject)) ?>"><i class="fa-solid fa-kit-medical"></i> <?= $t('open_exiffix_btn') ?></a>
           <a class="btn" href="<?= $esc(Route::tool('thumbfix', $scopeProject)) ?>"><i class="fa-solid fa-images"></i> <?= $t('open_thumbfix_btn') ?></a>
           <a class="btn" href="<?= $esc(Route::tool('tilecut', $scopeProject)) ?>"><i class="fa-solid fa-scissors"></i> <?= $t('open_tilecut_btn') ?></a>
-          <a class="btn" href="<?= $esc(Route::backupAll()) ?>"><i class="fa-solid fa-download"></i> <?= $t('backup_all_btn') ?></a></div>
+          <a class="btn" href="<?= $esc(Route::backupAll()) ?>"><i class="fa-solid fa-download"></i> <?= $t('backup_all_btn') ?></a>
+          <a class="btn" href="<?= $esc(Route::tool('newproject')) ?>"><i class="fa-solid fa-plus"></i> <?= $t('open_newproject_btn') ?></a></div>
       </div>
       <div class="card section-card">
         <div class="badge"><i class="fa-solid fa-swatchbook"></i> <?= $t('packs_heading') ?></div>
@@ -4534,6 +4546,17 @@ if (!$authed) {
       try { initPane = sessionStorage.getItem('adminTab') || ''; } catch (e) { initPane = ''; }
     }
     if (initPane) showPane(initPane);
+
+    // ── 新建專案後的輕量成功提示：?new=<id> 命中就捲到那張卡片、淡出外框，不彈窗不需要關閉 ──
+    (function() {
+      var newId = new URLSearchParams(location.search).get('new');
+      if (!newId) return;
+      var card = document.getElementById('proj-' + newId);
+      if (!card) return;
+      card.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      card.classList.add('just-created');
+      setTimeout(function() { card.classList.remove('just-created'); }, 2000);
+    })();
 
     // ── 投稿紀錄即時搜尋 ──
     var recSearch = document.getElementById('recsearch');

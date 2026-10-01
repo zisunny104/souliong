@@ -319,6 +319,7 @@ return [
     'pack_is_default_msg'        => '「{id}」是全站預設主題包，刪掉會讓所有沒自訂主題包的地圖同時掉皮。請先到「工具」分頁改掉全站預設再回來刪。',
     'pack_delete_failed_msg'     => '刪不乾淨，可能是目錄權限或某個檔案被鎖住。主題包可能只被刪掉一部分，請檢查後再試一次。',
     'primary_only_layers_msg'    => '全站圖層管理僅限主要管理者；地圖專屬圖層請由該地圖的管理者處理。',
+    'primary_only_newproject_msg' => '只有主要管理者可以建立新專案。',
     'layer_not_found_msg'       => '找不到這個圖層，或它缺少 layer.json。',
     'layer_too_big_msg'         => '這個圖層的檔案太多或太大，無法打包下載。切好的圖磚金字塔請直接從伺服器取檔。',
     'layer_dest_missing_msg'    => '找不到圖層要放的資料夾，請檢查設定檔的 layers_dir。',
@@ -620,6 +621,8 @@ return [
     'region3d_edit_link_btn'           => '編輯',
     'open_layermigrate_btn'            => '圖層設定遷移',
     'layermigrate_entry_hint'          => '把還沒明確設定圖層的舊專案，凍結成目前的預設圖層，之後改預設值才不會波及它們',
+    'new_project_btn'                  => '新增專案',
+    'open_newproject_btn'              => '新增專案',
     'qr_click_hint'                    => '點一下全螢幕顯示，方便給人掃描',
 
     // 以下為維護工具頁（thumbfix.php／exiffix.php）用的翻譯 key
@@ -687,6 +690,31 @@ return [
     'layermigrate_done_freeze_ok'      => '已將「{p}」的圖層設定凍結',
     'layermigrate_done_freeze_skip'    => '「{p}」已經明確設定過圖層，未變動',
     'layermigrate_done_freeze_all_ok'  => '批次凍結完成，共處理 {n} 個專案',
+
+    // 以下為新增專案工具（newproject.php）用的翻譯 key
+    'newproject_title'                 => '新增專案 · Souliong',
+    'newproject_heading'               => '新增專案',
+    'newproject_basic_heading'         => '基本資訊',
+    'newproject_map_heading'           => '地圖位置',
+    'newproject_lat_label'              => '緯度',
+    'newproject_lon_label'              => '經度',
+    'newproject_zoom_label'             => '縮放層級',
+    'newproject_id_label'              => '專案 id',
+    'newproject_id_hint'               => '只能用小寫英數字、底線與連字號，之後不能改，它同時是網址與資料夾名稱。',
+    'newproject_id_checking'           => '確認中…',
+    'newproject_id_available_msg'      => '這個 id 可以用',
+    'newproject_id_taken_hint_msg'     => '這個 id 已經有專案在用了',
+    'newproject_center_hint'           => '拖曳地圖上的標記，決定這張地圖預設顯示的位置與縮放層級。',
+    'newproject_reset_defaults_btn'    => '還原預設',
+    'newproject_modules_summary'       => '預設全部開啟，只有 {off} 預設關閉',
+    'newproject_contrib_summary_default' => '預設只開放投稿照片，不開放訪客建立新地點',
+    'newproject_submit_btn'            => '建立專案',
+    'newproject_bad_id_msg'            => '請輸入合法的專案 id（小寫英數字、底線、連字號）',
+    'newproject_id_taken_msg'          => '這個 id 已經有專案在用了',
+    'newproject_title_required_msg'    => '請輸入專案標題',
+    'newproject_bad_center_msg'        => '地圖位置超出合理範圍，請重新拖曳標記',
+    'newproject_mkdir_failed_msg'      => '建立專案資料夾失敗，請確認伺服器權限',
+    'newproject_write_failed_msg'      => '寫入專案設定失敗，請稍後再試',
 
     // 以下為切圖磚工具（tilecut.php）用的翻譯 key
     'tilecut_title'            => '切圖磚 · Souliong',

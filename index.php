@@ -107,6 +107,9 @@ switch ($action) {
     case 'layermigrate':
         require __DIR__ . '/api/layermigrate.php';  // 常駐工具：把跟隨全站預設的舊專案圖層設定凍結明確
         return;
+    case 'newproject':
+        require __DIR__ . '/api/newproject.php';  // 常駐工具：建立新專案
+        return;
     case 'stat':
         require __DIR__ . '/api/stat.php';
         return;

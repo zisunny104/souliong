@@ -49,6 +49,7 @@ function auth_registry(): array {
         'fix_thumbnails'  => ['scope' => 'site',    'label' => null, 'backfill' => false],
         'view_stats'      => ['scope' => 'site',    'label' => null, 'backfill' => false],
         'manage_site'     => ['scope' => 'site',    'label' => null, 'backfill' => false],
+        'create_project'  => ['scope' => 'site',    'label' => null, 'backfill' => false],
     ];
     return $r;
 }
