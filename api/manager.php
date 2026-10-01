@@ -4328,7 +4328,6 @@ if (!$authed) {
         <div class="row" style="margin-top:8px"><a class="btn" href="<?= $esc(Route::tool('exiffix', $scopeProject)) ?>"><i class="fa-solid fa-kit-medical"></i> <?= $t('open_exiffix_btn') ?></a>
           <a class="btn" href="<?= $esc(Route::tool('thumbfix', $scopeProject)) ?>"><i class="fa-solid fa-images"></i> <?= $t('open_thumbfix_btn') ?></a>
           <a class="btn" href="<?= $esc(Route::tool('tilecut', $scopeProject)) ?>"><i class="fa-solid fa-scissors"></i> <?= $t('open_tilecut_btn') ?></a>
-          <a class="btn" href="<?= $esc(Route::tool('spotmigrate', $scopeProject)) ?>"><i class="fa-solid fa-chair"></i> <?= $t('open_spotmigrate_btn') ?></a>
           <a class="btn" href="<?= $esc(Route::backupAll()) ?>"><i class="fa-solid fa-download"></i> <?= $t('backup_all_btn') ?></a></div>
       </div>
       <div class="card section-card">

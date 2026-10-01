@@ -1,8 +1,8 @@
 <?php
 // 建立新的定位點。POST project, name(建立者暱稱), title, cat, catLabel, color, description, lat, lon, csrf(管理者模式)
 //
-// 點位資料只有 spots.jsonl 一個來源（靜態底稿已由 api/spotmigrate.php 併入）：往裡附加一筆
-// kind:'spot' 起點（無 edit_of，帶 num/title），前端讀取時把它併進點位清單（見 viewer.core.js
+// 點位資料只有 spots.jsonl 一個來源：往裡附加一筆 kind:'spot' 起點
+// （無 edit_of，帶 num/title），前端讀取時把它併進點位清單（見 viewer.core.js
 // 的 effectiveSpots()）。建立出來的點之後一樣能被管理者用 editspot.php 搬位置——那條路徑會
 // 找到這筆當 edit_of 的鏈頭。建立時填的說明（description）寫成起點紀錄 content 裡的一個 text 區塊，
 // 點位沒有獨立的說明欄位（區塊規則見 api/spotlib.php 的 spot_content_render()）。

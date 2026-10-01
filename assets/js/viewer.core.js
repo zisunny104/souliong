@@ -608,10 +608,9 @@ window.MapApp = (() => {
   // 所以這裡維持照片語意不變，核心自己的呈現才改吃 effectiveEntries()。
   function effectivePhotos() { return effectiveEntries().filter(e => !!e.photo); }
 
-  // 合併「地點本身」的建立與後續編輯：起點（api/newspot.php 或 api/spotmigrate.php 寫入的
-  // kind:'spot'，一定帶 num、無 edit_of）疊上指向它的 edit_of 版本鏈（api/editspot.php、
-  // api/spotcontent.php 寫入）。spots.jsonl 是點位唯一的真相來源（含匯入的靜態底稿，見
-  // api/spotmigrate.php），這裡只吃 CONTRIB。
+  // 合併「地點本身」的建立與後續編輯：起點（api/newspot.php 寫入的 kind:'spot'，一定帶 num、
+  // 無 edit_of）疊上指向它的 edit_of 版本鏈（api/editspot.php、api/spotcontent.php 寫入）。
+  // spots.jsonl 是點位唯一的真相來源，這裡只吃 CONTRIB。
   // 疊加規則與 api/spotlib.php 的 spot_effective() 同一份規格：逐欄疊加，每個可覆寫欄位取
   // 「版本鏈上帶有該 key 的最新一筆」，created_at 相同時檔案裡較後面那筆勝出（sort 是穩定的，
   // list.php 也保持檔案順序）。欄位清單由伺服器給（APP.spotFields），這裡不硬編。
@@ -627,7 +626,7 @@ window.MapApp = (() => {
     CONTRIB.forEach(e => {
       if (e.kind !== 'spot') return;
       if (e.edit_of) (edits[e.edit_of] = edits[e.edit_of] || []).push(e);
-      else if (e.num != null) origins[e.id] = e;   // 有 num = 起點（見 api/newspot.php／api/spotmigrate.php）
+      else if (e.num != null) origins[e.id] = e;   // 有 num = 起點（見 api/newspot.php）
     });
     return Object.keys(origins).map(id => {
       const o = origins[id];

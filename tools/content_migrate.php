@@ -13,7 +13,7 @@
 //
 // 用法：php content_migrate.php <project_dir> [--apply]
 // 不加 --apply 是預覽模式，只列出會處理什麼，不寫入也不備份；加 --apply 才會先把整個專案備份成 ZIP
-// （見 spotmigrate_backup_project()）再寫入。
+// （見 project_backup_zip()）再寫入。
 //
 // 冪等：點位版本鏈上已有 actor 為 system:merge 的紀錄就跳過該點位（之後被人刪掉的內容不會被加回來）；
 // meta.json 沒有 story／soundEdit 鍵就不動。所有環境都遷移完之後可以刪除這支工具。
@@ -173,7 +173,7 @@ if (!$plans && $newMeta === null) {
     exit(0);
 }
 
-$backupZip = spotmigrate_backup_project($cfg, $project);
+$backupZip = project_backup_zip($cfg, $project);
 if ($backupZip === null) {
     fwrite(STDERR, "備份失敗，中止寫入。\n");
     exit(1);

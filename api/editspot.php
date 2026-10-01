@@ -1,7 +1,7 @@
 <?php
 // 編輯點位本身的座標。權限是點位軸的 edit_spots（含 CSRF），預設僅限主要管理者，可個別授權給專案管理者。
-// 點位不論來自靜態底稿（api/spotmigrate.php 併入的官方資料）還是 newspot.php 建立的動態點位，此刻都是
-// spots.jsonl 裡同一種起點紀錄（一定有 num），因此不比照 editentry.php 驗 owner/ctoken。
+// 點位不論是官方資料還是 newspot.php 建立的動態點位，此刻都是 spots.jsonl 裡同一種起點紀錄
+// （一定有 num），因此不比照 editentry.php 驗 owner/ctoken。
 // 不覆寫起點，而是新增一筆 kind:'spot' 版本紀錄（spot_append_version()），edit_of 指回起點紀錄 id；
 // 版本紀錄是稀疏的，這支只寫 lat、lon，content 不動（疊加規則見 spot_effective()）。
 // POST project, item_num（必填，起點的 num）, lat, lon, csrf, name（選填）。

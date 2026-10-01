@@ -615,7 +615,6 @@ return [
     'layer_import_exists_msg'          => '這個 ZIP 裡的圖層 id 已經存在：{ids}。要覆蓋現有內容，請勾選「覆蓋同名圖層」後重新上傳。',
     'open_tilecut_btn'                 => '切圖磚',
     'tilecut_entry_hint'               => '把一張自繪插畫切成圖磚，直接產生這張地圖專屬的圖層',
-    'open_spotmigrate_btn'             => '點位資料遷移',
     'open_region3d_btn'                => '新增 3D 區域',
     'region3d_entry_hint'              => '放置自訂模型並畫出排除公用 3D 建物的範圍',
     'region3d_edit_link_btn'           => '編輯',
@@ -688,17 +687,6 @@ return [
     'layermigrate_done_freeze_ok'      => '已將「{p}」的圖層設定凍結',
     'layermigrate_done_freeze_skip'    => '「{p}」已經明確設定過圖層，未變動',
     'layermigrate_done_freeze_all_ok'  => '批次凍結完成，共處理 {n} 個專案',
-
-    'spotmigrate_title'         => '點位資料遷移 · Souliong',
-    'spotmigrate_h1'            => '點位資料遷移',
-    'spotmigrate_warn'          => '把這張地圖靜態底稿（points.json／chairs.json 等）裡的點位併入 spots.jsonl。已經遷移過的 num 會自動跳過，可重複執行；沒有靜態底稿的專案執行後會顯示「無需遷移」。實際寫入前會先把整個專案目錄備份成 ZIP（存在 projects/<專案>/_backup/），spots.jsonl 本身另外也會留一份 .bak。',
-    'spotmigrate_run_btn'       => '執行遷移',
-    'spotmigrate_running_msg'   => '遷移中…',
-    'spotmigrate_skipped_msg'   => '這張地圖沒有靜態底稿（{file}），無需遷移',
-    'spotmigrate_done_msg'      => '完成，新增 {added} 筆起點、修正 {repointed} 筆編輯紀錄',
-    'spotmigrate_added_line'    => '新增起點',
-    'spotmigrate_repointed_line' => '已修正指向',
-    'spotmigrate_backup_line'   => '已備份整包專案至',
 
     // 以下為切圖磚工具（tilecut.php）用的翻譯 key
     'tilecut_title'            => '切圖磚 · Souliong',

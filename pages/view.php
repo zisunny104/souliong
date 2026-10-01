@@ -25,17 +25,10 @@ require_once __DIR__ . '/../api/osmdata.php';
 $apiCfg    = require __DIR__ . '/../api/config.php';
 require_once __DIR__ . '/../api/spotlib.php';
 require_once __DIR__ . '/../api/uploadlib.php';
-// 自動升級：這個專案的靜態點位底稿如果還有 num 沒併入 spots.jsonl（新加入的專案、還原自舊備份、
-// 或當初手動遷移漏跑），開頁時就地補上，不必仰賴後台手動點「點位資料遷移」——spotmigrate_needed()
-// 是不加鎖的輕量預檢，已遷移過的專案（絕大多數請求）幾乎不花成本，只有真的偵測到落差才會呼叫
-// spotmigrate_run()（見 api/spotlib.php）去加鎖改寫。
-if ($meta && spotmigrate_needed($apiCfg, $proj)) {
-    spotmigrate_run($apiCfg, $proj);
-}
-// 點位：spots.jsonl 裡的起點記錄（一定有 num、無 edit_of），含上面自動遷移與 api/spotmigrate.php
-// 從靜態底稿併入的、api/newspot.php 動態建立的——spots.jsonl 是點位唯一的真相來源，跟 assets/js/
-// viewer.core.js 的 effectiveSpots() 同一套判斷式。位置與內容的版本疊加交給前端讀 CONTRIB 做，這裡只給
-// 起點紀錄；起點自帶的 content 區塊附加衍生欄位 html（見 spot_content_render()）。
+// 點位：spots.jsonl 裡的起點記錄（一定有 num、無 edit_of），api/newspot.php 動態建立的——
+// spots.jsonl 是點位唯一的真相來源，跟 assets/js/viewer.core.js 的 effectiveSpots() 同一套判斷式。
+// 位置與內容的版本疊加交給前端讀 CONTRIB 做，這裡只給起點紀錄；起點自帶的 content 區塊附加
+// 衍生欄位 html（見 spot_content_render()）。
 $spots     = $meta ? array_values(array_filter(store_all($apiCfg, $proj), fn($r) => ($r['kind'] ?? null) === 'spot' && empty($r['edit_of']) && isset($r['num']))) : [];
 foreach ($spots as &$spotRec) {
     if (is_array($spotRec['content'] ?? null)) $spotRec['content'] = spot_content_render($spotRec['content']);

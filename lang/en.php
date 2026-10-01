@@ -605,7 +605,6 @@ return [
     'layer_import_exists_msg'          => 'These layer ids from the ZIP already exist: {ids}. To overwrite them, check "Overwrite layers with the same id" and upload again.',
     'open_tilecut_btn'                 => 'Slice tiles',
     'tilecut_entry_hint'               => 'Slice a hand-drawn illustration into tiles and turn it straight into a layer for this map',
-    'open_spotmigrate_btn'             => 'Spot data migration',
     'open_region3d_btn'                => 'New 3D region',
     'region3d_entry_hint'              => 'Place a custom model and draw the area where public 3D buildings should be excluded',
     'region3d_edit_link_btn'           => 'Edit',
@@ -678,17 +677,6 @@ return [
     'layermigrate_done_freeze_ok'      => 'Froze the layer setting for "{p}"',
     'layermigrate_done_freeze_skip'    => '"{p}" already has its own layer setting, left unchanged',
     'layermigrate_done_freeze_all_ok'  => 'Batch freeze complete — {n} projects processed',
-
-    'spotmigrate_title'         => 'Spot data migration · Souliong',
-    'spotmigrate_h1'            => 'Spot data migration',
-    'spotmigrate_warn'          => 'Merges this map\'s static seed file (points.json, chairs.json, etc.) into spots.jsonl. Already-migrated nums are skipped automatically, so this is safe to re-run; projects with no static seed file report "nothing to migrate". Before any write, the whole project folder is backed up to a ZIP (projects/<project>/_backup/), and spots.jsonl itself also gets a .bak.',
-    'spotmigrate_run_btn'       => 'Run migration',
-    'spotmigrate_running_msg'   => 'Migrating…',
-    'spotmigrate_skipped_msg'   => 'This map has no static seed file ({file}) — nothing to migrate',
-    'spotmigrate_done_msg'      => 'Done — added {added} spot(s), repointed {repointed} edit(s)',
-    'spotmigrate_added_line'    => 'added',
-    'spotmigrate_repointed_line' => 'repointed',
-    'spotmigrate_backup_line'   => 'Project backed up to',
 
     // Keys below back the tile-slicing tool (tilecut.php)
     'tilecut_title'            => 'Slice Tiles · Souliong',
