@@ -303,6 +303,7 @@ CSS 全部前綴 `.stat-card .col`，因為要蓋過同層的 `.stat-card .col o
 | id | 用途 |
 | --- | --- |
 | `paper-ink` | 向量底圖（MapLibre），淺色如紙、深色如墨，道路加寬。`default_layers` 的預設值。 |
+| `paper-ink-nolabels` | 紙墨的無標註版本（拿掉所有地名、路名、水域名、門牌）。由 `php tools/paper_ink_nolabels.php` 從 `paper-ink` 產生，紙墨更新後重跑即可同步。 |
 | `openfreemap-liberty` | OpenFreeMap 的 Liberty 向量底圖，深色模式換其 Dark 風格。 |
 | `carto-voyager` | **已封存**，不建議使用（免費圖磚會蓋浮水印）。光柵底圖，深色模式換 Dark Matter。 |
 | `carto-positron` | **已封存**，不建議使用。配色極淡的光柵底圖。 |

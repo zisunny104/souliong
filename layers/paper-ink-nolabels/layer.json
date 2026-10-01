@@ -1,0 +1,12 @@
+{
+  "label": "紙墨配色・無地名（OpenFreeMap 資料）",
+  "desc": "紙墨的無標註版本：同樣的淺色如紙、深色如墨，但拿掉所有地名、路名、水域名與門牌。自繪插畫或資料圖層（熱力圖、點位）已經有自己的文字時，底圖不再重複標示，畫面乾淨。樣式由 tools/paper_ink_nolabels.php 從 paper-ink 產生，紙墨更新後重跑即可同步。",
+  "type": "vector",
+  "pane": "base",
+  "url": "style-light.json",
+  "urlDark": "style-dark.json",
+  "attribution": [
+    { "text": "OpenStreetMap", "url": "https://www.openstreetmap.org/copyright", "copyright": true, "suffix": "{osm_contributors}" },
+    { "text": "OpenFreeMap", "url": "https://openfreemap.org" }
+  ]
+}
