@@ -18,12 +18,8 @@ fail() { echo "  ${RED}✗${RESET} $1"; }
 
 BRANCH="${DEPLOY_BRANCH:-main}"
 
-# souliong 是純 PHP＋檔案儲存，沒有資料庫、沒有編譯步驟，架構比照 KoiLiSu 框架本體的
-# deploy.sh（fetch → 合併前先查新版本有沒有問題 → fast-forward → 選用重載）。多出來的兩段是
-# souliong 特有的東西：合併前拿 FETCH_HEAD 的內容完整跑一次 tools/checkall.php（涵蓋
-# authlint／authcheck／contentcheck，不只 php -l），以及部署後對 api/config.php（機密設定，
-# 沒進版控）與 projects/state 可寫性的提醒檢查——這兩段只能警示，不能自動修好（改密鑰、
-# chown 都需要人決定），真正自動化的只有程式碼本身的更新與驗證。
+# souliong 是純 PHP＋檔案儲存，沒有資料庫、沒有編譯步驟。
+# 流程：fetch → 用獨立 worktree 跑過新版本的 tools/checkall.php → fast-forward 合併 → 選用重載 PHP。
 
 step "檢查 working tree"
 # 伺服器上的檔案被手動改過時，git fast-forward merge 會中途失敗；先擋下來，講清楚是哪些檔案。
@@ -63,7 +59,8 @@ if [ "$BEFORE" = "$AFTER" ]; then
   warn "已經是最新版本（${AFTER}），沒有新的變更"
 else
   echo
-  step "部署前完整檢查新版本（git worktree 跑 tools/checkall.php：php -l／authlint／authcheck／contentcheck）"
+  step "部署前完整檢查新版本"
+  echo "  ${DIM}git worktree 跑 tools/checkall.php（php -l／authlint／authcheck／contentcheck）${RESET}"
   # 在 merge「之前」就檢查：把 FETCH_HEAD 的內容放到旁邊一個獨立 worktree 去跑 checkall，
   # 有錯就中止，線上的檔案完全沒動。merge 之後才發現，網站已經是壞的了。
   # authcheck／contentcheck 會自己另開臨時沙盒跑，但啟動時仍需要讀到 api/config.php
@@ -116,7 +113,8 @@ if [ -n "${DEPLOY_RELOAD_CMD:-}" ] && [ "$BEFORE" != "$AFTER" ]; then
 fi
 
 echo
-step "機密設定與可寫目錄（這幾項改密鑰、改權限都需要人判斷，腳本只檢查、不代勞）"
+step "機密設定與可寫目錄"
+echo "  ${DIM}改密鑰、改權限都需要人判斷，腳本只檢查、不代勞${RESET}"
 if [ ! -f api/config.php ]; then
   fail "api/config.php 不存在——幾乎每一支 api/*.php 都會 require 它，整站目前無法運作"
   echo "  ${DIM}手動執行：cp api/config.example.php api/config.php，再編輯填入 primary_pin／ip_salt 等機密值${RESET}"
@@ -153,6 +151,7 @@ done
 echo "  ${DIM}Nginx 封鎖 projects/、state/ 直接存取／HTTPS／上傳大小限制等系統層級設定不在這支腳本涵蓋範圍，請對照 docs/DEPLOY.md「一、上線前必做」在首次部署或變更伺服器環境時逐項確認${RESET}"
 
 echo
+echo "${DIM}------------------------------------------------------------${RESET}"
 step "部署完成"
 if [ "$HAS_PHP" -eq 1 ]; then
   VERSION="$(php -r '$c = require "config.php"; echo $c["version"] ?? "?";' 2>/dev/null || echo '?')"
