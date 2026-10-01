@@ -1,0 +1,11 @@
+{
+  "label": "NLSC 電子地圖（透明疊圖：地名、路名）",
+  "desc": "國土測繪中心通用版電子地圖的透明版，疊在 nlsc-photo 上提供地名、路名與 POI 圖示。注意它同時會畫出道路線與單行箭頭，比純文字標註雜一些；只想要地名時不建議疊在資料很密的地圖上。",
+  "type": "raster",
+  "pane": "road",
+  "url": "https://wmts.nlsc.gov.tw/wmts/EMAP2/default/GoogleMapsCompatible/{z}/{y}/{x}",
+  "maxZoom": 20,
+  "attribution": [
+    { "text": "內政部國土測繪中心", "url": "https://maps.nlsc.gov.tw/" }
+  ]
+}
