@@ -305,6 +305,8 @@ CSS 全部前綴 `.stat-card .col`，因為要蓋過同層的 `.stat-card .col o
 | `paper-ink` | 向量底圖（MapLibre），淺色如紙、深色如墨，道路加寬。`default_layers` 的預設值。 |
 | `paper-ink-nolabels` | 紙墨的無標註版本（拿掉所有地名、路名、水域名、門牌）。由 `php tools/paper_ink_nolabels.php` 從 `paper-ink` 產生，紙墨更新後重跑即可同步。 |
 | `openfreemap-liberty` | OpenFreeMap 的 Liberty 向量底圖，深色模式換其 Dark 風格。 |
+| `nlsc-photo` | 內政部國土測繪中心的臺灣正射影像（衛星影像），免金鑰，只涵蓋臺灣。 |
+| `nlsc-labels` | 國土測繪中心電子地圖的透明疊圖（地名、路名、POI），疊在 `nlsc-photo` 上。會同時畫出道路線與單行箭頭。 |
 | `carto-voyager` | **已封存**，不建議使用（免費圖磚會蓋浮水印）。光柵底圖，深色模式換 Dark Matter。 |
 | `carto-positron` | **已封存**，不建議使用。配色極淡的光柵底圖。 |
 | `carto-positron-nolabels` | **已封存**，不建議使用。Positron 拿掉所有文字。 |

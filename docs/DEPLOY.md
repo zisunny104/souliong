@@ -94,7 +94,7 @@ Nginx：`client_max_body_size 70m;`　PHP：`upload_max_filesize=64M`、`post_ma
 ```
 script-src  'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com;
 style-src   'unsafe-inline' https://unpkg.com https://cdnjs.cloudflare.com;
-img-src     'self' data: blob: https://tile.openstreetmap.org;   # 後者只有切圖工具的選區預覽用
+img-src     'self' data: blob: https://tile.openstreetmap.org https://wmts.nlsc.gov.tw;   # openstreetmap.org 只有切圖工具的選區預覽用；wmts.nlsc.gov.tw 是選用 nlsc-photo／nlsc-labels 時才需要
 media-src   'self' blob:;
 connect-src 'self' https://tiles.openfreemap.org;  # 向量底圖（預設 paper-ink）與 3D 模式用，來源看 map3d_style_url
 font-src    https://cdnjs.cloudflare.com;

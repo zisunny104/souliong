@@ -1,0 +1,11 @@
+{
+  "label": "NLSC 正射影像（台灣衛星影像）",
+  "desc": "內政部國土測繪中心（NLSC）的臺灣正射影像，免金鑰。只涵蓋臺灣本島與離島，範圍外是空白。需要地名時疊上 nlsc-labels。影像本身帶有淡淡的「NLSC」浮水印，這是官方圖磚的一部分。",
+  "type": "raster",
+  "pane": "base",
+  "url": "https://wmts.nlsc.gov.tw/wmts/PHOTO2/default/GoogleMapsCompatible/{z}/{y}/{x}",
+  "maxZoom": 20,
+  "attribution": [
+    { "text": "內政部國土測繪中心", "url": "https://maps.nlsc.gov.tw/" }
+  ]
+}
