@@ -526,7 +526,7 @@ MapLibre 沒有 Leaflet 的「pane／可疊多張獨立底圖」概念，向量 
 | 全站包 | 「工具」分頁 → 主題包 | 主要管理者 | `packs/<id>/` |
 | 專案包 | 專案卡片 → 主題包 | 該專案的管理者 | `projects/<proj>/packs/<id>/` |
 
-匯出（`backup=pack`）、匯入（`action=packimport`）都比照 `backup=layer`／`layerimport`：沒帶 `project`＝全站、帶了＝該地圖自己的，權限跟著包住哪裡走（`$isProj ? !$canProject($pp) : !$primary`）。刪除（`action=packdelete`）也是新加的——比照 `action=layerdelete`：路徑解析用**作用域對應的那個 root**，不是 `souliong_pack_dir()`（後者同名時偏好專案層，刪除時可能刪錯邊）；全站預設包（`state/settings.json` 的 `pack`）刪不掉，回 409，要刪請先去「工具」分頁換掉全站預設。包沒有圖層那種「檔案數量不固定」問題（固定兩個檔），所以匯出不需要遞迴走訪或大小上限。
+匯出（`backup=pack`）比照 `backup=layer`：沒帶 `project`＝全站包，權限看 `Auth::can($cfg, null, 'manage_layers')`；帶了＝該地圖自己的包，看該專案的 `edit_layers`（`$canLayers($pp)`）——權限跟著包實際住在哪裡走，不是看操作者是誰。匯入（`action=packimport`）比照 `layerimport`：呼叫 `$gateLayers($pp, 'primary_only_packs_msg', $backTo)`，同一套「全站層歸 `manage_layers`、專案層歸該專案 `edit_layers`」判斷收斂在這個 closure 裡（`Auth`／`auth_registry()` 完整架構見十三節）。刪除（`action=packdelete`）也是新加的、同樣走 `$gateLayers`——比照 `action=layerdelete`：路徑解析用**作用域對應的那個 root**，不是 `souliong_pack_dir()`（後者同名時偏好專案層，刪除時可能刪錯邊）；全站預設包（`state/settings.json` 的 `pack`）刪不掉，回 409，要刪請先去「工具」分頁換掉全站預設。包沒有圖層那種「檔案數量不固定」問題（固定兩個檔），所以匯出不需要遞迴走訪或大小上限。
 
 「編輯專案描述」對話框的包下拉選單現在也是 `souliong_pack_list($cfg, $proj)`——專案自己的包會出現在清單裡，並標注「本地圖專屬」（沿用圖層清單同一顆翻譯字串 `layer_scope_project`，文字本來就是通用的，沒有另外開一顆 `pack_scope_project`）。全站預設下拉（「工具」分頁的 `site_pack`）刻意維持 `souliong_pack_list($cfg)`（不帶 `$proj`）——全站預設本來就只該從全站包裡選，不然某張地圖刪掉自己的專案包後，其他地圖的全站預設會突然解析不到。
 
@@ -628,3 +628,66 @@ MapLibre 沒有 Leaflet 的「pane／可疊多張獨立底圖」概念，向量 
 ## 十二、檢查工具
 
 `php tools/checkall.php` 依序跑 `php -l`（全專案 php，不含 `vendor`／`projects`／`state`）、`authlint`、`authcheck`、`contentcheck`；環境有 `node` 時再對 `assets/js` 跑 `node --check`。全過結束碼 0，任一項失敗結束碼 1，最後列出每項結果與失敗摘要。`authcheck` 與 `contentcheck` 在臨時沙盒跑，不碰真實的 `projects/` 與 `state/`。改動端點、權限或前端腳本後跑一次。
+
+## 十三、權限系統：`Auth` / `Actor` / `auth_registry()`
+
+全站只有一個地方算「這個請求是誰、能不能做這件事」：`api/auth.php`。端點（`api/*.php`、`pages/*.php`）只透過 `Auth::require()`／`Auth::can()`／`Auth::actor()` 問權限與 CSRF，不直接碰 cookie、perms 檔或衍生簽章——`tools/authlint.php` 掃描這條規則。
+
+### 13.1 身分：`Actor`
+
+`Auth::actor($cfg, $project)` 回傳這個請求在某個專案（`$project = null` 為全站層級）的身分，每請求每專案只解析一次並快取（不可變）。解析順序（權限與 CSRF 共用同一順序，是刻意的修正——舊版 `perm_check()` 權限與 CSRF 衍生用了不同順序，瀏覽器同時帶帳號與專案 PIN cookie 時兩邊會對不上）：`primary`（主 PIN cookie，或角色為 primary 的帳號）→ `account`（此專案有成員資格的帳號）→ `pin`（此專案仍有效的專案 PIN）→ `anon`，取到第一個就定案。
+
+`Actor` 公開：
+
+- `kind()`：`'primary'|'account'|'pin'|'anon'`。
+- `can(?project, key)`：**全站唯一的權限查詢點**。註冊表沒有的鍵一律 `false`（fail-closed，primary 也不例外）；`primary` 對任何已註冊鍵一律 `true`；非 primary 只有鍵的 `scope==='project'` 且帶了 `$project` 才可能為真，實際看該身分在該專案的 perms 表。
+- `isMember($project)`：純身分判斷（primary、該專案的帳號成員、該專案的 PIN）。**不是放行條件**——只給顯示用，動作一律呼叫 `can()`。
+- `csrf($project)`：這個身分在該專案該送出的 CSRF 衍生值；`anon` 為 `null`。
+- `audit()`：稽核用的操作者識別（`'primary'`／`'acct:<id>'`／`'pin:<id>'`／`'anon'`）。
+- `grantedKeys($project)`：此身分在該專案具備的專案層級鍵（給前端 `APP.perms`）。
+
+### 13.2 `Auth` 門面
+
+- `Auth::actor($cfg, $project)` / `Auth::can($cfg, $project, $key)`：轉呼叫上面兩個方法，`Actor` 依 `$project` 快取在 `Auth::$actors`。
+- `Auth::require($cfg, $project, $key, $csrf=true, $denyMessage=null, $onFail=null): Actor`：**端點的唯一關卡**，先權限、後 CSRF（POST 的 `csrf` 欄位對上 `Actor` 的衍生值），任一失敗呼叫 `$onFail($reason, $message)`（`$reason` 為 `'deny'|'csrf'`）。預設以 JSON 403 結束；表單頁可自帶 `$onFail` 輸出頁面式錯誤並結束請求。
+- `Auth::projectsWith($cfg, $key)`：此身分具備某專案層級鍵的所有專案清單。
+
+### 13.3 `auth_registry()`：權限鍵的唯一來源
+
+```php
+'key' => ['scope' => 'project'|'site', 'label' => 後台開關的 lang 鍵或 null, 'backfill' => bool, 'was' => 舊鍵名（可省略）]
+```
+
+`scope` 決定下放範圍：`project` 可逐專案授權給 PIN／帳號；`site` 永遠只有 `primary` 為真——`can()` 對非 primary 直接拒絕 `scope!=='project'` 的鍵，而且 `auth_perms_default()`（新建 PIN／帳號的預設表）只填 `project` 鍵，`site` 鍵從不會被寫進任何人的 perms 表，後台也不會出現下放開關（`label` 為 `null`）。`backfill` 只影響上線前就存在的 PIN／帳號：缺這個鍵時是否回填 `true`（保留既有能力）；新建身分一律從 `auth_perms_default()` 全關起跑。`was` 是舊鍵名，`auth_perms_migrate()` 讀取時自動搬遷成新鍵名（`pins_load()`／`project_perms_load()` 共用這支函式，不各寫一份遷移迴圈）。**新增一個權限鍵只需要在這個表加一行**，不必動別處。
+
+目前完整清單（見 `api/auth.php` 的 `auth_registry()`，呼叫端見下方 13.4）：
+
+| 鍵 | scope | 用途 |
+|---|---|---|
+| `delete_others` | project | 刪除別人的投稿（`manager.php` 的 `action=delete`；刪點位本身另需 `edit_spots`） |
+| `edit_others` | project | 編輯別人的投稿／照片 |
+| `edit_spots` | project | 改點位定位／內容區塊（`editspot.php`／`spotcontent.php`；舊鍵名 `edit_points`，見 3.6、3.7 節） |
+| `grant_access` | project | 可建立「管理 PIN」型邀請連結（舊鍵名 `delegate_admin`） |
+| `edit_3d_regions` | project | 編輯 3D 模型排除區域 |
+| `edit_meta` | project | 編輯專案描述（`action=meta`） |
+| `edit_layers` | project | 管理該專案自己的圖層／主題包：匯出／匯入／刪除（見 8.6、8.9） |
+| `manage_contrib` | project | 管理投稿代碼／投稿者名單 |
+| `export_backup` | project | 匯出該專案備份 |
+| `bypass_code` | project | 略過投稿代碼門檻直接投稿 |
+| `manage_layers` | site | 全站層圖層／主題包的匯出／匯入／刪除（`$gateLayers` 在 `$lp===''` 時走這個鍵） |
+| `fix_exif` | site | `exiffix.php`：批次修復照片 EXIF |
+| `fix_thumbnails` | site | `thumbfix.php`：批次重建縮圖 |
+| `view_stats` | site | `stat.php` 的原始統計 JSON 讀取 |
+| `migrate_spots` | site | `spotmigrate.php`：舊資料遷移工具 |
+| `manage_site` | site | 全站設定、權限管理（授權／撤銷其他身分的鍵）、全站備份匯入、容量重算等「工具」分頁的全站專屬操作 |
+
+後六個 `scope: 'site'` 的鍵事實上等於「僅 primary」，不是「預設關閉、可授權」——這是刻意的區別，不要把它們當成可以下放給專案管理者的鍵。
+
+### 13.4 `manager.php` 怎麼用：`$gate` / `$gateLayers`
+
+後台表單動作共用兩個 closure：
+
+- `$gate(?project, key, ?denyKey, ?back)`：呼叫 `Auth::require()`，失敗時用 `error_page()` 輸出頁面式錯誤（而不是 JSON 403）並導回 `$back ?? Route::manager($scopeProject)`；專案層級鍵沒帶 `$project` 直接視為拒絕。
+- `$gateLayers($lp, $denyKey, $back)`：圖層／主題包動作專用——全站層（`$lp===''`）歸 `manage_layers`，專案層歸該專案的 `edit_layers`，權限跟著「這個圖層／主題包實際住在哪裡」走，不是「誰在操作」。`packimport`／`packdelete`、`layerimport`／`layerdelete` 都呼叫它。
+
+`$canProject`／`$canMeta`／`$canLayers`／`$canContrib`／`$canBackup` 是渲染用的唯讀判斷（底層就是 `Auth::can()` 或 `isMember()`），決定要不要畫某個區塊／按鈕。**`$canProject` 只判斷是否為該專案成員，不是動作門檻**——實際放行一律另外呼叫 `$gate`／`$gateLayers`／`Auth::can()`，不會只憑 `$canProject` 就讓動作通過。
