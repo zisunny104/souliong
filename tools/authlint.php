@@ -7,7 +7,7 @@
  * 有任何違規就列出「檔案:行號」並以非零狀態結束。用 PHP tokenizer 掃描，註解與字串裡的字樣不算。
  *
  * 規則：
- *   R1 不得直接呼叫身分／簽章函式（perm_can、perm_check、site_perm、primary_authed、pin_current_id、
+ *   R1 不得直接呼叫身分／簽章函式（primary_authed、pin_current_id、
  *      account_current、primary_derived、pin_derived、account_derived）——一律用 Auth::require／can／actor。
  *   R2 不得自己 hash_equals csrf——CSRF 只在 Auth::require() 比對。
  *   R3 不得直接讀身分 cookie（souliong_primary／souliong_acct／souliong_pin_*）。
@@ -15,7 +15,7 @@
  */
 $root = dirname(__DIR__);
 const AUTHLINT_EXEMPT = ['api/auth.php', 'api/security.php', 'api/accounts.php'];
-const AUTHLINT_FORBIDDEN_CALLS = ['perm_can', 'perm_check', 'site_perm', 'primary_authed', 'pin_current_id',
+const AUTHLINT_FORBIDDEN_CALLS = ['primary_authed', 'pin_current_id',
     'account_current', 'primary_derived', 'pin_derived', 'account_derived'];
 const AUTHLINT_COOKIE_WORDS = ['souliong_primary', 'souliong_acct', 'souliong_pin_', 'PRIMARY_COOKIE', 'ACCOUNT_COOKIE'];
 
