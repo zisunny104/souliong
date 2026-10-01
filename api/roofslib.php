@@ -176,16 +176,6 @@ function souliong_roofs_geometry(array $el): ?array
         : ['type' => 'MultiPolygon', 'coordinates' => $polys];
 }
 
-/** Overpass 元素 → GeoJSON Feature；沒有可用屬性或幾何回 null */
-function souliong_roofs_feature(array $el): ?array
-{
-    $type = (string)($el['type'] ?? '');
-    if (!isset($el['id']) || !in_array($type, ['way', 'relation'], true)) return null;
-    $props = souliong_roofs_props((array)($el['tags'] ?? []), $type . '/' . (int)$el['id']);
-    $geom = $props === null ? null : souliong_roofs_geometry($el);
-    return $geom === null ? null : ['type' => 'Feature', 'properties' => $props, 'geometry' => $geom];
-}
-
 /** 幾何的外環（Polygon 取第一環；MultiPolygon 每個多邊形各一環） */
 function souliong_roofs_outers(array $geom): array
 {

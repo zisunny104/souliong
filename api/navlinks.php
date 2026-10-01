@@ -28,19 +28,3 @@ function souliong_nav_config(): array
 {
     return ['icon' => 'fa-solid fa-diamond-turn-right', 'apps' => souliong_nav_apps()];
 }
-
-/** 依模板產生連結；座標非有限數字回 null（無座標的點位不該有導航）。 */
-function souliong_nav_link(string $id, $lat, $lon, string $name = ''): ?string
-{
-    if (!is_numeric($lat) || !is_numeric($lon) || abs((float)$lat) > 90 || abs((float)$lon) > 180) return null;
-    foreach (souliong_nav_apps() as $app) {
-        if ($app['id'] !== $id) continue;
-        $ll = (float)$lat . ',' . (float)$lon;
-        return strtr($app['url'], [
-            '{lat}'  => (string)(float)$lat,
-            '{lon}'  => (string)(float)$lon,
-            '{name}' => rawurlencode($name !== '' ? $name : $ll),
-        ]);
-    }
-    return null;
-}
