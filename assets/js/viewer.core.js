@@ -175,6 +175,7 @@ window.MapApp = (() => {
     for (let attempt = 0; attempt <= maxRetry; attempt++) {
       const fd = new FormData();
       fd.append('project', PROJECT);
+      if (APP.csrf) fd.append('csrf', APP.csrf);
       fd.append('owner', ownerToken());
       fd.append('code', storedCode());
       const ct = contribToken(); if (ct) fd.append('ctoken', ct);

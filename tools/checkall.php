@@ -60,7 +60,7 @@ $phpFiles = checkall_files($root, 'php');
 [$c, $o, $n] = checkall_each($root, $phpFiles, fn($f) => "$php -l " . escapeshellarg($f));
 $results[] = ["php -l（$n 個檔案）", $c, $o];
 
-foreach (['authlint', 'authcheck', 'contentcheck', 'embedcheck'] as $tool) {
+foreach (['authlint', 'authcheck', 'contentcheck', 'embedcheck', 'securitycheck'] as $tool) {
     [$c, $o] = checkall_run("$php " . escapeshellarg("tools/$tool.php"), $root);
     $results[] = [$tool, $c, $c === 0 ? '' : $o];
 }
@@ -71,6 +71,8 @@ if ($nodeCode === 0) {
     $jsFiles = array_map(fn($f) => 'assets/js/' . $f, $jsFiles);
     [$c, $o, $n] = checkall_each($root, $jsFiles, fn($f) => 'node --check ' . escapeshellarg($f));
     $results[] = ["node --check（$n 個檔案）", $c, $o];
+    [$c, $o] = checkall_run('node tools/securitycheck.js', $root);
+    $results[] = ['securitycheck.js', $c, $c === 0 ? '' : $o];
 } else {
     echo "（略過 node --check：找不到 node）\n";
 }

@@ -138,7 +138,7 @@ if (($argv[1] ?? '') === '--child') {
         $sc = fx_scenarios($cfg, 'alpha', 'beta')[$p['scenario']];
         $_COOKIE = $sc['cookies'];
         $_POST = $p['post'] + ['project' => $p['project']];
-        $csrf = ac_csrf_value($sc, $p['csrf']);
+        $csrf = $p['csrf'] === 'right' ? Auth::actor($cfg, $p['project'])->csrf($p['project']) : ac_csrf_value($sc, $p['csrf'], $p['project']);
         if ($csrf !== null) $_POST['csrf'] = $csrf;
         $_SERVER['REMOTE_ADDR'] = '10.9.' . intdiv($p['n'], 250) . '.' . ($p['n'] % 250 + 1);
         include $p['sb'] . '/api/' . $p['file'];
@@ -267,7 +267,8 @@ function ac_lines(string $out): array {
     $rows = [];
     foreach (preg_split('/
 |
-|/', $out) as $l) { $d = json_decode(trim($l), true); if (is_array($d)) $rows[] = $d; else if (trim($l) !== '') $rows[] = ['garbage' => mb_substr(trim($l), 0, 160)]; }
+|
+/', $out) as $l) { $d = json_decode(trim($l), true); if (is_array($d)) $rows[] = $d; else if (trim($l) !== '') $rows[] = ['garbage' => mb_substr(trim($l), 0, 160)]; }
     return $rows;
 }
 function ac_classify(string $out): string {
@@ -470,9 +471,31 @@ $gate = [
     ['newspot', 'delta', 'anon',             [],                                                  'noflag',  'newSpot 預設 off'],
 ];
 foreach ($gate as $i => [$file, $proj, $scn, $post, $want, $label]) {
-    $res = ac_jobs_run(['g' => $ep("$file.php", $scn, $proj, $post, 'none')]);
+    $res = ac_jobs_run(['g' => $ep("$file.php", $scn, $proj, $post, 'right')]);
     $got = ac_classify($res['g'] ?? '');
     ck('gate', $got === $want, "$file/$proj/$scn {$label}：期望 {$want}，實際 {$got}");
+}
+// Cookie 免碼投稿必須提供正確 CSRF；匿名 bearer 投稿維持無 CSRF。
+foreach (['upload' => 'alpha', 'newspot' => 'gamma'] as $file => $proj) {
+    foreach (['pin', 'primary_cookie', 'acct_legacy'] as $scn) {
+        // gamma 使用 alpha 的專案身分 fixture，讓 PIN／account 也能在 contributor 模式測試。
+        $testProj = $scn === 'primary_cookie' ? $proj : 'alpha';
+        if ($file === 'newspot') ac_write("$sb/projects/alpha/meta.json", ['contrib' => ['newSpot' => 'contributor']]);
+        foreach (['none', 'wrong', 'right'] as $mode) {
+            $res = ac_jobs_run(['g' => $ep("$file.php", $scn, $testProj, $bogus, $mode)]);
+            $want = $mode === 'right' ? 'passed' : 'deny_csrf';
+            ck('gate', ac_classify($res['g'] ?? '') === $want, "$file/$scn CSRF $mode");
+        }
+    }
+}
+$res = ac_jobs_run(['g' => $ep('upload.php', 'anon', 'alpha', $bogus + ['code' => '111111'], 'none')]);
+ck('gate', ac_classify($res['g'] ?? '') === 'passed', '匿名有效碼不需管理 CSRF');
+ac_write("$sb/projects/alpha/meta.json", ['features' => ['upload' => false], 'contrib' => ['newSpot' => 'contributor']]);
+foreach (['upload', 'newspot'] as $file) {
+    foreach (['anon', 'pin', 'primary_cookie', 'acct_legacy'] as $scn) {
+        $res = ac_jobs_run(['g' => $ep("$file.php", $scn, 'alpha', $bogus + ['code' => '111111'], 'right')]);
+        ck('gate', str_contains($res['g'] ?? '', '唯讀'), "$file/$scn upload=false 拒絕寫入");
+    }
 }
 $codesAfter = json_decode((string)file_get_contents("$sb/projects/alpha/codes.json"), true);
 $used = array_column($codesAfter, 'used_count', 'code');
