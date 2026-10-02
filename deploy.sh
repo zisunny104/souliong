@@ -16,6 +16,85 @@ ok()   { echo "  ${GREEN}✓${RESET} $1"; }
 warn() { echo "  ${YELLOW}!${RESET} $1"; }
 fail() { echo "  ${RED}✗${RESET} $1"; }
 
+
+# ── 選用：修復路徑權限（./deploy.sh --fix-perms[-only] [--dry-run]）──────────────────
+# 預設只檢查不代勞；明確加旗標才動檔案。只動 projects/、state/、api/config.php：
+# 目錄 2775（setgid，新檔繼承群組）、檔案 664、擁有者＝php-fpm 使用者；config.php 640（含機密，不給 other 讀）。
+# php-fpm 使用者：DEPLOY_WEB_USER 指定，否則從執行中的 php-fpm／apache／nginx 行程偵測。需要 root 或 sudo。
+FIX_PERMS=1; FIX_ONLY=0; DRY_RUN=0; AUTO=1
+for arg in "$@"; do
+  case "$arg" in
+    --fix-perms)      FIX_PERMS=1; AUTO=0 ;;
+    --no-fix-perms)   FIX_PERMS=0 ;;
+    --fix-perms-only) FIX_PERMS=1; FIX_ONLY=1; AUTO=0 ;;
+    --dry-run)        DRY_RUN=1 ;;
+    -h|--help) echo "用法：./deploy.sh [--fix-perms-only] [--no-fix-perms] [--dry-run]"; exit 0 ;;
+    *) fail "未知參數：$arg"; exit 2 ;;
+  esac
+done
+
+detect_web_user() {
+  local u=""
+  if [ -n "${DEPLOY_WEB_USER:-}" ]; then echo "$DEPLOY_WEB_USER"; return; fi
+  u="$(ps -eo user=,comm= 2>/dev/null | awk '$2 ~ /^(php-fpm|php-cgi|apache2|httpd|nginx)/ && $1 != "root" {print $1; exit}')"
+  if [ -z "$u" ]; then
+    for c in www-data nginx apache http; do id "$c" >/dev/null 2>&1 && { u="$c"; break; }; done
+  fi
+  echo "$u"
+}
+
+fix_perms() {
+  step "修復路徑權限"
+  local WEB_USER WEB_GROUP SUDO=""
+  WEB_USER="$(detect_web_user)"
+  if [ -z "$WEB_USER" ] || ! id "$WEB_USER" >/dev/null 2>&1; then
+    fail "找不到 php-fpm 使用者；請指定：DEPLOY_WEB_USER=www-data ./deploy.sh --fix-perms"
+    return 1
+  fi
+  WEB_GROUP="$(id -gn "$WEB_USER" 2>/dev/null || id -g "$WEB_USER")"
+  echo "  ${DIM}目標：${WEB_USER}:${WEB_GROUP}　範圍：projects/ state/ api/config.php${RESET}"
+  if [ "$(id -u)" -ne 0 ]; then
+    if [ "$AUTO" -eq 1 ] && ! { command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; }; then
+      warn "非 root 且無免密碼 sudo，略過自動修復；需要時用 root／sudo 執行 ./deploy.sh --fix-perms-only"; return 0
+    fi
+    if command -v sudo >/dev/null 2>&1; then SUDO="sudo"; else
+      fail "需要 root 才能 chown；請用 root 或安裝 sudo 後重跑"; return 1
+    fi
+  fi
+  local d bad_o bad_d bad_f
+  for d in projects state; do
+    [ -d "$d" ] || { warn "$d/ 不存在，略過"; continue; }
+    bad_o="$(find "$d" ! -user "$WEB_USER" 2>/dev/null | wc -l | tr -d ' ')"
+    bad_d="$(find "$d" -type d ! -perm 2775 2>/dev/null | wc -l | tr -d ' ')"
+    bad_f="$(find "$d" -type f ! -perm 664 2>/dev/null | wc -l | tr -d ' ')"
+    if [ "$DRY_RUN" -eq 1 ]; then
+      warn "$d/：擁有者不符 ${bad_o}、目錄權限不符 ${bad_d}、檔案權限不符 ${bad_f}（dry-run，未修改）"
+      continue
+    fi
+    if [ "$((bad_o + bad_d + bad_f))" -eq 0 ]; then ok "$d/：權限已正確"; continue; fi
+    $SUDO chown -R "$WEB_USER:$WEB_GROUP" "$d"
+    $SUDO find "$d" -type d -exec chmod 2775 {} +
+    $SUDO find "$d" -type f -exec chmod 664 {} +
+    ok "$d/：已修正（擁有者 ${bad_o}、目錄 ${bad_d}、檔案 ${bad_f} 項）"
+  done
+  if [ -f api/config.php ]; then
+    if [ "$DRY_RUN" -eq 1 ]; then
+      warn "api/config.php：目前 $(stat -c '%a %U:%G' api/config.php 2>/dev/null || echo '?')，將設為 640（dry-run，未修改）"
+    else
+      if [ "$(stat -c %a api/config.php 2>/dev/null)" = "640" ]; then ok "api/config.php：已是 640"; else
+      $SUDO chgrp "$WEB_GROUP" api/config.php
+      $SUDO chmod 640 api/config.php
+      ok "api/config.php：640，群組 ${WEB_GROUP}（機密不給 other 讀）"; fi
+    fi
+  fi
+  echo
+}
+
+if [ "$FIX_ONLY" -eq 1 ]; then
+  fix_perms
+  exit $?
+fi
+
 BRANCH="${DEPLOY_BRANCH:-main}"
 
 # souliong 是純 PHP＋檔案儲存，沒有資料庫、沒有編譯步驟。
@@ -113,6 +192,7 @@ if [ -n "${DEPLOY_RELOAD_CMD:-}" ] && [ "$BEFORE" != "$AFTER" ]; then
 fi
 
 echo
+if [ "$FIX_PERMS" -eq 1 ]; then fix_perms || true; fi
 step "機密設定與可寫目錄"
 echo "  ${DIM}改密鑰、改權限都需要人判斷，腳本只檢查、不代勞${RESET}"
 if [ ! -f api/config.php ]; then
@@ -145,7 +225,7 @@ for d in projects state; do
   if [ -d "$d" ] && [ -w "$d" ]; then
     ok "$d/ 可寫（以目前執行者身分測試；php-fpm 執行者若是不同帳號，仍請另外確認）"
   else
-    warn "$d/ 以目前執行者身分測試為不可寫：chown -R <php-fpm 使用者> $d && chmod -R 775 $d"
+    warn "$d/ 以目前執行者身分測試為不可寫：可執行 ./deploy.sh --fix-perms 自動修復（需 root／sudo）"
   fi
 done
 echo "  ${DIM}Nginx 封鎖 projects/、state/ 直接存取／HTTPS／上傳大小限制等系統層級設定不在這支腳本涵蓋範圍，請對照 docs/DEPLOY.md「一、上線前必做」在首次部署或變更伺服器環境時逐項確認${RESET}"
