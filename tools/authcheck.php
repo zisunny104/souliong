@@ -267,8 +267,7 @@ function ac_lines(string $out): array {
     $rows = [];
     foreach (preg_split('/
 |
-|
-/', $out) as $l) { $d = json_decode(trim($l), true); if (is_array($d)) $rows[] = $d; else if (trim($l) !== '') $rows[] = ['garbage' => mb_substr(trim($l), 0, 160)]; }
+|/', $out) as $l) { $d = json_decode(trim($l), true); if (is_array($d)) $rows[] = $d; else if (trim($l) !== '') $rows[] = ['garbage' => mb_substr(trim($l), 0, 160)]; }
     return $rows;
 }
 function ac_classify(string $out): string {
