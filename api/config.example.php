@@ -52,6 +52,7 @@ return [
         'dataapi' => ['max' => 120, 'window' => 60],  // 對外唯讀資料 API（?api=project／spots）；沒設時就是這個預設
     ],
     // 允許嵌入與跨來源讀取資料 API 的來源（全站層；各專案另可在後台設定，兩者取聯集）。
+    // 另可用 php tools/embed_allow.php 維護 state/embed_origins.json（不進版控），兩處取聯集。
     // 格式 https://host[:port]，開發用可寫 http://localhost[:port]；不接受萬用字元與路徑。預設空＝不開放。
     'embed_allowed_origins' => [],
 

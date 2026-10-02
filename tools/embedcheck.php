@@ -161,6 +161,15 @@ ck($p['valid'] === ['https://a.example.org'] && $p['invalid'] === ['https://*.ba
 $all = embed_origins_allowed(['embed_allowed_origins' => ['https://site.example.org', 'https://*.bad.org']], ['embedOrigins' => ['https://proj.example.org', 'https://site.example.org']]);
 ck($all === ['https://site.example.org', 'https://proj.example.org'], '全站＋專案聯集、不合法項目靜默忽略（fail-closed）', $all);
 ck(embed_origins_allowed([], null) === [], '預設空清單');
+$tmpState = sys_get_temp_dir() . '/ec_state_' . bin2hex(random_bytes(4));
+mkdir($tmpState);
+file_put_contents($tmpState . '/embed_origins.json', json_encode(['https://file.example.org', 'https://*.bad.org', 5]));
+$fromFile = embed_origins_site(['state_dir' => $tmpState, 'embed_allowed_origins' => ['https://site.example.org']]);
+ck($fromFile === ['https://site.example.org', 'https://file.example.org'], 'state/embed_origins.json 與 config 取聯集、壞項目忽略', $fromFile);
+file_put_contents($tmpState . '/embed_origins.json', '{壞掉的 json');
+ck(embed_origins_site(['state_dir' => $tmpState]) === [], '清單檔損毀時 fail-closed（視為空）');
+($tmpState . '/embed_origins.json');
+($tmpState);
 ck(embed_origin_match('https://evil.example.org', ['https://a.example.org']) === null && embed_origin_match('https://a.example.org', []) === null, '空清單或未命中不放行');
 
 // ── 2. api=project ──────────────────────────────────────────────

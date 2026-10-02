@@ -62,10 +62,23 @@ function embed_origins_parse($input): array
     return ['valid' => $valid, 'invalid' => $invalid];
 }
 
-/** 全站層清單（config embed_allowed_origins，陣列或字串皆可）；不合法項目靜默忽略（fail-closed）。 */
+/** 全站層清單檔（state/embed_origins.json，JSON 字串陣列；不進版控，由 tools/embed_allow.php 維護）。 */
+function embed_origins_file(array $cfg): string
+{
+    return rtrim((string)($cfg['state_dir'] ?? ''), '/\\') . '/embed_origins.json';
+}
+
+/** 全站層清單：config 的 embed_allowed_origins 與 state/embed_origins.json 取聯集；不合法項目靜默忽略（fail-closed）。 */
 function embed_origins_site(array $cfg): array
 {
-    return embed_origins_parse($cfg['embed_allowed_origins'] ?? [])['valid'];
+    $fromFile = [];
+    if (!empty($cfg['state_dir'])) {
+        $decoded = json_decode((string)@file_get_contents(embed_origins_file($cfg)), true);
+        if (is_array($decoded)) $fromFile = $decoded;
+    }
+    $fromCfg = $cfg['embed_allowed_origins'] ?? [];
+    if (is_string($fromCfg)) $fromCfg = [$fromCfg];
+    return embed_origins_parse(array_merge((array)$fromCfg, $fromFile))['valid'];
 }
 
 /** 專案層清單（meta.json 的 embedOrigins）。 */
