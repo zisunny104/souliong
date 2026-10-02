@@ -22,6 +22,7 @@
  *   <base>/manager/packs/<id>.zip           主題包匯出
  *   <base>/manager/layers/<id>.zip          全站圖層匯出
  *   <base>/manager/<mapid>/layers/<id>.zip  專案圖層匯出
+ *   <base>/manager/<mapid>/regions3d/<id>.zip  3D 區域匯出（只有專案作用域，見 api/regions3d.php）
  *
  * 舊網址（`?api=admin`、`/admin`、`/<mapid>/manager|admin|edit`）仍然有效，由 manager.php 對 GET
  * 導向上面的正規形式，印出去的東西與既有書籤不會失效。
@@ -40,6 +41,7 @@ final class Route
     public const BACKUP = 'backup.zip';   // 地圖代號只允許 [a-z0-9_-]，含點的字串永遠不可能撞名
     public const PACKS  = 'packs';
     public const LAYERS = 'layers';
+    public const REGIONS3D = 'regions3d';
 
     private static ?string $base = null;
     private static ?string $origin = null;
@@ -137,6 +139,16 @@ final class Route
     }
 
     /**
+     * 3D 區域匯出（region.json + model.glb）。跟 backupLayer() 不同，$project 不能省略——
+     * regions3d 沒有全站作用域（自訂模型天生是某個地標的一次性創作，見 api/regions3d.php）。
+     */
+    public static function backupRegion3d(string $regionId, string $project): string
+    {
+        $u = self::base() . self::MANAGER . '/' . rawurlencode($project);
+        return $u . '/' . self::REGIONS3D . '/' . rawurlencode($regionId) . '.zip';
+    }
+
+    /**
      * query 形式的 API 端點（photo／media／list…）。這些不是「頁面」而是資料出口，
      * 參數常含斜線（`f=<project>/<file>`），維持 ?api= 形式比路徑式好轉義，所以刻意不改。
      */
@@ -213,6 +225,9 @@ final class Route
         } elseif ($sub === self::PACKS && isset($rest[1])) {
             $out['backup'] = 'pack';
             $out['pack'] = self::unzip($rest[1]);
+        } elseif ($sub === self::REGIONS3D && isset($rest[1])) {
+            $out['backup'] = 'region3d';
+            $out['region3d'] = self::unzip($rest[1]);
         } elseif (in_array($sub, self::PANES, true)) {
             $out['pane'] = $sub;
         }

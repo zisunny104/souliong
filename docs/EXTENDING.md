@@ -572,13 +572,34 @@ MapLibre 沒有 Leaflet 的「pane／可疊多張獨立底圖」概念，向量 
 - 供應端點 `Route::osm($project, $kind)`＝`<base>/osm/<project>/<roofs|trees|power>`（實作在 `api/osmfile.php`），公開讀取，no-cache 加 ETag；檔案不存在回空的 FeatureCollection，不是 404。`pages/view.php` 把已抓過的網址放進 `APP.map3d.roofsUrl`／`treesUrl`／`powerUrl`，沒抓過是 `null`。
 - 資料集登記表與共用驗證在 `api/osmdata.php`，欄位規則在 `api/roofslib.php`、`api/treeslib.php`、`api/powerlib.php`。屬性都已驗證並正規化（長度轉公尺、顏色統一成 `#rrggbb`、無法解析的欄位直接省略），前端不必再處理 OSM 的各種寫法。
 
-### 8.13 3D 自訂模型區域刪除（`api/region3d.php` 的 `action=delete`）
+### 8.13 3D 區域編輯器 `<base>/region3d`
 
-`regions3d/<id>/` 資料夾（`region.json` + `model.glb`，結構見 `api/regions3d.php` 檔頭）原本沒有任何刪除路徑，誤建或測試用的區域只能用同一個 id 覆蓋，永遠無法真正消失。新增的 `action=delete` 補上這個缺口：權限與 CSRF 檢查比照同檔其他動作（`$requireProj()`，`edit_3d_regions`），路徑解析用 `souliong_region3d_dir()`／`souliong_regions3d_root()`，實際刪除借用 8.6 已有的 `souliong_layer_rmtree($dir, $root)`——同一套 `realpath()` 攤平與「目標落在 root 之內、且不等於 root 本身」檢查，不必另外寫一份。成功後記一筆 `region3d_delete` audit log。
+自訂 3D 模型區域：在地圖上畫一個多邊形，存檔後那個範圍內的公用建物擠出（OSM 驅動，見 8.12）永遠不會再畫出來，改用管理者上傳的 `model.glb` 取代。落地成 `projects/<proj>/regions3d/<id>/`（`region.json` + `model.glb`），資料模型與欄位說明見 `api/regions3d.php` 檔頭。只有專案作用域——自訂模型天生是某個地標的一次性創作，不像底圖有跨專案共用的價值，所以不設全站層（跟 8.9 的主題包、8.1 的圖層都不一樣）。權限看 `edit_3d_regions`，預設關閉，跟 `grant_access` 等其他委派權限一樣可下放給特定專案 PIN。
 
-效果是自動生效的：`souliong_region3d_excluded_ids()` 每次都重新掃描 `regions3d/` 底下現存的資料夾算聯集，資料夾不在了，它排除的建物自然重新出現在 3D 建物擠出上，不需要另外清理任何索引。
+**跟 `tilecut.php` 的核心差異是「有沒有圖磚金字塔」**：一個區域固定只有兩個檔案，`model.glb` 一律整檔覆蓋（分塊上傳，最後一塊到齊才 `rename` 蓋過去）、`region.json` 一律整份重寫，沒有「上一版部分殘留」這種中間狀態。
+
+**`begin` 動作不清空舊檔**，這點與 `tilecut.php` 的 `begin`（覆蓋時清掉舊的 `tiles/`）相反，是刻意的設計：只改多邊形或模型參數、不重新上傳 `model.glb` 時，舊模型必須原封不動留著——呼應「編輯不可靜默遺失既有欄位」的原則（見 `feedback_souliong_no_data_loss.md`）。`begin` 唯一做的事是「id 已存在且沒勾覆蓋就回 409」與「資料夾不存在就建立」，不觸碰任何既有檔案；真正會覆蓋內容的是 `srcput`（整檔覆蓋 `model.glb`）與 `finish`（整份重寫 `region.json`）這兩步本身，不是 `begin`。
+
+**排除清單是存檔當下算好、寫死進 `region.json` 的靜態清單，不是公開端即時重算**：`region3d.php` 內嵌一個管理端專用的 MapLibre 地圖，接的是跟公開端 `assets/js/plugins/map3d.js` 完全相同的 vector tile provider。畫完多邊形、按下「儲存」的當下，前端用 `queryRenderedFeatures` 把落在多邊形內的建物 `feature.id` 抓出來，隨 `finish` 一起送進 `excludedBuildingIds` 欄位——伺服器端只驗證格式（`region3d_valid_ids()`：只收 int/string、去重、上限 20000 筆）與落地，vector tile 的建物幾何在 PHP 端完全拿不到，這步天生只能在瀏覽器做。公開端 `souliong_region3d_excluded_ids()`（`api/regions3d.php`）只是把所有已存區域的這份清單攤平聯集，套成 `map3d.js` 建立 building 圖層時的一條固定 `filter`，圖層建立當下就生效，不管訪客怎麼平移——**不會**在訪客瀏覽過程中重新查詢。
+
+這個設計的代價：**OpenFreeMap 的 building 圖層 `feature.id`（top-level id，不是 `properties` 裡的欄位）若不穩定（例如上游資料更新後同一棟建物換了 id），已存的排除清單會悄悄失效**，公用建物會重新冒出來穿模。`rescan` 動作是這個情境的復原路徑：多邊形與模型**都不變**，只重新對照目前畫面上的多邊形查一次 `queryRenderedFeatures`、覆寫 `excludedBuildingIds` 這一個欄位（並記一筆 `rescannedAt`）。限制是：`rescan` 必須有人手動在瀏覽器裡打開編輯器、對著地圖按一次按鈕才會觸發——沒有排程或自動偵測失效的機制；而且它跟存檔用的是同一套 `queryRenderedFeatures` 查詢，如果失效原因是「這批建物在目前的圖磚裡完全找不到對應物」（而不只是 id 換了），`rescan` 也救不回來，只能回到步驟二重新畫多邊形。
+
+**刪除**：`regions3d/<id>/` 資料夾（`region.json` + `model.glb`）原本沒有任何刪除路徑，誤建或測試用的區域只能用同一個 id 覆蓋，永遠無法真正消失。`action=delete` 補上這個缺口：權限與 CSRF 檢查比照同檔其他動作（`$requireProj()`，`edit_3d_regions`），路徑解析用 `souliong_region3d_dir()`／`souliong_regions3d_root()`，實際刪除借用 8.6 已有的 `souliong_layer_rmtree($dir, $root)`——同一套 `realpath()` 攤平與「目標落在 root 之內、且不等於 root 本身」檢查，不必另外寫一份。成功後記一筆 `region3d_delete` audit log，效果是自動生效的：`souliong_region3d_excluded_ids()` 每次都重新掃描 `regions3d/` 底下現存的資料夾算聯集，資料夾不在了，它排除的建物自然重新出現在 3D 建物擠出上，不需要另外清理任何索引。
 
 前端只在帶 `?load=<id>` 進來（即編輯既有區域）時才顯示「刪除這個區域」按鈕，位置在存檔按鈕旁、用 `--danger` 配色跟存檔／重新掃描區隔；送出前有 `confirm()`，文字明講排除清單會失效、建物會重新畫出來。刪除成功後導回後台「工具」分頁，不留在一個已經不存在的 `?load=` 網址上。
+
+**備份／搬遷**（比照 8.6 圖層、8.9 主題包的匯出匯入，見 `api/manager.php` 的 `backup=region3d`／`action=region3dimport`）：
+
+| | 位置 | 權限 | 落點 |
+|---|---|---|---|
+| 匯出 | 專案卡片「地圖圖層」對話框，3D 區域清單每一列的下載圖示 | 該專案的 `edit_3d_regions` | — |
+| 匯入 | 同一個對話框，3D 區域清單下方 | 該專案的 `edit_3d_regions` | `projects/<proj>/regions3d/<id>/` |
+
+匯出固定打包 `region.json` 與（若存在）`model.glb` 成 `<id>/region.json`、`<id>/model.glb` 兩個條目的 ZIP，網址由 `Route::backupRegion3d($id, $project)` 產生（`$project` 不可省略，regions3d 沒有全站作用域這件事直接反映在函式簽名上，呼叫端不會不小心漏帶）。因為檔案數量固定兩個、有伺服器端 24 MB 模型上限（`model3d_max_bytes`），不像圖層匯出要遞迴走訪或設檔案數量上限。
+
+匯入比照 `layerimport`：先用 `zip_unpack()` 收進記憶體，抓出所有含 `region.json` 的 id（只有 `model.glb` 沒有 `region.json` 的 id 不算完整區域，整個不收）；逐一比對 `projects/<proj>/regions3d/<id>/` 是否已存在，撞名又沒勾表單上的「覆蓋同名 3D 區域」就整包擋下回 409、不寫任何檔案，訊息列出撞到的 id（跟圖層匯入一樣，id 要打開 ZIP 才知道，沒辦法在送出前先問）。勾了才照舊寫檔；`model.glb` 落地前會驗 glTF 二進位魔數（跟 `srcput` 同一招），魔數不對的模型檔直接跳過不寫，但不會連帶擋下同一個 id 的 `region.json`——這跟 `srcput` 本身的驗法一致：半成品或壞檔只讓那一個檔案不落地，不是讓整個動作失敗。
+
+## 九、網址表：`api/routes.php`
 
 網址長什麼樣，全站只寫在一個檔案裡。`Route` 同時負責**拆**（`index.php` 收到請求時）與**組**（其他檔案要產生連結時），兩邊共用同一組常數，所以不會出現「拆得開卻組不回去」的歪斜。
 
@@ -594,11 +615,12 @@ MapLibre 沒有 Leaflet 的「pane／可疊多張獨立底圖」概念，向量 
 <base>/manager/<mapid>/packs/<id>.zip   專案主題包匯出
 <base>/manager/layers/<id>.zip          全站圖層匯出
 <base>/manager/<mapid>/layers/<id>.zip  專案圖層匯出
+<base>/manager/<mapid>/regions3d/<id>.zip  3D 區域匯出（只有專案作用域，見 8.13）
 ```
 
 圖層圖檔網址（`<base>/layer/<project>/<id>/<路徑>`，見 8.5）由 `Route::layerFile()` 產生。
 
-要產生網址就呼叫 `Route::manager()`／`Route::logout()`／`Route::backupAll()`／`Route::backupProject()`／`Route::backupPack()`／`Route::backupLayer()`／`Route::tool()`／`Route::map()`／`Route::api()`／`Route::layerFile()`，**不要自己黏字串**。前端也一樣：`view.php` 把 `Route::manager($proj)` 放進 `APP.manager`，`viewer.core.js` 讀 `MANAGER_URL` 就好。
+要產生網址就呼叫 `Route::manager()`／`Route::logout()`／`Route::backupAll()`／`Route::backupProject()`／`Route::backupPack()`／`Route::backupLayer()`／`Route::backupRegion3d()`／`Route::tool()`／`Route::map()`／`Route::api()`／`Route::layerFile()`，**不要自己黏字串**。前端也一樣：`view.php` 把 `Route::manager($proj)` 放進 `APP.manager`，`viewer.core.js` 讀 `MANAGER_URL` 就好。
 
 之所以要這一層，是因為原本沒有：`?api=admin` 光一支 `manager.php` 就出現 47 次，「還原掛載根目錄」那段計算被複製了七份（其中兩份的邊界情況還算得不一樣）。改一次網址形狀就得全域搜尋改一輪，漏改的地方不會報錯，只會在某些部署下靜靜連到錯的地方。
 

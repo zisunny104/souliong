@@ -836,6 +836,9 @@ return [
     'region3d_h1'                 => '3D Model & Exclusion Region',
     'region3d_warn'               => 'This sets up a region where a custom model replaces the public 3D buildings. Once saved, public building extrusion inside that area is excluded permanently — make sure the polygon fully covers the buildings you want hidden before saving.',
     'region3d_login_required_msg' => 'Admin login required. Please sign in at the <a href="{url}">backend</a> and come back to this page.',
+    'region3d_help_btn'           => 'Manual',
+    'region3d_help_title'         => '3D Region Editor Manual · Souliong',
+    'region3d_help_back_btn'      => 'Back to 3D region editor',
     'region3d_step_project'       => 'Project & region id',
     'region3d_id_label'           => 'Region id',
     'region3d_id_hint'            => 'The id may only contain lowercase letters, digits, underscores and hyphens — it doubles as the folder name. Reusing an existing id requires checking "overwrite" before saving.',
@@ -890,6 +893,12 @@ return [
     'region3d_deleting_msg'       => 'Deleting…',
     'region3d_delete_complete_msg' => 'Deleted — returning to the backend…',
     'region3d_delete_failed_msg'  => 'Delete failed — check directory permissions',
+
+    // 3D region backup/migration (api/manager.php's backup=region3d / action=region3dimport)
+    'region3d_import_badge'           => 'Import a 3D region ZIP (overwrites the region with the same id from the ZIP\'s folder name)',
+    'region3d_import_overwrite_label' => 'Overwrite regions with the same id',
+    'region3d_import_exists_msg'      => 'These 3D region ids from the ZIP already exist: {ids}. To overwrite them, check "Overwrite regions with the same id" and upload again.',
+    'region3d_import_missing_msg'     => 'No region folder containing region.json was found in the ZIP. Please check the exported file structure.',
 
     // Default per-code copy for the generic error page (pages/error.php)
     'error_back_to_map_label' => 'Back to the map',

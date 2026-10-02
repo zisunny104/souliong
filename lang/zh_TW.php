@@ -846,6 +846,9 @@ return [
     'region3d_h1'                 => '3D 模型與排除區域',
     'region3d_warn'               => '這裡設定的是「自訂模型取代公用 3D 建物」的區域，存檔後那個範圍內的公用建物擠出永遠不會再畫出來，請先確認多邊形有把要蓋住的建物完整框住再存檔。',
     'region3d_login_required_msg' => '需要管理者登入。請先到 <a href="{url}">後台</a> 登入後再回到這頁。',
+    'region3d_help_btn'           => '說明',
+    'region3d_help_title'         => '3D 區域編輯說明書 · Souliong',
+    'region3d_help_back_btn'      => '返回 3D 區域編輯',
     'region3d_step_project'       => '專案與區域 id',
     'region3d_id_label'           => '區域 id',
     'region3d_id_hint'            => 'id 只能用小寫英數字、底線與連字號，它同時是資料夾名稱；跟既有區域同名時，存檔前記得勾選「覆蓋」。',
@@ -900,6 +903,12 @@ return [
     'region3d_deleting_msg'       => '刪除中…',
     'region3d_delete_complete_msg' => '已刪除，正在返回後台…',
     'region3d_delete_failed_msg'  => '刪除失敗，請檢查目錄權限',
+
+    // 3D 區域備份／搬遷（api/manager.php 的 backup=region3d／action=region3dimport）
+    'region3d_import_badge'           => '匯入 3D 區域 ZIP（依 ZIP 內資料夾名稱覆蓋同 id 的區域）',
+    'region3d_import_overwrite_label' => '覆蓋同名 3D 區域',
+    'region3d_import_exists_msg'      => '這個 ZIP 裡的 3D 區域 id 已經存在：{ids}。要覆蓋現有內容，請勾選「覆蓋同名 3D 區域」後重新上傳。',
+    'region3d_import_missing_msg'     => 'ZIP 裡找不到任何含 region.json 的區域資料夾，請確認匯出的檔案結構正確。',
 
     // 通用錯誤頁（pages/error.php）預設代碼對應文案
     'error_back_to_map_label' => '返回地圖',
