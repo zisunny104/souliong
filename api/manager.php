@@ -942,6 +942,18 @@ if (!$authed) {
           header('Location: ' . Route::manager($tp, 'access'));
           exit;
         }
+        // 全站帳號停用／重新啟用（工具分頁）：只切 disabled 旗標，各專案授權原封不動
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array(($_POST['action'] ?? ''), ['acctdisable', 'acctenable'], true)) {
+          $gate(null, 'manage_site', 'primary_only_settings_msg', Route::manager('', 'tools'));
+          need_sitewide_primary('primary_only_settings_msg');
+          $accountId = (string)($_POST['account_id'] ?? '');
+          $disable = ($_POST['action']) === 'acctdisable';
+          if ($accountId !== '' && ($disable ? account_disable($cfg, $accountId) : account_enable($cfg, $accountId))) {
+            audit_log($cfg, $auditWho(), $disable ? 'account_disable' : 'account_enable', null, $accountId);
+          }
+          header('Location: ' . Route::manager('', 'tools'));
+          exit;
+        }
         // 移除附加投稿代碼（立即失效；常駐碼另走 rotate）
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delcode') {
           $p = clean_id($_POST['project'] ?? '');
@@ -4320,6 +4332,33 @@ if (!$authed) {
           <div class="hint"><?= $t('site_pack_hint') ?></div>
           <div class="dlgactions" style="justify-content:flex-start;margin-top:8px"><button class="btn solid"><i class="fa-solid fa-floppy-disk"></i> <?= $t('save_settings_btn') ?></button></div>
         </form>
+      </div>
+      <div class="card section-card">
+        <div class="badge"><i class="fa-solid fa-users"></i> <?= $t('all_accounts_badge') ?></div>
+        <div class="hint" style="margin-top:6px"><?= $t('all_accounts_hint') ?></div>
+        <?php $allAccounts = accounts_list_with_projects($cfg); ?>
+        <?php if ($allAccounts): ?>
+        <div class="pinlist" style="margin-top:10px">
+          <?php foreach ($allAccounts as $ac):
+            $acTs = $ac['created_at'] !== '' ? strtotime($ac['created_at']) : false;
+          ?>
+          <div class="pinchip pinchip-block<?= $ac['disabled'] ? ' blocked' : '' ?>">
+            <div class="idline"><span><span class="mono"><?= $esc($ac['userid']) ?></span><?php if ($ac['label'] !== '' && $ac['label'] !== $ac['userid']): ?> · <?= $esc($ac['label']) ?><?php endif; ?>
+              <?php if ($ac['role'] === 'primary'): ?> · <span class="tag"><?= $t('account_role_primary_tag') ?></span><?php endif; ?>
+              · <span class="tag"><?= $ac['disabled'] ? $t('account_disabled_tag') : $t('account_enabled_tag') ?></span></span></div>
+            <div class="hint"><?= $t('account_created_label') ?><?= $acTs !== false ? $esc(date('Y-m-d H:i', $acTs)) : '—' ?>
+              · <?= $t('account_projects_label') ?><?php if ($ac['role'] === 'primary'): ?><?= $t('account_projects_all') ?><?php elseif ($ac['projects']): ?><?php foreach ($ac['projects'] as $i => $ap): ?><?= $i ? '、' : '' ?><a class="mono" href="<?= $esc(Route::manager($ap, 'access')) ?>"><?= $esc($ap) ?></a><?php endforeach; ?><?php else: ?><?= $t('account_projects_none') ?><?php endif; ?></div>
+            <?php if ($ac['role'] !== 'primary'): ?>
+            <div class="permrow">
+              <form method="post" style="display:inline"><input type="hidden" name="csrf" value="<?= $esc_csrf ?>"><input type="hidden" name="action" value="<?= $ac['disabled'] ? 'acctenable' : 'acctdisable' ?>"><input type="hidden" name="account_id" value="<?= $esc($ac['id']) ?>"><button class="permtoggle<?= $ac['disabled'] ? ' on' : '' ?>" title="<?= $t('account_toggle_title') ?>"><?= $ac['disabled'] ? $t('account_enable_btn') : $t('account_disable_btn') ?></button></form>
+            </div>
+            <?php endif; ?>
+          </div>
+          <?php endforeach; ?>
+        </div>
+        <?php else: ?>
+        <div class="emptystate"><i class="fa-solid fa-users" aria-hidden="true"></i><?= $t('no_accounts_msg') ?></div>
+        <?php endif; ?>
       </div>
       <form class="card section-card danger-zone" method="post" enctype="multipart/form-data" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
         <input type="hidden" name="csrf" value="<?= $esc_csrf ?>"><input type="hidden" name="action" value="import">
