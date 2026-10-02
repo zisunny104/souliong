@@ -115,6 +115,10 @@ HAS_PHP=0
 if command -v php >/dev/null 2>&1; then
   HAS_PHP=1
   ok "PHP CLI：$(php -r 'echo PHP_VERSION;')"
+  if ! php -r 'exit(PHP_VERSION_ID >= 80000 ? 0 : 1);'; then
+    fail "PHP 版本太舊：souliong 需要 PHP 8.0 以上（建議 8.2／8.3），舊版會在載入 api/auth.php 時直接 500。請先升級或另裝 PHP-FPM 8.x"
+    exit 1
+  fi
 else
   warn "找不到 php 指令，會略過部署前檢查：有問題的程式碼不會被擋在部署之前（網頁的 PHP-FPM 不受影響）"
 fi

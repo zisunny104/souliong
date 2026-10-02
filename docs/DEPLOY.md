@@ -1,6 +1,6 @@
 # Souliong 部署與上線安全清單
 
-Souliong 是 KoiLiSu 框架下的一個 app（`apps/souliong`）。純 PHP + 檔案儲存，零資料庫、零額外常駐服務。
+Souliong 是 KoiLiSu 框架下的一個 app（`apps/souliong`）。純 PHP + 檔案儲存，零資料庫、零額外常駐服務。需要 **PHP 8.0 以上**（建議 8.2/8.3；用到建構子屬性提升、`str_contains` 等語法，PHP 7.x 會在載入 `api/auth.php` 時直接 500）。
 
 更新版本用根目錄的 `./deploy.sh`：fetch 後若有新 commit，先在獨立 git worktree 對新版本完整跑一次 `tools/checkall.php`，全過才 `git merge --ff-only`，沒過或 local 有未 push 的 commit 一律中止、線上檔案不動；merge 完順便檢查 `api/config.php` 是否仍是範本預設值（`primary_pin`／`ip_salt`／`debug`／`trust_forwarded`／`default_layers`）與 `projects`／`state` 可寫性，，密鑰類只警示不代勞——改密鑰需要人判斷；`projects`/`state`/`api/config.php` 的擁有者與權限預設自動修復（`--no-fix-perms` 關閉、`--fix-perms-only` 只做這件事、`--dry-run` 只看不改；php-fpm 使用者可用 `DEPLOY_WEB_USER` 指定，需 root 或免密碼 sudo）。`DEPLOY_BRANCH`（預設 `main`）、`DEPLOY_RELOAD_CMD`（例如 PHP-FPM 開了 opcache 需要重載時設 `systemctl reload php8.3-fpm`）可用環境變數覆寫。Nginx／HTTPS／上傳大小等系統層級設定不在腳本涵蓋範圍，仍照下面清單逐項確認。
 
