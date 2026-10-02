@@ -232,7 +232,7 @@ for d in projects state; do
     warn "$d/ 以目前執行者身分測試為不可寫：可執行 ./deploy.sh --fix-perms 自動修復（需 root／sudo）"
   fi
 done
-echo "  ${DIM}Nginx 封鎖 projects/、state/ 直接存取／HTTPS／上傳大小限制等系統層級設定不在這支腳本涵蓋範圍，請對照 docs/DEPLOY.md「一、上線前必做」在首次部署或變更伺服器環境時逐項確認${RESET}"
+echo "  ${DIM}系統層級設定與備份由維運者另行確認${RESET}"
 
 echo
 echo "${DIM}------------------------------------------------------------${RESET}"

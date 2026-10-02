@@ -308,19 +308,32 @@ function codes_grant_create(array $cfg, string $project, ?string $code, ?string 
 /** 驗證附加投稿代碼；$bump=true（實際上傳）時計一次使用。到期／用罄／不存在回 false。 */
 function code_check(array $cfg, string $project, string $given, bool $bump): bool {
     if ($given === '') return false;
-    $d = codes_load($cfg, $project);
-    foreach ($d as $i => $e) {
-        if (!hash_equals((string)($e['code'] ?? ''), $given)) continue;
-        if (!empty($e['expires_at']) && gmdate('c') > (string)$e['expires_at']) return false;
-        $max = $e['max_uses'] ?? null;
-        if ($max !== null && (int)($e['used_count'] ?? 0) >= (int)$max) return false;
-        if ($bump) {
-            $d[$i]['used_count'] = (int)($e['used_count'] ?? 0) + 1;
-            codes_save($cfg, $project, $d);
+    // 舊碼遷移後，在同一鎖內檢查與累加。
+    codes_load($cfg, $project);
+    $fp = @fopen(codes_file($cfg, $project), 'c+');
+    if (!$fp) return false;
+    try {
+        if (!flock($fp, $bump ? LOCK_EX : LOCK_SH)) return false;
+        $d = json_decode((string)stream_get_contents($fp), true);
+        if (!is_array($d)) return false;
+        foreach ($d as $i => $e) {
+            if (!hash_equals((string)($e['code'] ?? ''), $given)) continue;
+            if (!empty($e['expires_at']) && gmdate('c') > (string)$e['expires_at']) return false;
+            $max = $e['max_uses'] ?? null;
+            if ($max !== null && (int)($e['used_count'] ?? 0) >= (int)$max) return false;
+            if ($bump) {
+                $d[$i]['used_count'] = (int)($e['used_count'] ?? 0) + 1;
+                $json = json_encode($d, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                rewind($fp);
+                if (!ftruncate($fp, 0) || fwrite($fp, $json) !== strlen($json) || !fflush($fp)) return false;
+            }
+            return true;
         }
-        return true;
+        return false;
+    } finally {
+        flock($fp, LOCK_UN);
+        fclose($fp);
     }
-    return false;
 }
 
 /**

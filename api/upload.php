@@ -27,6 +27,11 @@ if (!preg_match('/^[a-z0-9_-]{1,40}$/', $project) || !is_dir($cfg['projects_dir'
     json_out(['error' => 'unknown project'], 400);
 }
 
+$metaU = json_decode((string)@file_get_contents($cfg['projects_dir'] . '/' . $project . '/meta.json'), true);
+if (!souliong_module_on($metaU, 'upload')) {
+    json_out(['error' => '這張地圖目前唯讀'], 403);
+}
+
 // 投稿軸把關（停權名單 → bypass_code → 是否開放投稿 → 投稿代碼並計一次使用）全在 contrib_gate()，
 // 跟 newspot.php 的 contributor 模式共用同一道關卡（api/contribgate.php）。
 $who = contrib_gate($cfg, $project);
@@ -45,7 +50,6 @@ $kindDef = souliong_kinds()[$kind];
 
 // 再確認這張地圖有沒有開放這個內容種類（meta.json 的 contrib.kinds）。沒設定 contrib 的舊地圖
 // 解析出來就是 ['photo']，前端不送 kind 時的預設值也是 photo，因此既有投稿流程完全不受影響。
-$metaU = json_decode((string)@file_get_contents($cfg['projects_dir'] . '/' . $project . '/meta.json'), true);
 $contribCfg = souliong_contrib_cfg($metaU);
 if (in_array($kind, souliong_contrib_kinds(), true) && !in_array($kind, $contribCfg['kinds'], true)) {
     json_out(['error' => '這張地圖沒有開放這種投稿：' . souliong_kind_label($kind)], 403);

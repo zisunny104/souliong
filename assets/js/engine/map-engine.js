@@ -41,16 +41,18 @@ window.MapEngine = (() => {
   function creditHtml(part) {
     if (!part) return '';
     const text = esc(i18nSub(part.text));
-    const body = part.url ? '<a href="' + esc(part.url) + '" target="_blank" rel="noopener">' + text + '</a>' : text;
+    const url = String(part.url || '');
+    const safeUrl = /^https?:\/\/[^\s/?#]+(?:[/?#][^\s]*)?$/i.test(url);
+    const body = safeUrl ? '<a href="' + esc(url) + '" target="_blank" rel="noopener">' + text + '</a>' : text;
     // &copy; 跟後面的名稱之間用不斷行空格——換行時「©」絕不能跟它所屬的名稱拆到兩行，
     // 變成一個孤伶伶的符號吊在行尾
-    return (part.copyright ? '&copy;&nbsp;' : '') + body + (part.suffix ? ' ' + i18nSub(part.suffix) : '');
+    return (part.copyright ? '&copy;&nbsp;' : '') + body + (part.suffix ? ' ' + esc(i18nSub(part.suffix)) : '');
   }
   // attribution 欄位可以是上面那種物件排成的陣列（新格式，多方署名各自標 text/url）；也相容
-  // 純字串（manager.php／region3d.php／tilecut.php 讓管理員手打圖磚署名時存的就是字串，直接沿用）。
+  // 純文字字串；帶連結請使用物件陣列，字串裡的 HTML 不執行。
   function creditListHtml(attribution) {
     if (Array.isArray(attribution)) return attribution.map(creditHtml).filter(Boolean).join(SEP);
-    return i18nSub(attribution);
+    return esc(i18nSub(attribution));
   }
 
   // engineCredit：這份 manifests 實際掛在哪個引擎上的署名連結（Leaflet／MapLibre），由呼叫端

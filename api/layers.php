@@ -415,8 +415,10 @@ function souliong_credit_html(?array $part, array $DICT): string
         return '';
     }
     $text = htmlspecialchars(souliong_credit_i18n_sub((string)($part['text'] ?? ''), $DICT), ENT_QUOTES, 'UTF-8');
-    $body = !empty($part['url'])
-        ? '<a href="' . htmlspecialchars((string)$part['url'], ENT_QUOTES, 'UTF-8') . '" target="_blank" rel="noopener">' . $text . '</a>'
+    $url = (string)($part['url'] ?? '');
+    $safeUrl = preg_match('~^https?://[^\s/?#]+(?:[/?#][^\s]*)?\z~i', $url) === 1;
+    $body = $safeUrl
+        ? '<a href="' . htmlspecialchars($url, ENT_QUOTES, 'UTF-8') . '" target="_blank" rel="noopener">' . $text . '</a>'
         : $text;
     $suffix = !empty($part['suffix'])
         ? ' ' . htmlspecialchars(souliong_credit_i18n_sub((string)$part['suffix'], $DICT), ENT_QUOTES, 'UTF-8')

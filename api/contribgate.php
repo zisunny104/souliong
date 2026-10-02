@@ -1,11 +1,5 @@
 <?php
-/**
- * 投稿軸關卡：upload.php 與 newspot.php（contributor 模式）共用，不各寫一份。
- *
- * 投稿軸跟點位軸（edit_spots）是兩條分開的權限：能不能「免碼投稿」看 bypass_code，
- * 能不能改點位看 edit_spots，兩者互不蘊含。這裡不驗 CSRF——投稿者是匿名的，憑投稿代碼
- * 與 owner／ctoken 這類 bearer 秘密辨識，不是登入身分。
- */
+/** 共用投稿關卡；管理免碼權限與匿名投稿憑證分別驗證。 */
 require_once __DIR__ . '/auth.php';
 
 /** 這個請求聲稱的投稿者身分（owner／ctoken 兩個 bearer 秘密），由請求解析一次。 */
@@ -48,7 +42,10 @@ function contrib_gate(array $cfg, string $project, string $what = '上傳'): Con
     if (is_blocked($cfg, $project, $who->ownerHash(), $who->contribId())) {
         json_out(['error' => '此身分已被主辦者停權，無法繼續投稿'], 403);
     }
-    if (Auth::can($cfg, $project, 'bypass_code')) return $who;
+    if (Auth::can($cfg, $project, 'bypass_code')) {
+        Auth::require($cfg, $project, 'bypass_code', true);
+        return $who;
+    }
     if (!contrib_open($cfg, $project)) {
         json_out(['error' => '這張地圖目前未開放投稿'], 403);
     }
