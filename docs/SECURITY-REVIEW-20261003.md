@@ -34,3 +34,7 @@ Cookie 使用 SameSite=Lax，因此不能描述為任意跨站 POST 都能觸發
 - 資料、設定與原稿直接下載防護依賴 Nginx；docs/DEPLOY.md 的設定是否實際使用，不能由 repo 判定。
 - 前端存在未鎖版本的 exifr CDN 載入與未設定 SRI 的外部套件；屬供應鏈強化事項，沒有將其列為已確認套件 CVE。本次未查到完整套件通報／未執行依賴漏洞資料庫掃描。
 - 限次碼修補保障並行 code_check 消耗；管理端同時編輯整份 codes 的其他 read-modify-write 流程仍需後續整合交易式更新。檔案鎖依賴底層檔案系統支援 flock；無法聲稱支援跨機共享 NFS 的相同保障。
+
+## 後續 ignore 檢核
+
+補本機秘密／agent／暫存／私鑰忽略規則。現有 api/config.php 與 state/projects 執行期資料均未追蹤；追蹤但被忽略的檔案為空。可達歷史曾包含早期 100chairs 的公開 chairs.json／meta.json，未見 PIN／token 欄位；沒有改寫歷史，也没有宣稱 ignore 能移除歷史。完整開利手字型與 Git 檢核見其 draft PR #1 的 FONT-AND-IGNORE-REVIEW-20261003.md。

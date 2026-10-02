@@ -8,3 +8,31 @@
 # 平台不含各專案內容（專案資料放伺服器/本機）
 /projects/*
 !/projects/.gitkeep
+
+# 本機機密、暫存與備份；合法來源／授權／測試檔仍進版控。
+.env
+.env.*
+!.env.example
+!.env.sample
+*.local.php
+*.log
+*.tmp
+*.bak
+*.backup
+*.swp
+*.orig
+*~
+.vscode/
+.idea/
+.claude/
+.codex/
+node_modules/
+__pycache__/
+*.py[cod]
+.DS_Store
+Thumbs.db
+*.key
+*.pem
+*.p12
+*.pfx
+/secrets/
