@@ -40,14 +40,18 @@ sudo systemctl reload nginx   # 沒錯再套用（reload 不會中斷現有連�
 - `ip_salt` → 一組隨機字串（鑑識 IP 雜湊用）。
 
 ### 3. 反代 IP 設定
-- `trust_forwarded => true`（位於 Nginx 反代後**必設**，否則所有訪客共用一個 IP，限流會誤判、統計也會塞住）。
+- Nginx 直接接 PHP-FPM（FastCGI）時，通常已用 `REMOTE_ADDR=$remote_addr` 傳入真實 IP，維持 `trust_forwarded => false`。
+- 只有後端確實位於 HTTP 反代之後，才評估開啟 `trust_forwarded`。本程式取 X-Forwarded-For 的第一個 IP；入口反代必須覆寫為已驗證的 `$remote_addr`，不能沿用或附加訪客提供的 header，且後端不能被繞過反代直接連線。
+- 前面另有 CDN／負載平衡器時，Nginx `set_real_ip_from` 只填實際可信代理網段；禁止 `0.0.0.0/0`。先還原可信 IP，再覆寫傳給後端的 header。
 
 ### 4. 可寫目錄
 `projects/`、`state/` 需 php-fpm 執行者可寫：
 ```bash
 cd /你的路徑/apps/souliong
 chown -R www-data:www-data projects state   # www-data 換成你的 php-fpm 使用者
-chmod -R 775 projects state   # 或直接 ./deploy.sh --fix-perms-only
+find projects state -type d -exec chmod 2770 {} +
+find projects state -type f -exec chmod 660 {} +
+# 群組與 PHP-FPM 執行者需配合；不要讓資料檔帶執行權限。
 ```
 只有在你要從後台匯入**全站**圖層或主題包時，`layers/`、`packs/` 才需要一併可寫（專案專屬的圖層落在 `projects/<id>/layers/`，已被上面涵蓋）。這兩個目錄進版控，不寫也不影響既有功能，所以預設可以維持唯讀。
 
