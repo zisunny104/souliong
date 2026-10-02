@@ -308,7 +308,7 @@ function codes_grant_create(array $cfg, string $project, ?string $code, ?string 
 /** 驗證附加投稿代碼；$bump=true（實際上傳）時計一次使用。到期／用罄／不存在回 false。 */
 function code_check(array $cfg, string $project, string $given, bool $bump): bool {
     if ($given === '') return false;
-    // 先完成舊碼遷移，再將讀取、檢查與累加包在同一個檔案鎖內。
+    // 舊碼遷移後，在同一鎖內檢查與累加。
     codes_load($cfg, $project);
     $fp = @fopen(codes_file($cfg, $project), 'c+');
     if (!$fp) return false;
