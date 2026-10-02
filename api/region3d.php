@@ -257,6 +257,132 @@ if (Auth::actor($cfg, null)->kind() !== 'primary' && !$allProjects) {
     exit;
 }
 
+// ── 說明書（GET ?help=1）：比照 tilecut.php，冗長的操作說明搬進 docs/REGION3D.md，工具本身的畫面維持乾淨 ──
+if (($_GET['help'] ?? '') !== '') {
+    require_once __DIR__ . '/markdown.php';
+    $helpMd = file_get_contents(__DIR__ . '/../docs/REGION3D.md') ?: '';
+    $helpMarker = '<!-- site:content -->';
+    $helpPos = strpos($helpMd, $helpMarker);
+    $helpBody = Markdown::toHtml($helpPos !== false ? substr($helpMd, $helpPos + strlen($helpMarker)) : $helpMd, ['heading_ids' => false]);
+    $toolUrl = $esc(Route::tool('region3d', $backProject));
+    header('Content-Type: text/html; charset=utf-8');
+    ?>
+<!doctype html>
+<html lang="zh-Hant">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title><?= $t('region3d_help_title') ?></title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #fafafa;
+      --fg: #1b1b1d;
+      --muted: #6b6b70;
+      --line: #e7e7ea;
+      --card: #fff;
+      --accent: #1b1b1d;
+      --r: 1.25rem
+    }
+
+    @media(prefers-color-scheme:dark) {
+      :root {
+        --bg: #141416;
+        --fg: #f1f1f3;
+        --muted: #9c9ca3;
+        --line: #2e2e31;
+        --card: #1d1d20;
+        --accent: #f1f1f3
+      }
+    }
+
+    * {
+      box-sizing: border-box
+    }
+
+    body {
+      margin: 0;
+      font-family: system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      line-height: 1.75;
+      -webkit-font-smoothing: antialiased
+    }
+
+    .wrap {
+      max-width: 42rem;
+      margin: 0 auto;
+      padding: 2.5rem 1.25rem 4rem
+    }
+
+    a {
+      color: inherit
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      font-weight: 800;
+      margin: 0 0 1.5rem
+    }
+
+    h2 {
+      font-size: 1.05rem;
+      font-weight: 800;
+      margin: 2rem 0 .5rem
+    }
+
+    p {
+      margin: .75rem 0
+    }
+
+    ul,
+    ol {
+      margin: .4rem 0;
+      padding-left: 1.2rem
+    }
+
+    li {
+      margin: .3rem 0
+    }
+
+    strong {
+      font-weight: 700
+    }
+
+    code {
+      font-family: ui-monospace, Consolas, monospace;
+      font-size: .85em;
+      background: var(--line);
+      padding: .1em .35em;
+      border-radius: .3em
+    }
+
+    .back {
+      display: inline-block;
+      margin-bottom: 1.5rem;
+      font-size: .9rem;
+      color: var(--muted);
+      text-decoration: none
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <a class="back" href="<?= $toolUrl ?>"><i class="fa-solid fa-arrow-left"></i> <?= $t('region3d_help_back_btn') ?></a>
+    <h1><i class="fa-solid fa-cube"></i> <?= $t('region3d_h1') ?></h1>
+    <?= $helpBody ?>
+  </div>
+</body>
+
+</html>
+<?php
+    exit;
+}
+
 $reqProject = in_array($backProject, $allProjects, true) ? $backProject : ($allProjects[0] ?? '');
 $csrf = (string)Auth::actor($cfg, $reqProject)->csrf($reqProject);
 
@@ -378,6 +504,13 @@ $map3dKey = (string)($cfg['map3d_key'] ?? '');
       align-items: center;
       flex-wrap: wrap;
       gap: 0 var(--sp-2)
+    }
+
+    .helplink {
+      font-size: 0.8125rem;
+      font-weight: 400;
+      color: var(--muted);
+      text-decoration: none
     }
 
     h2 {
@@ -588,7 +721,7 @@ $map3dKey = (string)($cfg['map3d_key'] ?? '');
     <a href="<?= $esc(Route::tool('region3d', $backProject, ['lang' => 'en'])) ?>" class="<?= $LANG === 'en' ? 'on' : '' ?>">English</a>
   </div>
   <div class="wrap">
-    <h1><i class="fa-solid fa-cube"></i> <?= $t('region3d_h1') ?></h1>
+    <h1><i class="fa-solid fa-cube"></i> <?= $t('region3d_h1') ?> <a class="helplink" href="<?= $esc(Route::tool('region3d', $backProject, ['help' => 1])) ?>" title="<?= $t('region3d_help_btn') ?>"><i class="fa-solid fa-circle-question"></i></a></h1>
     <div class="warn"><?= $t('region3d_warn') ?></div>
 
     <div class="card">

@@ -1070,6 +1070,35 @@ if (!$authed) {
             @unlink($tmp);
             exit;
           }
+          // ── 3D 區域匯出：固定兩個檔（region.json + model.glb），不像圖層要遞迴走訪或設檔案
+          //    數量／容量上限。只有專案作用域——regions3d 沒有全站層（見 api/regions3d.php）。
+          if ($_GET['backup'] === 'region3d') {
+            $rp = clean_id($_GET['project'] ?? '');
+            $rid = strtolower(preg_replace('/[^a-z0-9_-]/', '', $_GET['region3d'] ?? ''));
+            if ($rp === '' || !Auth::can($cfg, $rp, 'edit_3d_regions')) {
+              error_page(403, $t('no_permission_title'), $t('no_project_permission_msg'), Route::manager($rp, 'tools'), $t('back_to_admin'));
+            }
+            $rdir = souliong_region3d_dir($cfg, $rp, $rid);
+            if ($rdir === null || !is_file($rdir . '/region.json')) {
+              error_page(404, $t('error_404_title'), $t('region3d_not_found_msg'), Route::manager($rp, 'tools'), $t('back_to_admin'));
+            }
+            $files = [$rid . '/region.json' => $rdir . '/region.json'];
+            if (is_file($rdir . '/model.glb')) {
+              $files[$rid . '/model.glb'] = $rdir . '/model.glb';
+            }
+            $name = 'souliong-region3d-' . $rid . '-' . date('Ymd-His') . '.zip';
+            $tmp = tempnam(sys_get_temp_dir(), 'skr3d');
+            if (!zip_pack($tmp, $files)) {
+              http_response_code(500);
+              exit($t('backup_failed_msg'));
+            }
+            header('Content-Type: application/zip');
+            header('Content-Disposition: attachment; filename="' . $name . '"');
+            header('Content-Length: ' . filesize($tmp));
+            readfile($tmp);
+            @unlink($tmp);
+            exit;
+          }
           $bp = $_GET['backup'] === 'project' ? clean_id($_GET['project'] ?? '') : null;
           if ($bp === null && !Auth::can($cfg, null, 'manage_site')) {
             error_page(403, $t('no_permission_title'), $t('primary_only_backup_all_msg'), Route::manager($scopeProject, 'tools'), $t('back_to_admin'));
@@ -1300,6 +1329,58 @@ if (!$authed) {
               $ids[$mm[1]] = true;
             }
             audit_log($cfg, $auditWho(), 'layer_import', $lp !== '' ? $lp : null, implode(',', array_keys($ids)));
+          }
+          header('Location: ' . $backTo);
+          exit;
+        }
+
+        // ── 3D 區域匯入：資料夾形狀是死的（region.json + model.glb），不像圖層要收一整組副檔名
+        //    白名單；撞名確認與覆蓋語意比照 layerimport。只有專案作用域（見 api/regions3d.php）。
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'region3dimport') {
+          $rp = clean_id($_POST['project'] ?? '');
+          $backTo = Route::manager($rp, 'tools');
+          $gate($rp, 'edit_3d_regions', 'no_project_permission_msg', $backTo);
+          $root = $rp !== '' ? souliong_regions3d_root($cfg, $rp) : null;
+          if ($root === null) {
+            error_page(500, $t('error_500_title'), $t('layer_dest_missing_msg'), $backTo, $t('back_to_admin'));
+          }
+          require_once __DIR__ . '/zip.php';
+          if (isset($_FILES['region3d']) && $_FILES['region3d']['error'] === UPLOAD_ERR_OK) {
+            $re = '#^([a-z0-9][a-z0-9_-]{0,31})/(region\.json|model\.glb)$#';
+            $norm = fn($nm) => str_replace('\\', '/', (string)$nm);
+            $accept = fn($nm) => strpos($norm($nm), '..') === false && preg_match($re, $norm($nm));
+            $entries = zip_unpack($_FILES['region3d']['tmp_name'], $accept);
+
+            $incoming = [];
+            foreach (array_keys($entries) as $nm) {
+              if (preg_match($re, $norm($nm), $mm)) $incoming[$mm[1]] = true;
+            }
+            // 一個區域至少要有 region.json 才算完整——只有 model.glb 沒有 manifest 的話，落地了
+            // 也不會被 souliong_region3d_list() 認得，不如整個 id 不收。
+            foreach (array_keys($incoming) as $iid) {
+              if (!isset($entries[$iid . '/region.json'])) unset($incoming[$iid]);
+            }
+            if (!$incoming) {
+              error_page(400, $t('error_400_title'), $t('region3d_import_missing_msg'), $backTo, $t('back_to_admin'));
+            }
+            $clash = array_values(array_filter(array_keys($incoming), fn($iid) => is_dir($root . '/' . $iid)));
+            if ($clash && empty($_POST['overwrite'])) {
+              error_page(409, $t('error_400_title'), i18n_t($DICT, 'region3d_import_exists_msg', ['ids' => implode(', ', $clash)]), $backTo, $t('back_to_admin'));
+            }
+
+            $ids = [];
+            foreach ($entries as $nm => $content) {
+              $nm2 = $norm($nm);
+              if (!preg_match($re, $nm2, $mm) || !isset($incoming[$mm[1]])) continue;
+              // 壞掉的模型檔不落地：同 region3d.php 的 srcput 一樣只認 glTF 二進位魔數。
+              if ($mm[2] === 'model.glb' && substr((string)$content, 0, 4) !== 'glTF') continue;
+              $dest = $root . '/' . $mm[1] . '/' . $mm[2];
+              $dd = dirname($dest);
+              if (!is_dir($dd)) @mkdir($dd, 0775, true);
+              @file_put_contents($dest, $content, LOCK_EX);
+              $ids[$mm[1]] = true;
+            }
+            audit_log($cfg, $auditWho(), 'region3d_import', $rp !== '' ? $rp : null, implode(',', array_keys($ids)));
           }
           header('Location: ' . $backTo);
           exit;
@@ -3585,10 +3666,19 @@ if (!$authed) {
                   <span style="flex:1 1 auto;min-width:0;font-size:0.8125rem"><b><?= $esc($rinfo['label'] ?? $rid) ?></b>
                     <span class="hint mono"><?= $esc($rid) ?></span></span>
                   <a class="btn" href="<?= $esc(Route::tool('region3d', $p, ['load' => $rid])) ?>"><i class="fa-solid fa-pen"></i> <?= $t('region3d_edit_link_btn') ?></a>
+                  <a class="btn" href="<?= $esc(Route::backupRegion3d($rid, $p)) ?>" title="<?= $t('pack_export_btn') ?>" aria-label="<?= $t('pack_export_btn') ?>"><i class="fa-solid fa-download"></i></a>
                 </div>
                 <?php endforeach; ?>
               </div>
               <?php endif; ?>
+              <form method="post" enctype="multipart/form-data" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:4px 0">
+                <input type="hidden" name="csrf" value="<?= $esc_csrf ?>"><input type="hidden" name="action" value="region3dimport"><input type="hidden" name="project" value="<?= $esc($p) ?>">
+                <span class="badge"><i class="fa-solid fa-upload"></i> <?= $t('region3d_import_badge') ?></span>
+                <label class="btn" style="cursor:pointer"><i class="fa-solid fa-folder-open"></i> <span data-file><?= $t('choose_zip_btn') ?></span>
+                  <input type="file" name="region3d" accept=".zip" required hidden onchange="this.parentNode.querySelector('[data-file]').textContent=this.files[0]?this.files[0].name:<?= json_encode(i18n_t($DICT, 'choose_zip_btn'), JSON_UNESCAPED_UNICODE) ?>"></label>
+                <label style="display:inline-flex;align-items:center;gap:6px;font-size:0.8125rem"><input type="checkbox" name="overwrite" value="1"> <?= $t('region3d_import_overwrite_label') ?></label>
+                <button class="btn"><i class="fa-solid fa-upload"></i> <?= $t('restore_btn') ?></button>
+              </form>
               <?php endif; ?>
               <?php if ($projLayers): ?>
               <div class="lylist">
