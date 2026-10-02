@@ -15,7 +15,7 @@ $meta    = is_file($metaF) ? json_decode(file_get_contents($metaF), true) : null
 
 require_once __DIR__ . '/../api/security.php';   // 權限一律問 Auth（api/auth.php）：身分只解析一次，能力與 CSRF 從同一個 Actor 來
 require_once __DIR__ . '/../api/i18n.php';
-require __DIR__ . '/../api/features.php';
+require_once __DIR__ . '/../api/features.php';
 require_once __DIR__ . '/../api/packs.php';
 require_once __DIR__ . '/../api/layers.php';
 require_once __DIR__ . '/../api/navlinks.php';

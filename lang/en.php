@@ -303,6 +303,7 @@ return [
     'primary_only_settings_msg'  => 'Platform-wide settings are limited to the main administrator.',
     'primary_only_pin_perm_msg'  => 'PIN permission management is limited to the main administrator.',
     'admin_pin_share_permission_msg' => 'Only the main administrator, or a project administrator granted "can create admin PIN links", may create an admin PIN share link.',
+    'delegation_off_msg'         => 'Admin invite sign-in is turned off for this map: project PINs and invite links cannot be created or used. Please sign in from the admin page as the main administrator.',
     'primary_only_backup_all_msg' => 'Only the main administrator can back up all projects.',
     'primary_only_import_msg'    => 'Only the main administrator can import/restore.',
     'primary_only_packs_msg'     => 'Only the main administrator can manage site-wide theme packs; map-specific theme packs are handled by that map\'s administrator.',

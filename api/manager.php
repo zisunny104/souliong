@@ -4,7 +4,7 @@
 require __DIR__ . '/store.php';
 require __DIR__ . '/security.php';
 require __DIR__ . '/stats.php';
-require __DIR__ . '/features.php';
+require_once __DIR__ . '/features.php';
 require_once __DIR__ . '/packs.php';
 require_once __DIR__ . '/layers.php';     // 地圖圖層註冊表（底圖／疊圖），形狀同 packs.php
 require_once __DIR__ . '/labellang.php';
@@ -63,7 +63,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'login
     $label = primary_pin_label($cfg, $pin);
     if ($proj !== '' && is_dir($cfg['projects_dir'] . '/' . $proj)) $go = Route::manager($proj);
   } elseif ($proj !== '' && ($ppMatch = project_pin_match($cfg, $proj, $pin)) !== null) {
-    if (pins_check_and_bump($cfg, $proj, (string)$ppMatch['id'])) {
+    // delegation 關閉時既有專案 PIN 一律不能登入（只在使用當下擋，pins.json 紀錄不動，重新開啟即恢復）
+    $lm = json_decode((string)@file_get_contents($cfg['projects_dir'] . '/' . $proj . '/meta.json'), true);
+    if (!souliong_module_on(is_array($lm) ? $lm : null, 'delegation')) {
+      $loginErrMsg = i18n_t($DICT, 'delegation_off_msg');
+    } elseif (pins_check_and_bump($cfg, $proj, (string)$ppMatch['id'])) {
       pin_set_cookie($cfg, $proj, (string)$ppMatch['id']);
       $ok = true;
       $go = Route::manager($proj);
@@ -151,6 +155,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'grant
   if ($rProj === '' || !is_dir($cfg['projects_dir'] . '/' . $rProj)) {
     http_response_code(400);
     echo json_encode(['ok' => false, 'error' => 'invalid']);
+    exit;
+  }
+  $rm = json_decode((string)@file_get_contents($cfg['projects_dir'] . '/' . $rProj . '/meta.json'), true);
+  if (!souliong_module_on(is_array($rm) ? $rm : null, 'delegation')) {
+    http_response_code(403);
+    echo json_encode(['ok' => false, 'error' => i18n_t($DICT, 'delegation_off_msg')]);
     exit;
   }
   $res = pins_redeem($cfg, $rProj, $rToken, $rPin, $rLabel);
@@ -810,6 +820,10 @@ if (!$authed) {
               if ($scope === 'primary') {
                 $d['primary'][] = $entry;
               } elseif ($tp !== '') {
+                $am = json_decode((string)@file_get_contents($cfg['projects_dir'] . '/' . $tp . '/meta.json'), true);
+                if (!souliong_module_on(is_array($am) ? $am : null, 'delegation')) {
+                  error_page(403, $t('no_permission_title'), $t('delegation_off_msg'), Route::manager($tp, 'access'), $t('back_to_admin'));
+                }
                 $entry['perms'] = pin_default_perms();   // 新專案 PIN 一律從全關始，之後在下方一覽表逐項開啟
                 $d['projects'][$tp] = $d['projects'][$tp] ?? [];
                 $d['projects'][$tp][] = $entry;
@@ -870,6 +884,10 @@ if (!$authed) {
             $grantedCode = codes_grant_create($cfg, $p, $pinInput, $label, $expiresAt, $maxUses);
             $justCreatedShare = ['project' => $p, 'kind' => 'code', 'url' => $mapUrl($p) . '?code=' . $grantedCode, 'code' => $grantedCode];
           } else {
+            $sm = json_decode((string)@file_get_contents($cfg['projects_dir'] . '/' . $p . '/meta.json'), true);
+            if (!souliong_module_on(is_array($sm) ? $sm : null, 'delegation')) {
+              error_page(403, $t('no_permission_title'), $t('delegation_off_msg'), Route::manager($p, 'access'), $t('back_to_admin'));
+            }
             [$grantedToken] = pins_invite_create($cfg, $p, $expiresAt, $maxUses);
             $justCreatedShare = ['project' => $p, 'kind' => 'grant', 'url' => $mapUrl($p) . '#redeem=' . rawurlencode($grantedToken) . '&rmode=grant'];
           }

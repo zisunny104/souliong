@@ -24,6 +24,7 @@
  */
 require_once __DIR__ . '/security.php';
 require_once __DIR__ . '/i18n.php';
+require_once __DIR__ . '/features.php';   // souliong_module_on()：pin 身分解析要查 delegation 開關
 
 /**
  * 權限鍵註冊表。欄位：
@@ -105,12 +106,17 @@ final class Actor {
         if ($project === null) {
             return $acct !== null ? new Actor($cfg, null, 'account', (string)$acct['id'], null) : new Actor($cfg, null, 'anon', null, null);
         }
-        if ($acct !== null) {
+        // delegation 關閉時，帳號型專案管理員與 PIN 都立即失效，只剩主 PIN 能從 /manager 管理——
+        // 跟 souliong_modules() 裡 delegation 的說明文字（「只能用主 PIN 從後台網址登入管理」）一致。
+        // 每個請求都重新解析 Actor，所以這裡是整站唯一一處、對「已登入」工作階段也生效的關卡。
+        $m = json_decode((string)@file_get_contents($cfg['projects_dir'] . '/' . $project . '/meta.json'), true);
+        $delegationOn = souliong_module_on(is_array($m) ? $m : null, 'delegation');
+        if ($acct !== null && $delegationOn) {
             $perms = project_account_perms($cfg, $project, (string)$acct['id']);
             if ($perms !== null) return new Actor($cfg, $project, 'account', (string)$acct['id'], $perms);
         }
         $pinId = pin_current_id($cfg, $project);
-        if ($pinId !== null) {
+        if ($pinId !== null && $delegationOn) {
             foreach (pins_load($cfg)['projects'][$project] ?? [] as $e) {
                 if ((string)($e['id'] ?? '') === $pinId && ($e['kind'] ?? 'pin') === 'pin') {
                     return new Actor($cfg, $project, 'pin', $pinId, is_array($e['perms'] ?? null) ? $e['perms'] : []);
