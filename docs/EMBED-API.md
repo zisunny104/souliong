@@ -96,7 +96,7 @@ GET <站台>?api=spots&project=<slug>
 
 同一份清單同時控制：資料 API 的 CORS、地圖頁與導航小頁的 `frame-ancestors`、以及 `postMessage` 的來源白名單。
 
-- 全站：站台設定 `embed_allowed_origins`（陣列）。
+- 全站：站台設定 `embed_allowed_origins`（陣列）。終端機可用 `php tools/embed_allow.php list|add|remove <來源>` 管理。
 - 單一專案：後台專案設定的「允許嵌入的網域」（存為 `meta.json` 的 `embedOrigins`）。
 - 實際生效清單為兩者聯集。預設為空，空清單代表全部拒絕。
 
