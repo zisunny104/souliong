@@ -572,7 +572,13 @@ MapLibre 沒有 Leaflet 的「pane／可疊多張獨立底圖」概念，向量 
 - 供應端點 `Route::osm($project, $kind)`＝`<base>/osm/<project>/<roofs|trees|power>`（實作在 `api/osmfile.php`），公開讀取，no-cache 加 ETag；檔案不存在回空的 FeatureCollection，不是 404。`pages/view.php` 把已抓過的網址放進 `APP.map3d.roofsUrl`／`treesUrl`／`powerUrl`，沒抓過是 `null`。
 - 資料集登記表與共用驗證在 `api/osmdata.php`，欄位規則在 `api/roofslib.php`、`api/treeslib.php`、`api/powerlib.php`。屬性都已驗證並正規化（長度轉公尺、顏色統一成 `#rrggbb`、無法解析的欄位直接省略），前端不必再處理 OSM 的各種寫法。
 
-## 九、網址表：`api/routes.php`
+### 8.13 3D 自訂模型區域刪除（`api/region3d.php` 的 `action=delete`）
+
+`regions3d/<id>/` 資料夾（`region.json` + `model.glb`，結構見 `api/regions3d.php` 檔頭）原本沒有任何刪除路徑，誤建或測試用的區域只能用同一個 id 覆蓋，永遠無法真正消失。新增的 `action=delete` 補上這個缺口：權限與 CSRF 檢查比照同檔其他動作（`$requireProj()`，`edit_3d_regions`），路徑解析用 `souliong_region3d_dir()`／`souliong_regions3d_root()`，實際刪除借用 8.6 已有的 `souliong_layer_rmtree($dir, $root)`——同一套 `realpath()` 攤平與「目標落在 root 之內、且不等於 root 本身」檢查，不必另外寫一份。成功後記一筆 `region3d_delete` audit log。
+
+效果是自動生效的：`souliong_region3d_excluded_ids()` 每次都重新掃描 `regions3d/` 底下現存的資料夾算聯集，資料夾不在了，它排除的建物自然重新出現在 3D 建物擠出上，不需要另外清理任何索引。
+
+前端只在帶 `?load=<id>` 進來（即編輯既有區域）時才顯示「刪除這個區域」按鈕，位置在存檔按鈕旁、用 `--danger` 配色跟存檔／重新掃描區隔；送出前有 `confirm()`，文字明講排除清單會失效、建物會重新畫出來。刪除成功後導回後台「工具」分頁，不留在一個已經不存在的 `?load=` 網址上。
 
 網址長什麼樣，全站只寫在一個檔案裡。`Route` 同時負責**拆**（`index.php` 收到請求時）與**組**（其他檔案要產生連結時），兩邊共用同一組常數，所以不會出現「拆得開卻組不回去」的歪斜。
 

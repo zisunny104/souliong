@@ -779,6 +779,7 @@ return [
     'tilecut_opacity_label'    => '不透明度',
     'tilecut_attr_label'       => '版權標註（可留空）',
     'tilecut_overwrite_label'  => '覆蓋同 id 的既有圖層（會先清掉舊的圖磚）',
+    'tilecut_overwrite_confirm' => '確定要覆蓋現有的圖層「{id}」嗎？這個動作無法復原，伺服器會先清空舊的圖磚與原稿。',
     'tilecut_keepsrc_label'    => '保留原稿（之後可以載回重新編輯）',
     'tilecut_keepsrc_hint'     => '原圖存在伺服器上可供之後載回；取消勾選則不留原稿（含上次留的也會一併刪除）。',
     'tilecut_src_size_msg'     => '原稿 {size}',
@@ -872,6 +873,12 @@ return [
     'region3d_complete_msg'       => '已儲存。',
     'region3d_rescanning_msg'     => '重新掃描中…',
     'region3d_rescan_complete_msg' => '已重新掃描，共排除 {n} 棟公用建物',
+    'region3d_overwrite_confirm'  => '確定要覆蓋現有的區域「{id}」嗎？這個動作無法復原，舊的多邊形、排除清單與模型設定會被取代。',
+    'region3d_delete_btn'         => '刪除這個區域',
+    'region3d_delete_confirm'     => '要刪除區域「{id}」嗎？它的資料夾（多邊形、排除清單與模型檔）會整個消失，而且救不回來；刪除後，原本被它排除的公用建物會重新畫出來。',
+    'region3d_deleting_msg'       => '刪除中…',
+    'region3d_delete_complete_msg' => '已刪除，正在返回後台…',
+    'region3d_delete_failed_msg'  => '刪除失敗，請檢查目錄權限',
 
     // 通用錯誤頁（pages/error.php）預設代碼對應文案
     'error_back_to_map_label' => '返回地圖',

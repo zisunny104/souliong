@@ -25,6 +25,7 @@ require __DIR__ . '/security.php';
 require_once __DIR__ . '/i18n.php';
 require_once __DIR__ . '/routes.php';
 require_once __DIR__ . '/regions3d.php';
+require_once __DIR__ . '/layers.php';   // 刪除動作借用 souliong_layer_rmtree()（邊界檢查同圖層刪除）
 $cfg = require __DIR__ . '/config.php';
 rate_limit($cfg, 'manage');
 [$LANG, $DICT] = i18n_init();
@@ -248,6 +249,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'resca
     json_out(['ok' => true, 'count' => count($ids)]);
 }
 
+// ── 刪除：整個區域資料夾（POST，JSON 回應） ──
+// 這是這個區域唯一「完全消失」的路徑——效果同樣不可逆：刪掉後 souliong_region3d_excluded_ids()
+// 的聯集自然不再含它，公用建物擠出會重新畫出來。邊界檢查比照 api/manager.php 的
+// layerdelete／packdelete，借 souliong_layer_rmtree() 同一套 realpath 攤平與 root 範圍確認。
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delete') {
+    $project = preg_replace('/[^a-z0-9_-]/', '', $_POST['project'] ?? '');
+    $actor = $requireProj($project);
+    $id  = strtolower(preg_replace('/[^A-Za-z0-9_-]/', '', $_POST['id'] ?? ''));
+    $dir  = souliong_region3d_dir($cfg, $project, $id);
+    $root = souliong_regions3d_root($cfg, $project);
+    if ($dir === null || $root === null || !is_dir($dir)) {
+        json_out(['error' => $tr('region3d_not_found_msg')], 404);
+    }
+    if (!souliong_layer_rmtree($dir, $root)) {
+        json_out(['error' => $tr('region3d_delete_failed_msg')], 500);
+    }
+    audit_log($cfg, $actor->audit(), 'region3d_delete', $project, $id);
+    json_out(['ok' => true]);
+}
+
 // ── 頁面 ──
 $allProjects = Auth::projectsWith($cfg, 'edit_3d_regions');
 if (Auth::actor($cfg, null)->kind() !== 'primary' && !$allProjects) {
@@ -306,6 +327,7 @@ $map3dKey = (string)($cfg['map3d_key'] ?? '');
       --card: #fff;
       --accent: #b5482e;
       --accent-fg: #fff;
+      --danger: #c0392b;
       --sp-1: 0.25rem;
       --sp-2: 0.5rem;
       --sp-3: 0.75rem;
@@ -322,7 +344,8 @@ $map3dKey = (string)($cfg['map3d_key'] ?? '');
         --line: #322c22;
         --card: #211c15;
         --accent: #e0663f;
-        --accent-fg: #1c1a17
+        --accent-fg: #1c1a17;
+        --danger: #ff6b6b
       }
     }
 
@@ -463,6 +486,11 @@ $map3dKey = (string)($cfg['map3d_key'] ?? '');
     button.ghost.active {
       border-color: var(--accent);
       color: var(--accent)
+    }
+
+    button.ghost.danger {
+      border-color: var(--danger);
+      color: var(--danger)
     }
 
     button:disabled {
@@ -658,6 +686,7 @@ $map3dKey = (string)($cfg['map3d_key'] ?? '');
         <button id="savebtn"><i class="fa-solid fa-floppy-disk"></i> <?= $t('region3d_save_btn') ?></button>
         <?php if ($EDIT !== null): ?>
         <button type="button" class="ghost" id="rescanbtn"><i class="fa-solid fa-magnifying-glass"></i> <?= $t('region3d_rescan_btn') ?></button>
+        <button type="button" class="ghost danger" id="deletebtn"><i class="fa-solid fa-trash-can"></i> <?= $t('region3d_delete_btn') ?></button>
         <?php endif; ?>
       </div>
       <div class="hint" id="status" style="margin-top:var(--sp-2)"></div>
@@ -688,12 +717,19 @@ window.maplibregl = maplibregl;
       'complete'       => i18n_t($DICT, 'region3d_complete_msg'),
       'rescanning'     => i18n_t($DICT, 'region3d_rescanning_msg'),
       'rescan_complete' => i18n_t($DICT, 'region3d_rescan_complete_msg'),
+      'overwrite_confirm' => i18n_t($DICT, 'region3d_overwrite_confirm'),
+      'delete_confirm' => i18n_t($DICT, 'region3d_delete_confirm'),
+      'deleting'       => i18n_t($DICT, 'region3d_deleting_msg'),
+      'delete_complete' => i18n_t($DICT, 'region3d_delete_complete_msg'),
       'error_prefix'   => i18n_t($DICT, 'error_prefix_label'),
       'conn_failed'    => i18n_t($DICT, 'connection_failed_retry_msg'),
     ], JSON_UNESCAPED_UNICODE) ?>;
     const fmt = (str, vars) => str.replace(/\{(\w+)\}/g, (_, k) => (vars[k] != null ? vars[k] : ''));
     const csrf = <?= json_encode($csrf) ?>;
-    const ROUTES = <?= json_encode(['api' => Route::abs(Route::api('region3d'))], JSON_UNESCAPED_SLASHES) ?>;
+    const ROUTES = <?= json_encode([
+      'api' => Route::abs(Route::api('region3d')),
+      'admin' => Route::abs(Route::manager($backProject, 'tools')),
+    ], JSON_UNESCAPED_SLASHES) ?>;
     const EDIT = <?= json_encode($EDIT, JSON_UNESCAPED_UNICODE) ?>;
     const SRCCHUNK = <?= (int)$srcChunk ?>;
     const STYLE_URL = <?= json_encode($map3dStyleUrl) ?>;
@@ -886,10 +922,14 @@ window.maplibregl = maplibregl;
       const editingSame = EDIT && EDIT.id === id;
       if (!file && !editingSame) { statusEl.textContent = I18N.need_model; return; }
 
+      // 覆蓋同 id 的既有區域（或原地編輯同一個 id）跟刪除一樣是不可逆的，送出前先問一次
+      // （比照 api/manager.php 既有刪除動作的 confirm() 防呆等級）。
+      const overwrite = $('overwrite').checked || editingSame;
+      if (overwrite && !confirm(fmt(I18N.overwrite_confirm, { id }))) return;
+
       const btn = $('savebtn');
       btn.disabled = true;
       try {
-        const overwrite = $('overwrite').checked || editingSame;
         const fd0 = new FormData();
         fd0.append('action', 'begin'); fd0.append('csrf', csrf);
         fd0.append('project', project); fd0.append('id', id);
@@ -970,6 +1010,27 @@ window.maplibregl = maplibregl;
       }
     }
     $('rescanbtn').onclick = rescanRegion;
+
+    async function deleteRegion() {
+      const id = <?= json_encode($EDIT['id']) ?>;
+      if (!confirm(fmt(I18N.delete_confirm, { id }))) return;
+      const project = $('project').value;
+      const btn = $('deletebtn');
+      btn.disabled = true;
+      try {
+        statusEl.textContent = I18N.deleting;
+        const fd = new FormData();
+        fd.append('action', 'delete'); fd.append('csrf', csrf);
+        fd.append('project', project); fd.append('id', id);
+        await post(fd);
+        statusEl.textContent = I18N.delete_complete;
+        location.href = ROUTES.admin;
+      } catch (e) {
+        statusEl.textContent = I18N.error_prefix + (e.message || I18N.conn_failed);
+        btn.disabled = false;
+      }
+    }
+    $('deletebtn').onclick = deleteRegion;
     <?php endif; ?>
   </script>
 </body>
