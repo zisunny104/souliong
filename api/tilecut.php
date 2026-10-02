@@ -96,12 +96,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'begin
     if ($dir === null) {
         json_out(['error' => $tr('tilecut_bad_id_msg')], 400);
     }
-    $existed = is_dir($dir);
+    // 「存在」要看 layer.json 有沒有落地，不是資料夾有沒有落地：begin 之後若沒跑到 finish
+    // 就中斷（使用者按停止、關分頁、斷線），資料夾會留下但從來沒有成功當過一個圖層——
+    // 這種孤兒資料夾不該擋下同一個 id 重開一次，也不該逼使用者多勾一次「覆蓋」，但裡面
+    // 可能半套的舊磚還是要清（下面沿用 $dirExists，跟 overwrite 走同一套清理）。
+    $dirExists = is_dir($dir);
+    $existed = $dirExists && is_file($dir . '/layer.json');
     if ($existed && empty($_POST['overwrite'])) {
         json_out(['error' => $tr('tilecut_exists_msg', ['id' => $id])], 409);
     }
     // 清不乾淨就不往下走：舊磚留著會變成擦不掉的殘影，寧可當場說失敗，也不要交出一張半新半舊的圖層。
-    if ($existed && is_dir($dir . '/tiles') && !souliong_layer_rmtree($dir . '/tiles', $dir)) {
+    if ($dirExists && is_dir($dir . '/tiles') && !souliong_layer_rmtree($dir . '/tiles', $dir)) {
         json_out(['error' => $tr('tilecut_clear_failed_msg')], 500);
     }
     // 原稿一樣要清。留著上一版的圖片，「載回重編」就會拿到一疊跟現在的圖磚對不起來的東西；
@@ -112,7 +117,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'begin
     }
     // 上一版若是「保持向量」，這一版改切磚時，vector.svg 不會被上面兩段清到，會變成孤兒檔：
     // layer.json 已經改指向 tiles/，但它還留在資料夾裡，得在這裡順手清掉。
-    if ($existed && is_file($dir . '/vector.svg') && !@unlink($dir . '/vector.svg')) {
+    if ($dirExists && is_file($dir . '/vector.svg') && !@unlink($dir . '/vector.svg')) {
         json_out(['error' => $tr('tilecut_clear_failed_msg')], 500);
     }
     if (!is_dir($dir) && !@mkdir($dir, 0775, true)) {

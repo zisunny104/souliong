@@ -97,7 +97,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'begin
     if ($dir === null) {
         json_out(['error' => $tr('region3d_bad_id_msg')], 400);
     }
-    $existed = is_dir($dir);
+    // 「存在」要看 region.json 有沒有落地，不是資料夾有沒有落地：begin 之後若沒跑到 finish
+    // 就中斷，資料夾（可能還有半截 model.glb）會留下但從來沒有成功當過一個區域——這種孤兒
+    // 資料夾不該擋下同一個 id 重開一次，也不該逼使用者多勾一次「覆蓋」。
+    $existed = is_dir($dir) && is_file($dir . '/region.json');
     if ($existed && empty($_POST['overwrite'])) {
         json_out(['error' => $tr('region3d_exists_msg', ['id' => $id])], 409);
     }
