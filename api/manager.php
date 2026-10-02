@@ -1969,6 +1969,67 @@ if (!$authed) {
       line-height: 1.6
     }
 
+    /* 專案設定對話框：五個分區收折區塊（比照 api/newproject.php 的 details.card 手感），
+       收折時仍看得到一行摘要，不用整個展開才知道裡面是什麼狀態。 */
+    .metasec {
+      border: 1px solid var(--line);
+      border-radius: var(--r-sm);
+      padding: var(--sp-3)
+    }
+
+    .metasec>summary {
+      cursor: pointer;
+      list-style: none
+    }
+
+    .metasec>summary::-webkit-details-marker {
+      display: none
+    }
+
+    .metasec[open]>summary {
+      margin-bottom: var(--sp-3)
+    }
+
+    .metasec-title {
+      display: flex;
+      align-items: center;
+      gap: var(--sp-2);
+      min-width: 0;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--fg)
+    }
+
+    .metasec-chevron {
+      color: var(--muted);
+      transition: transform var(--t);
+      flex: none
+    }
+
+    .metasec[open] .metasec-chevron {
+      transform: rotate(180deg)
+    }
+
+    .metasec-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--sp-2)
+    }
+
+    .metasec-reset {
+      flex: none;
+      padding: 0 var(--sp-3);
+      min-height: var(--tap);
+      font-size: 0.75rem
+    }
+
+    .metasec-body {
+      display: flex;
+      flex-direction: column;
+      gap: var(--sp-3)
+    }
+
     .metaform label.modrow {
       flex-direction: row;
       align-items: flex-start;
@@ -3371,51 +3432,65 @@ if (!$authed) {
             $packListAll = souliong_pack_list($cfg, $p);
             $layAllForP = souliong_layer_list($cfg, $p);
           ?>
-          <button type="button" class="btn" onclick="document.getElementById('metadlg-<?= $esc($p) ?>').showModal()"><i class="fa-solid fa-pen-to-square"></i> <?= $t('edit_project_desc_btn') ?></button>
+          <button type="button" class="btn" onclick="document.getElementById('metadlg-<?= $esc($p) ?>').showModal()"><i class="fa-solid fa-gear"></i> <?= $t('project_settings_btn') ?></button>
           <dialog id="metadlg-<?= $esc($p) ?>" class="metadlg" onclick="if(event.target===this)this.close()">
             <form method="post" class="metaform">
-              <h3><i class="fa-solid fa-pen-to-square"></i> <?= $t('edit_project_desc_btn') ?></h3>
+              <h3><i class="fa-solid fa-gear"></i> <?= $t('project_settings_btn') ?></h3>
               <input type="hidden" name="csrf" value="<?= $esc_csrf ?>"><input type="hidden" name="action" value="meta"><input type="hidden" name="project" value="<?= $esc($p) ?>">
-              <label><?= $t('field_title_label') ?><input name="title" maxlength="300" value="<?= $esc($meta['title'] ?? '') ?>" placeholder="<?= $t('map_title_placeholder') ?>"></label>
-              <label><?= $t('field_subtitle_label') ?><input name="subtitle" maxlength="300" value="<?= $esc($meta['subtitle'] ?? '') ?>" placeholder="<?= $t('subtitle_placeholder') ?>"></label>
-              <label><?= $t('field_desc_label') ?><textarea name="desc" rows="2" maxlength="300" placeholder="<?= $t('desc_optional_placeholder') ?>"><?= $esc($meta['desc'] ?? '') ?></textarea></label>
-              <label><?= $t('field_source_label') ?><input name="source" maxlength="300" value="<?= $esc($meta['source'] ?? '') ?>" placeholder="<?= $t('source_placeholder') ?>"></label>
-              <label><?= $t('field_credit_label') ?><input name="credit" maxlength="300" value="<?= $esc($meta['credit'] ?? '') ?>" placeholder="<?= $t('credit_placeholder') ?>"></label>
-              <?php $numberingCur = in_array($meta['numbering'] ?? '', ['prefix', 'disable'], true) ? $meta['numbering'] : 'suffix'; ?>
-              <label><?= $t('field_numbering_label') ?>
-                <select name="numbering">
-                  <option value="suffix" <?= $numberingCur === 'suffix' ? 'selected' : '' ?>><?= $t('numbering_suffix_option') ?></option>
-                  <option value="prefix" <?= $numberingCur === 'prefix' ? 'selected' : '' ?>><?= $t('numbering_prefix_option') ?></option>
-                  <option value="disable" <?= $numberingCur === 'disable' ? 'selected' : '' ?>><?= $t('numbering_disable_option') ?></option>
-                </select>
-              </label>
+
+              <?php // 基本資訊：原本「編輯專案描述」直覺對應的內容，最常被找，預設展開。 ?>
+              <details class="metasec" open>
+                <summary><span class="metasec-title"><i class="fa-solid fa-circle-info"></i> <?= $t('newproject_basic_heading') ?> <i class="fa-solid fa-chevron-down metasec-chevron" aria-hidden="true"></i></span></summary>
+                <div class="metasec-body">
+                  <label><?= $t('field_title_label') ?><input name="title" maxlength="300" value="<?= $esc($meta['title'] ?? '') ?>" placeholder="<?= $t('map_title_placeholder') ?>"></label>
+                  <label><?= $t('field_subtitle_label') ?><input name="subtitle" maxlength="300" value="<?= $esc($meta['subtitle'] ?? '') ?>" placeholder="<?= $t('subtitle_placeholder') ?>"></label>
+                  <label><?= $t('field_desc_label') ?><textarea name="desc" rows="2" maxlength="300" placeholder="<?= $t('desc_optional_placeholder') ?>"><?= $esc($meta['desc'] ?? '') ?></textarea></label>
+                  <label><?= $t('field_source_label') ?><input name="source" maxlength="300" value="<?= $esc($meta['source'] ?? '') ?>" placeholder="<?= $t('source_placeholder') ?>"></label>
+                  <label><?= $t('field_credit_label') ?><input name="credit" maxlength="300" value="<?= $esc($meta['credit'] ?? '') ?>" placeholder="<?= $t('credit_placeholder') ?>"></label>
+                </div>
+              </details>
+
               <?php
+                $numberingCur = in_array($meta['numbering'] ?? '', ['prefix', 'disable'], true) ? $meta['numbering'] : 'suffix';
                 $pinMarkHasImg = cover_file_of(project_dir($cfg, $p) . '/pinmark') !== null;
                 $pinMarkCur = in_array($meta['pinMark'] ?? '', ['blank', 'shape', 'image'], true) ? $meta['pinMark'] : 'number';
+                $pinSizeCur = in_array($meta['pinSize'] ?? '', ['sm', 'lg'], true) ? $meta['pinSize'] : 'md';
               ?>
-              <label><?= $t('field_pinmark_label') ?>
-                <select name="pinMark">
-                  <option value="number" <?= $pinMarkCur === 'number' ? 'selected' : '' ?>><?= $t('pinmark_number_option') ?></option>
-                  <option value="blank" <?= $pinMarkCur === 'blank' ? 'selected' : '' ?>><?= $t('pinmark_blank_option') ?></option>
-                  <option value="shape" <?= $pinMarkCur === 'shape' ? 'selected' : '' ?>><?= $t('pinmark_shape_option') ?></option>
-                  <?php if ($pinMarkHasImg): ?>
-                  <option value="image" <?= $pinMarkCur === 'image' ? 'selected' : '' ?>><?= $t('pinmark_image_option') ?></option>
-                  <?php endif; ?>
-                </select>
-              </label>
-              <div class="hint"><?= $t('pinmark_image_hint') ?></div>
-              <?php $pinSizeCur = in_array($meta['pinSize'] ?? '', ['sm', 'lg'], true) ? $meta['pinSize'] : 'md'; ?>
-              <label><?= $t('field_pinsize_label') ?>
-                <select name="pinSize">
-                  <option value="sm" <?= $pinSizeCur === 'sm' ? 'selected' : '' ?>><?= $t('pinsize_sm_option') ?></option>
-                  <option value="md" <?= $pinSizeCur === 'md' ? 'selected' : '' ?>><?= $t('pinsize_md_option') ?></option>
-                  <option value="lg" <?= $pinSizeCur === 'lg' ? 'selected' : '' ?>><?= $t('pinsize_lg_option') ?></option>
-                </select>
-              </label>
-              <label class="modrow">
-                <input type="checkbox" name="pinBorder" <?= ($meta['pinBorder'] ?? true) ? 'checked' : '' ?>>
-                <span><?= $t('field_pinborder_label') ?></span>
-              </label>
+              <details class="metasec">
+                <summary><span class="metasec-title"><i class="fa-solid fa-location-dot"></i> <?= $t('marker_appearance_heading') ?> <i class="fa-solid fa-chevron-down metasec-chevron" aria-hidden="true"></i></span></summary>
+                <div class="metasec-body">
+                  <label><?= $t('field_numbering_label') ?>
+                    <select name="numbering">
+                      <option value="suffix" <?= $numberingCur === 'suffix' ? 'selected' : '' ?>><?= $t('numbering_suffix_option') ?></option>
+                      <option value="prefix" <?= $numberingCur === 'prefix' ? 'selected' : '' ?>><?= $t('numbering_prefix_option') ?></option>
+                      <option value="disable" <?= $numberingCur === 'disable' ? 'selected' : '' ?>><?= $t('numbering_disable_option') ?></option>
+                    </select>
+                  </label>
+                  <label><?= $t('field_pinmark_label') ?>
+                    <select name="pinMark">
+                      <option value="number" <?= $pinMarkCur === 'number' ? 'selected' : '' ?>><?= $t('pinmark_number_option') ?></option>
+                      <option value="blank" <?= $pinMarkCur === 'blank' ? 'selected' : '' ?>><?= $t('pinmark_blank_option') ?></option>
+                      <option value="shape" <?= $pinMarkCur === 'shape' ? 'selected' : '' ?>><?= $t('pinmark_shape_option') ?></option>
+                      <?php if ($pinMarkHasImg): ?>
+                      <option value="image" <?= $pinMarkCur === 'image' ? 'selected' : '' ?>><?= $t('pinmark_image_option') ?></option>
+                      <?php endif; ?>
+                    </select>
+                  </label>
+                  <div class="hint"><?= $t('pinmark_image_hint') ?></div>
+                  <label><?= $t('field_pinsize_label') ?>
+                    <select name="pinSize">
+                      <option value="sm" <?= $pinSizeCur === 'sm' ? 'selected' : '' ?>><?= $t('pinsize_sm_option') ?></option>
+                      <option value="md" <?= $pinSizeCur === 'md' ? 'selected' : '' ?>><?= $t('pinsize_md_option') ?></option>
+                      <option value="lg" <?= $pinSizeCur === 'lg' ? 'selected' : '' ?>><?= $t('pinsize_lg_option') ?></option>
+                    </select>
+                  </label>
+                  <label class="modrow">
+                    <input type="checkbox" name="pinBorder" <?= ($meta['pinBorder'] ?? true) ? 'checked' : '' ?>>
+                    <span><?= $t('field_pinborder_label') ?></span>
+                  </label>
+                </div>
+              </details>
+
               <?php
                 // 三態下拉（對應上面 action=meta 的 pack 處理）：沒有 pack 欄位＝跟隨全站，
                 // 空字串＝這張地圖明確不套用。順便把全站目前設的是哪一包寫在選項裡，
@@ -3427,29 +3502,7 @@ if (!$authed) {
                 $siteName = ($sitePack !== '' && isset($packList[$sitePack]))
                   ? ($packList[$sitePack]['label'] ?? $sitePack)
                   : i18n_t($DICT, 'site_pack_unset_name');
-              ?>
-              <label><?= $t('field_pack_label') ?>
-                <select name="pack">
-                  <option value="" <?= $packSel === null ? 'selected' : '' ?>><?= $t('pack_follow_site_option', ['pack' => $siteName]) ?></option>
-                  <option value="!none" <?= $packSel === '' ? 'selected' : '' ?>><?= $t('no_pack_option') ?></option>
-                  <?php foreach ($packList as $pid => $pinfo):
-                    $plabel = ($pinfo['label'] ?? $pid) . (($pinfo['scope'] ?? '') === 'project' ? ' · ' . i18n_t($DICT, 'layer_scope_project') : '');
-                  ?>
-                  <option value="<?= $esc($pid) ?>" <?= $packSel === $pid ? 'selected' : '' ?>><?= $esc($plabel) ?></option>
-                  <?php endforeach; ?>
-                </select>
-              </label>
-              <?php $labelCur = souliong_label_lang($meta); ?>
-              <label><?= $t('field_maplabel_label') ?>
-                <select name="mapLabelLang">
-                  <option value="auto" <?= $labelCur === 'auto' ? 'selected' : '' ?>><?= $t('maplabel_auto_option') ?></option>
-                  <?php foreach (array_keys(souliong_label_fields()) as $lc): ?>
-                  <option value="<?= $esc($lc) ?>" <?= $labelCur === $lc ? 'selected' : '' ?>><?= $t('maplabel_lang_' . $lc) ?></option>
-                  <?php endforeach; ?>
-                </select>
-              </label>
-              <div class="hint"><?= $t('maplabel_hint') ?></div>
-              <?php
+                $labelCur = souliong_label_lang($meta);
                 // 圖層挑選器。清單由上而下＝由頂層到底層（跟繪圖軟體的圖層面板一致），
                 // meta.json 存的是相反方向，兩邊各自反轉一次，見上面 action=meta 的處理。
                 // 勾選的排在前面（照現有疊法），沒勾的接在後面等著被叫上來。
@@ -3471,40 +3524,81 @@ if (!$authed) {
                 $layRows = array_merge($layCur, $layTail);
                 $layDefault = implode('、', souliong_default_layers($cfg));
               ?>
-              <input type="hidden" name="layers_submitted" value="1">
-              <div class="modfields lyfields">
-                <div class="modfields-head"><?= $t('layers_heading') ?></div>
-                <div class="hint"><?= $t('layers_pick_hint', ['default' => $layDefault]) ?></div>
-                <?php if ($layRows): ?>
-                <div class="lylist lysort">
-                  <?php foreach ($layRows as $lid): $li = $layAll[$lid]; ?>
-                  <div class="lyrow">
-                    <label class="lypick">
-                      <input type="checkbox" name="layers[]" value="<?= $esc($lid) ?>" <?= in_array($lid, $layCur, true) ? 'checked' : '' ?>>
-                      <span><b><?= $esc($li['label'] ?? $lid) ?></b><?= souliong_layer_deprecated($li) ? ' <span class="tag">' . $t('layer_deprecated_tag') . '</span>' : '' ?>
-                        <span class="hint mono"><?= $esc($lid) ?> · <?= $esc($li['pane'] ?? 'art') ?><?= ($li['scope'] ?? '') === 'project' ? ' · ' . $t('layer_scope_project') : '' ?></span></span>
-                    </label>
-                    <span class="lymove">
-                      <button type="button" class="lybtn" data-lymove="-1" aria-label="<?= $t('layer_move_up_aria') ?>" title="<?= $t('layer_move_up_aria') ?>"><i class="fa-solid fa-chevron-up"></i></button>
-                      <button type="button" class="lybtn" data-lymove="1" aria-label="<?= $t('layer_move_down_aria') ?>" title="<?= $t('layer_move_down_aria') ?>"><i class="fa-solid fa-chevron-down"></i></button>
-                    </span>
+              <details class="metasec">
+                <summary><span class="metasec-title"><i class="fa-solid fa-layer-group"></i> <?= $t('visual_layers_heading') ?> <i class="fa-solid fa-chevron-down metasec-chevron" aria-hidden="true"></i></span></summary>
+                <div class="metasec-body">
+                  <label><?= $t('field_pack_label') ?>
+                    <select name="pack">
+                      <option value="" <?= $packSel === null ? 'selected' : '' ?>><?= $t('pack_follow_site_option', ['pack' => $siteName]) ?></option>
+                      <option value="!none" <?= $packSel === '' ? 'selected' : '' ?>><?= $t('no_pack_option') ?></option>
+                      <?php foreach ($packList as $pid => $pinfo):
+                        $plabel = ($pinfo['label'] ?? $pid) . (($pinfo['scope'] ?? '') === 'project' ? ' · ' . i18n_t($DICT, 'layer_scope_project') : '');
+                      ?>
+                      <option value="<?= $esc($pid) ?>" <?= $packSel === $pid ? 'selected' : '' ?>><?= $esc($plabel) ?></option>
+                      <?php endforeach; ?>
+                    </select>
+                  </label>
+                  <div class="hint"><?= $t('pack_theme_disambig_hint') ?></div>
+                  <label><?= $t('field_maplabel_label') ?>
+                    <select name="mapLabelLang">
+                      <option value="auto" <?= $labelCur === 'auto' ? 'selected' : '' ?>><?= $t('maplabel_auto_option') ?></option>
+                      <?php foreach (array_keys(souliong_label_fields()) as $lc): ?>
+                      <option value="<?= $esc($lc) ?>" <?= $labelCur === $lc ? 'selected' : '' ?>><?= $t('maplabel_lang_' . $lc) ?></option>
+                      <?php endforeach; ?>
+                    </select>
+                  </label>
+                  <div class="hint"><?= $t('maplabel_hint') ?></div>
+                  <input type="hidden" name="layers_submitted" value="1">
+                  <div class="modfields lyfields">
+                    <div class="modfields-head"><?= $t('layers_heading') ?></div>
+                    <div class="hint"><?= $t('layers_pick_hint', ['default' => $layDefault]) ?></div>
+                    <?php if ($layRows): ?>
+                    <div class="lylist lysort">
+                      <?php foreach ($layRows as $lid): $li = $layAll[$lid]; ?>
+                      <div class="lyrow">
+                        <label class="lypick">
+                          <input type="checkbox" name="layers[]" value="<?= $esc($lid) ?>" <?= in_array($lid, $layCur, true) ? 'checked' : '' ?>>
+                          <span><b><?= $esc($li['label'] ?? $lid) ?></b><?= souliong_layer_deprecated($li) ? ' <span class="tag">' . $t('layer_deprecated_tag') . '</span>' : '' ?>
+                            <span class="hint mono"><?= $esc($lid) ?> · <?= $esc($li['pane'] ?? 'art') ?><?= ($li['scope'] ?? '') === 'project' ? ' · ' . $t('layer_scope_project') : '' ?></span></span>
+                        </label>
+                        <span class="lymove">
+                          <button type="button" class="lybtn" data-lymove="-1" aria-label="<?= $t('layer_move_up_aria') ?>" title="<?= $t('layer_move_up_aria') ?>"><i class="fa-solid fa-chevron-up"></i></button>
+                          <button type="button" class="lybtn" data-lymove="1" aria-label="<?= $t('layer_move_down_aria') ?>" title="<?= $t('layer_move_down_aria') ?>"><i class="fa-solid fa-chevron-down"></i></button>
+                        </span>
+                      </div>
+                      <?php endforeach; ?>
+                    </div>
+                    <?php else: ?>
+                    <div class="hint"><?= $t('no_layers_msg') ?></div>
+                    <?php endif; ?>
                   </div>
+                </div>
+              </details>
+
+              <?php
+                // 收折摘要：這張地圖目前實際生效的模組關閉數（含 dependsOn 連動），讓人不用展開
+                // 也能一眼看出「現在跟預設不一樣」。
+                $modOffCount = count(array_filter(array_keys(souliong_modules()), fn($mk) => !souliong_module_on($meta, $mk)));
+              ?>
+              <input type="hidden" name="modules_submitted" value="1">
+              <details class="metasec">
+                <summary>
+                  <div class="metasec-row">
+                    <span class="metasec-title"><i class="fa-solid fa-toggle-on"></i> <?= $t('feature_modules_heading') ?> <i class="fa-solid fa-chevron-down metasec-chevron" aria-hidden="true"></i></span>
+                    <button type="button" class="btn metasec-reset" data-reset-modules><?= $t('newproject_reset_defaults_btn') ?></button>
+                  </div>
+                  <div class="hint"><?= $modOffCount > 0 ? $t('metasec_modules_summary', ['count' => $modOffCount]) : $t('metasec_modules_summary_all_on') ?></div>
+                </summary>
+                <div class="metasec-body">
+                  <?php foreach (souliong_modules() as $mk => $minfo): $mon = souliong_module_on($meta, $mk); ?>
+                  <label class="modrow">
+                    <input type="checkbox" data-mod="<?= $esc($mk) ?>" name="<?= $mk === 'personExplore' ? 'personExplore' : 'features[' . $esc($mk) . ']' ?>" <?= $mon ? 'checked' : '' ?>>
+                    <span><b><?= $esc($minfo['label']) ?></b><br><span class="hint"><?= $esc($minfo['desc']) ?></span></span>
+                  </label>
                   <?php endforeach; ?>
                 </div>
-                <?php else: ?>
-                <div class="hint"><?= $t('no_layers_msg') ?></div>
-                <?php endif; ?>
-              </div>
-              <input type="hidden" name="modules_submitted" value="1">
-              <div class="modfields">
-                <div class="modfields-head"><?= $t('feature_modules_heading') ?></div>
-                <?php foreach (souliong_modules() as $mk => $minfo): $mon = souliong_module_on($meta, $mk); ?>
-                <label class="modrow">
-                  <input type="checkbox" name="<?= $mk === 'personExplore' ? 'personExplore' : 'features[' . $esc($mk) . ']' ?>" <?= $mon ? 'checked' : '' ?>>
-                  <span><b><?= $esc($minfo['label']) ?></b><br><span class="hint"><?= $esc($minfo['desc']) ?></span></span>
-                </label>
-                <?php endforeach; ?>
-              </div>
+              </details>
+
               <?php
                 // 投稿設定。現值一律走 souliong_contrib_cfg() 而不是直接讀 $meta['contrib']，
                 // 沒有 contrib 區塊的舊地圖才會顯示成它實際的行為（只有照片、不能建點），
@@ -3516,37 +3610,48 @@ if (!$authed) {
                   $tb = $ckinds[$ck]['tab'];
                   if (!in_array($tb, $ctabs, true)) $ctabs[] = $tb;
                 }
+                $contribKindsLabel = implode('、', array_map(fn($k) => $ckinds[$k]['label'], $ccur['kinds']));
+                $contribNewpointLabel = i18n_t($DICT, 'contrib_newspot_' . $ccur['newPoint']);
               ?>
               <input type="hidden" name="contrib_submitted" value="1">
-              <div class="modfields">
-                <div class="modfields-head"><?= $t('contrib_kinds_heading') ?></div>
-                <div class="hint"><?= $t('contrib_kinds_hint') ?></div>
-                <?php foreach (souliong_contrib_kinds() as $ck): ?>
-                <label class="modrow">
-                  <input type="checkbox" name="contrib_kinds[<?= $esc($ck) ?>]" <?= in_array($ck, $ccur['kinds'], true) ? 'checked' : '' ?>>
-                  <span><?= $esc($ckinds[$ck]['label']) ?></span>
-                </label>
-                <?php endforeach; ?>
-                <label><?= $t('contrib_default_tab_label') ?>
-                  <select name="contrib_default">
-                    <?php foreach ($ctabs as $tb): ?>
-                    <option value="<?= $esc($tb) ?>" <?= $ccur['default'] === $tb ? 'selected' : '' ?>><?= $t('tab_' . $tb) ?></option>
-                    <?php endforeach; ?>
-                  </select>
-                </label>
-                <div class="hint"><?= $t('contrib_default_tab_hint') ?></div>
-                <label><?= $t('contrib_newspot_label') ?>
-                  <select name="contrib_newspot">
-                    <?php foreach (['off', 'admin', 'contributor'] as $np): ?>
-                    <option value="<?= $np ?>" <?= $ccur['newPoint'] === $np ? 'selected' : '' ?>><?= $t('contrib_newspot_' . $np) ?></option>
-                    <?php endforeach; ?>
-                  </select>
-                </label>
-                <div class="hint"><?= $t('contrib_newspot_hint') ?></div>
-              </div>
+              <details class="metasec">
+                <summary>
+                  <div class="metasec-row">
+                    <span class="metasec-title"><i class="fa-solid fa-paper-plane"></i> <?= $t('contrib_settings_heading') ?> <i class="fa-solid fa-chevron-down metasec-chevron" aria-hidden="true"></i></span>
+                    <button type="button" class="btn metasec-reset" data-reset-contrib><?= $t('newproject_reset_defaults_btn') ?></button>
+                  </div>
+                  <div class="hint"><?= $t('metasec_contrib_summary', ['kinds' => $contribKindsLabel, 'newpoint' => $contribNewpointLabel]) ?></div>
+                </summary>
+                <div class="metasec-body">
+                  <div class="hint"><?= $t('contrib_kinds_hint') ?></div>
+                  <?php foreach (souliong_contrib_kinds() as $ck): ?>
+                  <label class="modrow">
+                    <input type="checkbox" data-kind="<?= $esc($ck) ?>" name="contrib_kinds[<?= $esc($ck) ?>]" <?= in_array($ck, $ccur['kinds'], true) ? 'checked' : '' ?>>
+                    <span><?= $esc($ckinds[$ck]['label']) ?></span>
+                  </label>
+                  <?php endforeach; ?>
+                  <label><?= $t('contrib_default_tab_label') ?>
+                    <select name="contrib_default">
+                      <?php foreach ($ctabs as $tb): ?>
+                      <option value="<?= $esc($tb) ?>" <?= $ccur['default'] === $tb ? 'selected' : '' ?>><?= $t('tab_' . $tb) ?></option>
+                      <?php endforeach; ?>
+                    </select>
+                  </label>
+                  <div class="hint"><?= $t('contrib_default_tab_hint') ?></div>
+                  <label><?= $t('contrib_newspot_label') ?>
+                    <select name="contrib_newspot">
+                      <?php foreach (['off', 'admin', 'contributor'] as $np): ?>
+                      <option value="<?= $np ?>" <?= $ccur['newPoint'] === $np ? 'selected' : '' ?>><?= $t('contrib_newspot_' . $np) ?></option>
+                      <?php endforeach; ?>
+                    </select>
+                  </label>
+                  <div class="hint"><?= $t('contrib_newspot_hint') ?></div>
+                </div>
+              </details>
+
               <div class="dlgactions">
                 <button type="button" class="btn" onclick="this.closest('dialog').close()"><?= $t('cancel') ?></button>
-                <button class="btn solid"><i class="fa-solid fa-floppy-disk"></i> <?= $t('save_desc_btn') ?></button>
+                <button class="btn solid"><i class="fa-solid fa-floppy-disk"></i> <?= $t('save_settings_btn') ?></button>
               </div>
             </form>
           </dialog>
@@ -4399,6 +4504,17 @@ if (!$authed) {
     <?php endif; ?>
   </div>
   <script>window.I18N = <?= json_encode($DICT, JSON_UNESCAPED_UNICODE) ?>; window.LANG = <?= json_encode($LANG) ?>;</script>
+  <?php
+    // 「還原預設」按鈕共用的目標值：跟 action=meta 的 fallback 規則同一套（souliong_module_on()／
+    // souliong_contrib_cfg() 傳 null 就是尚未設定時的實際生效值），不是在前端另外寫一份預設表。
+    $moduleDefaults = [];
+    foreach (array_keys(souliong_modules()) as $mk) { $moduleDefaults[$mk] = souliong_module_on(null, $mk); }
+    $contribDefaults = souliong_contrib_cfg(null);
+  ?>
+  <script>
+    window.MODULE_DEFAULTS = <?= json_encode($moduleDefaults) ?>;
+    window.CONTRIB_DEFAULTS = <?= json_encode($contribDefaults, JSON_UNESCAPED_UNICODE) ?>;
+  </script>
   <script>
     <?php readfile(__DIR__ . '/../assets/js/vendor/qrcode-generator.js'); ?>
   </script>
@@ -4431,6 +4547,31 @@ if (!$authed) {
         btn.focus();   // 連按時焦點要跟著那一列走，不然第二下會落在別層上
       });
       refresh();
+    });
+    // 「還原預設」：只動該區塊自己的輸入欄位，不碰 _submitted 隱藏旗標——
+    // 旗標照樣送出，等同「這區塊從沒被動過」，但不會因為使用者半改又還原而整區漏送。
+    document.addEventListener('click', function(ev) {
+      var mbtn = ev.target.closest('[data-reset-modules]');
+      if (mbtn) {
+        ev.preventDefault();   // 按鈕在 <summary> 裡，不擋掉的話點一下會順便把區塊收合
+        mbtn.closest('details.metasec').querySelectorAll('[data-mod]').forEach(function(cb) {
+          cb.checked = !!window.MODULE_DEFAULTS[cb.dataset.mod];
+        });
+        return;
+      }
+      var cbtn = ev.target.closest('[data-reset-contrib]');
+      if (cbtn) {
+        ev.preventDefault();
+        var body = cbtn.closest('details.metasec');
+        var d = window.CONTRIB_DEFAULTS;
+        body.querySelectorAll('[data-kind]').forEach(function(cb) {
+          cb.checked = d.kinds.indexOf(cb.dataset.kind) !== -1;
+        });
+        var tabSel = body.querySelector('select[name="contrib_default"]');
+        if (tabSel) tabSel.value = d.default;
+        var npSel = body.querySelector('select[name="contrib_newspot"]');
+        if (npSel) npSel.value = d.newPoint;
+      }
     });
     document.querySelectorAll('.qr').forEach(function(el) {
       try {
