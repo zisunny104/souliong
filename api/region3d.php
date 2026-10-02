@@ -652,8 +652,9 @@ $map3dKey = (string)($cfg['map3d_key'] ?? '');
         <input type="text" id="attr" maxlength="500" value="<?= $esc($EDIT['attribution'] ?? '') ?>">
       </div>
       <div class="row" style="margin-top:var(--sp-3)">
-        <label class="chk"><input type="checkbox" id="overwrite" <?= $EDIT !== null ? 'checked' : '' ?>> <?= $t('region3d_overwrite_label') ?></label>
+        <label class="chk"><input type="checkbox" id="overwrite" <?= $EDIT !== null ? 'checked disabled' : '' ?>> <?= $t('region3d_overwrite_label') ?></label>
       </div>
+      <div class="hint" id="overwriteHint" style="margin-top:var(--sp-1)"><?= $EDIT !== null ? $t('region3d_overwrite_forced_hint') : '' ?></div>
       <div class="row" style="margin-top:var(--sp-3)">
         <button id="savebtn"><i class="fa-solid fa-floppy-disk"></i> <?= $t('region3d_save_btn') ?></button>
         <?php if ($EDIT !== null): ?>
@@ -688,6 +689,7 @@ window.maplibregl = maplibregl;
       'complete'       => i18n_t($DICT, 'region3d_complete_msg'),
       'rescanning'     => i18n_t($DICT, 'region3d_rescanning_msg'),
       'rescan_complete' => i18n_t($DICT, 'region3d_rescan_complete_msg'),
+      'overwrite_forced_hint' => i18n_t($DICT, 'region3d_overwrite_forced_hint'),
       'error_prefix'   => i18n_t($DICT, 'error_prefix_label'),
       'conn_failed'    => i18n_t($DICT, 'connection_failed_retry_msg'),
     ], JSON_UNESCAPED_UNICODE) ?>;
@@ -749,6 +751,17 @@ window.maplibregl = maplibregl;
       $('anchorbtn').classList.toggle('active', mode === 'anchor');
     }
 
+    // 編輯既有區域（id 沒被改掉）一律視為覆蓋，跟 saveRegion() 判定 editingSame 的條件完全一致
+    // ——勾選框要跟著鎖定＋打勾，不然使用者會以為取消勾選有效果，其實送出的還是 overwrite=1。
+    function syncOverwriteUI() {
+      const id = $('rid').value.trim().toLowerCase();
+      const editingSame = !!(EDIT && EDIT.id === id);
+      const cb = $('overwrite');
+      cb.disabled = editingSame;
+      if (editingSame) cb.checked = true;
+      $('overwriteHint').textContent = editingSame ? I18N.overwrite_forced_hint : '';
+    }
+
     function placeAnchor(lngLat) {
       if (anchorMarker) {
         anchorMarker.setLngLat(lngLat);
@@ -794,10 +807,18 @@ window.maplibregl = maplibregl;
       });
     }
 
-    /** 存檔／重新掃描共用：對照目前畫面上的多邊形查一次落在裡面的建物 id。 */
-    function scanExcludedBuildingIds() {
+    /** 存檔／重新掃描共用：對照多邊形查一次落在裡面的建物 id。
+     *  queryRenderedFeatures 只看得到目前畫面像素框內的東西，跟多邊形的地理範圍是兩件事
+     *  ——使用者畫完多邊形後很可能已經平移/縮放去對模型錨點，若直接拿當下畫面查，多邊形
+     *  不在視窗內的那一截會被整段漏掉。所以查詢前先 fitBounds 回多邊形自己的 bounds，
+     *  等 idle（新範圍的圖磚真正載完）才查，查詢框才會永遠等於多邊形的實際地理範圍。 */
+    async function scanExcludedBuildingIds() {
       if (!buildingLayerId || drawPoints.length < 3) return { ids: [], missing: 0 };
       const ring = closedRing(drawPoints);
+      const bounds = new maplibregl.LngLatBounds();
+      ring.forEach(pt => bounds.extend(pt));
+      map.fitBounds(bounds, { padding: 60, duration: 0 });
+      await new Promise(resolve => map.once('idle', resolve));
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
       ring.forEach(([lng, lat]) => {
         const p = map.project([lng, lat]);
@@ -858,6 +879,8 @@ window.maplibregl = maplibregl;
       const f = $('modelfile').files[0];
       $('modelinfo').textContent = f ? (f.name + ' (' + Math.round(f.size / 1024) + ' KB)') : '';
     };
+    $('rid').addEventListener('input', syncOverwriteUI);
+    syncOverwriteUI();
 
     async function post(body, soft) {
       // 跟 tilecut.php 同一套限流重試：manage bucket 撞到 429 時照 Retry-After 等一下再送
@@ -919,7 +942,7 @@ window.maplibregl = maplibregl;
         }
 
         statusEl.textContent = I18N.scanning;
-        const { ids, missing } = scanExcludedBuildingIds();
+        const { ids, missing } = await scanExcludedBuildingIds();
         let scanMsg = fmt(I18N.scan_result, { n: ids.length });
         if (missing) scanMsg += ' ' + fmt(I18N.missing_id_warn, { n: missing });
 
@@ -954,7 +977,7 @@ window.maplibregl = maplibregl;
       btn.disabled = true;
       try {
         statusEl.textContent = I18N.rescanning;
-        const { ids, missing } = scanExcludedBuildingIds();
+        const { ids, missing } = await scanExcludedBuildingIds();
         const fd = new FormData();
         fd.append('action', 'rescan'); fd.append('csrf', csrf);
         fd.append('project', project); fd.append('id', id);

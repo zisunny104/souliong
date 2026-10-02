@@ -866,6 +866,7 @@ return [
     'region3d_model_hint'         => '只接受 glTF 二進位格式（.glb）；大小上限由伺服器設定決定。',
     'region3d_model_keep_hint'    => '不選新檔案就會沿用目前已存的模型，只更新多邊形與其他參數。',
     'region3d_overwrite_label'    => '覆蓋同 id 的既有區域',
+    'region3d_overwrite_forced_hint' => '目前是編輯既有區域，一定會覆蓋，無法取消勾選。',
     'region3d_save_btn'           => '儲存',
     'region3d_rescan_btn'         => '重新掃描排除清單',
     'region3d_bad_id_msg'         => '區域 id 不合法',

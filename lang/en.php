@@ -856,6 +856,7 @@ return [
     'region3d_model_hint'         => 'Only binary glTF (.glb) is accepted; the size cap is set by the server.',
     'region3d_model_keep_hint'    => 'Leave the file unset to keep the currently saved model and only update the polygon or other parameters.',
     'region3d_overwrite_label'    => 'Overwrite the existing region with this id',
+    'region3d_overwrite_forced_hint' => 'Editing an existing region, so this is always treated as an overwrite and cannot be unchecked.',
     'region3d_save_btn'           => 'Save',
     'region3d_rescan_btn'         => 'Rescan exclusion list',
     'region3d_bad_id_msg'         => 'Invalid region id',
