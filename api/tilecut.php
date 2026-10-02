@@ -1214,6 +1214,7 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
     const I18N = <?= json_encode([
       'need_image'   => i18n_t($DICT, 'tilecut_need_image_msg'),
       'need_id'      => i18n_t($DICT, 'tilecut_need_id_msg'),
+      'overwrite_confirm' => i18n_t($DICT, 'tilecut_overwrite_confirm'),
       'bad_bounds'   => i18n_t($DICT, 'tilecut_bad_bounds_msg'),
       'too_many'     => i18n_t($DICT, 'tilecut_too_many_msg'),
       'estimate'     => i18n_t($DICT, 'tilecut_estimate_msg'),
@@ -2445,6 +2446,10 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
         total = totalTiles(b, z0, z1);
         if (total > MAX_TILES) { statusEl.textContent = fmt(I18N.too_many, { tiles: total, max: MAX_TILES }); return; }
       }
+
+      // 覆蓋同 id 的既有圖層會先清空舊的圖磚與原稿，不可逆，送出前先問一次
+      // （比照 api/manager.php 既有刪除動作的 confirm() 防呆等級）。
+      if ($('overwrite').checked && !confirm(fmt(I18N.overwrite_confirm, { id }))) return;
 
       running = true; aborted = false;
       $('go').disabled = true; $('stop').disabled = false;

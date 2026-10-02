@@ -789,6 +789,7 @@ return [
     'tilecut_opacity_label'    => 'Opacity',
     'tilecut_attr_label'       => 'Attribution (optional)',
     'tilecut_overwrite_label'  => 'Overwrite the existing layer with this id (its old tiles are cleared first)',
+    'tilecut_overwrite_confirm' => 'Overwrite the existing layer "{id}"? This cannot be undone — the server will clear its old tiles and originals first.',
     'tilecut_keepsrc_label'    => 'Keep the originals (so you can load them back and edit later)',
     'tilecut_keepsrc_hint'     => 'Originals are stored on the server so you can load them back later; untick to keep only the tiles (this also deletes any originals kept last time).',
     'tilecut_src_size_msg'     => 'originals {size}',
@@ -883,6 +884,12 @@ return [
     'region3d_complete_msg'       => 'Saved.',
     'region3d_rescanning_msg'     => 'Rescanning…',
     'region3d_rescan_complete_msg' => 'Rescanned — now excluding {n} public building(s)',
+    'region3d_overwrite_confirm'  => 'Overwrite the existing region "{id}"? This cannot be undone — the previous polygon, exclusion list and model settings will be replaced.',
+    'region3d_delete_btn'         => 'Delete this region',
+    'region3d_delete_confirm'     => 'Delete region "{id}"? Its folder (polygon, exclusion list and model file) will be gone entirely, and this cannot be undone — the public buildings it was excluding will reappear.',
+    'region3d_deleting_msg'       => 'Deleting…',
+    'region3d_delete_complete_msg' => 'Deleted — returning to the backend…',
+    'region3d_delete_failed_msg'  => 'Delete failed — check directory permissions',
 
     // Default per-code copy for the generic error page (pages/error.php)
     'error_back_to_map_label' => 'Back to the map',
