@@ -213,6 +213,43 @@ function account_project_list(array $cfg, string $accountId): array {
     return $out;
 }
 
+// ── 帳號停用／啟用：只切 disabled 旗標，不刪帳號、不動各專案 perms.json，重新啟用即恢復原權限 ──
+// primary 角色不能從這裡停用：避免 primary 把自己（或唯一的主帳號）鎖在門外；要停用請直接改 accounts.json。
+/** 實際改到才回 true；找不到、狀態本來就相同、或要停用的是 primary 一律回 false。 */
+function _account_set_disabled(array $cfg, string $accountId, bool $disabled): bool {
+    $d = accounts_load($cfg);
+    foreach ($d['accounts'] as $i => $e) {
+        if ((string)($e['id'] ?? '') !== $accountId) continue;
+        if ($disabled && ($e['role'] ?? '') === 'primary') return false;
+        if (!empty($e['disabled']) === $disabled) return false;
+        $d['accounts'][$i]['disabled'] = $disabled;
+        accounts_save($cfg, $d);
+        return true;
+    }
+    return false;
+}
+function account_disable(array $cfg, string $accountId): bool { return _account_set_disabled($cfg, $accountId, true); }
+function account_enable(array $cfg, string $accountId): bool { return _account_set_disabled($cfg, $accountId, false); }
+/** 全站帳號一覽（含從未被授權到任何專案的），每筆附 projects；不含密碼雜湊等機密欄位。 */
+function accounts_list_with_projects(array $cfg): array {
+    $out = [];
+    foreach (accounts_load($cfg)['accounts'] as $a) {
+        $id = (string)($a['id'] ?? '');
+        if ($id === '') continue;
+        $isPrimary = ($a['role'] ?? '') === 'primary';
+        $out[] = [
+            'id' => $id,
+            'userid' => (string)($a['userid'] ?? ''),
+            'label' => (string)($a['label'] ?? ''),
+            'role' => $isPrimary ? 'primary' : 'user',
+            'created_at' => (string)($a['created_at'] ?? ''),
+            'disabled' => !empty($a['disabled']),
+            'projects' => $isPrimary ? [] : account_project_list($cfg, $id),
+        ];
+    }
+    return $out;
+}
+
 // ── 舊 PIN 轉換為帳號：primary 產生一次性連結 → 對方輸入舊 PIN 證明本人 → 設 userid/密碼 ──
 // pending token 只記「要轉換哪把舊 PIN」的參照（來源＋id），不複製 PIN 明文，直到啟用當下才去 pins.json 核對。
 function account_migrate_create(array $cfg, string $source, ?string $project, ?string $legacyId, string $suggestedUserid, string $label): array {
