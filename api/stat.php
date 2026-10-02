@@ -1,11 +1,12 @@
 <?php
 // 匿名聚合統計：只累加計數，不存 IP / 個資 / 逐筆事件。
-// 累加：POST project, type(view|spot|session|device|feature)[, id, h, d]
+// 累加：POST project, type(view|spot|session|device|feature)[, id（spot 時為 num 或 spotId）, h, d]
 // 讀取：GET  ?read=1&token=管理密碼  → 回傳統計 JSON（分析用）
 require __DIR__ . '/store.php';
 require __DIR__ . '/security.php';
 require __DIR__ . '/stats.php';
 require_once __DIR__ . '/features.php';
+require_once __DIR__ . '/spotlib.php';
 $cfg = require __DIR__ . '/config.php';
 
 $project = preg_replace('/[^a-z0-9_-]/', '', $_REQUEST['project'] ?? '');
@@ -24,7 +25,17 @@ $id   = (string)($_REQUEST['id'] ?? '');
 $FEATURES = array_keys(souliong_features());
 $h = (int)($_REQUEST['h'] ?? -1);
 $d = (int)($_REQUEST['d'] ?? -1);
-stats_apply($cfg, $project, function (&$s) use ($type, $id, $h, $d, $FEATURES) {
+// 點位統計：id 可以是 num 或 spotId；一律以 num 計（後台統計圖的既有鍵），spotId 先解回 num。
+$spotKey = null;
+if ($type === 'spot') {
+    if (spot_id_valid($id)) {
+        $sp = spot_effective_by_id($cfg, $project, $id);
+        if ($sp) $spotKey = (string)(int)$sp['num'];
+    } elseif (ctype_digit($id) && strlen($id) <= 5) {
+        $spotKey = $id;
+    }
+}
+stats_apply($cfg, $project, function (&$s) use ($type, $id, $h, $d, $FEATURES, $spotKey) {
     switch ($type) {
         case 'view':
             stats_bump($s, 'views');
@@ -32,7 +43,7 @@ stats_apply($cfg, $project, function (&$s) use ($type, $id, $h, $d, $FEATURES) {
             if ($d >= 0 && $d <= 6)  stats_bump($s, 'by_dow', (string)$d, 7);
             break;
         case 'spot':
-            if (ctype_digit($id) && strlen($id) <= 5) stats_bump($s, 'spots', $id, 3000);
+            if ($spotKey !== null) stats_bump($s, 'spots', $spotKey, 3000);
             break;
         case 'session':
             stats_bump($s, 'sessions');

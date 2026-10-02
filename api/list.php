@@ -17,6 +17,7 @@ try {
         return strcmp((string)$ta, (string)$tb);
     });
     foreach ($rows as &$r) {
+        if (isset($r['kind'])) $r['kind'] = spot_kind_normalize((string)$r['kind']);   // 舊 kind 值 point／newpoint 對外一律 spot
         unset($r['src_hash'], $r['contrib_hash']);   // 鑑識用 IP 雜湊、身分驗刪雜湊，不對外
         $r['photo_url'] = !empty($r['photo']) ? Route::api('photo', ['f' => $r['photo']]) : null;
         if (is_array($r['content'] ?? null)) {   // 點位版本紀錄的內容區塊；content_rev 是寫入這份內容的紀錄 id

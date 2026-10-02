@@ -57,7 +57,7 @@ php tools/checkall.php                     # 語法、權限與內容區回歸�
   "center":[23.95,120.69], "zoom":14, "points":"points.json",
   "numbering":"suffix", "categoryOrder":["green","pink","blue"] }
 ```
-點位每筆：`num, theme, area, chair, material, lat, lon, cat, catLabel, color`。點位說明是原生 `content` 區塊（text／audio／photo），底稿若帶 `story` 只在遷移時轉成 content 的一個文字區塊，之後不再讀取。詳見 [EXTENDING.md](docs/EXTENDING.md)（投稿型別、模組開關、圖層系統）。
+點位每筆：`num, theme, area, chair, material, lat, lon, cat, catLabel, color`。點位說明是原生 `content` 區塊（text／audio／photo），底稿若帶 `story` 只在遷移時轉成 content 的一個文字區塊，之後不再讀取。詳見 [EXTENDING.md](docs/EXTENDING.md)（投稿型別、模組開關、圖層系統）。對外資料 API、iframe 嵌入與 postMessage 控制見 [EMBED-API.md](docs/EMBED-API.md)。
 
 網址：`/koilisu/souliong/<id>`；`/koilisu/souliong/` 首頁自動列出所有地圖；後台在 `/koilisu/souliong/manager`。
 

@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>嵌入 API 示範父頁</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+  :root {
+    --bg: #f5f5f4; --panel: #ffffff; --fg: #1b1b1d; --muted: #6b6b70; --line: #e2e2e5;
+    --accent: #1b1b1d; --accent-fg: #ffffff; --field: #f5f5f4;
+    --ok: #1a7f37; --err: #c4271b; --evt: #7a4fd0; --out: #1f6fcb; --warn: #9a6700;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141416; --panel: #1d1d20; --fg: #ececee; --muted: #9a9aa2; --line: #333338;
+      --accent: #ececee; --accent-fg: #141416; --field: #141416;
+      --ok: #4cc26a; --err: #ff7b6e; --evt: #b79cf5; --out: #6aaaf0; --warn: #e3b341;
+    }
+  }
+  * { box-sizing: border-box }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 -apple-system, "Segoe UI", "PingFang TC", "Microsoft JhengHei", sans-serif }
+  header.ed-top { padding: 14px 16px 6px }
+  h1 { font-size: 1.2rem; margin: 0 0 2px }
+  .ed-lead { color: var(--muted); font-size: .82rem; margin: 0 }
+  .ed-layout { display: grid; grid-template-columns: minmax(300px, 420px) 1fr; gap: 14px; padding: 10px 16px 24px; align-items: start }
+  @media (max-width: 900px) { .ed-layout { grid-template-columns: 1fr } }
+  .ed-col { display: flex; flex-direction: column; gap: 12px; min-width: 0 }
+  section.ed-card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px }
+  .ed-card h2 { font-size: .8rem; margin: 0 0 10px; color: var(--muted); letter-spacing: .03em; font-weight: 700; display: flex; align-items: center; gap: 6px }
+  .ed-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px }
+  .ed-grid.ed-3 { grid-template-columns: repeat(3, minmax(0, 1fr)) }
+  .ed-field { display: flex; flex-direction: column; gap: 3px; min-width: 0 }
+  .ed-field.ed-wide { grid-column: 1 / -1 }
+  .ed-field > label, .ed-lbl { font-size: .72rem; color: var(--muted) }
+  input[type=text], input[type=number], select {
+    width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--field); color: var(--fg); font: inherit; font-size: .85rem; min-width: 0
+  }
+  input[type=color] { width: 100%; height: 32px; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--field) }
+  .ed-chk { display: flex; align-items: center; gap: 6px; font-size: .82rem; padding-top: 4px }
+  .ed-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px }
+  button.ed-btn {
+    display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--panel); color: var(--fg); font: inherit; font-size: .82rem; cursor: pointer
+  }
+  button.ed-btn:hover { border-color: var(--muted) }
+  button.ed-btn.ed-primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent) }
+  button.ed-btn:disabled { opacity: .45; cursor: not-allowed }
+  .ed-url { margin-top: 8px; font: 11.5px/1.4 ui-monospace, Menlo, Consolas, monospace; color: var(--muted); word-break: break-all }
+  .ed-note { font-size: .74rem; color: var(--muted); margin: 8px 0 0 }
+  .ed-stage { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 8px; position: sticky; top: 8px }
+  .ed-frame-wrap { position: relative; width: 100%; height: 56vh; min-height: 280px; resize: both; overflow: hidden; border-radius: 8px; border: 1px dashed var(--line);
+    background: repeating-conic-gradient(var(--field) 0% 25%, var(--panel) 0% 50%) 0 0 / 20px 20px }
+  .ed-frame-wrap iframe { width: 100%; height: 100%; border: 0; display: block; background: transparent }
+  .ed-status { display: flex; flex-wrap: wrap; gap: 10px; font-size: .75rem; color: var(--muted); padding: 6px 2px 2px }
+  .ed-pill { display: inline-flex; align-items: center; gap: 5px }
+  .ed-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted) }
+  .ed-dot.ed-on { background: var(--ok) }
+  .ed-logbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 6px }
+  .ed-logbar h2 { margin: 0 }
+  .ed-log { height: 300px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--field); font: 11.5px/1.45 ui-monospace, Menlo, Consolas, monospace }
+  .ed-log div { padding: 2px 8px; border-bottom: 1px solid var(--line); white-space: pre-wrap; word-break: break-all }
+  .ed-t { color: var(--muted) }
+  .ed-k-out { color: var(--out) }
+  .ed-k-evt { color: var(--evt) }
+  .ed-k-done { color: var(--ok) }
+  .ed-k-err { color: var(--err) }
+  .ed-k-info { color: var(--warn) }
+  .ed-snap { margin-top: 8px; max-width: 100%; border: 1px solid var(--line); border-radius: 8px; display: none }
+  .ed-modal { position: fixed; inset: 0; background: rgba(0, 0, 0, .45); display: none; align-items: flex-end; justify-content: center; z-index: 50 }
+  .ed-modal.ed-open { display: flex }
+  .ed-modal iframe { width: min(100%, 480px); height: min(70vh, 520px); border: 0; border-radius: 14px 14px 0 0; background: transparent }
+  details > summary { cursor: pointer; font-size: .8rem; color: var(--muted); margin-top: 8px }
+</style>
+</head>
+<body>
+<header class="ed-top">
+  <h1><i class="fa-solid fa-flask" aria-hidden="true"></i> 嵌入 API 示範父頁</h1>
+  <p class="ed-lead">以 iframe 載入 <code>?embed=1&amp;ui=bare</code> 的地圖，透過 postMessage 送出指令並顯示所有事件。本頁的來源必須列在該專案或全站的「允許嵌入網域」，否則地圖不會回應。</p>
+</header>
+
+<div class="ed-layout">
+  <div class="ed-col">
+
+    <section class="ed-card">
+      <h2><i class="fa-solid fa-plug" aria-hidden="true"></i> 連線</h2>
+      <div class="ed-grid">
+        <div class="ed-field ed-wide"><label for="edBase">站台網址（含結尾斜線，不預設任何網域）</label>
+          <input type="text" id="edBase" placeholder="https://example.org/souliong/" autocomplete="off" spellcheck="false"></div>
+        <div class="ed-field"><label for="edProject">專案代號</label><input type="text" id="edProject" placeholder="_packdemo" autocomplete="off" spellcheck="false"></div>
+        <div class="ed-field"><label for="edLayer">layer（空白＝專案預設）</label><input type="text" id="edLayer" placeholder="paper-ink" autocomplete="off" spellcheck="false"></div>
+        <div class="ed-field"><label for="edLabels">labels</label>
+          <select id="edLabels"><option value="">不指定（顯示）</option><option value="1">1 顯示</option><option value="0">0 隱藏底圖文字</option></select></div>
+        <div class="ed-field"><label for="edTheme">theme</label>
+          <select id="edTheme"><option value="">不指定</option><option>auto</option><option>light</option><option>dark</option></select></div>
+        <div class="ed-field"><label for="edBg">bg</label>
+          <select id="edBg"><option value="">不指定（theme）</option><option>theme</option><option>transparent</option></select></div>
+        <div class="ed-field"><label for="edView">view</label>
+          <select id="edView"><option value="">不指定（meta）</option><option>meta</option><option>fit</option><option>none</option></select></div>
+        <div class="ed-field ed-wide"><div class="ed-chk"><input type="checkbox" id="edInteractive"><label for="edInteractive">interactive=1（可拖曳縮放，並送出 spot-click）</label></div></div>
+      </div>
+      <div class="ed-row">
+        <button class="ed-btn ed-primary" id="edLoad"><i class="fa-solid fa-rotate" aria-hidden="true"></i> 載入 iframe</button>
+        <button class="ed-btn" id="edUnload"><i class="fa-solid fa-xmark" aria-hidden="true"></i> 卸載</button>
+      </div>
+      <div class="ed-url" id="edUrl"></div>
+      <p class="ed-note">本頁來源（請列入允許清單）：<code id="edOrigin"></code></p>
+    </section>
+
+    <section class="ed-card">
+      <h2><i class="fa-solid fa-location-dot" aria-hidden="true"></i> 點位</h2>
+      <div class="ed-grid">
+        <div class="ed-field ed-wide"><label for="edSpot">spotId（可從清單挑選，也可直接貼上）</label>
+          <select id="edSpotSel"><option value="">（先按「讀取點位」）</option></select>
+          <input type="text" id="edSpot" placeholder="spotId，例如 a1b2c3d4e5f60718" autocomplete="off" spellcheck="false"></div>
+      </div>
+      <div class="ed-row"><button class="ed-btn" id="edLoadSpots"><i class="fa-solid fa-list" aria-hidden="true"></i> 讀取點位（getSpots）</button></div>
+    </section>
+
+    <section class="ed-card">
+      <h2><i class="fa-solid fa-film" aria-hidden="true"></i> 場景指令（主要路徑）</h2>
+      <div class="ed-grid ed-3">
+        <div class="ed-field"><label for="scHold">hold (ms)</label><input type="number" id="scHold" value="800" min="0" max="10000"></div>
+        <div class="ed-field"><label for="scFly">fly (ms)</label><input type="number" id="scFly" value="1500" min="0" max="10000"></div>
+        <div class="ed-field"><label for="scZoom">zoom</label><input type="number" id="scZoom" step="0.1" placeholder="空白＝維持"></div>
+        <div class="ed-field"><label for="scOx">offset.x</label><input type="number" id="scOx" step="0.05" min="-0.5" max="0.5" placeholder="0"></div>
+        <div class="ed-field"><label for="scOy">offset.y</label><input type="number" id="scOy" step="0.05" min="-0.5" max="0.5" placeholder="0.15"></div>
+        <div class="ed-field"><label for="scDim">dim 透明度</label><input type="number" id="scDim" step="0.1" min="0" max="1" placeholder="空白＝不淡化"></div>
+        <div class="ed-field"><div class="ed-chk"><input type="checkbox" id="scGlow" checked><label for="scGlow">glow</label></div></div>
+        <div class="ed-field"><label for="scColor">glow 顏色</label><input type="color" id="scColor" value="#ffb300"></div>
+        <div class="ed-field"><div class="ed-chk"><input type="checkbox" id="scUseColor"><label for="scUseColor">使用此顏色</label></div></div>
+      </div>
+      <div class="ed-row">
+        <button class="ed-btn ed-primary" id="scSend"><i class="fa-solid fa-play" aria-hidden="true"></i> scene（spotId）</button>
+        <button class="ed-btn" id="scNull"><i class="fa-solid fa-magnifying-glass-plus" aria-hidden="true"></i> scene（spotId:null 緩慢放大）</button>
+        <button class="ed-btn" id="scSkip"><i class="fa-solid fa-forward-step" aria-hidden="true"></i> skip</button>
+        <button class="ed-btn" id="scCancel"><i class="fa-solid fa-ban" aria-hidden="true"></i> cancel</button>
+      </div>
+      <div class="ed-chk"><input type="checkbox" id="scInstant"><label for="scInstant">cancel 使用 instant（不播回位動畫）</label></div>
+      <div class="ed-row">
+        <button class="ed-btn" id="scStress"><i class="fa-solid fa-shuffle" aria-hidden="true"></i> 亂序連送 20 個 scene／skip／cancel</button>
+      </div>
+      <p class="ed-note">亂序測試只用「點位」清單裡的 spotId；結束後以 getState 檢查最後一個指令的終點狀態。</p>
+    </section>
+
+    <section class="ed-card">
+      <h2><i class="fa-solid fa-sliders" aria-hidden="true"></i> 低階指令</h2>
+      <div class="ed-grid ed-3">
+        <div class="ed-field"><label for="llLat">center lat</label><input type="number" id="llLat" step="any" placeholder="24.047"></div>
+        <div class="ed-field"><label for="llLon">center lon</label><input type="number" id="llLon" step="any" placeholder="120.687"></div>
+        <div class="ed-field"><label for="llZoom">zoom</label><input type="number" id="llZoom" step="0.1" placeholder="16"></div>
+        <div class="ed-field"><label for="llDur">duration (ms)</label><input type="number" id="llDur" value="1000" min="0" max="10000"></div>
+        <div class="ed-field"><label for="llBy">zoomAbout by</label><input type="number" id="llBy" value="1" step="0.5"></div>
+        <div class="ed-field"><label for="llOpacity">dimOthers 透明度</label><input type="number" id="llOpacity" value="0.3" step="0.1" min="0" max="1"></div>
+        <div class="ed-field"><label for="llMode">setMarkers mode</label>
+          <select id="llMode"><option>all</option><option>dots</option><option>none</option><option>only</option></select></div>
+        <div class="ed-field"><label for="llTheme">setTheme</label>
+          <select id="llTheme"><option>light</option><option>dark</option><option>auto</option></select></div>
+        <div class="ed-field"><label for="llLayer">setLayer</label><input type="text" id="llLayer" placeholder="layer id"></div>
+        <div class="ed-field"><label for="llSw">snapshot 寬</label><input type="number" id="llSw" min="1" max="4096" placeholder="自動"></div>
+        <div class="ed-field"><label for="llSh">snapshot 高</label><input type="number" id="llSh" min="1" max="4096" placeholder="自動"></div>
+        <div class="ed-field"><label for="llMime">mime</label>
+          <select id="llMime"><option>image/png</option><option>image/jpeg</option><option>image/webp</option></select></div>
+      </div>
+      <div class="ed-row">
+        <button class="ed-btn" data-cmd="getState"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> getState</button>
+        <button class="ed-btn" data-cmd="getSpots"><i class="fa-solid fa-list" aria-hidden="true"></i> getSpots</button>
+        <button class="ed-btn" data-cmd="resetView"><i class="fa-solid fa-house" aria-hidden="true"></i> resetView</button>
+        <button class="ed-btn" data-cmd="setView"><i class="fa-solid fa-crosshairs" aria-hidden="true"></i> setView</button>
+        <button class="ed-btn" data-cmd="flyTo"><i class="fa-solid fa-plane" aria-hidden="true"></i> flyTo</button>
+        <button class="ed-btn" data-cmd="zoomAbout"><i class="fa-solid fa-magnifying-glass-plus" aria-hidden="true"></i> zoomAbout</button>
+        <button class="ed-btn" data-cmd="fitSpots"><i class="fa-solid fa-expand" aria-hidden="true"></i> fitSpots</button>
+        <button class="ed-btn" data-cmd="highlight"><i class="fa-solid fa-lightbulb" aria-hidden="true"></i> highlight</button>
+        <button class="ed-btn" data-cmd="highlightOff"><i class="fa-regular fa-lightbulb" aria-hidden="true"></i> highlight 關閉</button>
+        <button class="ed-btn" data-cmd="dimOthers"><i class="fa-solid fa-circle-half-stroke" aria-hidden="true"></i> dimOthers</button>
+        <button class="ed-btn" data-cmd="dimReset"><i class="fa-solid fa-circle" aria-hidden="true"></i> dimOthers 恢復</button>
+        <button class="ed-btn" data-cmd="setMarkers"><i class="fa-solid fa-map-pin" aria-hidden="true"></i> setMarkers</button>
+        <button class="ed-btn" data-cmd="setTheme"><i class="fa-solid fa-moon" aria-hidden="true"></i> setTheme</button>
+        <button class="ed-btn" data-cmd="setLayer"><i class="fa-solid fa-layer-group" aria-hidden="true"></i> setLayer</button>
+        <button class="ed-btn" data-cmd="labelsOn"><i class="fa-solid fa-font" aria-hidden="true"></i> setLabels 顯示</button>
+        <button class="ed-btn" data-cmd="labelsOff"><i class="fa-solid fa-eye-slash" aria-hidden="true"></i> setLabels 隱藏</button>
+        <button class="ed-btn" data-cmd="snapshot"><i class="fa-solid fa-camera" aria-hidden="true"></i> snapshot</button>
+        <button class="ed-btn" data-cmd="unknown"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> 未知指令</button>
+      </div>
+      <details><summary>自訂訊息（JSON，會自動補上 v、ns、id）</summary>
+        <div class="ed-field" style="margin-top:6px"><textarea id="rawJson" rows="4" style="width:100%;font:12px ui-monospace,Consolas,monospace;border:1px solid var(--line);border-radius:8px;background:var(--field);color:var(--fg);padding:6px">{"type":"getState"}</textarea></div>
+        <div class="ed-row"><button class="ed-btn" id="rawSend"><i class="fa-solid fa-paper-plane" aria-hidden="true"></i> 送出</button></div>
+      </details>
+    </section>
+
+    <section class="ed-card">
+      <h2><i class="fa-solid fa-diamond-turn-right" aria-hidden="true"></i> 導航小窗（api=navsheet）</h2>
+      <div class="ed-grid">
+        <div class="ed-field"><label for="nvTheme">theme</label>
+          <select id="nvTheme"><option value="">不指定</option><option>auto</option><option>light</option><option>dark</option></select></div>
+        <div class="ed-field"><label for="nvEmbed">embed</label><select id="nvEmbed"><option value="1">1（送 frame-ancestors）</option><option value="">不帶（僅供比較）</option></select></div>
+      </div>
+      <div class="ed-row"><button class="ed-btn ed-primary" id="nvOpen"><i class="fa-solid fa-up-right-from-square" aria-hidden="true"></i> 開啟導航小窗</button></div>
+      <div class="ed-url" id="nvUrl"></div>
+      <p class="ed-note">用上方「點位」欄位的 spotId。小窗收起時會收到 navsheet-close，本頁隨即關閉遮罩。</p>
+    </section>
+  </div>
+
+  <div class="ed-col">
+    <div class="ed-stage">
+      <div class="ed-frame-wrap" id="edWrap"><iframe id="edFrame" title="Souliong 嵌入地圖" allow="fullscreen"></iframe></div>
+      <div class="ed-status">
+        <span class="ed-pill"><span class="ed-dot" id="edDot"></span><span id="edReady">尚未載入</span></span>
+        <span class="ed-pill"><i class="fa-solid fa-hourglass-half" aria-hidden="true"></i> 待回覆：<b id="edPending">0</b></span>
+        <span class="ed-pill"><i class="fa-solid fa-ruler-combined" aria-hidden="true"></i> 可拖曳右下角調整 iframe 大小（測試旋轉或鍵盤）</span>
+      </div>
+      <img class="ed-snap" id="edSnap" alt="snapshot 結果">
+    </div>
+    <section class="ed-card">
+      <div class="ed-logbar">
+        <h2><i class="fa-solid fa-terminal" aria-hidden="true"></i> 訊息記錄</h2>
+        <div class="ed-chk"><input type="checkbox" id="lgIdle"><label for="lgIdle">隱藏 idle</label></div>
+        <button class="ed-btn" id="lgClear"><i class="fa-solid fa-trash" aria-hidden="true"></i> 清除</button>
+      </div>
+      <div class="ed-log" id="edLog" role="log" aria-live="off"></div>
+    </section>
+  </div>
+</div>
+
+<div class="ed-modal" id="nvModal"><iframe id="nvFrame" title="導航選單"></iframe></div>
+
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var NS = 'souliong', PROTO = 1;
+  var frame = $('edFrame'), nvFrame = $('nvFrame'), nvModal = $('nvModal');
+  var frameOrigin = '', nvOrigin = '', seq = 0, pending = {}, spots = [], ready = false;
+
+  function lsGet(k) { try { return localStorage.getItem('souliong-embed-demo:' + k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { localStorage.setItem('souliong-embed-demo:' + k, v); } catch (e) { /* ignore */ } }
+
+  /* ---------- 設定與網址 ---------- */
+  var FIELDS = ['edBase', 'edProject', 'edLayer', 'edLabels', 'edTheme', 'edBg', 'edView'];
+  FIELDS.forEach(function (id) { var v = lsGet(id); if (v !== null) $(id).value = v; });
+  $('edInteractive').checked = lsGet('edInteractive') === '1';
+  $('edOrigin').textContent = location.origin === 'null' ? '（file:// 無法使用，請以 http 伺服器開啟本頁）' : location.origin;
+  if (!$('edBase').value) $('edBase').value = '';
+
+  function siteBase() {
+    var b = $('edBase').value.trim();
+    if (!b) return '';
+    return b.charAt(b.length - 1) === '/' ? b : b + '/';
+  }
+  function mapUrl() {
+    var b = siteBase(), p = $('edProject').value.trim();
+    if (!b || !p) return '';
+    var q = new URLSearchParams({ embed: '1', ui: 'bare' });
+    [['layer', 'edLayer'], ['labels', 'edLabels'], ['theme', 'edTheme'], ['bg', 'edBg'], ['view', 'edView']].forEach(function (m) {
+      var v = $(m[1]).value.trim(); if (v) q.set(m[0], v);
+    });
+    if ($('edInteractive').checked) q.set('interactive', '1');
+    return b + encodeURIComponent(p) + '?' + q.toString();
+  }
+  function navUrl() {
+    var b = siteBase(), p = $('edProject').value.trim(), s = $('edSpot').value.trim();
+    if (!b || !p) return '';
+    var q = new URLSearchParams({ api: 'navsheet', project: p, spot: s });
+    if ($('nvEmbed').value === '1') q.set('embed', '1');
+    if ($('nvTheme').value) q.set('theme', $('nvTheme').value);
+    return b + '?' + q.toString();
+  }
+  function refreshUrls() {
+    $('edUrl').textContent = mapUrl() || '（請填站台網址與專案代號）';
+    $('nvUrl').textContent = navUrl() || '';
+  }
+  FIELDS.concat(['edInteractive', 'edSpot', 'nvTheme', 'nvEmbed']).forEach(function (id) {
+    $(id).addEventListener('input', function () {
+      if (id === 'edInteractive') lsSet(id, $(id).checked ? '1' : '0'); else if (FIELDS.indexOf(id) >= 0) lsSet(id, $(id).value);
+      refreshUrls();
+    });
+  });
+  refreshUrls();
+
+  /* ---------- 記錄 ---------- */
+  var logEl = $('edLog');
+  function clock() { var d = new Date(); return d.toTimeString().slice(0, 8) + '.' + String(d.getMilliseconds()).padStart(3, '0'); }
+  function brief(o) {
+    return JSON.stringify(o, function (k, v) {
+      return (typeof v === 'string' && v.length > 120) ? v.slice(0, 60) + '...[' + v.length + ' chars]' : v;
+    });
+  }
+  function log(kind, label, obj) {
+    if (kind === 'evt' && label === 'idle' && $('lgIdle').checked) return;
+    var row = document.createElement('div');
+    var t = document.createElement('span'); t.className = 'ed-t'; t.textContent = clock() + ' ';
+    var k = document.createElement('span'); k.className = 'ed-k-' + kind; k.textContent = label + ' ';
+    row.appendChild(t); row.appendChild(k);
+    if (obj !== undefined) row.appendChild(document.createTextNode(brief(obj)));
+    logEl.appendChild(row);
+    while (logEl.childNodes.length > 600) logEl.removeChild(logEl.firstChild);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+  $('lgClear').addEventListener('click', function () { logEl.textContent = ''; });
+  function setPending() { $('edPending').textContent = String(Object.keys(pending).length); }
+
+  /* ---------- 收發 ---------- */
+  function originOf(url) { try { return new URL(url, location.href).origin; } catch (e) { return ''; } }
+
+  function send(msg) {
+    if (!frame.contentWindow || !frameOrigin) { log('info', '尚未載入 iframe'); return null; }
+    var id = 'c' + (++seq);
+    var out = Object.assign({ v: PROTO, ns: NS, id: id }, msg);
+    Object.keys(out).forEach(function (k) { if (out[k] === undefined) delete out[k]; });
+    pending[id] = { type: msg.type, t0: performance.now() };
+    setPending();
+    log('out', '> ' + msg.type + ' (' + id + ')', out);
+    frame.contentWindow.postMessage(out, frameOrigin);
+    return id;
+  }
+
+  window.addEventListener('message', function (e) {
+    var d = e.data;
+    if (!d || typeof d !== 'object' || d.ns !== NS) return;
+    if (nvFrame.contentWindow && e.source === nvFrame.contentWindow) {
+      if (e.origin !== nvOrigin) return;
+      log('evt', '< navsheet:' + d.type, d);
+      if (d.type === 'navsheet-close') closeNav();
+      return;
+    }
+    if (e.source !== frame.contentWindow || e.origin !== frameOrigin) return;
+    if (d.type === 'done' || d.type === 'error') {
+      var p = pending[d.id];
+      delete pending[d.id]; setPending();
+      var ms = p ? ' +' + Math.round(performance.now() - p.t0) + 'ms' : '';
+      log(d.type === 'done' ? 'done' : 'err', '< ' + d.type + ' (' + d.id + ')' + (p ? ' ' + p.type : '') + ms, d);
+      if (d.type === 'done' && d.result) onResult(p && p.type, d.result);
+      return;
+    }
+    if (d.type === 'ready') {
+      ready = true;
+      $('edDot').classList.add('ed-on');
+      $('edReady').textContent = 'ready：' + (d.engine || '') + '，' + (d.spotCount || 0) + ' 個點位';
+    }
+    log('evt', '< ' + d.type, d);
+  });
+
+  // getState／getSpots／snapshot 的結果在 done 的 result 欄位
+  function onResult(type, r) {
+    if (type === 'getSpots' && r && Array.isArray(r.spots)) fillSpots(r.spots);
+    if (type === 'snapshot' && r && r.dataUrl) {
+      var img = $('edSnap'); img.src = r.dataUrl; img.style.display = 'block';
+    }
+  }
+  function fillSpots(list) {
+    spots = list;
+    var sel = $('edSpotSel');
+    sel.textContent = '';
+    var o0 = document.createElement('option'); o0.value = ''; o0.textContent = '（' + list.length + ' 個點位）'; sel.appendChild(o0);
+    list.forEach(function (s) {
+      var o = document.createElement('option');
+      o.value = s.spotId; o.textContent = '#' + s.num + ' ' + (s.title || '(無標題)') + '  ' + s.spotId;
+      sel.appendChild(o);
+    });
+    if (list[0] && !$('edSpot').value) { $('edSpot').value = list[0].spotId; sel.value = list[0].spotId; refreshUrls(); }
+  }
+  $('edSpotSel').addEventListener('change', function () { if (this.value) { $('edSpot').value = this.value; refreshUrls(); } });
+
+  /* ---------- 載入 ---------- */
+  $('edLoad').addEventListener('click', function () {
+    var u = mapUrl();
+    if (!u) { log('info', '請先填站台網址與專案代號'); return; }
+    ready = false; pending = {}; setPending();
+    $('edDot').classList.remove('ed-on'); $('edReady').textContent = '載入中...';
+    $('edSnap').style.display = 'none';
+    frameOrigin = originOf(u);
+    log('info', 'iframe src', u);
+    frame.src = u;
+  });
+  $('edUnload').addEventListener('click', function () {
+    frame.removeAttribute('src'); frameOrigin = ''; ready = false; pending = {}; setPending();
+    $('edDot').classList.remove('ed-on'); $('edReady').textContent = '尚未載入';
+  });
+  $('edLoadSpots').addEventListener('click', function () { send({ type: 'getSpots' }); });
+
+  /* ---------- 場景 ---------- */
+  var numOf = function (id) { var v = $(id).value.trim(); return v === '' ? undefined : Number(v); };
+  function sceneMsg(withSpot) {
+    var ox = numOf('scOx'), oy = numOf('scOy');
+    var glow = $('scGlow').checked ? ($('scUseColor').checked ? $('scColor').value : true) : false;
+    var dim = numOf('scDim');
+    return {
+      type: 'scene', spotId: withSpot ? ($('edSpot').value.trim() || undefined) : null,
+      hold: numOf('scHold'), fly: numOf('scFly'), zoom: numOf('scZoom'),
+      offset: (ox !== undefined || oy !== undefined) ? { x: ox || 0, y: oy || 0 } : undefined,
+      glow: glow, dim: dim === undefined ? false : dim
+    };
+  }
+  $('scSend').addEventListener('click', function () {
+    if (!$('edSpot').value.trim()) { log('info', '請先選擇或貼上 spotId'); return; }
+    send(sceneMsg(true));
+  });
+  $('scNull').addEventListener('click', function () { send(Object.assign(sceneMsg(false), { fly: numOf('scFly') || 4000 })); });
+  $('scSkip').addEventListener('click', function () { send({ type: 'skip' }); });
+  $('scCancel').addEventListener('click', function () { send({ type: 'cancel', instant: $('scInstant').checked }); });
+
+  $('scStress').addEventListener('click', function () {
+    if (!spots.length) { log('info', '請先按「讀取點位」'); return; }
+    var n = 20, i = 0, last = '';
+    function step() {
+      if (i >= n) {
+        log('info', '亂序測試送完，最後一個：' + last + '；等 4 秒後 getState');
+        setTimeout(function () { send({ type: 'getState' }); }, 4000);
+        return;
+      }
+      var r = Math.random(), m;
+      if (r < .6) {
+        var s = spots[Math.floor(Math.random() * spots.length)];
+        m = { type: 'scene', spotId: s.spotId, hold: Math.floor(Math.random() * 300), fly: 300 + Math.floor(Math.random() * 1200), glow: true, dim: Math.random() < .5 ? 0.3 : false };
+        last = 'scene ' + s.spotId;
+      } else if (r < .8) { m = { type: 'skip' }; last = 'skip'; }
+      else { m = { type: 'cancel', instant: Math.random() < .5 }; last = 'cancel'; }
+      send(m);
+      i++;
+      setTimeout(step, Math.floor(Math.random() * 180));
+    }
+    step();
+  });
+
+  /* ---------- 低階指令 ---------- */
+  function center() {
+    var a = numOf('llLat'), b = numOf('llLon');
+    return (a !== undefined && b !== undefined) ? [a, b] : undefined;
+  }
+  var CMDS = {
+    getState: function () { return { type: 'getState' }; },
+    getSpots: function () { return { type: 'getSpots' }; },
+    resetView: function () { return { type: 'resetView', duration: numOf('llDur') }; },
+    setView: function () { return { type: 'setView', center: center(), zoom: numOf('llZoom'), duration: numOf('llDur') }; },
+    flyTo: function () {
+      var sid = $('edSpot').value.trim();
+      var oy = numOf('scOy'), ox = numOf('scOx');
+      return { type: 'flyTo', spotId: center() ? undefined : (sid || undefined), center: center(), zoom: numOf('llZoom'), duration: numOf('llDur'),
+        offset: (ox !== undefined || oy !== undefined) ? { x: ox || 0, y: oy || 0 } : undefined };
+    },
+    zoomAbout: function () { return { type: 'zoomAbout', by: numOf('llBy'), duration: numOf('llDur') }; },
+    fitSpots: function () { return { type: 'fitSpots', duration: numOf('llDur'), padding: 40 }; },
+    highlight: function () { return { type: 'highlight', spotId: $('edSpot').value.trim() || null, style: 'glow', pulse: true }; },
+    highlightOff: function () { return { type: 'highlight', spotId: null }; },
+    dimOthers: function () { return { type: 'dimOthers', opacity: numOf('llOpacity') }; },
+    dimReset: function () { return { type: 'dimOthers', opacity: 1 }; },
+    setMarkers: function () {
+      var mode = $('llMode').value;
+      return { type: 'setMarkers', mode: mode, spotIds: mode === 'only' ? [$('edSpot').value.trim()].filter(Boolean) : undefined };
+    },
+    setTheme: function () { return { type: 'setTheme', theme: $('llTheme').value }; },
+    setLayer: function () { return { type: 'setLayer', layer: $('llLayer').value.trim() }; },
+    labelsOn: function () { return { type: 'setLabels', visible: true }; },
+    labelsOff: function () { return { type: 'setLabels', visible: false }; },
+    snapshot: function () { return { type: 'snapshot', width: numOf('llSw'), height: numOf('llSh'), mime: $('llMime').value }; },
+    unknown: function () { return { type: 'noSuchCommand' }; }
+  };
+  Array.prototype.forEach.call(document.querySelectorAll('[data-cmd]'), function (b) {
+    b.addEventListener('click', function () { send(CMDS[b.dataset.cmd]()); });
+  });
+  $('rawSend').addEventListener('click', function () {
+    var m;
+    try { m = JSON.parse($('rawJson').value); } catch (e) { log('err', 'JSON 解析失敗', String(e.message)); return; }
+    if (!m || typeof m !== 'object' || typeof m.type !== 'string') { log('err', '需要含 type 字串的物件'); return; }
+    send(m);
+  });
+
+  /* ---------- 導航小窗 ---------- */
+  function closeNav() {
+    nvModal.classList.remove('ed-open');
+    nvFrame.removeAttribute('src'); nvOrigin = '';
+  }
+  $('nvOpen').addEventListener('click', function () {
+    var u = navUrl();
+    if (!u || !$('edSpot').value.trim()) { log('info', '請先填站台網址、專案代號與 spotId'); return; }
+    nvOrigin = originOf(u);
+    nvFrame.src = u;
+    nvModal.classList.add('ed-open');
+    log('info', 'navsheet src', u);
+  });
+  nvModal.addEventListener('click', function (e) { if (e.target === nvModal) { log('info', '遮罩被點擊，由父頁關閉'); closeNav(); } });
+})();
+</script>
+</body>
+</html>

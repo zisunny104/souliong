@@ -59,7 +59,8 @@ if ($source_url !== null && (!preg_match('#^https?://#i', $source_url) || filter
 }
 // 引用來源本身的授權（跟下面 $license「投稿者本人姓名標示權利」是兩件事，不共用欄位）
 $source_license = in_array($_POST['source_license'] ?? '', ['cc0', 'cc-by'], true) ? $_POST['source_license'] : null;
-$item_num   = (isset($_POST['item_num']) && $_POST['item_num'] !== '') ? (int)$_POST['item_num'] : null;
+$item_num   = spot_num_from_ref($cfg, $project, $_POST['item_num'] ?? '');   // num 或 spotId；紀錄內仍存 num
+if ($item_num === false) json_out(['error' => 'bad request'], 400);
 $lat        = num_or_null($_POST['lat'] ?? null);
 $lon        = num_or_null($_POST['lon'] ?? null);
 $loc_source = clean_str($_POST['loc_source'] ?? null, 16);

@@ -20,28 +20,23 @@ function spot_overridable_fields(): array
 }
 
 /**
- * 算出一個點位「目前有效」的狀態：起點（kind:'spot'、有 num、edit_of 留空）疊上 edit_of 鏈。
- * 逐欄疊加：每個可覆寫欄位取「鏈上帶有該 key 的最新一筆」的值，created_at 相同時檔案裡較後
- * 面那筆勝出，所以一筆版本紀錄只需要寫它真的改到的欄位。疊加用 array_key_exists() 而非
- * isset()——「沒帶這個 key」與「明確覆寫成 null／空陣列」是兩回事。
- * 找不到這個 item_num 的起點回傳 null。
+ * spotId：起點紀錄的 id（bin2hex(random_bytes(8))，16 位小寫十六進位），是點位對外的穩定識別。
+ * num 只是顯示編號，刪除最大號後可能被重用，不可當外部鍵。
  */
-function spot_effective(array $cfg, string $project, int $itemNum): ?array
+function spot_id_valid(string $s): bool
 {
-    $all = store_all($cfg, $project);
-    $origin = null;
-    $edits = [];
-    foreach ($all as $r) {
-        if (($r['kind'] ?? '') !== 'spot') continue;
-        if (empty($r['edit_of']) && isset($r['num'])) {
-            if ((int)$r['num'] === $itemNum) $origin = $r;
-        } elseif (!empty($r['edit_of'])) {
-            $edits[$r['edit_of']][] = $r;
-        }
-    }
-    if ($origin === null) return null;
+    return preg_match('/^[0-9a-f]{16}$/', $s) === 1;
+}
 
-    $chain = $edits[$origin['id']] ?? [];
+/** 舊資料的 kind 值 point／newpoint 一律視為 spot（防禦性正規化，不改儲存資料）。 */
+function spot_kind_normalize(?string $kind): string
+{
+    return in_array($kind, ['point', 'newpoint'], true) ? 'spot' : (string)$kind;
+}
+
+/** 把一條 edit_of 鏈逐欄疊到起點上，回傳有效狀態（含 content_rev）。 */
+function _spot_overlay(array $origin, array $chain): array
+{
     usort($chain, fn($a, $b) => strcmp((string)($a['created_at'] ?? ''), (string)($b['created_at'] ?? '')));
     // content_rev：目前內容是哪一筆紀錄寫的（鏈上最後一筆帶 content 的版本，沒有就是起點）。整體編輯內容時，
     // 前端帶回它當 base_rev，伺服器據此擋掉兩人同時編輯互相覆蓋。前端 effectiveSpots() 用同一條規則算。
@@ -54,6 +49,77 @@ function spot_effective(array $cfg, string $project, int $itemNum): ?array
     }
     $origin['content_rev'] = $rev;
     return $origin;
+}
+
+/**
+ * 全部點位「目前有效」的狀態（依 num 由小到大）：起點（kind:'spot'、有 num、edit_of 留空）疊上 edit_of 鏈。
+ * 逐欄疊加：每個可覆寫欄位取「鏈上帶有該 key 的最新一筆」的值，created_at 相同時檔案裡較後
+ * 面那筆勝出，所以一筆版本紀錄只需要寫它真的改到的欄位。疊加用 array_key_exists() 而非
+ * isset()——「沒帶這個 key」與「明確覆寫成 null／空陣列」是兩回事。
+ */
+function spot_effective_all(array $cfg, string $project): array
+{
+    $origins = [];
+    $edits = [];
+    foreach (store_all($cfg, $project) as $r) {
+        if (spot_kind_normalize($r['kind'] ?? '') !== 'spot') continue;
+        if (empty($r['edit_of']) && isset($r['num'])) {
+            $origins[] = $r;
+        } elseif (!empty($r['edit_of'])) {
+            $edits[$r['edit_of']][] = $r;
+        }
+    }
+    $out = [];
+    foreach ($origins as $o) {
+        $out[] = _spot_overlay($o, $edits[$o['id'] ?? ''] ?? []);
+    }
+    usort($out, fn($a, $b) => (int)$a['num'] <=> (int)$b['num']);
+    return $out;
+}
+
+/** 單一點位的有效狀態，依 num 找；找不到這個 item_num 的起點回傳 null。 */
+function spot_effective(array $cfg, string $project, int $itemNum): ?array
+{
+    foreach (spot_effective_all($cfg, $project) as $s) {
+        if ((int)$s['num'] === $itemNum) return $s;
+    }
+    return null;
+}
+
+/** 單一點位的有效狀態，依 spotId 找；找不到回傳 null。 */
+function spot_effective_by_id(array $cfg, string $project, string $spotId): ?array
+{
+    if (!spot_id_valid($spotId)) return null;
+    foreach (spot_effective_all($cfg, $project) as $s) {
+        if (($s['id'] ?? '') === $spotId) return $s;
+    }
+    return null;
+}
+
+/**
+ * 點位參照解析（?spot=）：16 位十六進位視為 spotId，
+ * 純數字視為 num；其他回 null。回傳有效狀態，找不到回 null。
+ */
+function spot_effective_by_ref(array $cfg, string $project, string $ref): ?array
+{
+    if (spot_id_valid($ref)) return spot_effective_by_id($cfg, $project, $ref);
+    if ($ref !== '' && ctype_digit($ref) && strlen($ref) <= 9) return spot_effective($cfg, $project, (int)$ref);
+    return null;
+}
+
+/**
+ * 表單的 item_num 欄位（num 或 spotId）轉成 num。空值回 null；spotId 對不到點位或格式不對回 false。
+ * 純數字不檢查該 num 是否存在。
+ */
+function spot_num_from_ref(array $cfg, string $project, $raw)
+{
+    $raw = trim((string)$raw);
+    if ($raw === '') return null;
+    if (spot_id_valid($raw)) {
+        $s = spot_effective_by_id($cfg, $project, $raw);
+        return $s ? (int)$s['num'] : false;
+    }
+    return is_numeric($raw) ? (int)$raw : false;
 }
 
 /**

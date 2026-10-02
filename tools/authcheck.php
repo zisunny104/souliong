@@ -222,11 +222,11 @@ ac_write("$sb/state/pins.json", ['primary' => [], 'projects' => $data['pins']]);
 ac_write("$sb/state/accounts.json", ['accounts' => $data['accounts'], 'pending' => []]);
 foreach (['alpha', 'beta'] as $p) { ac_write("$sb/projects/$p/perms.json", ['members' => $data['members'][$p]]); }
 $codeRow = fn(string $c, ?int $max) => ['code' => $c, 'label' => '', 'created' => gmdate('c'), 'expires_at' => null, 'max_uses' => $max, 'used_count' => 0];
-ac_write("$sb/projects/alpha/meta.json", ['contrib' => ['newPoint' => 'admin']]);
+ac_write("$sb/projects/alpha/meta.json", ['contrib' => ['newSpot' => 'admin']]);
 ac_write("$sb/projects/alpha/codes.json", [$codeRow('111111', null), $codeRow('222222', 1)]);
 ac_write("$sb/projects/alpha/blocked.json", ['owners' => [hash('sha256', 'blockedowner')], 'contribs' => []]);
 ac_write("$sb/projects/beta/meta.json", []);
-ac_write("$sb/projects/gamma/meta.json", ['contrib' => ['newPoint' => 'contributor']]);
+ac_write("$sb/projects/gamma/meta.json", ['contrib' => ['newSpot' => 'contributor']]);
 ac_write("$sb/projects/gamma/codes.json", [$codeRow('333333', null)]);
 ac_write("$sb/projects/delta/meta.json", []);
 
@@ -467,7 +467,7 @@ $gate = [
     ['newspot', 'gamma', 'anon',             [],                                                  'nocode',  '訪客建點無碼'],
     ['newspot', 'gamma', 'anon',             ['code' => '333333'],                                'passed',  '訪客建點有效碼'],
     ['newspot', 'gamma', 'primary_cookie',   [],                                                  'passed',  'contributor 模式 primary 免碼'],
-    ['newspot', 'delta', 'anon',             [],                                                  'noflag',  'newPoint 預設 off'],
+    ['newspot', 'delta', 'anon',             [],                                                  'noflag',  'newSpot 預設 off'],
 ];
 foreach ($gate as $i => [$file, $proj, $scn, $post, $want, $label]) {
     $res = ac_jobs_run(['g' => $ep("$file.php", $scn, $proj, $post, 'none')]);

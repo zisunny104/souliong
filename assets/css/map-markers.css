@@ -50,28 +50,32 @@
   border: none
 }
 
-/* 有聲音內容的地點，播放中才顯示 teal 脈衝光暈（is-playing 由 viewer.core.js 依 <audio> 播放狀態切換）。
+/* 脈衝光暈：有聲音內容的地點播放中（is-playing 由 viewer.core.js 依 <audio> 播放狀態切換），以及嵌入
+   橋接強調的點位（is-highlight，見 embed-bridge.js）共用同一組宣告。
    用 box-shadow 擴散半徑做，不是實心圓＋scale：::after 本身完全透明、只帶 box-shadow，陰影只會畫在
    盒子外面，不會蓋到盒子裡的圖示（實心圓 background 會蓋住，box-shadow 不會）。inset:0 讓光暈起點跟
    圓點邊緣完全貼合，不留空隙；擴散最大半徑抽成 --pulse-max 變數，sm/lg 只要覆寫這個數字，不用整組
-   @keyframes 各寫一份。 */
-.dot-pin.has-audio.is-playing::after {
+   @keyframes 各寫一份；顏色走 --pulse-color（預設 teal），透明度由 color-mix 疊上去。 */
+.dot-pin.has-audio.is-playing::after,
+.dot-pin.is-highlight::after {
   content: '';
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  box-shadow: 0 0 0 0 rgba(20, 184, 166, .55);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--pulse-color, rgb(20, 184, 166)) 55%, transparent);
   animation: sl-pulse 2.2s ease-out infinite;
   pointer-events: none;
 }
 
-.dot-pin.sl-sz-sm.has-audio.is-playing::after { --pulse-max: 16px }
-.dot-pin.sl-sz-lg.has-audio.is-playing::after { --pulse-max: 26px }
+.dot-pin.sl-sz-sm.has-audio.is-playing::after,
+.dot-pin.sl-sz-sm.is-highlight::after { --pulse-max: 16px }
+.dot-pin.sl-sz-lg.has-audio.is-playing::after,
+.dot-pin.sl-sz-lg.is-highlight::after { --pulse-max: 26px }
 
 @keyframes sl-pulse {
-  0%   { box-shadow: 0 0 0 0 rgba(20, 184, 166, .55) }
-  70%  { box-shadow: 0 0 0 var(--pulse-max, 20px) rgba(20, 184, 166, 0) }
-  100% { box-shadow: 0 0 0 var(--pulse-max, 20px) rgba(20, 184, 166, 0) }
+  0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--pulse-color, rgb(20, 184, 166)) 55%, transparent) }
+  70%  { box-shadow: 0 0 0 var(--pulse-max, 20px) color-mix(in srgb, var(--pulse-color, rgb(20, 184, 166)) 0%, transparent) }
+  100% { box-shadow: 0 0 0 var(--pulse-max, 20px) color-mix(in srgb, var(--pulse-color, rgb(20, 184, 166)) 0%, transparent) }
 }
 
 .badge {

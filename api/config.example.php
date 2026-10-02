@@ -49,7 +49,12 @@ return [
         'upload' => ['max' => 300, 'window' => 60],
         'admin'  => ['max' => 120, 'window' => 60],   // 後台頁面＋臨時工具共用同一個 bucket，管理者密集操作/測試時預設 40 太容易誤擋自己
         'unlock' => ['max' => 12, 'window' => 60],    // 投稿代碼為 6 位純數字，比照登入收緊以減緩暴力枚舉
+        'dataapi' => ['max' => 120, 'window' => 60],  // 對外唯讀資料 API（?api=project／spots）；沒設時就是這個預設
     ],
+    // 允許嵌入與跨來源讀取資料 API 的來源（全站層；各專案另可在後台設定，兩者取聯集）。
+    // 格式 https://host[:port]，開發用可寫 http://localhost[:port]；不接受萬用字元與路徑。預設空＝不開放。
+    'embed_allowed_origins' => [],
+
     'trust_forwarded' => false,   // ★ 位於 Nginx 反代後請設 true
     'debug'           => true,    // ★ 上線穩定後設 false
 

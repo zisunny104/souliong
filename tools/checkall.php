@@ -1,11 +1,11 @@
 <?php
 /**
- * 一次跑完全部檢查（CLI）：php -l（全專案 php）、authlint、authcheck、contentcheck，
+ * 一次跑完全部檢查（CLI）：php -l（全專案 php）、authlint、authcheck、contentcheck、embedcheck，
  * 環境裡有 node 時再加 node --check（assets/js，不含 vendor）。
  *
  * 用法：php tools/checkall.php
  * 全部通過結束碼 0；任何一項失敗結束碼 1，最後列出每一項的結果與失敗摘要。
- * 不碰 projects/ 與 state/ 的內容：php -l 只掃程式碼，authcheck／contentcheck 各自在臨時沙盒跑。
+ * 不碰 projects/ 與 state/ 的內容：php -l 只掃程式碼，authcheck／contentcheck／embedcheck 各自在臨時沙盒跑。
  */
 if (PHP_SAPI !== 'cli') {
     fwrite(STDERR, "CLI only\n");
@@ -60,7 +60,7 @@ $phpFiles = checkall_files($root, 'php');
 [$c, $o, $n] = checkall_each($root, $phpFiles, fn($f) => "$php -l " . escapeshellarg($f));
 $results[] = ["php -l（$n 個檔案）", $c, $o];
 
-foreach (['authlint', 'authcheck', 'contentcheck'] as $tool) {
+foreach (['authlint', 'authcheck', 'contentcheck', 'embedcheck'] as $tool) {
     [$c, $o] = checkall_run("$php " . escapeshellarg("tools/$tool.php"), $root);
     $results[] = [$tool, $c, $c === 0 ? '' : $o];
 }

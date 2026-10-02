@@ -4,7 +4,7 @@
 // 投稿與點位是兩個平行的域：投稿在 entries.jsonl，content 是點位自己的原生內容，兩者不互相引用。
 // 權限是點位軸的 edit_spots（含 CSRF），跟投稿代碼、contrib_open()、模組旗標都無關——模組旗標只決定
 // 前端要不要顯示編輯入口，不是後端的把關條件。item_num 對不到起點回 404，不產生孤兒紀錄。
-// POST project, item_num（必填，起點的 num）, csrf, op=save, name（選填，編輯者顯示名稱）,
+// POST project, item_num（必填，起點的 num 或 spotId）, csrf, op=save, name（選填，編輯者顯示名稱）,
 //   base_rev（前端載入內容時的 content_rev）, blocks（JSON 陣列，依顯示順序）,
 //   media_0、media_1…（新增音訊／照片區塊的檔案，由區塊的 file 欄位指名；照片區塊可再用 thumb 欄位
 //   指名一張前端縮好的縮圖，沒給就由 photo.php 首次請求時產生）。
@@ -35,8 +35,8 @@ if ($project === '' || !is_dir($cfg['projects_dir'] . '/' . $project)) {
 
 $actor = Auth::require($cfg, $project, 'edit_spots', true, auth_msg('deny_edit_spot_content'));
 
-$item_num = (isset($_POST['item_num']) && $_POST['item_num'] !== '') ? (int)$_POST['item_num'] : null;
-if ($item_num === null || ($_POST['op'] ?? '') !== 'save') {
+$item_num = spot_num_from_ref($cfg, $project, $_POST['item_num'] ?? '');   // num 或 spotId
+if ($item_num === null || $item_num === false || ($_POST['op'] ?? '') !== 'save') {
     json_out(['error' => 'bad request'], 400);
 }
 $submitted = json_decode((string)($_POST['blocks'] ?? ''), true);

@@ -8,6 +8,8 @@ require_once __DIR__ . '/features.php';
 require_once __DIR__ . '/packs.php';
 require_once __DIR__ . '/layers.php';     // 地圖圖層註冊表（底圖／疊圖），形狀同 packs.php
 require_once __DIR__ . '/labellang.php';
+require_once __DIR__ . '/spotlib.php';     // spot_kind_normalize()／spotId 判斷
+require_once __DIR__ . '/embedorigins.php';   // 允許嵌入的來源清單解析與驗證（CORS／frame-ancestors／postMessage 共用）
 require_once __DIR__ . '/regions3d.php';  // 3D 自訂模型區域註冊表，形狀同上，見 api/region3d.php
 require_once __DIR__ . '/coverlib.php';   // 封面／地圖快照的存檔邏輯，與 api/cover.php 共用
 require_once __DIR__ . '/routes.php';    // 網址表：後台網址只有這一份定義，不在各處黏字串
@@ -725,13 +727,13 @@ if (!$authed) {
             $meta['contrib'] = array_merge($meta['contrib'] ?? [], [
               'kinds' => $kinds,
               'default' => (string)($_POST['contrib_default'] ?? ''),
-              'newPoint' => (string)($_POST['contrib_newspot'] ?? 'off'),
+              'newSpot' => (string)($_POST['contrib_newspot'] ?? 'off'),
             ]);
             // 存檔前先讓 souliong_contrib_cfg() 收斂一次：預設分頁若不在啟用型別的分頁裡會被換掉、
             // 權限值不在白名單裡會退回 off。寫進 meta.json 的就是前端實際拿到的東西，不留對不上的設定。
             $ccfg = souliong_contrib_cfg($meta);
             $meta['contrib']['default'] = $ccfg['default'];
-            $meta['contrib']['newPoint'] = $ccfg['newPoint'];
+            $meta['contrib']['newSpot'] = $ccfg['newSpot'];
           }
           // 向量底圖標註語言：'auto' 或未知值＝移除欄位（跟隨介面語言）
           if (isset($_POST['mapLabelLang'])) {
@@ -774,6 +776,18 @@ if (!$authed) {
               $meta['layers'] = array_reverse($picked);
             } else {
               unset($meta['layers']);
+            }
+          }
+          // 允許嵌入的網域（專案層）：格式不合法就整筆不存並說明哪幾項有問題，不靜默吞掉；空白＝移除欄位
+          if (isset($_POST['embed_submitted'])) {
+            $eo = embed_origins_parse((string)($_POST['embedOrigins'] ?? ''));
+            if ($eo['invalid']) {
+              error_page(400, $t('embed_origins_invalid_title'), $t('embed_origins_invalid_msg', ['list' => implode('、', $eo['invalid'])]), Route::manager($scopeProject !== '' ? $p : '', 'access'), $t('back_to_admin'));
+            }
+            if ($eo['valid']) {
+              $meta['embedOrigins'] = $eo['valid'];
+            } else {
+              unset($meta['embedOrigins']);
             }
           }
           $json = json_encode($meta, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
@@ -1643,6 +1657,13 @@ if (!$authed) {
         // 編輯版本的 photo/exif 依設計為 null（沿用原始投稿），顯示時要透過 edit_of 回原始那筆取值
         $byId = [];
         foreach ($rows as $r) { $byId[$r['project'] . '/' . (string)($r['id'] ?? '')] = $r; }
+        // spotId（點位起點紀錄的 id）：投稿列用 item_num 反查，供後台複製給外部系統當穩定識別
+        $spotIdByNum = [];
+        foreach ($rows as $r) {
+            if (spot_kind_normalize($r['kind'] ?? '') === 'spot' && empty($r['edit_of']) && isset($r['num'], $r['id'])) {
+                $spotIdByNum[$r['project'] . '/' . (int)$r['num']] = (string)$r['id'];
+            }
+        }
         // 依 project 分組，供下方專案清單迴圈依 key 取用。
         $rowsByProject = [];
         foreach ($rows as $r) { $rowsByProject[$r['project']][] = $r; }
@@ -3722,7 +3743,7 @@ if (!$authed) {
                   if (!in_array($tb, $ctabs, true)) $ctabs[] = $tb;
                 }
                 $contribKindsLabel = implode('、', array_map(fn($k) => $ckinds[$k]['label'], $ccur['kinds']));
-                $contribNewpointLabel = i18n_t($DICT, 'contrib_newspot_' . $ccur['newPoint']);
+                $contribNewSpotLabel = i18n_t($DICT, 'contrib_newspot_' . $ccur['newSpot']);
               ?>
               <input type="hidden" name="contrib_submitted" value="1">
               <details class="metasec">
@@ -3731,7 +3752,7 @@ if (!$authed) {
                     <span class="metasec-title"><i class="fa-solid fa-paper-plane"></i> <?= $t('contrib_settings_heading') ?> <i class="fa-solid fa-chevron-down metasec-chevron" aria-hidden="true"></i></span>
                     <button type="button" class="btn metasec-reset" data-reset-contrib><?= $t('newproject_reset_defaults_btn') ?></button>
                   </div>
-                  <div class="hint"><?= $t('metasec_contrib_summary', ['kinds' => $contribKindsLabel, 'newpoint' => $contribNewpointLabel]) ?></div>
+                  <div class="hint"><?= $t('metasec_contrib_summary', ['kinds' => $contribKindsLabel, 'newspot' => $contribNewSpotLabel]) ?></div>
                 </summary>
                 <div class="metasec-body">
                   <div class="hint"><?= $t('contrib_kinds_hint') ?></div>
@@ -3752,11 +3773,33 @@ if (!$authed) {
                   <label><?= $t('contrib_newspot_label') ?>
                     <select name="contrib_newspot">
                       <?php foreach (['off', 'admin', 'contributor'] as $np): ?>
-                      <option value="<?= $np ?>" <?= $ccur['newPoint'] === $np ? 'selected' : '' ?>><?= $t('contrib_newspot_' . $np) ?></option>
+                      <option value="<?= $np ?>" <?= $ccur['newSpot'] === $np ? 'selected' : '' ?>><?= $t('contrib_newspot_' . $np) ?></option>
                       <?php endforeach; ?>
                     </select>
                   </label>
                   <div class="hint"><?= $t('contrib_newspot_hint') ?></div>
+                </div>
+              </details>
+
+              <?php
+                $embedSite = embed_origins_site($cfg);
+                $embedCur = embed_origins_project($meta);
+              ?>
+              <input type="hidden" name="embed_submitted" value="1">
+              <details class="metasec">
+                <summary>
+                  <span class="metasec-title"><i class="fa-solid fa-code"></i> <?= $t('embed_settings_heading') ?> <i class="fa-solid fa-chevron-down metasec-chevron" aria-hidden="true"></i></span>
+                  <div class="hint"><?= $embedCur ? $t('metasec_embed_summary', ['count' => count($embedCur)]) : $t('metasec_embed_summary_none') ?></div>
+                </summary>
+                <div class="metasec-body">
+                  <label><?= $t('embed_origins_label') ?>
+                    <textarea name="embedOrigins" rows="3" spellcheck="false" placeholder="https://example.org"><?= $esc(implode("
+", $embedCur)) ?></textarea>
+                  </label>
+                  <div class="hint"><?= $t('embed_origins_hint') ?></div>
+                  <?php if ($embedSite): ?>
+                  <div class="hint"><?= $t('embed_origins_site_note', ['list' => implode('、', $embedSite)]) ?></div>
+                  <?php endif; ?>
                 </div>
               </details>
 
@@ -4454,7 +4497,12 @@ if (!$authed) {
           <tr data-row>
             <td class="mono"><?= $idx-- ?></td>
             <td><?= $esc($r['project']) ?></td>
-            <td><?= $esc($r['item_num'] ?? '') ?></td>
+            <?php
+              $rowSpotId = spot_kind_normalize($r['kind'] ?? '') === 'spot'
+                ? (string)(!empty($r['edit_of']) ? $r['edit_of'] : ($r['id'] ?? ''))
+                : ($spotIdByNum[$r['project'] . '/' . (int)($r['item_num'] ?? 0)] ?? '');
+            ?>
+            <td><?= $esc($r['item_num'] ?? '') ?><?php if ($rowSpotId !== ''): ?> <button type="button" class="chipbtn" data-copy="<?= $esc($rowSpotId) ?>" title="<?= $t('copy_spot_id_title') ?>"><i class="fa-solid fa-fingerprint"></i></button><?php endif; ?></td>
             <td><span class="tagcell"><span class="tag"><?= $esc(souliong_kind_label($r['kind'] ?? 'photo')) ?></span><?= !empty($r['edit_of']) ? '<span class="tag">' . $t('edited_record_tag') . '</span>' : '' ?></span></td>
             <td><?= $photoUrl ? '<a href="' . $esc($photoUrl) . '" target="_blank"><img loading="lazy" src="' . $esc($thumbUrl) . '" alt=""></a>' : '' ?></td>
             <td><?= $esc($r['name'] ?? '') ?></td>
@@ -4717,7 +4765,7 @@ if (!$authed) {
         var tabSel = body.querySelector('select[name="contrib_default"]');
         if (tabSel) tabSel.value = d.default;
         var npSel = body.querySelector('select[name="contrib_newspot"]');
-        if (npSel) npSel.value = d.newPoint;
+        if (npSel) npSel.value = d.newSpot;
       }
     });
     document.querySelectorAll('.qr').forEach(function(el) {

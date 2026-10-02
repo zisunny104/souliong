@@ -1,0 +1,117 @@
+/* 嵌入純地圖模式（?embed=1&ui=bare）。只在 body.embed-bare 下生效，不影響一般頁面。
+   控制一律走 postMessage（assets/js/embed-bridge.js），頁面上不留任何互動浮層。 */
+
+/* ---------- 隱藏所有介面浮層 ---------- */
+body.embed-bare #skeleton,
+body.embed-bare #controls,
+body.embed-bare #topright,
+body.embed-bare #resetBtn,
+body.embed-bare #cloudWarn,
+body.embed-bare #panel,
+body.embed-bare #lb,
+body.embed-bare .dialog,
+body.embed-bare .toast,
+body.embed-bare .maplibregl-ctrl-top-left,
+body.embed-bare .maplibregl-ctrl-top-right,
+body.embed-bare .maplibregl-ctrl-bottom-left,
+body.embed-bare .leaflet-control-zoom,
+body.embed-bare .leaflet-top {
+  display: none !important
+}
+
+/* ---------- 圖資版權：縮小到右下角，不可移除 ---------- */
+body.embed-bare .cr-bar,
+body.embed-bare .leaflet-control-attribution {
+  position: fixed;
+  left: auto;
+  right: 0;
+  bottom: 0;
+  transform: none;
+  margin: 0 !important;
+  padding: 1px 5px !important;
+  max-width: 100vw;
+  border: 0;
+  border-radius: 6px 0 0 0;
+  box-shadow: none;
+  font-size: 0.5625rem;
+  line-height: 1.3;
+  flex-direction: row;
+  pointer-events: auto;
+  opacity: .85
+}
+
+body.embed-bare .leaflet-bottom.leaflet-right {
+  left: auto;
+  right: 0;
+  transform: none
+}
+
+body.embed-bare .cr-ext {
+  max-width: none;
+  display: inline
+}
+
+body.embed-bare .cr-sep {
+  width: 1px;
+  height: auto;
+  margin: 0 .4em
+}
+
+/* ---------- 非互動：地圖不接收指標事件，只有版權連結可點 ---------- */
+body.embed-static #map {
+  pointer-events: none
+}
+
+body.embed-static .cr-bar,
+body.embed-static .leaflet-control-attribution {
+  pointer-events: auto
+}
+
+/* ---------- 透明背景（底圖的背景層由橋接腳本關閉） ---------- */
+html:has(body.embed-bg-transparent),
+body.embed-bg-transparent,
+body.embed-bg-transparent #map,
+body.embed-bg-transparent .maplibregl-canvas-container,
+body.embed-bg-transparent .leaflet-container {
+  background: transparent !important
+}
+
+/* ---------- 標記狀態：強調／淡化／顯示模式（由橋接腳本切換 class 與變數） ---------- */
+body.embed-bare .dot-pin {
+  transition: opacity .25s ease, transform .25s ease
+}
+
+body.embed-bare .dot-pin.eb-dim {
+  opacity: var(--eb-dim-o, .3);
+  transform: scale(var(--eb-dim-s, 1))
+}
+
+body.embed-bare .dot-pin.eb-hide {
+  visibility: hidden;
+  pointer-events: none
+}
+
+body.embed-bare .dot-pin.eb-dot > span,
+body.embed-bare .dot-pin.eb-dot > .badge {
+  display: none
+}
+
+/* 強調：脈衝重用 map-markers.css 的 .is-highlight（sl-pulse），這裡只補層級 */
+body.embed-bare .dot-pin.is-highlight {
+  z-index: 2
+}
+
+body.embed-bare .dot-pin.is-highlight.eb-still::after {
+  animation: none;
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--pulse-color, rgb(20, 184, 166)) 70%, transparent)
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.embed-bare .dot-pin.is-highlight::after {
+    animation: none
+  }
+
+  body.embed-bare .dot-pin {
+    transition: none
+  }
+}

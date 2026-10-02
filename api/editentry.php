@@ -6,6 +6,7 @@ require_once __DIR__ . '/store.php';
 require_once __DIR__ . '/security.php';
 require_once __DIR__ . '/contribgate.php';
 require_once __DIR__ . '/features.php';
+require_once __DIR__ . '/spotlib.php';
 $cfg = require __DIR__ . '/config.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -47,7 +48,8 @@ try {
     if ($source_url !== null && (!preg_match('#^https?://#i', $source_url) || filter_var($source_url, FILTER_VALIDATE_URL) === false)) {
         $source_url = null;
     }
-    $item_num   = (isset($_POST['item_num']) && $_POST['item_num'] !== '') ? (int)$_POST['item_num'] : null;
+    $item_num   = spot_num_from_ref($cfg, $project, $_POST['item_num'] ?? '');   // num 或 spotId；紀錄內仍存 num
+    if ($item_num === false) json_out(['error' => 'bad request'], 400);
     $lat        = num_or_null($_POST['lat'] ?? null);
     $lon        = num_or_null($_POST['lon'] ?? null);
     $loc_source = clean_str($_POST['loc_source'] ?? null, 16) ?? 'manual';

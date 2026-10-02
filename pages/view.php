@@ -9,6 +9,12 @@ $base = Route::base();
 
 $b       = htmlspecialchars($base, ENT_QUOTES);
 $embed   = (($_GET['embed'] ?? '') === '1');
+// 嵌入參數（僅 embed=1 有效）。bare＝純地圖：不輸出任何 UI 與選用模組，只留地圖、標記與版權標示，
+// 由 assets/js/embed-bridge.js 以 postMessage 接受父頁控制。
+$bare    = $embed && (($_GET['ui'] ?? '') === 'bare');
+$bodyCls = trim(($embed ? 'embed' : '') . ($bare ? ' embed-bare' : '')
+    . ($bare && ($_GET['interactive'] ?? '') !== '1' ? ' embed-static' : '')
+    . ($embed && ($_GET['bg'] ?? '') === 'transparent' ? ' embed-bg-transparent' : ''));
 $proj    = preg_replace('/[^a-z0-9_-]/', '', $_GET['p'] ?? ($cfg['default_project'] ?? 'chairs'));
 $metaF   = __DIR__ . '/../projects/' . $proj . '/meta.json';
 $meta    = is_file($metaF) ? json_decode(file_get_contents($metaF), true) : null;
@@ -24,6 +30,10 @@ require_once __DIR__ . '/../api/regions3d.php';
 require_once __DIR__ . '/../api/osmdata.php';
 $apiCfg    = require __DIR__ . '/../api/config.php';
 require_once __DIR__ . '/../api/spotlib.php';
+require_once __DIR__ . '/../api/embedorigins.php';
+// 允許嵌入的來源（全站＋專案聯集）：?embed=1 且清單非空才放寬 frame-ancestors／移除 XFO，其餘維持原狀。
+$embedOrigins = embed_origins_allowed($apiCfg, $meta);
+if ($embed) embed_send_frame_headers($embedOrigins);
 require_once __DIR__ . '/../api/uploadlib.php';
 // 點位：spots.jsonl 裡的起點記錄（一定有 num、無 edit_of），api/newspot.php 動態建立的——
 // spots.jsonl 是點位唯一的真相來源，跟 assets/js/viewer.core.js 的 effectiveSpots() 同一套判斷式。
@@ -48,7 +58,7 @@ $gated = contrib_open($apiCfg, $proj);
 $csrfTok   = $actor->csrf($proj);
 [$LANG, $DICT] = i18n_init();
 $t = fn(string $key, array $vars = []): string => htmlspecialchars(i18n_t($DICT, $key, $vars), ENT_QUOTES);
-$mod = fn(string $key): bool => souliong_module_on($meta, $key);
+$mod = fn(string $key): bool => !$bare && souliong_module_on($meta, $key);   // bare 一律不載入選用模組
 // 每個模組解析後（含未來的相依關係）的開關結果，前端 MOD() 直接讀這份、不再自己重算預設值邏輯，
 // 避免 PHP 端 $mod() 與 JS 端各自判斷、日後模組間有相依時兩邊算出不同答案。
 $moduleState = array_combine(array_keys(souliong_modules()), array_map($mod, array_keys(souliong_modules())));
@@ -70,7 +80,7 @@ $contribCfg = souliong_contrib_cfg($meta);
 // 前端不需要再對 contrib.kinds 過濾一次，純文字的地圖也不會載到影片抽幀那段程式碼。
 // 建立地點是權限而非型別：設成 admin 時只有已登入的管理者拿得到那支檔案。
 $contribFiles = $mod('upload') ? $contribCfg['kinds'] : [];
-if ($contribFiles && ($contribCfg['newPoint'] === 'contributor' || ($contribCfg['newPoint'] === 'admin' && $canEditSpots))) {
+if ($contribFiles && ($contribCfg['newSpot'] === 'contributor' || ($contribCfg['newSpot'] === 'admin' && $canEditSpots))) {
     $contribFiles[] = 'newspot';
 }
 // 點位內容編輯器（content-editor.js）：只給具 edit_spots 的身分載入（純顯示判斷）。它借用 kind-audio.js 的
@@ -99,6 +109,7 @@ $APP = [
     'manager'     => Route::manager($proj),
     'project'     => $proj,
     'embed'       => $embed,
+    'embedOrigins' => $embed ? $embedOrigins : [],   // postMessage 白名單（只在嵌入模式注入）
     'gated'       => $gated,
     'meta'        => $meta,
     'spots'       => $spots,
@@ -149,7 +160,7 @@ $ogImage = cover_file_of(project_dir($apiCfg, $proj) . '/cover') !== null
 $ogUrl   = Route::abs(Route::map($proj));
 
 $entryId = preg_replace('/[^0-9a-f]/', '', (string)($_GET['entry'] ?? ''));
-$spotNum = ctype_digit((string)($_GET['spot'] ?? '')) ? (int)$_GET['spot'] : null;
+$spotRef = (string)($_GET['spot'] ?? '');   // spotId（新連結）或 num（舊連結）
 
 if ($entryId !== '' && ($entry = souliong_og_resolve_entry($apiCfg, $proj, $entryId))) {
     $sp = isset($entry['item_num']) ? souliong_og_resolve_spot($apiCfg, $proj, (int)$entry['item_num']) : null;
@@ -160,10 +171,10 @@ if ($entryId !== '' && ($entry = souliong_og_resolve_entry($apiCfg, $proj, $entr
         : i18n_t($DICT, 'og_entry_fallback', ['name' => $entry['name'] ?: i18n_t($DICT, 'anon_fallback'), 'kind' => i18n_t($DICT, $kindKey)]);
     if ($qs = souliong_og_entry_image_qs($entry)) $ogImage = Route::abs(Route::api($qs[0], $qs[1]));
     $ogUrl = Route::abs(Route::map($proj) . '?entry=' . rawurlencode($entryId));
-} elseif ($spotNum !== null && ($sp = souliong_og_resolve_spot($apiCfg, $proj, $spotNum))) {
-    $ogTitle = souliong_og_spot_title(souliong_og_spot_name($sp), $spotNum, $meta['numbering'] ?? 'suffix');
+} elseif ($spotRef !== '' && ($sp = souliong_og_resolve_spot($apiCfg, $proj, $spotRef))) {
+    $ogTitle = souliong_og_spot_title(souliong_og_spot_name($sp), (int)$sp['num'], $meta['numbering'] ?? 'suffix');
     $ogDesc  = souliong_og_truncate(souliong_og_plain(spot_content_text($sp)) ?: (string)($meta['desc'] ?? i18n_t($DICT, 'app_tagline')));
-    $ogUrl = Route::abs(Route::map($proj) . '?spot=' . $spotNum);
+    $ogUrl = Route::abs(Route::map($proj) . '?spot=' . rawurlencode((string)$sp['id']));   // 新連結一律用 spotId
 }
 ?><!DOCTYPE html>
 <html lang="<?= $LANG === 'en' ? 'en' : 'zh-Hant' ?>">
@@ -208,10 +219,11 @@ if ($mod('upload')) {
 // 這組樣式——開放 audio 投稿（$hasAudioKind，投稿牆上的音訊）、開了 contentEdit（點位自己的
 // 原生音訊內容，見 api/spotcontent.php）。純顯示判斷，不查有沒有真的錄過內容：地圖錄過音訊
 // 後又把 contentEdit 關掉，播放器就不會載入，這種邊界情形本次接受不處理。
-$hasAudioKind = in_array('audio', $contribCfg['kinds'], true);
+$hasAudioKind = !$bare && in_array('audio', $contribCfg['kinds'], true);
 if ($hasAudioKind || $mod('contentEdit')) {
     $cssFiles[] = 'sound-player';
 }
+if ($bare) $cssFiles[] = 'embed-bare';   // 排在最後：蓋掉前面各檔的浮層與版權樣式
 foreach ($cssFiles as $f) {
 ?>
 <link rel="stylesheet" href="<?= $assetUrl("assets/css/$f.css") ?>">
@@ -231,8 +243,9 @@ if ($pack) {
 ?>
 <script>try{var t=localStorage.getItem('theme');if(t==='dark'||t==='light')document.documentElement.dataset.theme=t;}catch(e){}</script>
 </head>
-<body class="<?= $embed ? 'embed' : '' ?>">
+<body class="<?= $esc($bodyCls) ?>">
 
+<?php if (!$bare): ?>
 <div id="skeleton" aria-hidden="true">
   <div class="sk-card sk">
     <div class="sk-line" style="width:55%"></div>
@@ -242,6 +255,7 @@ if ($pack) {
   </div>
   <div class="sk-fab sk"></div>
 </div>
+<?php endif; ?>
 
 <div id="map"></div>
 
@@ -412,8 +426,10 @@ window.maplibregl = maplibregl;
 <script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
 <?php endif; ?>
+<?php if (!$bare): ?>
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <script src="<?= $assetUrl('assets/js/pin-input.js') ?>"></script>
+<?php endif; ?>
 <script src="<?= $assetUrl('assets/js/engine/map-engine.js') ?>"></script>
 <?php if ($primaryEngine === 'leaflet'): ?>
 <script src="<?= $assetUrl('assets/js/engine/leaflet-engine.js') ?>"></script>
@@ -422,6 +438,9 @@ window.maplibregl = maplibregl;
 <script src="<?= $assetUrl('assets/js/engine/maplibre-engine.js') ?>"></script>
 <?php endif; ?>
 <script src="<?= $assetUrl('assets/js/viewer.core.js') ?>"></script>
+<?php if ($bare): ?>
+<script src="<?= $assetUrl('assets/js/embed-bridge.js') ?>"></script>
+<?php endif; ?>
 <?php if ($mod('identity')): ?>
 <script src="<?= $assetUrl('assets/js/plugins/contributor-identity.js') ?>"></script>
 <?php endif; ?>

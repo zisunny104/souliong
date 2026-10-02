@@ -157,6 +157,12 @@ final class Route
         return self::base() . '?' . http_build_query(['api' => $action] + $qs);
     }
 
+    /** 導航選單小頁（api/navsheet.php），給 iframe／modal 引用；$spot 是 spotId 或 num */
+    public static function navsheet(string $project, string $spot, array $extra = []): string
+    {
+        return self::api('navsheet', ['project' => $project, 'spot' => $spot, 'embed' => '1'] + $extra);
+    }
+
     /** 圖層圖檔（index.php 的 layer/ 路徑，實作在 api/layerfile.php）；$rel 是圖層內的相對路徑，各段分別編碼 */
     public static function layerFile(string $project, string $id, string $rel): string
     {

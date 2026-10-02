@@ -93,11 +93,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'creat
         $meta['contrib'] = [
             'kinds' => $kinds,
             'default' => (string)($_POST['contrib_default'] ?? ''),
-            'newPoint' => (string)($_POST['contrib_newspot'] ?? 'off'),
+            'newSpot' => (string)($_POST['contrib_newspot'] ?? 'off'),
         ];
         $ccfg = souliong_contrib_cfg($meta);
         $meta['contrib']['default'] = $ccfg['default'];
-        $meta['contrib']['newPoint'] = $ccfg['newPoint'];
+        $meta['contrib']['newSpot'] = $ccfg['newSpot'];
     }
 
     if (!@mkdir($dir, 0775, true)) {
@@ -522,7 +522,7 @@ $ccur = souliong_contrib_cfg(null);
           <label for="contribNewspotSel"><?= $t('contrib_newspot_label') ?></label>
           <select id="contribNewspotSel" name="contrib_newspot">
             <?php foreach (['off', 'admin', 'contributor'] as $np): ?>
-            <option value="<?= $np ?>" <?= $ccur['newPoint'] === $np ? 'selected' : '' ?>><?= $t('contrib_newspot_' . $np) ?></option>
+            <option value="<?= $np ?>" <?= $ccur['newSpot'] === $np ? 'selected' : '' ?>><?= $t('contrib_newspot_' . $np) ?></option>
             <?php endforeach; ?>
           </select>
           <div class="hint"><?= $t('contrib_newspot_hint') ?></div>
@@ -605,7 +605,7 @@ $ccur = souliong_contrib_cfg(null);
         cb.checked = CONTRIB_DEFAULT.kinds.includes(cb.dataset.kind);
       });
       document.getElementById('contribDefaultSel').value = CONTRIB_DEFAULT.default;
-      document.getElementById('contribNewspotSel').value = CONTRIB_DEFAULT.newPoint;
+      document.getElementById('contribNewspotSel').value = CONTRIB_DEFAULT.newSpot;
     }
 
     // ── 送出 ──

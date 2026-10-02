@@ -7,12 +7,13 @@ function i18n_supported(): array
     return ['zh_TW', 'en'];
 }
 
-function i18n_resolve(): string
+// $persist=false 時 ?lang= 只影響本次請求、不寫 lang cookie（無狀態的嵌入頁用）
+function i18n_resolve(bool $persist = true): string
 {
     $supported = i18n_supported();
     $q = (string)($_GET['lang'] ?? '');
     if ($q !== '' && in_array($q, $supported, true)) {
-        setcookie('lang', $q, time() + 60 * 60 * 24 * 365, '/');
+        if ($persist) setcookie('lang', $q, time() + 60 * 60 * 24 * 365, '/');
         return $q;
     }
     $cookie = (string)($_COOKIE['lang'] ?? '');
@@ -36,9 +37,9 @@ function i18n_dict(string $lang): array
 }
 
 // 回傳 [語言代碼, 該語言字典]，供頁面同時取用
-function i18n_init(): array
+function i18n_init(bool $persist = true): array
 {
-    $lang = i18n_resolve();
+    $lang = i18n_resolve($persist);
     return [$lang, i18n_dict($lang)];
 }
 

@@ -36,6 +36,15 @@ switch ($action) {
         $_GET['project'] = $seg[1] ?? ($_GET['project'] ?? '');
         require __DIR__ . '/api/list.php';
         return;
+    case 'project':
+    case 'spots':
+        // 對外唯讀資料 API（?api=project|spots&project=<slug>），格式見 api/dataapi.php
+        $dataApiKind = $action;
+        require __DIR__ . '/api/dataapi.php';
+        return;
+    case 'navsheet':
+        require __DIR__ . '/api/navsheet.php';   // 導航選單小頁（供 iframe／modal 嵌入）
+        return;
     case 'upload':
         require __DIR__ . '/api/upload.php';
         return;
@@ -84,7 +93,7 @@ switch ($action) {
         require __DIR__ . '/api/editspot.php';
         return;
     case 'newspot':
-        require __DIR__ . '/api/newspot.php';   // 訪客／管理者建立新地點（權限見 meta.json 的 contrib.newPoint）
+        require __DIR__ . '/api/newspot.php';   // 訪客／管理者建立新地點（權限見 meta.json 的 contrib.newSpot）
         return;
     case 'spotcontent':
         require __DIR__ . '/api/spotcontent.php';   // 點位原生內容（text／audio／photo 區塊），把關比照 editspot.php

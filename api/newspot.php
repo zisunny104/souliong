@@ -7,7 +7,7 @@
 // 找到這筆當 edit_of 的鏈頭。建立時填的說明（description）寫成起點紀錄 content 裡的一個 text 區塊，
 // 點位沒有獨立的說明欄位（區塊規則見 api/spotlib.php 的 spot_content_render()）。
 //
-// 權限跟 editspot.php 不同，是每張地圖自己決定的（meta.json 的 contrib.newPoint）：
+// 權限跟 editspot.php 不同，是每張地圖自己決定的（meta.json 的 contrib.newSpot）：
 //   off（預設）  誰都不能建，端點直接 403——舊地圖不改設定檔就完全沒有這個功能
 //   admin        只有具備 edit_spots 的管理者，比照 editspot.php（Auth::require）
 //   contributor  一般投稿者也能建，比照 upload.php 用 contrib_gate() 把關（停權與投稿代碼）
@@ -31,7 +31,7 @@ if ($project === '' || !is_dir($cfg['projects_dir'] . '/' . $project)) {
 $projDir = project_dir($cfg, $project);
 $meta    = json_decode((string)@file_get_contents($projDir . '/meta.json'), true);
 $contrib = souliong_contrib_cfg($meta);
-$who     = $contrib['newPoint'];
+$who     = $contrib['newSpot'];
 
 if ($who === 'off') {
     json_out(['error' => '這張地圖沒有開放建立地點'], 403);
@@ -50,7 +50,7 @@ if ($who === 'admin') {
     // contributor：訪客建點走投稿軸同一道關卡（停權名單 → bypass_code → 投稿代碼並計一次使用），
     // 跟 upload.php 共用 contrib_gate()——建點跟投稿是等價的寫入行為，限次的碼不能無限建點。
     // 點位軸（建立地點）與投稿軸本應分開計算（docs/part4-coordination.md 血淚教訓 #1），這裡把兩者
-    // 接在一起只是現況尚未拆開（newPoint 全站目前皆為 off，等於沒在跑），之後處理訪客建點權限模型時再釐清。
+    // 接在一起只是現況尚未拆開（newSpot 全站目前皆為 off，等於沒在跑），之後處理訪客建點權限模型時再釐清。
     $contributor = contrib_gate($cfg, $project, '建立地點');
 }
 // 建立者身分：跟投稿記錄用同一組欄位，主辦者才能在後台認出「這個點是誰建的」，
@@ -134,7 +134,7 @@ try {
     }, 'spot');
 
     if (isset($record['content'])) $record['content'] = spot_content_render($record['content']);
-    json_out(['ok' => true, 'item' => $record]);
+    json_out(['ok' => true, 'spotId' => $record['id'], 'item' => $record]);
 } catch (Throwable $e) {
     error_log('souliong newspot: ' . $e->getMessage());
     json_out(['error' => 'server'] + (!empty($cfg['debug']) ? ['detail' => $e->getMessage()] : []), 500);

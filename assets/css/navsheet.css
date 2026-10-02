@@ -1,0 +1,140 @@
+/* 導航選單小頁（api/navsheet.php）。選項沿用 spot-panel.css 的 .p-nav-item，這裡只管容器 */
+.nsheet-body {
+  background: transparent;
+  height: 100%;
+  overflow: hidden
+}
+
+.nsheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .4);
+  opacity: 0;
+  transition: opacity .2s
+}
+
+.nsheet-body.nsheet-in .nsheet-backdrop {
+  opacity: 1
+}
+
+.nsheet {
+  position: fixed;
+  left: 50%;
+  bottom: 0;
+  width: min(420px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 8px 12px calc(14px + env(safe-area-inset-bottom));
+  background: var(--panel);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-bottom: 0;
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+  box-shadow: var(--sh-3);
+  transform: translate(-50%, 100%);
+  transition: transform .22s cubic-bezier(.4, 0, .2, 1)
+}
+
+.nsheet-body.nsheet-in .nsheet {
+  transform: translate(-50%, var(--nsheet-drag, 0px))
+}
+
+.nsheet.nsheet-dragging {
+  transition: none
+}
+
+.nsheet-grab,
+.nsheet-head {
+  touch-action: none
+}
+
+.nsheet-grab {
+  display: flex;
+  justify-content: center;
+  padding: 4px 0 8px;
+  cursor: grab
+}
+
+.nsheet-grab span {
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line)
+}
+
+.nsheet-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 4px 8px
+}
+
+.nsheet-titles {
+  flex: 1;
+  min-width: 0
+}
+
+.nsheet-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  overflow-wrap: anywhere
+}
+
+.nsheet-sub {
+  margin: 2px 0 0;
+  font-size: 0.8125rem;
+  color: var(--muted)
+}
+
+.nsheet-close {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  justify-content: center
+}
+
+.nsheet-list {
+  display: flex;
+  flex-direction: column
+}
+
+.nsheet-item[hidden] {
+  display: none
+}
+
+.nsheet-empty {
+  margin: 0;
+  padding: 8px 4px 12px;
+  font-size: 0.875rem;
+  color: var(--muted)
+}
+
+@media (min-width: 560px) {
+  .nsheet {
+    bottom: 50%;
+    border-bottom: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    transform: translate(-50%, 60%);
+    opacity: 0;
+    transition: transform .22s cubic-bezier(.4, 0, .2, 1), opacity .22s
+  }
+
+  .nsheet-body.nsheet-in .nsheet {
+    opacity: 1;
+    transform: translate(-50%, 50%)
+  }
+
+  .nsheet-grab {
+    display: none
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  .nsheet,
+  .nsheet-backdrop {
+    transition: none
+  }
+}

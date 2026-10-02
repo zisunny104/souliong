@@ -1,9 +1,9 @@
 /* 投稿型別：建立地點
    嚴格說它不是「投稿內容」而是「新增一個可以被投稿的地點」，所以走的是另一支端點
-   （api/newspot.php，權限由 meta.json 的 contrib.newPoint 決定），送出的欄位也跟其他型別不一樣：
+   （api/newspot.php，權限由 meta.json 的 contrib.newSpot 決定），送出的欄位也跟其他型別不一樣：
    沒有 item_num、沒有授權勾選，留言框在這裡的身分是這個地點的說明（description，伺服器寫成第一個文字區塊）。
 
-   view.php 只在 contrib.newPoint 不是 off（且 admin 模式下確實是管理者）時才載入這個檔案。 */
+   view.php 只在 contrib.newSpot 不是 off（且 admin 模式下確實是管理者）時才載入這個檔案。 */
 (() => {
   const { Kind, t, esc, register } = window.SLContrib;
 

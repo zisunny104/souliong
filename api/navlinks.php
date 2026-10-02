@@ -28,3 +28,14 @@ function souliong_nav_config(): array
 {
     return ['icon' => 'fa-solid fa-diamond-turn-right', 'apps' => souliong_nav_apps()];
 }
+
+/**
+ * 套值：把模板的 {lat}／{lon}／{name} 填成實際連結。座標取到小數 6 位；沒有名稱時 name 改填 "lat,lon"，
+ * 並一律 URL 編碼。前端 viewer.core.js 的 navUrl() 與 api=spots 的 nav 欄位語意相同。
+ */
+function souliong_nav_url(string $tpl, float $lat, float $lon, string $title = ''): string
+{
+    $la = json_encode(round($lat, 6));
+    $lo = json_encode(round($lon, 6));
+    return strtr($tpl, ['{lat}' => $la, '{lon}' => $lo, '{name}' => rawurlencode($title !== '' ? $title : $la . ',' . $lo)]);
+}

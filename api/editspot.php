@@ -4,7 +4,7 @@
 // （一定有 num），因此不比照 editentry.php 驗 owner/ctoken。
 // 不覆寫起點，而是新增一筆 kind:'spot' 版本紀錄（spot_append_version()），edit_of 指回起點紀錄 id；
 // 版本紀錄是稀疏的，這支只寫 lat、lon，content 不動（疊加規則見 spot_effective()）。
-// POST project, item_num（必填，起點的 num）, lat, lon, csrf, name（選填）。
+// POST project, item_num（必填，起點的 num 或 spotId）, lat, lon, csrf, name（選填）。
 require_once __DIR__ . '/store.php';
 require_once __DIR__ . '/security.php';
 require_once __DIR__ . '/spotlib.php';
@@ -22,10 +22,10 @@ if ($project === '' || !is_dir($cfg['projects_dir'] . '/' . $project)) {
 
 $actor = Auth::require($cfg, $project, 'edit_spots', true, auth_msg('deny_edit_spot'));
 
-$item_num = (isset($_POST['item_num']) && $_POST['item_num'] !== '') ? (int)$_POST['item_num'] : null;
+$item_num = spot_num_from_ref($cfg, $project, $_POST['item_num'] ?? '');   // num 或 spotId
 $lat      = num_or_null($_POST['lat'] ?? null);
 $lon      = num_or_null($_POST['lon'] ?? null);
-if ($item_num === null || $lat === null || $lon === null || $lat < -90 || $lat > 90 || $lon < -180 || $lon > 180) {
+if ($item_num === null || $item_num === false || $lat === null || $lon === null || $lat < -90 || $lat > 90 || $lon < -180 || $lon > 180) {
     json_out(['error' => 'bad request'], 400);
 }
 

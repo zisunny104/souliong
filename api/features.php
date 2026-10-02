@@ -94,7 +94,7 @@ function souliong_contrib_kinds(): array
  * 完全一樣的行為，既有地圖不改設定檔就零變化。
  *
  * 回傳：kinds（依註冊表順序的啟用型別）、tabs（由 kinds 推導、去重後的分頁）、
- *       default（初始分頁，保證在 tabs 內）、newPoint（off｜admin｜contributor）。
+ *       default（初始分頁，保證在 tabs 內）、newSpot（off｜admin｜contributor）。
  */
 function souliong_contrib_cfg(?array $meta): array
 {
@@ -116,10 +116,10 @@ function souliong_contrib_cfg(?array $meta): array
     $default = (string)($meta['contrib']['default'] ?? '');
     if (!in_array($default, $tabs, true)) $default = $tabs[0];
 
-    $newPoint = (string)($meta['contrib']['newPoint'] ?? 'off');
-    if (!in_array($newPoint, ['off', 'admin', 'contributor'], true)) $newPoint = 'off';
+    $newSpot = (string)($meta['contrib']['newSpot'] ?? $meta['contrib']['newPoint'] ?? 'off');   // newPoint 為舊鍵名，唯讀相容
+    if (!in_array($newSpot, ['off', 'admin', 'contributor'], true)) $newSpot = 'off';
 
-    return ['kinds' => $kinds, 'tabs' => $tabs, 'default' => $default, 'newPoint' => $newPoint];
+    return ['kinds' => $kinds, 'tabs' => $tabs, 'default' => $default, 'newSpot' => $newSpot];
 }
 
 // 功能使用統計：key => 後台「數字說明」區塊要顯示的中文說明

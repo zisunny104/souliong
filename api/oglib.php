@@ -38,13 +38,13 @@ function souliong_og_truncate(string $s, int $len = 200): string
 }
 
 /**
- * 解析 ?spot=<num>：委派給 api/spotlib.php 的 spot_effective()，跟 editspot.php／
- * spotcontent.php 共用同一套「起點＋edit_of 鏈取最新覆寫」算法。回傳 null 表示這個 num
+ * 解析 ?spot=<spotId|num>：委派給 api/spotlib.php 的 spot_effective_by_ref()，跟 editspot.php／
+ * spotcontent.php 共用同一套「起點＋edit_of 鏈取最新覆寫」算法。回傳 null 表示這個點位
  * 不存在（回退到專案預設卡）。
  */
-function souliong_og_resolve_spot(array $apiCfg, string $project, int $num): ?array
+function souliong_og_resolve_spot(array $apiCfg, string $project, $ref): ?array
 {
-    return spot_effective($apiCfg, $project, $num);
+    return spot_effective_by_ref($apiCfg, $project, (string)$ref);
 }
 
 /**

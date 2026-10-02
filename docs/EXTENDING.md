@@ -57,14 +57,14 @@ license, owner_hash, src_hash, contrib_id, contrib_hash, edit_of, created_at
 ### 3.2 每張地圖自己決定開放哪幾種：`meta.json` 的 `contrib` 區塊
 
 ```json
-"contrib": { "kinds": ["text", "photo", "video", "audio"], "default": "media", "newPoint": "contributor" }
+"contrib": { "kinds": ["text", "photo", "video", "audio"], "default": "media", "newSpot": "contributor" }
 ```
 
 `souliong_contrib_cfg($meta)` 解析它，精神比照 `souliong_module_on()`：**PHP 端算一次，前端直接讀
 `$APP.contrib`**，不在兩邊各自重算預設值。回傳 `kinds`（依註冊表順序，不依 meta.json 的書寫順序，
-分頁排列才會每張地圖一致）、`tabs`（由 kinds 推導）、`default`（保證在 tabs 內）、`newPoint`。
+分頁排列才會每張地圖一致）、`tabs`（由 kinds 推導）、`default`（保證在 tabs 內）、`newSpot`。
 
-**沒有 `contrib` 區塊的舊地圖一律解析成 `kinds:["photo"]`、`newPoint:"off"`**，也就是跟加這個功能之前
+**沒有 `contrib` 區塊的舊地圖一律解析成 `kinds:["photo"]`、`newSpot:"off"`**，也就是跟加這個功能之前
 完全一樣——既有地圖不改設定檔就零變化。後台「編輯專案描述」對話框可以勾選型別、選預設分頁與建立地點權限；
 存檔前會再跑一次 `souliong_contrib_cfg()` 收斂（例如取消勾選所有媒體型別時，`default` 會自動從 `media`
 換成第一個還存在的分頁），寫進 `meta.json` 的就是前端實際拿到的東西。
@@ -158,7 +158,7 @@ license, owner_hash, src_hash, contrib_id, contrib_hash, edit_of, created_at
 - **歷史還原**：每次儲存都是 `edit_of` 鏈上的一筆版本，歷史檢視列得出每一版的完整區塊。還原不是伺服器動作：前端把舊版區塊載成草稿（已不存在的聲音／照片先抓回檔案當新區塊），使用者檢查後按儲存，走一般的 `op=save`，因此也會產生一筆新版本並受 `content_rev` 保護。
 - **聲音區塊分享連結** `<base>/<project>?spot=<num>&block=<id>`：進站時展開該點位、捲到該區塊並邀請點擊播放；`?spot=` 單獨使用時只開啟點位卡片，社群預覽卡（OG）也吃同一個參數。
 
-權限由該地圖的 `contrib.newPoint` 決定：`off`（預設，端點直接 403）／`admin`（比照 `editspot.php`）／
+權限由該地圖的 `contrib.newSpot` 決定：`off`（預設，端點直接 403）／`admin`（比照 `editspot.php`）／
 `contributor`（比照 `upload.php` 的停權與投稿代碼把關）。配號在 `store_append_locked()` 的 `LOCK_EX` 內完成，
 避免兩人同時建點撞號。`spot` 記錄不可透過 `upload.php` 直接 POST（`postable:false`，見 3.1 節），
 也不能被一般刪除動作清掉：`delete.php` 直接拒絕自刪 `kind==='spot'` 的記錄，`manager.php` 的刪除動作
@@ -191,9 +191,8 @@ license, owner_hash, src_hash, contrib_id, contrib_hash, edit_of, created_at
 `assets/css/spot-panel.css`／`assets/js/contrib/kind-newspot.js`）、投稿 kind registry 的
 `newspot` key、`?spot=` URL 參數（不留 `?point=` 相容別名）、`edit_points`→`edit_spots` 權限 key、
 JS 函式（`spotTitle()`／`nearestSpot()`／`getCurrentSpot()`／`submitNewSpot()` 等）與對應的 CSS
-class／i18n key 都已統一改成 `spot`。目前程式碼裡仍看得到的 `newPoint`（`meta.json` 的
-`contrib.newPoint` 欄位、`CONTRIB_CFG.newPoint`）是刻意保留的例外，屬於獨立的資料欄位改名問題，
-不在這次改名範圍內。
+class/i18n key 都已統一改成 `spot`。`meta.json` 的 `contrib.newPoint` 也已改名為 `contrib.newSpot`（`CONTRIB_CFG.newSpot`）；
+`souliong_contrib_cfg()` 讀取時仍相容舊鍵 `newPoint`，下次後台存檔會寫成新鍵。
 
 ## 四、多地圖「重疊」呈現（未來）
 

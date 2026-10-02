@@ -14,6 +14,22 @@ window.MapApp = (() => {
   const params = new URLSearchParams(location.search);
   const PROJECT = (APP.project || params.get('p') || 'chairs').replace(/[^a-z0-9_-]/gi, '');
   const EMBED = !!(APP.embed) || params.get('embed') === '1';
+  // 嵌入參數（僅 embed=1 有效）。bare＝純地圖，控制由 assets/js/embed-bridge.js 負責，核心只讀這份旗標。
+  const pick = (v, allowed, fallback) => (allowed.includes(v) ? v : fallback);
+  const BARE = EMBED && params.get('ui') === 'bare';
+  const EMBED_UI = EMBED ? {
+    bare: BARE,
+    interactive: BARE && params.get('interactive') === '1',
+    bg: pick(params.get('bg'), ['transparent', 'theme'], 'theme'),
+    theme: pick(params.get('theme'), ['light', 'dark', 'auto'], ''),
+    view: pick(params.get('view'), ['meta', 'fit', 'none'], BARE ? 'meta' : 'fit'),
+    layer: /^[\w-]{1,64}$/.test(params.get('layer') || '') ? params.get('layer') : '',   // 須是專案已啟用的底圖，否則忽略
+    labels: params.get('labels') !== '0',
+  } : null;
+  const VIEW_MODE = EMBED_UI ? EMBED_UI.view : 'fit';
+  // 瀏覽器儲存可能被封鎖或丟例外（第三方 iframe、無痕）：一律走這兩個函式
+  const lsGet = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+  const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
   const apiUrl = (action) => APP.base + '?api=' + action;
   // 後台網址由伺服器端的 Route::manager() 算好塞進 APP.manager；前端不自己拼路徑，
   // 後台網址形狀要改時只動 api/routes.php 一個檔案。
@@ -25,7 +41,7 @@ window.MapApp = (() => {
 
   // 這張地圖的投稿設定（由 view.php 依 souliong_contrib_cfg() 算好塞進 APP.contrib）。
   // 舊部署或獨立部署可能沒有這個欄位，退回「只有照片、不能建點」。
-  const CONTRIB_CFG = Object.assign({ kinds: ['photo'], tabs: ['media'], default: 'media', newPoint: 'off' }, APP.contrib || {});
+  const CONTRIB_CFG = Object.assign({ kinds: ['photo'], tabs: ['media'], default: 'media', newSpot: 'off' }, APP.contrib || {});
 
   // 投稿型別在**呈現端**的中繼資料。刻意跟 api/features.php 的註冊表分開：那份管的是
   // 「怎麼收檔案」（受 upload 模組控制、關掉就整套不存在），這份管的是「怎麼顯示」——
@@ -57,10 +73,18 @@ window.MapApp = (() => {
      底下每個引擎自己的檔案裡；這裡只負責「該用哪份 manifest」，跟哪個引擎去畫完全無關。 */
   // APP.layers 缺席時的保命底圖定義在 MapEngine.FALLBACK_LAYER（assets/js/engine/map-engine.js）：
   // 每個引擎自己的圖層系統做第二層防禦時也要用同一份，所以放在兩邊都讀得到的地方，不是各自重複一份。
-  const layerManifests = () => (APP.layers && APP.layers.length) ? APP.layers : [MapEngine.FALLBACK_LAYER];
+  const layerManifests = () => {
+    const all = (APP.layers && APP.layers.length) ? APP.layers : [MapEngine.FALLBACK_LAYER];
+    // 嵌入 ?layer=<id>：只留指定的那張底圖（其餘底圖丟掉，非底圖的疊圖照舊）；id 不在專案已啟用清單內就忽略
+    const want = EMBED_UI && EMBED_UI.layer && all.find(m => m.id === EMBED_UI.layer && (m.pane || 'art') === 'base');
+    return want ? all.filter(m => m === want || (m.pane || 'art') !== 'base') : all;
+  };
 
-  let themeMode = localStorage.getItem('theme') || 'system';
+  // 嵌入帶 ?theme= 時以它為準；bare 不讀取本機偏好
+  const embedTheme = EMBED_UI ? EMBED_UI.theme : '';
+  let themeMode = embedTheme ? (embedTheme === 'auto' ? 'system' : embedTheme) : (BARE ? 'system' : (lsGet('theme') || 'system'));
   if (themeMode !== 'system') document.documentElement.dataset.theme = themeMode;
+  else if (BARE || embedTheme) delete document.documentElement.dataset.theme;
 
   // 未填暱稱時給一個可愛的隨機匿名名（存在本機，重新整理不會換；長按身分可換新的）
   const ANON_NOUNS = t('anon_nouns').split(',');
@@ -174,7 +198,7 @@ window.MapApp = (() => {
   }
 
   // 建立新地點：身分欄位比照 submitContribution 統一在這裡補齊，但打的是 api/newspot.php——
-  // 建點的權限是每張地圖自己設定的（meta.json 的 contrib.newPoint），由那支端點把關，
+  // 建點的權限是每張地圖自己設定的（meta.json 的 contrib.newSpot），由那支端點把關，
   // 所以有 csrf 的身分（admin 分支）要一併帶上（見 api/newspot.php）。
   async function submitNewSpot(fields) {
     const fd = new FormData();
@@ -465,7 +489,7 @@ window.MapApp = (() => {
     themeMode = mode;
     if (mode === 'system') delete document.documentElement.dataset.theme;
     else document.documentElement.dataset.theme = mode;
-    localStorage.setItem('theme', mode);
+    if (!BARE) lsSet('theme', mode);
     updateThemeIcon();
     if (engine) engine.applyTheme(isDark());
   }
@@ -685,7 +709,7 @@ window.MapApp = (() => {
     const px = PIN_SIZE_PX[META.pinSize] || 24, half = px / 2;
     return {
       size: [px, px], anchor: [half, half],
-      html: '<div class="' + cls + '" style="background:' + bg + '">' + pinMark + badge + '</div>'
+      html: '<div class="' + cls + '" data-sid="' + esc(String(c.id || '')) + '" style="background:' + bg + '">' + pinMark + badge + '</div>'
     };
   }
   // 音訊播放狀態切換：只有播放中的地點才顯示標記脈衝，切換時才需要重畫標記層
@@ -719,7 +743,7 @@ window.MapApp = (() => {
       specs.push({
         id: c.num, lat: c.lat, lon: c.lon, html: icon.html, size: icon.size, anchor: icon.anchor,
         color: c.color || '#888',
-        onClick: () => { emitHook('panelReset'); openPanel(c); },
+        onClick: () => { if (BARE) { emitHook('spotClick', c); return; } emitHook('panelReset'); openPanel(c); },
       });
     });
     return specs;
@@ -1641,7 +1665,7 @@ window.MapApp = (() => {
   async function boot() {
     // 資料由 view.php 伺服器端內嵌（框架不供應靜態檔）；獨立部署時退回 fetch。
     META = APP.meta || await fetch(APP.base + 'projects/' + PROJECT + '/meta.json').then(r => r.json());
-    SPOTS = APP.spots || await fetch(APP.base + 'projects/' + PROJECT + '/' + (META.points || 'points.json')).then(r => r.json());
+    SPOTS = APP.spots || [];
     document.title = (META.title || t('map_title_fallback')) + (META.subtitle ? '・' + META.subtitle : '');
     document.getElementById('titleTxt').textContent = META.title || t('map_title_fallback');
     document.getElementById('titleSub').textContent = META.subtitle ? '・' + META.subtitle : '';
@@ -1682,23 +1706,25 @@ window.MapApp = (() => {
 
     buildLegend();
     renderSpots();
-    if (SPOTS.length) engine.fitBounds(SPOTS.map(c => [c.lat, c.lon]), { pad: 0.08 });
+    // 嵌入 view=meta／none 不自動 fitBounds：鏡頭已在引擎建構時設為 meta center/zoom
+    if (SPOTS.length && VIEW_MODE === 'fit') engine.fitBounds(SPOTS.map(c => [c.lat, c.lon]), { pad: 0.08 });
+    emitHook('engineReady', engine);
 
     // 封面快照要等圖磚真的畫完才擷圖，不然存到的是半載入的畫面；只有 MapLibre 引擎有 'idle' 事件
     // 可等（見 engine.supportsSnapshot），Leaflet 專案這裡什麼都不會發生。
-    if (engine.supportsSnapshot) {
+    if (engine.supportsSnapshot && !BARE) {
       const forceSnap = new URLSearchParams(location.search).get('snapcover') === 'force';
       engine.getRawMap().once('idle', () => trySnapshotCover(forceSnap));
     }
 
     // 暱稱隱藏欄位（單一真實來源；與上傳視窗 #modalName 的同步交給 contribution-upload.js 自己處理）
     const myName = document.getElementById('myName');
-    myName.value = localStorage.getItem('myName') || '';
+    myName.value = lsGet('myName') || '';
 
     // 收折
     // 品牌互動：連點變形狀（點→線→三→四→五→六角）→ 六角小彩蛋；長按 → 管理入口
     // delegation 關閉時這張地圖不接受新的專案 PIN／邀請登入，連彩蛋入口都不掛，管理者一律走 /manager 直接登入
-    if (MOD('delegation')) setupBrandEgg();
+    if (MOD('delegation') && !BARE) setupBrandEgg();
 
     // 主題切換（系統／淺／深）
     updateThemeIcon();
@@ -1740,7 +1766,7 @@ window.MapApp = (() => {
     // 沒帶這個參數、也沒存過使用者偏好時，手機版（同 CSS 斷點 640px）預設收合，桌機維持展開。
     // 只決定這次載入的初始狀態，使用者手動切換仍照舊存回 localStorage，不會被網址參數卡住。
     const urlCollapsed = params.get('collapsed');
-    const savedCollapsed = localStorage.getItem('ctlCollapsed');
+    const savedCollapsed = lsGet('ctlCollapsed');
     const startCollapsed = urlCollapsed === '1' ? true
       : urlCollapsed === '0' ? false
       : savedCollapsed !== null ? savedCollapsed === '1'
@@ -1749,7 +1775,7 @@ window.MapApp = (() => {
     document.getElementById('collapseBtn').onclick = function () {
       const c = controls.classList.toggle('collapsed');
       this.innerHTML = chevron(c);
-      localStorage.setItem('ctlCollapsed', c ? '1' : '0');
+      lsSet('ctlCollapsed', c ? '1' : '0');
     };
 
     // 定位點微調（僅有 edit_spots 權限者，顯示與否由 openPanel() 依 APP.canEditSpots 控制）
@@ -1857,7 +1883,7 @@ window.MapApp = (() => {
     setupTitleMarquee();
 
     // 鍵盤快速鍵（無障礙）：方向鍵/＋－由 Leaflet 平移縮放；此處補全域鍵
-    document.addEventListener('keydown', e => {
+    if (!BARE) document.addEventListener('keydown', e => {
       const tag = (e.target && e.target.tagName) || '';
       if (/^(INPUT|TEXTAREA|SELECT)$/.test(tag) || e.metaKey || e.ctrlKey || e.altKey) return;
       const k = e.key.toLowerCase();
@@ -1883,9 +1909,9 @@ window.MapApp = (() => {
     // 要排在 loadContributions() 之後：effectiveSpots() 疊的是 CONTRIB（spots.jsonl 的即時內容），
     // 伺服器端內嵌的 SPOTS 只是進站當下的快照，剛建立或剛編輯的地點得等 CONTRIB 抓回來才找得到。
     // 找不到對應地點（號碼錯誤或已刪除）就安靜略過，不擋其餘初始化。
-    const urlSpot = params.get('spot');
+    const urlSpot = BARE ? '' : params.get('spot');
     if (urlSpot) {
-      const pt = effectiveSpots().find(p => p.num === +urlSpot);
+      const pt = effectiveSpots().find(p => p.id === urlSpot || p.num === +urlSpot);
       if (pt) {
         openPanel(pt); engine.panTo(pt.lat, pt.lon, { animate: true });
         const urlBlock = params.get('block');
@@ -1893,8 +1919,9 @@ window.MapApp = (() => {
       }
     }
 
-    statVisit();                 // 匿名累加瀏覽 / 工作階段 / 裝置別
+    if (!BARE) statVisit();      // 匿名累加瀏覽 / 工作階段 / 裝置別
     hideSkeleton();
+    emitHook('bootDone');
   }
   // ?block=<id>：捲到該說明區塊，聲音就邀請點擊播放（播放後由播放器自己拿掉脈衝）
   function focusBlock(id) {
@@ -2043,7 +2070,7 @@ window.MapApp = (() => {
   function extLinkOkHosts() {
     try { return JSON.parse(sessionStorage.getItem('extLinkOk') || '[]'); } catch (e) { return []; }
   }
-  document.addEventListener('click', (e) => {
+  if (!BARE) document.addEventListener('click', (e) => {
     if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
     const a = e.target.closest && e.target.closest('a[href]');
     if (!a) return;
@@ -2084,7 +2111,7 @@ window.MapApp = (() => {
     getEngine: () => engine,
     getFilterPerson: () => filterPerson, isPhotoLayerOn: () => photoLayerOn,
     getCurrentSpot: () => current,
-    isUnlocked, isEmbedMode: () => EMBED,
+    isUnlocked, isEmbedMode: () => EMBED, embedOpts: () => EMBED_UI, applyTheme,
     canTogglePreview: canPreview, isPreviewMode: () => PREVIEW_MODE, setPreviewMode,
     hasIdentity: () => !!contribToken(),
     trackFeature: feature, currentScopeParams, getProjectId: () => PROJECT,
