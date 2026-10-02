@@ -5,7 +5,7 @@
 require __DIR__ . '/store.php';
 require __DIR__ . '/security.php';
 require __DIR__ . '/stats.php';
-require __DIR__ . '/features.php';
+require_once __DIR__ . '/features.php';
 $cfg = require __DIR__ . '/config.php';
 
 $project = preg_replace('/[^a-z0-9_-]/', '', $_REQUEST['project'] ?? '');

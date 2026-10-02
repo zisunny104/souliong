@@ -311,6 +311,7 @@ return [
     'primary_only_settings_msg'  => '平台全域設定僅限主要管理者。',
     'primary_only_pin_perm_msg'  => 'PIN 權限管理僅限主要管理者。',
     'admin_pin_share_permission_msg' => '只有主要管理者，或已被授權「可建管理PIN連結」的專案管理者，才能建立管理PIN分享連結。',
+    'delegation_off_msg'         => '此地圖已關閉「管理者邀請登入」，無法建立或使用專案 PIN 與邀請連結；請由主要管理者從後台登入管理。',
     'primary_only_backup_all_msg' => '只有主要管理者可以備份全部專案。',
     'primary_only_import_msg'    => '只有主要管理者可以匯入還原。',
     'primary_only_packs_msg'     => '全站主題包管理僅限主要管理者；地圖專屬主題包請由該地圖的管理者處理。',
