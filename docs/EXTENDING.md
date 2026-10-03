@@ -658,7 +658,7 @@ MapLibre 沒有 Leaflet 的「pane／可疊多張獨立底圖」概念，向量 
 
 `php tools/checkall.php` 依序跑 `php -l`（全專案 php，不含 `vendor`／`projects`／`state`）、`authlint`、`authcheck`、`contentcheck`、`embedcheck`、`securitycheck`；環境有 `node` 時再對 `assets/js` 跑 `node --check`。全過結束碼 0，任一項失敗結束碼 1，最後列出每項結果與失敗摘要。`authcheck` 與 `contentcheck` 在臨時沙盒跑，不碰真實的 `projects/` 與 `state/`。改動端點、權限或前端腳本後跑一次。
 
-部署用 `./deploy.sh`（`--check-only` 只做設定與網站自我檢查，包含用金絲雀檔確認 `state/`、`projects/` 沒有被網頁直接下載；需設環境變數 `DEPLOY_CHECK_URL`），其檢查邏輯用 `bash tools/deploycheck.sh` 驗證。
+部署用 `./deploy.sh`，其中 `--check-only` 只做設定與網站自我檢查：用金絲雀檔確認 `state/`、`projects/` 沒被網頁直接下載，也確認 `.git/` 沒外洩。檢查網址用 `./deploy.sh --set-check-url https://example.com/project` 設定一次，或設環境變數 `DEPLOY_CHECK_URL`。檢查邏輯用 `bash tools/deploycheck.sh` 驗證。
 
 ## 十三、權限系統：`Auth` / `Actor` / `auth_registry()`
 
