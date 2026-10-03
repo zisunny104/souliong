@@ -52,8 +52,8 @@ run_case "已擋（應通過）" router_block.php 0 "state/ 無法被直接下�
 
 # 沒設 DEPLOY_CHECK_URL：略過並提醒，不失敗
 out="$(cd "$SITE" && env -u DEPLOY_CHECK_URL bash ./deploy.sh --check-only 2>&1)"; code=$?
-[ "$code" -eq 0 ]; expect "未設 DEPLOY_CHECK_URL：不失敗" $?
-grep -qF "未設定 DEPLOY_CHECK_URL" <<< "$out"; expect "未設 DEPLOY_CHECK_URL：有提醒" $?
+[ "$code" -eq 0 ]; expect "未設檢查網址：不失敗" $?
+grep -qF "未設定檢查網址" <<< "$out"; expect "未設定檢查網址：有提醒" $?
 
 # 連不上：略過，不讓整體失敗
 out="$(cd "$SITE" && DEPLOY_CHECK_URL="http://127.0.0.1:9" bash ./deploy.sh --check-only 2>&1)"; code=$?
