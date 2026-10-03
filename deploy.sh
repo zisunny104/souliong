@@ -21,6 +21,15 @@ fail() { echo "  ${RED}✗${RESET} $1"; }
 # 預設只檢查不代勞；明確加旗標才動檔案。只動 projects/、state/、api/config.php：
 # 資料夾 2775（setgid，新檔繼承群組）、檔案 664、擁有者＝php-fpm 使用者；config.php 640（含機密，不給 other 讀）。
 # php-fpm 使用者：DEPLOY_WEB_USER 指定，否則從執行中的 php-fpm／apache／nginx 行程偵測。需要 root 或 sudo。
+# 儲存網站對外網址，供自我檢查使用：./deploy.sh --set-check-url https://example.com/<基底路徑>
+if [ "${1:-}" = "--set-check-url" ]; then
+  case "${2:-}" in https://*|http://*) ;; *) fail "請提供以 https:// 開頭的網址"; exit 2 ;; esac
+  [ -d state ] || { fail "找不到 state/"; exit 1; }
+  printf '%s
+' "${2%/}" > state/deploy_check_url && ok "已儲存檢查網址"
+  exit 0
+fi
+
 FIX_PERMS=1; FIX_ONLY=0; DRY_RUN=0; AUTO=1; CHECK_ONLY=0
 for arg in "$@"; do
   case "$arg" in
@@ -32,6 +41,7 @@ for arg in "$@"; do
     -h|--help)
       echo "用法：./deploy.sh [--fix-perms-only] [--no-fix-perms] [--check-only] [--dry-run]"
       echo "  --check-only  不更新程式碼，只跑「設定與網站自我檢查」"
+      echo "  --set-check-url <網址>  儲存網站對外網址，之後自我檢查自動使用"
       echo "環境變數：DEPLOY_BRANCH、DEPLOY_WEB_USER、DEPLOY_RELOAD_CMD、DEPLOY_CHECK_URL（網站對外網址，例：https://example.com/<基底路徑>）"
       exit 0 ;;
     *) fail "未知參數：$arg"; exit 2 ;;
@@ -123,19 +133,21 @@ selfcheck_web() {
       [ "$(cat "$f" 2>/dev/null)" = "$CANARY_TEXT" ] || printf '%s' "$CANARY_TEXT" > "$f"
     fi
   done
-  if [ -z "${DEPLOY_CHECK_URL:-}" ]; then
-    warn "略過「敏感路徑可否被直接下載」檢查：未設定 DEPLOY_CHECK_URL（例：DEPLOY_CHECK_URL=https://example.com/<基底路徑> ./deploy.sh）"
+  CHECK_URL="${DEPLOY_CHECK_URL:-}"
+  [ -n "$CHECK_URL" ] || CHECK_URL="$(head -n1 state/deploy_check_url 2>/dev/null || true)"
+  if [ -z "$CHECK_URL" ]; then
+    warn "略過「敏感路徑可否被直接下載」檢查：未設定檢查網址，可執行 ./deploy.sh --set-check-url <網址>"
     return 0
   fi
   if ! command -v curl >/dev/null 2>&1; then
     warn "略過「敏感路徑可否被直接下載」檢查：找不到 curl"
     return 0
   fi
-  base="${DEPLOY_CHECK_URL%/}"
+  base="${CHECK_URL%/}"
   case "$base" in
-    https://*) ok "DEPLOY_CHECK_URL 使用 HTTPS" ;;
-    http://*)  warn "DEPLOY_CHECK_URL 是 http://：定位、相機與刪除判斷（crypto.subtle）都需要安全情境，全站請走 HTTPS" ;;
-    *)         warn "DEPLOY_CHECK_URL 要以 https:// 或 http:// 開頭：$base"; return 0 ;;
+    https://*) ok "檢查網址使用 HTTPS" ;;
+    http://*)  warn "檢查網址是 http://：定位、相機與刪除判斷（crypto.subtle）都需要安全情境，全站請走 HTTPS" ;;
+    *)         warn "檢查網址要以 https:// 或 http:// 開頭：$base"; return 0 ;;
   esac
   for d in state projects; do
     [ -f "$d/.canary-selfcheck" ] || { warn "$d/ 沒有金絲雀檔（資料夾不可寫），略過這一項"; continue; }
@@ -148,7 +160,7 @@ selfcheck_web() {
       unreach)
         warn "連不上 $url（逾時或網路不通），略過這一項" ;;
       3??)
-        warn "$url 回 $r 轉址，腳本不跟隨；請把 DEPLOY_CHECK_URL 改成最終網址（例如直接用 https://）再測" ;;
+        warn "$url 回 $r 轉址，腳本不跟隨；請把檢查網址改成最終網址（例如直接用 https://）再測" ;;
       *)
         [ "$r" = 404 ] && notfound=1
         ok "$d/ 無法被直接下載（回 $r）" ;;
@@ -161,7 +173,7 @@ selfcheck_web() {
     echo "${YELLOW}${NGINX_SNIPPET}${RESET}"
     echo "  ${DIM}完成後重跑 ./deploy.sh --check-only 確認；已外流的 PIN 與投稿代碼請一併更換${RESET}"
   elif [ "$notfound" -eq 1 ]; then
-    echo "  ${DIM}（回 404 時，請確認 DEPLOY_CHECK_URL 指向的是本站，而不是別的站台）${RESET}"
+    echo "  ${DIM}（回 404 時，請確認檢查網址指向的是本站，而不是別的站台）${RESET}"
   fi
 }
 
