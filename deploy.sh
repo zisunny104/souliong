@@ -32,7 +32,7 @@ for arg in "$@"; do
     -h|--help)
       echo "用法：./deploy.sh [--fix-perms-only] [--no-fix-perms] [--check-only] [--dry-run]"
       echo "  --check-only  不更新程式碼，只跑「設定與網站自我檢查」"
-      echo "環境變數：DEPLOY_BRANCH、DEPLOY_WEB_USER、DEPLOY_RELOAD_CMD、DEPLOY_CHECK_URL（網站對外網址，例：https://toka.dev/koilisu/souliong）"
+      echo "環境變數：DEPLOY_BRANCH、DEPLOY_WEB_USER、DEPLOY_RELOAD_CMD、DEPLOY_CHECK_URL（網站對外網址，例：https://example.com/<基底路徑>）"
       exit 0 ;;
     *) fail "未知參數：$arg"; exit 2 ;;
   esac
@@ -124,7 +124,7 @@ selfcheck_web() {
     fi
   done
   if [ -z "${DEPLOY_CHECK_URL:-}" ]; then
-    warn "略過「敏感路徑可否被直接下載」檢查：未設定 DEPLOY_CHECK_URL（例：DEPLOY_CHECK_URL=https://toka.dev/koilisu/souliong ./deploy.sh）"
+    warn "略過「敏感路徑可否被直接下載」檢查：未設定 DEPLOY_CHECK_URL（例：DEPLOY_CHECK_URL=https://example.com/<基底路徑> ./deploy.sh）"
     return 0
   fi
   if ! command -v curl >/dev/null 2>&1; then
@@ -184,9 +184,9 @@ selfcheck_php_ini() {
   ' 2>/dev/null || true)"
   if [ -n "$out" ]; then
     warn "PHP CLI 讀到的上傳設定偏小：$out"
-    echo "  ${DIM}CLI 與 PHP-FPM 的 php.ini 可能不同，FPM 請設 upload_max_filesize=64M、post_max_size=68M；Nginx 設 client_max_body_size 70m;${RESET}"
+    echo "  ${DIM}CLI 與 PHP-FPM 的 php.ini 可能不同，FPM 的 upload_max_filesize／post_max_size 與反向代理的請求大小上限（例如 Nginx 的 client_max_body_size）都需不小於上述需求，post_max_size 與代理上限建議再多留幾 MB${RESET}"
   else
-    ok "PHP CLI 的上傳設定足夠（FPM 的 php.ini 與 Nginx client_max_body_size 70m 請另外確認）"
+    ok "PHP CLI 的上傳設定足夠（FPM 的 php.ini 與反向代理的請求大小上限請另外確認）"
   fi
 }
 
@@ -331,7 +331,7 @@ fi
 
 # 選用：PHP 開了 opcache 且不檢查檔案時間戳（validate_timestamps=0）的伺服器，
 # 換了檔案要重載 PHP-FPM 才會生效；用環境變數帶進來，例如
-#   DEPLOY_RELOAD_CMD="systemctl reload php8.3-fpm" ./deploy.sh
+#   DEPLOY_RELOAD_CMD="systemctl reload <PHP-FPM 服務名稱>" ./deploy.sh
 if [ -n "${DEPLOY_RELOAD_CMD:-}" ] && [ "$BEFORE" != "$AFTER" ]; then
   echo
   step "重載 PHP"

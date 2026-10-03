@@ -33,7 +33,7 @@
 ```
 點位存在 `projects/<id>/spots.jsonl`，由後台或投稿視窗的「建立點位」新增（可設為管理者限定或開放投稿者建立），沒有另外的點位檔。詳見 [EXTENDING.md](docs/EXTENDING.md)（投稿型別、模組開關、圖層系統）。對外資料 API、iframe 嵌入與 postMessage 控制見 [EMBED-API.md](docs/EMBED-API.md)。
 
-網址：`/koilisu/souliong/<id>`；`/koilisu/souliong/` 首頁自動列出所有地圖；後台在 `/koilisu/souliong/manager`。
+網址：`<基底路徑>/<id>`；`<基底路徑>/` 首頁自動列出所有地圖；後台在 `<基底路徑>/manager`。
 
 ## 投稿代碼（給參與者上傳）
 
