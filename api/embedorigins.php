@@ -1,14 +1,8 @@
 <?php
 /**
- * 允許嵌入的來源（origin）清單：全站唯一一份解析與驗證。
- * CORS（api=project／api=spots）、地圖頁的 frame-ancestors／X-Frame-Options、
- * 前端 postMessage 白名單（APP.embedOrigins）都從這裡取，不各自解析。
- *
- * 清單來源（聯集）：全站 config 的 embed_allowed_origins＋專案 meta.json 的 embedOrigins。
- * 預設都是空清單＝不開放任何跨來源嵌入或讀取。
- *
- * 合法格式：https://host[:port]；本機開發可用 http://localhost[:port]、http://127.0.0.1[:port]。
- * 不接受萬用字元、路徑、query、fragment、帳密、非 ASCII 主機名（IDN 請先轉 punycode）。
+ * 允許嵌入的來源清單：全站唯一一份解析與驗證，CORS、frame-ancestors、postMessage 白名單都從這裡取。
+ * 清單由全站與專案兩層取聯集，預設為空，空清單不開放任何來源。
+ * 只接受 https://host[:port]，本機開發另可用 http://localhost。
  */
 
 /** 本機開發主機：唯一允許 http 的主機名 */
@@ -62,13 +56,13 @@ function embed_origins_parse($input): array
     return ['valid' => $valid, 'invalid' => $invalid];
 }
 
-/** 全站層清單檔（state/embed_origins.json，JSON 字串陣列；不進版控，由 tools/embed_allow.php 維護）。 */
+/** 全站層清單檔，由 tools/embed_allow.php 維護。 */
 function embed_origins_file(array $cfg): string
 {
     return rtrim((string)($cfg['state_dir'] ?? ''), '/\\') . '/embed_origins.json';
 }
 
-/** 全站層清單：config 的 embed_allowed_origins 與 state/embed_origins.json 取聯集；不合法項目靜默忽略（fail-closed）。 */
+/** 全站層清單：設定與清單檔取聯集，不合法項目一律忽略。 */
 function embed_origins_site(array $cfg): array
 {
     $fromFile = [];
@@ -101,11 +95,7 @@ function embed_origin_match(?string $origin, array $allowed): ?string
     return ($n !== null && in_array($n, $allowed, true)) ? $n : null;
 }
 
-/**
- * 資料 API 的 CORS 標頭：永遠送 Vary: Origin（回應依來源而異）；只有 Origin 命中清單才送
- * Access-Control-Allow-Origin（回該來源本身，不用 *）。空清單＝不送任何 CORS 標頭。
- * 回傳是否命中。
- */
+/** 資料 API 的 CORS 標頭：只有來源命中清單才放行，回傳是否命中。 */
 function embed_send_cors(array $allowed): bool
 {
     header('Vary: Origin');
@@ -119,12 +109,7 @@ function embed_send_cors(array $allowed): bool
     return true;
 }
 
-/**
- * 地圖頁允許被嵌入：清單非空時移除 PHP 端送出的 X-Frame-Options，改送
- * Content-Security-Policy: frame-ancestors 'self' <清單>。清單為空什麼都不做（維持原樣）。
- * 只能移除由 PHP 自己送出的 XFO；伺服器層（Apache／Nginx／反向代理）加的標頭要在那邊處理。
- * 回傳是否有送出 frame-ancestors。
- */
+/** 清單非空時改送 frame-ancestors 並移除 PHP 端的 X-Frame-Options，回傳是否有送出。 */
 function embed_send_frame_headers(array $allowed): bool
 {
     if (!$allowed) return false;

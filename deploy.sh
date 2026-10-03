@@ -264,7 +264,7 @@ if command -v php >/dev/null 2>&1; then
   HAS_PHP=1
   ok "PHP CLI：$(php -r 'echo PHP_VERSION;')"
   if ! php -r 'exit(PHP_VERSION_ID >= 80000 ? 0 : 1);'; then
-    fail "PHP 版本太舊：souliong 需要 PHP 8.0 以上（建議 8.2／8.3），舊版會在載入 api/auth.php 時直接 500。請先升級或另裝 PHP-FPM 8.x"
+    fail "PHP 版本太舊，需要 PHP 8.0 以上，請先升級"
     exit 1
   fi
 else

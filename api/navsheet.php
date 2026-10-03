@@ -4,10 +4,8 @@
  * 只輸出「用哪個軟體導航」選單，給 iframe／modal 引用。選項清單、連結模板、平台條件與地圖頁的點位
  * 導航選單同一份（api/navlinks.php）；樣式沿用 .p-nav-item（assets/css/spot-panel.css）。
  *
- * 無狀態：不開 session、不送 Set-Cookie、不帶起點、不做定位。外部連結一律 target=_blank
- * rel="noopener noreferrer"。收起時由 assets/js/navsheet.js 對父頁 postMessage
- * {v:1, ns:"souliong", type:"navsheet-close"}，目標 origin 只取自嵌入允許清單（api/embedorigins.php）。
- * 框架標頭：embed=1 且清單非空才送 frame-ancestors 並移除 PHP 端 XFO；其餘一律禁止被嵌入（與框架預設一致，不依賴它）。
+ * 無狀態，不開 session。收起時對父頁送 navsheet-close，目標只取自嵌入允許清單。
+ * 只有 embed=1 且清單非空才允許被嵌入，其餘一律禁止。
  */
 require_once __DIR__ . '/store.php';
 require_once __DIR__ . '/security.php';
@@ -41,7 +39,7 @@ if (preg_match('/^[a-z0-9_-]{1,40}$/D', $slug)) {
 
 $embed = (($_GET['embed'] ?? '') === '1');
 $origins = embed_origins_allowed($cfg, $meta);
-// 不在允許清單內（含非 embed 模式、清單為空）一律禁止被嵌入，不依賴框架或伺服器是否另外送 XFO
+// 未允許的來源一律禁止被嵌入
 if (!($embed && embed_send_frame_headers($origins))) {
     header("Content-Security-Policy: frame-ancestors 'none'");
     header('X-Frame-Options: DENY');

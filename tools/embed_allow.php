@@ -1,11 +1,8 @@
 <?php
-// 維護工具（CLI only）：管理全站嵌入允許清單 state/embed_origins.json（不進版控，與 config 的
-// embed_allowed_origins 取聯集生效）。
+// 維護全站嵌入允許清單（CLI only）。
 //   php tools/embed_allow.php list
 //   php tools/embed_allow.php add    https://example.com
 //   php tools/embed_allow.php remove https://example.com
-// 格式 https://host[:port]（開發可用 http://localhost[:port]），不接受萬用字元與路徑。
-// 只動這個 JSON 檔，不改寫 api/config.php；就地寫入，擁有者與權限不變。
 if (PHP_SAPI !== 'cli') { fwrite(STDERR, "CLI only\n"); exit(1); }
 require_once __DIR__ . '/../api/embedorigins.php';
 

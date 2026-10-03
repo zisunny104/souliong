@@ -81,14 +81,14 @@ GET <站台>?api=spots&project=<slug>
 
 - 回應帶 `ETag` 與 `Cache-Control: public, max-age=60`；請求帶 `If-None-Match`（含 `W/` 前綴）時命中回 `304`。
 - 專案不存在或 slug 格式錯誤：`404`（slug 缺漏或格式錯誤為 `400`）；`POST` 等其他方法：`405` 並附 `Allow`。
-- 超過速率限制回 `429`。限制分桶為 `dataapi`（預設每 60 秒 120 次）與 `navsheet`（同預設），可在站台設定的 `rate_limits` 覆寫。
+- 超過速率限制回 `429`。限制可在站台設定的 `rate_limits` 調整。
 
 ### 2.4 CORS
 
 - 預設不送任何 CORS 標頭（空清單）。
 - 來源在允許清單內時，`Access-Control-Allow-Origin` 只回該來源本身，不使用 `*`；所有回應都帶 `Vary: Origin`。
 - 預檢 `OPTIONS` 回 `204`。
-- 不在清單內的來源，瀏覽器會因缺少標頭而擋下跨來源讀取；伺服端對任何來源回應內容相同，所以 CORS 只是瀏覽器端的限制，不是存取控制（資料本身是公開的）。
+- 不在清單內的來源，瀏覽器會因缺少標頭而擋下跨來源讀取；CORS 只限制瀏覽器，不是存取控制，資料本身是公開的。
 
 ---
 
@@ -96,15 +96,15 @@ GET <站台>?api=spots&project=<slug>
 
 同一份清單同時控制：資料 API 的 CORS、地圖頁與導航小頁的 `frame-ancestors`、以及 `postMessage` 的來源白名單。
 
-- 全站：`state/embed_origins.json`（不進版控；終端機用 `php tools/embed_allow.php list|add|remove <來源>` 維護），與站台設定 `embed_allowed_origins`（陣列）取聯集。
-- 單一專案：後台專案設定的「允許嵌入的網域」（存為 `meta.json` 的 `embedOrigins`）。
+- 全站：由 `php tools/embed_allow.php list|add|remove <來源>` 維護，另可在站台設定填 `embed_allowed_origins`，兩者取聯集。
+- 單一專案：後台專案設定的「允許嵌入的網域」。
 - 實際生效清單為兩者聯集。預設為空，空清單代表全部拒絕。
 
-格式限制（不符者後台會拒絕儲存，站台設定中不合格的項目會被忽略）：
+格式限制，不符者會被拒絕或忽略：
 
 - `https://host[:port]`；開發用途允許 `http://localhost[:port]` 與 `http://127.0.0.1[:port]`。
 - 不接受萬用字元、路徑、查詢字串、片段、帳密、IDN（請填 punycode）。
-- 預設連接埠（`:443`）會被正規化移除；比對時大小寫不敏感。
+- 預設連接埠會被正規化，比對時不分大小寫。
 
 注意：從備份匯入專案不會還原 `meta.json`，匯入後需重新設定該專案的允許網域。
 
@@ -256,31 +256,21 @@ GET <站台>?api=navsheet&project=<slug>&spot=<spotId|num>&embed=1[&theme=light|
 
 - 資料 API 回傳的都是公開資料；允許清單不是授權機制，不要把它當成存取控制。
 - 嵌入的允許清單預設為空；沒有設定的來源無法被嵌入、也收不到 `postMessage` 回覆。
-- 清單集中在單一模組驗證（格式、拒絕萬用字元），後台與站台設定走同一套規則，不合格者拒絕。
 - 父頁請驗證 `event.source` 與 `event.origin`，並指定 `targetOrigin`；不要使用 `"*"`。
 - `snapshot` 的 `dataUrl` 是圖片資料，請當作圖片處理，不要插入為 HTML。
 - 導航連結的外部網址一律 `noopener noreferrer`。
 - 所有端點受速率限制；父頁輪詢資料 API 時請利用 `ETag`／`If-None-Match`，並尊重 `max-age=60`。
 
-### 8.1 X-Frame-Options 的殘留風險
+### 8.1 伺服器層標頭
 
-地圖頁在 `?embed=1` 且清單非空時，會送出 `Content-Security-Policy: frame-ancestors 'self' <清單>`，並移除 PHP 端的 `X-Frame-Options`。PHP 程式本身不會主動送 `X-Frame-Options`，但**網頁伺服器、反向代理、CDN 或上層框架**可能另外加上（例如 `DENY` 或 `SAMEORIGIN`）。瀏覽器同時看到兩者時會採較嚴格的結果，嵌入就會被擋。
-
-PHP 無法移除伺服器層加上的標頭，部署後請實測：
-
-```
-curl -I "<站台>?p=<slug>&embed=1&ui=bare"
-curl -I "<站台>?api=navsheet&project=<slug>&spot=<spotId>&embed=1"
-```
-
-確認回應沒有 `X-Frame-Options`，且有包含你的來源的 `frame-ancestors`。若仍有 `X-Frame-Options`，請到伺服器或代理層的設定移除（僅針對嵌入用的路徑或帶 `embed=1` 的請求）。
+嵌入頁會送 `frame-ancestors`，但網頁伺服器、代理或 CDN 可能另外加上 `X-Frame-Options`，可能使嵌入被擋。部署後請用 `curl -I` 檢查嵌入頁與導航小頁的回應，若有衝突，請在伺服器層調整嵌入用的路徑。
 
 ---
 
 ## 9. 檢查清單
 
 - [ ] 在站台設定或後台專案設定填入父頁 origin。
-- [ ] `curl -I` 確認沒有伺服器層的 `X-Frame-Options`。
+- [ ] `curl -I` 確認沒有伺服器層的衝突標頭。
 - [ ] 父頁用 `spotId` 而非 `num` 識別點位。
 - [ ] 父頁訊息處理檢查 `event.source` 與 `event.origin`。
 - [ ] 用 `tools/embed-demo.html` 手動驗證所有指令；`php tools/checkall.php` 含 `embedcheck` 自動檢查。
