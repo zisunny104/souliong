@@ -33,7 +33,7 @@ function dataapi_fail(int $code, string $error): void
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $slug = (string)($_GET['project'] ?? '');
 $meta = null;
-if (preg_match('/^[a-z0-9_-]{1,40}$/', $slug)) {
+if (preg_match('/^[a-z0-9_-]{1,40}$/D', $slug)) {
     $mf = project_dir($cfg, $slug) . '/meta.json';
     $meta = is_file($mf) ? json_decode((string)@file_get_contents($mf), true) : null;
     if (!is_array($meta)) $meta = null;
@@ -55,7 +55,7 @@ if ($method !== 'GET' && $method !== 'HEAD') {
 $cfg['rate_limits']['dataapi'] = $cfg['rate_limits']['dataapi'] ?? ['max' => 120, 'window' => 60];
 rate_limit($cfg, 'dataapi');
 
-if (!preg_match('/^[a-z0-9_-]{1,40}$/', $slug)) dataapi_fail(400, 'invalid project');
+if (!preg_match('/^[a-z0-9_-]{1,40}$/D', $slug)) dataapi_fail(400, 'invalid project');
 if ($meta === null) dataapi_fail(404, 'project not found');
 
 /** 圖層清單裡的相對（本地）網址補成絕對網址；外部網址原樣。 */
