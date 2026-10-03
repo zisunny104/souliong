@@ -322,7 +322,7 @@ ck($hv($h, 'set-cookie') === '', 'navsheet 不送 Set-Cookie', $hv($h, 'set-cook
 ck(strpos($hv($h, 'content-security-policy'), "frame-ancestors 'self' https://embed.example.org") !== false && $hv($h, 'x-frame-options') === '', 'navsheet embed=1 且清單非空：frame-ancestors，XFO 移除', [$hv($h, 'content-security-policy'), $hv($h, 'x-frame-options')]);
 ck(strpos($b, 'data-nsheet-origins="[&quot;https:\/\/embed.example.org&quot;') !== false || strpos($b, 'data-nsheet-origins="[&quot;https://embed.example.org&quot;') !== false, 'navsheet 注入 postMessage 目標來源（只取自清單）');
 [$c, $h, $b] = ec_req($ns($E, $ID1));
-ck($c === 200 && strpos($hv($h, 'content-security-policy'), 'frame-ancestors') === false && $hv($h, 'x-frame-options') === 'DENY' && strpos($b, 'data-nsheet-origins="[]"') !== false, 'navsheet 無 embed=1：維持原狀且不注入來源', [$hv($h, 'content-security-policy'), $hv($h, 'x-frame-options')]);
+ck($c === 200 && strpos($hv($h, 'content-security-policy'), "frame-ancestors 'none'") !== false && $hv($h, 'x-frame-options') === 'DENY' && strpos($b, 'data-nsheet-origins="[]"') !== false, 'navsheet 無 embed=1：禁止嵌入且不注入來源', [$hv($h, 'content-security-policy'), $hv($h, 'x-frame-options')]);
 [$c, $h, $b] = ec_req($ns($E, '2', ['embed' => '1']));
 ck($c === 200 && strpos($b, 'geo:24.0525,120.6925') !== false, 'navsheet 也接受 num（相容）');
 [$c, $h, $b] = ec_req($ns($E, '0000000000000000', ['embed' => '1']));
