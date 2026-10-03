@@ -9,7 +9,7 @@ $apiCfg = require __DIR__ . '/../api/config.php';
 $randomExplore = souliong_random_explore_on($apiCfg);
 [$LANG, $DICT] = i18n_init();
 $t = fn(string $key, array $vars = []): string => htmlspecialchars(i18n_t($DICT, $key, $vars), ENT_QUOTES);
-require_once __DIR__ . '/../api/routes.php';   // 網址表：掛載根目錄的演算法只有這一份（見 api/routes.php）
+require_once __DIR__ . '/../api/routes.php';   // 網址表：掛載根路徑的演算法只有這一份（見 api/routes.php）
 require_once __DIR__ . '/../api/layers.php';   // 版權標註共用函式（souliong_credit_html 等）＋圖層解析
 $base = Route::base();
 
@@ -23,8 +23,8 @@ $addCredit = function (?array $part) use (&$creditParts, $DICT) {
     if ($html !== '' && !in_array($html, $creditParts, true)) $creditParts[] = $html;
 };
 // 用 scandir 而不是 glob()：glob 會把路徑裡的中括號當成「字元集合」樣式，
-// 安裝在含中括號的目錄下（例如 .../亞洲大學[Asia University]/...）時整個樣式一個檔案都對不到，
-// 首頁就會在明明有地圖的情況下顯示「尚未有地圖」。這裡只是逐一列目錄，沒有比對樣式的需要。
+// 安裝在含中括號的資料夾下（例如 .../亞洲大學[Asia University]/...）時整個樣式一個檔案都對不到，
+// 首頁就會在明明有地圖的情況下顯示「尚未有地圖」。這裡只是逐一列資料夾，沒有比對樣式的需要。
 $projectsDir = $apiCfg['projects_dir'];
 foreach (scandir($projectsDir) ?: [] as $entry) {
     if ($entry === '.' || $entry === '..') continue;

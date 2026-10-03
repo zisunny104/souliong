@@ -22,7 +22,7 @@
 
   /* ---------- 區塊型別 ---------- */
 
-  // 草稿區塊：{ key, kind, id?, comment, item?, ... }。既有區塊帶 id 與原始項目 item，新區塊沒有；型別自己的欄位另外加。
+  // 草稿區塊：{ key, kind, id?, comment, item?, ... }。既有區塊帶 id 與原始資料 item，新區塊沒有；型別自己的欄位另外加。
   // ctx = { mapApp, add(block) }：add 把新區塊接到草稿最後並重畫清單。
   class BlockType {
     get kind() { return ''; }
@@ -229,7 +229,7 @@
   const opaque = new OpaqueBlockType();
   window.SLContentEditor = { BlockType, registerBlockType };
 
-  // 既有項目 → 草稿區塊；沒有對應型別（或聲音沒有檔案）的一律當不透明區塊
+  // 既有區塊 → 草稿區塊；沒有對應型別（或聲音沒有檔案）的一律當不透明區塊
   const blockFromItem = (item) => {
     const type = types.find(k => k.kind === item.kind && (k.kind !== 'audio' || item.media) && (k.kind !== 'photo' || item.photo));
     return type ? type.fromItem(item) : { key: ++uid, kind: item.kind, id: item.id, opaque: true, item };

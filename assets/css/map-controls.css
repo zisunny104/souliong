@@ -164,7 +164,7 @@
   margin: 0 !important
 }
 
-/* 深色底圖提亮，讓圖面與物件更清楚（不影響標記，標記在另一個 pane） */
+/* 深色底圖提亮，讓圖面與地物更清楚（不影響標記，標記在另一個 pane） */
 :root[data-theme="dark"] .leaflet-tile-pane {
   filter: brightness(1.45) contrast(.9)
 }

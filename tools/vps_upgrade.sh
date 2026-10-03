@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 一次性升級腳本（舊版 → 最新 origin/main）。在 souliong 目錄執行，順序：
+# 一次性升級腳本（舊版 → 最新 origin/main）。在 souliong 資料夾執行，順序：
 #   1. df81aba  ：data.jsonl 拆成 spots/entries、靜態底稿併入 spots、核對 retirecheck
 #   2. 3e85c83  ：精選音訊轉成點位原生 content
 #   3. origin/main：content_migrate（說明與內容合併）、修權限、重載 PHP

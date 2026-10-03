@@ -21,7 +21,7 @@ try {
     if (!$who->owns($rec)) {
         json_out(['error' => '沒有權限刪除這則（可能是別人上傳的，或此裝置/身分的標記已更換）'], 403);
     }
-    // 點位本身（kind:'spot'）不能自刪，即使 owner_hash 對得上：那是地點的識別記錄，
+    // 點位本身（kind:'spot'）不能自刪，即使 owner_hash 對得上：那是點位的識別紀錄，
     // 不是可各自撤回的投稿，要刪只能透過有 edit_spots 權限的後台管理。
     if (($rec['kind'] ?? null) === 'spot') {
         json_out(['error' => '不能刪除點位本身'], 403);

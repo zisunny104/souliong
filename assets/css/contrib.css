@@ -1,5 +1,5 @@
 /* ---------- 投稿對話框（#contribModal） ----------
-   另：.loc-src／.loc-hint 留在 spot-panel.css，因為地點面板裡的照片編輯器也用同一組。
+   另：.loc-src／.loc-hint 留在 spot-panel.css，因為點位面板裡的照片編輯器也用同一組。
    由 assets/js/plugins/contribution.js 產生 DOM，view.php 只在 upload 模組開啟時才載入。 */
 #contribModal {
   position: fixed;
@@ -192,7 +192,7 @@
   transition: opacity var(--t)
 }
 
-/* 沒有預覽區的型別（文字紀錄、建立地點）：欄位佔滿整張卡片，不要留一塊 100px 的空白 */
+/* 沒有預覽區的型別（文字紀錄、建立點位）：欄位佔滿整張卡片，不要留一塊 100px 的空白 */
 .card.sl-noprev {
   grid-template-columns: 1fr 30px;
   grid-template-areas: "fields cancel"
@@ -292,7 +292,7 @@
   line-height: 1.5
 }
 
-/* 建立地點的標題：這張卡片最重要的欄位，比其他輸入框醒目一點 */
+/* 建立點位的標題：這張卡片最重要的欄位，比其他輸入框醒目一點 */
 .card .c-title {
   font-size: 0.9375rem !important;
   font-weight: 700

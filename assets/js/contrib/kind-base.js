@@ -35,11 +35,11 @@
 
     // ---- 卡片組成（殼依這幾個旗標決定要不要渲染對應區塊）----
     needsFile() { return true; }
-    needsSpot() { return true; }          // 關聯地點選單
+    needsSpot() { return true; }          // 關聯點位選單
     needsLocation() { return true; }      // 迷你地圖 + 定位來源
     hasPreview() { return this.needsFile(); }
     placeholderHtml() { return esc(t('processing')); }
-    // 插在留言框之前的自訂欄位（建立地點的標題／分類用）
+    // 插在留言框之前的自訂欄位（建立點位的標題／分類用）
     extraTopHtml() { return ''; }
     // 插在留言框之後的提示（Markdown 語法說明等）
     extraBottomHtml() { return ''; }
@@ -50,7 +50,7 @@
     // 丟例外＝這個檔案處理失敗，殼會在預覽區顯示錯誤但仍讓使用者送出（有些型別沒縮圖也能投）。
     async prepare(file, state) { state.blob = file; }
     renderPreview(state, el) { el.textContent = ''; }
-    // 型別自己知道座標的話回傳 {lat, lon}（照片的 EXIF GPS）；回 null 就由殼依裝置定位／來源地點補
+    // 型別自己知道座標的話回傳 {lat, lon}（照片的 EXIF GPS）；回 null 就由殼依裝置定位／來源點位補
     initialLoc(state) { return null; }
     timeOf(state) { return (state.file && state.file.lastModified) || Date.now(); }
 
@@ -61,7 +61,7 @@
       return null;
     }
     // common＝殼算好的通用欄位（item_num／name／comment／lat／lon／loc_source／license…）。
-    // 覆寫時要嘛展開它、要嘛完全不要它（建立地點走的是另一支端點，欄位不一樣）。
+    // 覆寫時要嘛展開它、要嘛完全不要它（建立點位走的是另一支端點，欄位不一樣）。
     fields(state, card, common) { return common; }
     async submit(mapApp, fields, opts) { return mapApp.submitContribution(fields, opts); }
 

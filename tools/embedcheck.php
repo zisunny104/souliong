@@ -4,7 +4,7 @@
  *
  * 用法：php tools/embedcheck.php      全部通過結束碼 0，有任何一項失敗為 1。
  *
- * 在臨時沙盒跑（sys_get_temp_dir()/embedcheck_*，結束時清掉）：複製 api／pages／lang 與根目錄檔案，
+ * 在臨時沙盒跑（sys_get_temp_dir()/embedcheck_*，結束時清掉）：複製 api／pages／lang 與根資料夾檔案，
  * 起一個內建伺服器（127.0.0.1:8124），不碰真正的 state/ 與 projects/。沙盒的 index.php 先送一個
  * X-Frame-Options: DENY，模擬伺服器層或上游已加的標頭，用來驗證「清單非空才移除、否則保留」。
  * 涵蓋：回應格式與欄位白名單（不含任何雜湊／IP）、ETag／304、CORS 只放行清單內來源、

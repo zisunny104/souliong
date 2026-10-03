@@ -13,7 +13,7 @@
 //   model.glb    模型本體，由 api/model3dfile.php 輸出（框架不供應靜態檔，理由同 api/photo.php）
 //
 // ── 排除機制 ──
-// excludedBuildingIds 是管理員在 api/region3d.php 存檔當下、對照公用建物圖磚 queryRenderedFeatures
+// excludedBuildingIds 是管理者在 api/region3d.php 存檔當下、對照公用建物圖磚 queryRenderedFeatures
 // 算出來的靜態清單，不是訪客端即時重算（原因見 api/region3d.php 開頭的說明：即時重算會有「還沒
 // 平移過去之前公用建物照樣畫出來」的時序問題）。assets/js/plugins/map3d.js 把所有已存區域的
 // 這份清單攤平聯集，套成 building 圖層一條固定的 filter，圖層建立當下就生效，不管訪客怎麼平移。
@@ -64,7 +64,7 @@ function souliong_region3d_list(array $cfg, string $proj): array
 
 /**
  * 前端用的 manifest：模型固定檔名改寫成 <base>/model3d/<project>/<id>/model.glb 絕對網址。
- * 跟 souliong_layer_public() 同樣的用意——前端不必知道模型放在哪個目錄結構裡，region.json
+ * 跟 souliong_layer_public() 同樣的用意——前端不必知道模型放在哪個資料夾結構裡，region.json
  * 本身不存 url（一律是同資料夾的 model.glb，理由同 layer.json 系列刻意固定檔名的地方）。
  */
 function souliong_region3d_public(array $manifest, string $base, string $proj): array

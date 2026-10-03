@@ -2,7 +2,7 @@
    跟 share-link.js 用同一個 features.share 開關載入：分享整張地圖既然開放，分享某一則
    投稿（例如省府聲景裡的一段聲音）也合理。
 
-   - 消費端：網址帶 ?entry=<id> 時，開機完成、投稿資料載好後自動開啟該則所屬地點的面板，
+   - 消費端：網址帶 ?entry=<id> 時，開機完成、投稿資料載好後自動開啟該則所屬點位的面板，
      並捲到那張卡片、短暫高亮（卡片上有播放鍵時同時加邀請脈衝）——不呼叫 openLightbox()，音訊卡片本來就是 <audio controls
      preload="none">（見 viewer.core.js entryPreviewHtml()），永遠要訪客自己按下播放，
      深層連結不該讓它自動出聲。

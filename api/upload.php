@@ -48,7 +48,7 @@ if ($kindIn !== '' && !souliong_kind_postable($kindIn)) {
 $kind    = $kindIn !== '' ? $kindIn : 'photo';
 $kindDef = souliong_kinds()[$kind];
 
-// 再確認這張地圖有沒有開放這個內容種類（meta.json 的 contrib.kinds）。沒設定 contrib 的舊地圖
+// 再確認這張地圖有沒有開放這個內容型別（meta.json 的 contrib.kinds）。沒設定 contrib 的舊地圖
 // 解析出來就是 ['photo']，前端不送 kind 時的預設值也是 photo，因此既有投稿流程完全不受影響。
 $contribCfg = souliong_contrib_cfg($metaU);
 if (in_array($kind, souliong_contrib_kinds(), true) && !in_array($kind, $contribCfg['kinds'], true)) {
@@ -82,7 +82,7 @@ $hasIdentity = $who->hasIdentity();
 $license     = ($hasIdentity && ($_POST['license'] ?? '') === 'cc-by') ? 'cc-by' : 'cc0';
 $wikidataOk  = !empty($_POST['wikidata_ok']);
 
-// 照片沿用歷史的 photo/thumb 欄位與 photos/ 目錄，影音走新的 media 欄位與 media/ 目錄。
+// 照片沿用歷史的 photo/thumb 欄位與 photos/ 資料夾，影音走新的 media 欄位與 media/ 資料夾。
 // 這樣切是為了讓既有的 exiffix.php／thumbfix.php／editentry.php／photo.php 與前端的
 // photoFullUrl() 一行都不用改，舊資料與舊流程完全不受影響（見 features.php 的 file 欄位說明）。
 $photoRel  = null;
@@ -98,7 +98,7 @@ if ($fileField !== null && isset($_FILES[$fileField]) && uploadlib_file_too_larg
 $isPhoto   = ($fileField === 'photo');
 if ($fileField !== null && isset($_FILES[$fileField]) && $_FILES[$fileField]['error'] === UPLOAD_ERR_OK) {
     $maxBytes = (int)($cfg['max_bytes_' . $kind] ?? $kindDef['max_bytes'] ?? $cfg['max_bytes']);
-    // 照片維持吃 config 的 allowed_mime（部署端本來就能調的旋鈕），其他種類用註冊表的 mimes
+    // 照片維持吃 config 的 allowed_mime（部署端本來就能調的旋鈕），其他型別用註冊表的 mimes
     $mimes = ($isPhoto && !empty($cfg['allowed_mime'])) ? $cfg['allowed_mime'] : ($kindDef['mimes'] ?? []);
     // 檔名用「內容實際的時間」（照片 EXIF／檔案修改時間），不是伺服器收到上傳的時間，方便直接依檔名辨識先後
     $shotTs = $photo_time !== null ? strtotime($photo_time) : false;
@@ -109,13 +109,13 @@ if ($fileField !== null && isset($_FILES[$fileField]) && $_FILES[$fileField]['er
     else { $mediaRel = $saved['rel']; $mediaMime = $saved['mime']; }
 
     // 顯示用縮圖（照片由前端隨主圖一起轉、影片由前端抽第一幀；沒有或存失敗都不影響投稿本身）。
-    // 縮圖永遠是圖片，所以驗證一律走照片那組 mime，跟主檔是什麼種類無關。
+    // 縮圖永遠是圖片，所以驗證一律走照片那組 mime，跟主檔是什麼型別無關。
     if (!empty($kindDef['thumb']) && isset($_FILES['thumb']) && $_FILES['thumb']['error'] === UPLOAD_ERR_OK) {
         $tf = $_FILES['thumb'];
         $timgs = !empty($cfg['allowed_mime']) ? $cfg['allowed_mime'] : souliong_kinds()['photo']['mimes'];
         $tmime = detect_mime($tf['tmp_name']);
         if ($tf['size'] <= 1024 * 1024 && isset($timgs[$tmime])) {
-            // 縮圖跟主檔放同一個目錄，命名規則 <主檔名>_t.<副檔名>——photo.php 的 photo_thumb_of()
+            // 縮圖跟主檔放同一個資料夾，命名規則 <主檔名>_t.<副檔名>——photo.php 的 photo_thumb_of()
             // 就是照這個規則找檔的，影音的縮圖也沿用同一套，media.php 才不用另外發明一種規則。
             $tname = $fbase . '_t.' . $timgs[$tmime];
             if (@move_uploaded_file($tf['tmp_name'], $destDir . '/' . $tname)) {
@@ -172,7 +172,7 @@ try {
         'source_license' => $source_license,
         'photo'      => $photoRel,
         'thumb'      => $thumbRel,
-        'media'      => $mediaRel,                                        // 影音檔（照片不用這欄，見上面的目錄切分說明）
+        'media'      => $mediaRel,                                        // 影音檔（照片不用這欄，見上面的資料夾切分說明）
         'media_mime' => $mediaMime,
         'duration'   => $duration,
         'photo_time' => $photo_time,
@@ -190,7 +190,7 @@ try {
     ];
     store_append($cfg, $project, $record);
 
-    // 統計：上傳數 + 投稿種類 + 相機型號（有上限，防膨脹）
+    // 統計：上傳數 + 投稿型別 + 相機型號（有上限，防膨脹）
     stats_apply($cfg, $project, function (&$s) use ($exif, $kind) {
         stats_bump($s, 'uploads');
         stats_bump($s, 'kinds', $kind, 10);

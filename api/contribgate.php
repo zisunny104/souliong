@@ -13,16 +13,16 @@ final class Contributor {
         return new Contributor((string)($_POST['owner'] ?? ''), (string)($_POST['ctoken'] ?? ''));
     }
 
-    /** 存進投稿記錄的 owner_hash；沒送 owner 為 null。 */
+    /** 存進投稿紀錄的 owner_hash；沒送 owner 為 null。 */
     public function ownerHash(): ?string { return $this->owner !== '' ? hash('sha256', $this->owner) : null; }
     /** 對外可見的假名投稿者 ID（contrib_id）；沒送 ctoken 為 null。 */
     public function contribId(): ?string { return $this->ctoken !== '' ? contrib_id_of($this->ctoken) : null; }
-    /** 存進投稿記錄供跨裝置驗證本人的 contrib_hash（不外流）；沒送 ctoken 為 null。 */
+    /** 存進投稿紀錄供跨裝置驗證本人的 contrib_hash（不外流）；沒送 ctoken 為 null。 */
     public function contribHash(): ?string { return $this->ctoken !== '' ? contrib_hash_of($this->ctoken) : null; }
     /** 有穩定身分（ctoken）：CC BY 姓名標示只對有穩定身分的投稿者開放。 */
     public function hasIdentity(): bool { return $this->ctoken !== ''; }
 
-    /** 這筆記錄是不是這位投稿者本人的（owner 或 ctoken 任一相符）。管理者代編代刪不走這裡，走 Auth。 */
+    /** 這筆紀錄是不是這位投稿者本人的（owner 或 ctoken 任一相符）。管理者代編代刪不走這裡，走 Auth。 */
     public function owns(array $record): bool {
         $ownerStored   = (string)($record['owner_hash'] ?? '');
         $contribStored = (string)($record['contrib_hash'] ?? '');
@@ -35,7 +35,7 @@ final class Contributor {
 /**
  * 投稿把關：依序 停權名單 → bypass_code（具備者不需要碼）→ 這張地圖有沒有開放投稿 → 投稿代碼（計一次使用）。
  * 任一關失敗直接 403 結束；通過回傳解析好的 Contributor。
- * $what 只用在缺碼時的訊息（「上傳」「建立地點」）。
+ * $what 只用在缺碼時的訊息（「上傳」「建立點位」）。
  */
 function contrib_gate(array $cfg, string $project, string $what = '上傳'): Contributor {
     $who = Contributor::fromRequest();

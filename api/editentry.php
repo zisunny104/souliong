@@ -1,5 +1,5 @@
 <?php
-// 編輯自己（或管理者可管理的）投稿：只能改文字/關聯地點/定位，不能換檔案本身（照片、影片、音訊皆同）。
+// 編輯自己（或管理者可管理的）投稿：只能改文字/關聯點位/定位，不能換檔案本身（照片、影片、音訊皆同）。
 // POST project, edit_of(原始投稿 id), item_num(可留空), comment, source_url, lat, lon, loc_source, name, owner 或 ctoken（需與原投稿相符，或具管理權限）。
 // 比照「故事」的版本化精神：不覆寫舊資料，而是新增一筆引用原始 id 的版本紀錄；原始紀錄與所有舊版本永久保留。
 require_once __DIR__ . '/store.php';
@@ -22,7 +22,7 @@ if ($project === '' || $editOf === '' || strlen($editOf) > 64 || !is_dir($cfg['p
 
 try {
     // 找出原始紀錄：只能編輯「排在投稿牆上的那幾種」（照片／影片／音訊／文字）。
-    // spot 是地點本身，走 editspot.php／newspot.php；內容區走 spotcontent.php。
+    // spot 是點位本身，走 editspot.php／newspot.php；內容區走 spotcontent.php。
     $orig = null;
     foreach (store_all($cfg, $project) as $r) {
         if ((string)($r['id'] ?? '') === $editOf) { $orig = $r; break; }
@@ -30,7 +30,7 @@ try {
     if (!$orig) {
         json_out(['error' => 'not found'], 404);
     }
-    $origKind = (string)($orig['kind'] ?? 'photo');   // 多型別之前的舊記錄沒有 kind，一律是照片
+    $origKind = (string)($orig['kind'] ?? 'photo');   // 多型別之前的舊紀錄沒有 kind，一律是照片
     $hasBody  = !empty($orig['photo']) || !empty($orig['media']) || ($origKind === 'text' && !empty($orig['comment']));
     if (!in_array($origKind, souliong_contrib_kinds(), true) || !$hasBody) {
         json_out(['error' => 'not found'], 404);
@@ -65,7 +65,7 @@ try {
         'id'           => bin2hex(random_bytes(8)),
         'project'      => $project,
         'item_num'     => $item_num,
-        // 種類沿用被編輯的那一筆：影片的編輯紀錄若標成 photo，後台投稿列表的種類欄會整排標錯
+        // 型別沿用被編輯的那一筆：影片的編輯紀錄若標成 photo，後台投稿列表的型別欄會整排標錯
         'kind'         => $origKind,
         'edit_of'      => $editOf,               // 指向被編輯的原始投稿 id，供前端組出「最新版本」
         'name'         => $editorName,

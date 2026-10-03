@@ -169,7 +169,7 @@ if (!$apply) {
     exit(0);
 }
 if (!$plans && $newMeta === null) {
-    echo "\n沒有需要處理的項目。\n";
+    echo "\n沒有需要處理的專案。\n";
     exit(0);
 }
 

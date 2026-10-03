@@ -1,5 +1,5 @@
 <?php
-// 建立新的定位點。POST project, name(建立者暱稱), title, cat, catLabel, color, description, lat, lon, csrf(管理者模式)
+// 建立新的點位。POST project, name(建立者暱稱), title, cat, catLabel, color, description, lat, lon, csrf(管理者模式)
 //
 // 點位資料只有 spots.jsonl 一個來源：往裡附加一筆 kind:'spot' 起點
 // （無 edit_of，帶 num/title），前端讀取時把它併進點位清單（見 viewer.core.js
@@ -34,7 +34,7 @@ $contrib = souliong_contrib_cfg($meta);
 $who     = $contrib['newSpot'];
 
 if ($who === 'off') {
-    json_out(['error' => '這張地圖沒有開放建立地點'], 403);
+    json_out(['error' => '這張地圖沒有開放建立點位'], 403);
 }
 if (!souliong_module_on($meta, 'upload')) {
     // 整張地圖唯讀時，建點也一併關掉（比照 upload.php 由 view.php 不渲染投稿介面來擋，
@@ -49,11 +49,11 @@ if ($who === 'admin') {
 } else {
     // contributor：訪客建點走投稿軸同一道關卡（停權名單 → bypass_code → 投稿代碼並計一次使用），
     // 跟 upload.php 共用 contrib_gate()——建點跟投稿是等價的寫入行為，限次的碼不能無限建點。
-    // 點位軸（建立地點）與投稿軸本應分開計算（docs/part4-coordination.md 血淚教訓 #1），這裡把兩者
+    // 點位軸（建立點位）與投稿軸本應分開計算（docs/part4-coordination.md 血淚教訓 #1），這裡把兩者
     // 接在一起只是現況尚未拆開（newSpot 全站目前皆為 off，等於沒在跑），之後處理訪客建點權限模型時再釐清。
-    $contributor = contrib_gate($cfg, $project, '建立地點');
+    $contributor = contrib_gate($cfg, $project, '建立點位');
 }
-// 建立者身分：跟投稿記錄用同一組欄位，主辦者才能在後台認出「這個點是誰建的」，
+// 建立者身分：跟投稿紀錄用同一組欄位，主辦者才能在後台認出「這個點位是誰建的」，
 // 停權與刪除也才有東西可以對。管理者建的點這兩欄通常是 null。
 $ownerHash = $contributor->ownerHash();
 $contribId = $contributor->contribId();
@@ -65,7 +65,7 @@ if ($lat === null || $lon === null || $lat < -90 || $lat > 90 || $lon < -180 || 
 }
 $title = clean_str($_POST['title'] ?? null, 80);
 if ($title === null) {
-    json_out(['error' => '請給這個地點一個名稱'], 400);
+    json_out(['error' => '請給這個點位一個名稱'], 400);
 }
 $description = clean_str($_POST['description'] ?? null, $cfg['comment_max']);
 $by    = clean_str($_POST['name'] ?? null, $cfg['name_max']) ?? '匿名';
@@ -88,9 +88,9 @@ if ($catLabel === null) {
     $color = preg_match('/^#[0-9A-F]{6}$/', $c) ? $c : null;
 }
 if ($cat === '') {
-    // 沒指定分類就自成一類，這樣圖例上至少分得出「訪客新增的地點」
+    // 沒指定分類就自成一類，這樣圖例上至少分得出「訪客新增的點位」
     $cat = 'new';
-    $catLabel = $catLabel ?? '新增地點';
+    $catLabel = $catLabel ?? '新增點位';
 }
 if ($color === null) $color = '#7a7f87';
 

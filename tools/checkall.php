@@ -13,7 +13,7 @@ if (PHP_SAPI !== 'cli') {
 }
 $root = dirname(__DIR__);
 $php = escapeshellarg(PHP_BINARY);
-// 這些目錄放的是資料或第三方檔案，不是本專案的程式碼
+// 這些資料夾放的是資料或第三方檔案，不是本專案的程式碼
 const CHECKALL_SKIP_DIRS = ['.git', 'node_modules', 'vendor', 'projects', 'state'];
 
 /** @return string[] 相對於 $root 的檔案路徑 */

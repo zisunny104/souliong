@@ -80,7 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save'
     if ($tf['size'] > 1024 * 1024 || !isset($cfg['allowed_mime'][$tmime])) {
         json_out(['error' => 'bad thumb'], 415);
     }
-    // 縮圖檔名沿用照片檔名加 _t（跟 upload.php 一致），放在同一個 photos 目錄
+    // 縮圖檔名沿用照片檔名加 _t（跟 upload.php 一致），放在同一個 photos 資料夾
     if (!preg_match('#^([a-z0-9_-]+)/([A-Za-z0-9_.-]+)$#', (string)$rec['photo'], $m)) {
         json_out(['error' => 'bad photo path'], 500);
     }

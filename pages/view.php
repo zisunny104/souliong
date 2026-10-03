@@ -4,7 +4,7 @@
  * ?embed=1 → 精簡檢視模式（僅供瀏覽）。?p=<project> → 切換專案。
  */
 $cfg = include __DIR__ . '/../config.php';
-require_once __DIR__ . '/../api/routes.php';   // 網址表：掛載根目錄與各種網址的演算法，全站只有這一份
+require_once __DIR__ . '/../api/routes.php';   // 網址表：掛載根路徑與各種網址的演算法，全站只有這一份
 $base = Route::base();
 
 $b       = htmlspecialchars($base, ENT_QUOTES);
@@ -35,7 +35,7 @@ require_once __DIR__ . '/../api/embedorigins.php';
 $embedOrigins = embed_origins_allowed($apiCfg, $meta);
 if ($embed) embed_send_frame_headers($embedOrigins);
 require_once __DIR__ . '/../api/uploadlib.php';
-// 點位：spots.jsonl 裡的起點記錄（一定有 num、無 edit_of），api/newspot.php 動態建立的——
+// 點位：spots.jsonl 裡的起點紀錄（一定有 num、無 edit_of），api/newspot.php 動態建立的——
 // spots.jsonl 是點位唯一的真相來源，跟 assets/js/viewer.core.js 的 effectiveSpots() 同一套判斷式。
 // 位置與內容的版本疊加交給前端讀 CONTRIB 做，這裡只給起點紀錄；起點自帶的 content 區塊附加
 // 衍生欄位 html（見 spot_content_render()）。
@@ -73,12 +73,12 @@ $primaryEngine = 'leaflet';
 foreach ($layers as $l) {
     if (($l['type'] ?? '') === 'vector') { $primaryEngine = 'maplibre'; break; }
 }
-// 這張地圖開放哪些投稿型別、對話框預設開哪一頁、誰能建立地點（meta.json 的 contrib 區塊）。
+// 這張地圖開放哪些投稿型別、對話框預設開哪一頁、誰能建立點位（meta.json 的 contrib 區塊）。
 // 跟 $moduleState 同樣的原則：PHP 端解析一次，前端直接讀 APP.contrib，不在兩邊各自算預設值。
 $contribCfg = souliong_contrib_cfg($meta);
 // 要載入哪些型別檔（assets/js/contrib/kind-*.js）。「檔案有沒有被輸出」就是型別的開關——
 // 前端不需要再對 contrib.kinds 過濾一次，純文字的地圖也不會載到影片抽幀那段程式碼。
-// 建立地點是權限而非型別：設成 admin 時只有已登入的管理者拿得到那支檔案。
+// 建立點位是權限而非型別：設成 admin 時只有已登入的管理者拿得到那支檔案。
 $contribFiles = $mod('upload') ? $contribCfg['kinds'] : [];
 if ($contribFiles && ($contribCfg['newSpot'] === 'contributor' || ($contribCfg['newSpot'] === 'admin' && $canEditSpots))) {
     $contribFiles[] = 'newspot';

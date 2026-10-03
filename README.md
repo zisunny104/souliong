@@ -12,7 +12,7 @@
 - OSM 底圖 + 分類彩色圓點，深淺主題自動切換、骨架載入
 - **可堆疊的地圖圖層**：底圖與自繪插畫疊圖由下往上疊，附對位切圖磚工具（`<base>/tilecut`）
 - **3D 模式（可選）**：切換 MapLibre 向量底圖，建物自動立體擠出，並可用自訂 glTF 模型排除特定區域
-- 投稿**照片／影片／音訊／文字**，可版本化的**點位內容區**（文字／音訊／照片區塊，可還原歷史，聲音區塊可分享連結）、投稿者觀察路線、參與者自建地點
+- 投稿**照片／影片／音訊／文字**，可版本化的**點位內容區**（文字／音訊／照片區塊，可還原歷史，聲音區塊可分享連結）、投稿者觀察路線、參與者自建點位
 - **限特定人投稿**：投稿代碼（QR 掃描／邀請連結一點解鎖）
 - **只能刪自己的**（裝置匿名標記，append-only）
 - 批次上傳（EXIF/GPS、HEIC→WebP、可拖曳定位）
@@ -31,7 +31,7 @@
   "center":[23.95,120.69], "zoom":14,
   "numbering":"suffix", "categoryOrder":["green","pink","blue"] }
 ```
-點位存在 `projects/<id>/spots.jsonl`，由後台或投稿視窗的「建立地點」新增（可設為管理者限定或開放投稿者建立），沒有另外的點位檔。詳見 [EXTENDING.md](docs/EXTENDING.md)（投稿型別、模組開關、圖層系統）。對外資料 API、iframe 嵌入與 postMessage 控制見 [EMBED-API.md](docs/EMBED-API.md)。
+點位存在 `projects/<id>/spots.jsonl`，由後台或投稿視窗的「建立點位」新增（可設為管理者限定或開放投稿者建立），沒有另外的點位檔。詳見 [EXTENDING.md](docs/EXTENDING.md)（投稿型別、模組開關、圖層系統）。對外資料 API、iframe 嵌入與 postMessage 控制見 [EMBED-API.md](docs/EMBED-API.md)。
 
 網址：`/koilisu/souliong/<id>`；`/koilisu/souliong/` 首頁自動列出所有地圖；後台在 `/koilisu/souliong/manager`。
 
@@ -44,7 +44,7 @@
 ## 管理後台
 
 - 進入：直接開 `<base>/manager`，或在地圖頁**連點標題**（點→線→…→六角）叫出 PIN 面板、首頁**連點 logo**；輸入 PIN 或帳號密碼，httpOnly cookie 保持登入，**不進網址**。登入後的落點是全部地圖總覽，單張地圖在 `<base>/manager/<mapid>`。
-- 權限分層管理，可逐專案、逐項授權（刪別人投稿、改別人投稿、改定位點、建立分享連結、編 3D 排除區域…）；PIN 與帳號（userid＋密碼）皆可用，投稿者與協作者身分都能自助建立，後台僅負責顯示與撤銷。權限架構見 [EXTENDING.md](docs/EXTENDING.md)。
+- 權限分層管理，可逐專案、逐項授權（刪別人投稿、改別人投稿、改點位位置、建立分享連結、編 3D 排除區域…）；PIN 與帳號（userid＋密碼）皆可用，投稿者與協作者身分都能自助建立，後台僅負責顯示與撤銷。權限架構見 [EXTENDING.md](docs/EXTENDING.md)。
 - 後台功能：投稿代碼／身分管理、統計摘要與圖表、審閱與刪除投稿、冒名鑑識線索、**個別/全部專案備份（ZIP）**、主題包與**圖層**管理（ZIP 匯出匯入）、資料修復工具。
 
 ## 授權

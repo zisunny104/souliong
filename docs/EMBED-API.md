@@ -245,7 +245,7 @@ GET <站台>?api=navsheet&project=<slug>&spot=<spotId|num>&embed=1[&theme=light|
 
 `?api=cover` 提供專案封面圖，只作為靜態備援，不是即時地圖快照。
 
-- 內容是管理員在後台擷取的 3D 視角圖，專案層級只有一張。
+- 內容是管理者在後台擷取的 3D 視角圖，專案層級只有一張。
 - 格式 webp，最長邊上限 960 px（站台設定 `cover_max_dim`）；**不能指定寬高**，需要其他尺寸請用 `snapshot` 指令。
 - `Cache-Control: max-age=300`，無 ETag。
 - 沒有點位層級或視角層級的備援圖。

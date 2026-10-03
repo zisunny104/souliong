@@ -87,7 +87,7 @@
       <div class="ed-grid">
         <div class="ed-field ed-wide"><label for="edBase">站台網址（含結尾斜線，不預設任何網域）</label>
           <input type="text" id="edBase" placeholder="https://example.org/souliong/" autocomplete="off" spellcheck="false"></div>
-        <div class="ed-field"><label for="edProject">專案代號</label><input type="text" id="edProject" placeholder="_packdemo" autocomplete="off" spellcheck="false"></div>
+        <div class="ed-field"><label for="edProject">專案 id</label><input type="text" id="edProject" placeholder="_packdemo" autocomplete="off" spellcheck="false"></div>
         <div class="ed-field"><label for="edLayer">layer（空白＝專案預設）</label><input type="text" id="edLayer" placeholder="paper-ink" autocomplete="off" spellcheck="false"></div>
         <div class="ed-field"><label for="edLabels">labels</label>
           <select id="edLabels"><option value="">不指定（顯示）</option><option value="1">1 顯示</option><option value="0">0 隱藏底圖文字</option></select></div>
@@ -213,7 +213,7 @@
     </div>
     <section class="ed-card">
       <div class="ed-logbar">
-        <h2><i class="fa-solid fa-terminal" aria-hidden="true"></i> 訊息記錄</h2>
+        <h2><i class="fa-solid fa-terminal" aria-hidden="true"></i> 訊息紀錄</h2>
         <div class="ed-chk"><input type="checkbox" id="lgIdle"><label for="lgIdle">隱藏 idle</label></div>
         <button class="ed-btn" id="lgClear"><i class="fa-solid fa-trash" aria-hidden="true"></i> 清除</button>
       </div>
@@ -266,7 +266,7 @@
     return b + '?' + q.toString();
   }
   function refreshUrls() {
-    $('edUrl').textContent = mapUrl() || '（請填站台網址與專案代號）';
+    $('edUrl').textContent = mapUrl() || '（請填站台網址與專案 id）';
     $('nvUrl').textContent = navUrl() || '';
   }
   FIELDS.concat(['edInteractive', 'edSpot', 'nvTheme', 'nvEmbed']).forEach(function (id) {
@@ -277,7 +277,7 @@
   });
   refreshUrls();
 
-  /* ---------- 記錄 ---------- */
+  /* ---------- 紀錄 ---------- */
   var logEl = $('edLog');
   function clock() { var d = new Date(); return d.toTimeString().slice(0, 8) + '.' + String(d.getMilliseconds()).padStart(3, '0'); }
   function brief(o) {
@@ -364,7 +364,7 @@
   /* ---------- 載入 ---------- */
   $('edLoad').addEventListener('click', function () {
     var u = mapUrl();
-    if (!u) { log('info', '請先填站台網址與專案代號'); return; }
+    if (!u) { log('info', '請先填站台網址與專案 id'); return; }
     ready = false; pending = {}; setPending();
     $('edDot').classList.remove('ed-on'); $('edReady').textContent = '載入中...';
     $('edSnap').style.display = 'none';
@@ -472,7 +472,7 @@
   }
   $('nvOpen').addEventListener('click', function () {
     var u = navUrl();
-    if (!u || !$('edSpot').value.trim()) { log('info', '請先填站台網址、專案代號與 spotId'); return; }
+    if (!u || !$('edSpot').value.trim()) { log('info', '請先填站台網址、專案 id與 spotId'); return; }
     nvOrigin = originOf(u);
     nvFrame.src = u;
     nvModal.classList.add('ed-open');

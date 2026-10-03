@@ -250,7 +250,7 @@
   text-decoration: line-through
 }
 
-/* ---------- 點位列表（spotList 模組，取代「跳到地點」下拉選單） ---------- */
+/* ---------- 點位列表（spotList 模組，取代「跳到點位」下拉選單） ---------- */
 .sl-spot-list {
   display: flex;
   flex-direction: column;

@@ -45,7 +45,7 @@ if ($cmd === 'add') {
     if (!in_array($origin, $cur, true)) { echo "檔案清單內沒有：$origin（若是寫在 config 的 embed_allowed_origins，要到 config.php 移除）\n"; exit(0); }
     $new = array_values(array_diff($cur, [$origin]));
 }
-if (!is_dir(dirname($file))) { fwrite(STDERR, "找不到 state 目錄：" . dirname($file) . "\n"); exit(1); }
+if (!is_dir(dirname($file))) { fwrite(STDERR, "找不到 state 資料夾：" . dirname($file) . "\n"); exit(1); }
 if (file_put_contents($file, json_encode($new, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) . "\n", LOCK_EX) === false) {
     fwrite(STDERR, "寫入失敗：$file（權限？）\n");
     exit(1);

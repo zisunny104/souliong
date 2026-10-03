@@ -283,7 +283,7 @@ function ac_classify(string $out): string {
         str_contains($m, '停權') => 'blocked',
         str_contains($m, '需要正確的投稿代碼') => 'nocode',
         str_contains($m, '未開放投稿') => 'closed',
-        str_contains($m, '沒有開放建立地點') => 'noflag',
+        str_contains($m, '沒有開放建立點位') => 'noflag',
         $m === 'bad request', $m === 'bad kind' => 'passed',
         default => 'other: ' . ($m !== '' ? $m : $out),
     };
@@ -379,7 +379,7 @@ ac_guard('contributor', function () {
     $_POST = ['owner' => 'dev1', 'ctoken' => 'tok'];
     $c = Contributor::fromRequest();
     ck('contributor', $c->owns(['owner_hash' => hash('sha256', 'dev1')]) && $c->owns(['contrib_hash' => contrib_hash_of('tok')]), 'owns：owner 或 ctoken 任一相符');
-    ck('contributor', !$c->owns(['owner_hash' => hash('sha256', 'other'), 'contrib_hash' => 'x']) && !$c->owns([]), 'owns：都不符或記錄沒有身分欄位為 false');
+    ck('contributor', !$c->owns(['owner_hash' => hash('sha256', 'other'), 'contrib_hash' => 'x']) && !$c->owns([]), 'owns：都不符或紀錄沒有身分欄位為 false');
     $_POST = [];
     ck('contributor', !Contributor::fromRequest()->owns(['owner_hash' => hash('sha256', '')]), 'owns：沒送任何身分不會比對到空字串雜湊');
 });

@@ -646,7 +646,7 @@ if (!$authed) {
         $allProjects = store_projects($cfg);
 
         // 分享連結／邀請碼要給人複製貼上，所以組成絕對網址（Route::abs）；站內導覽用 Route 的相對路徑就好。
-        // 掛載根目錄怎麼還原見 Route::base()——後台可能是從 /manager/<mapid>/tools 這種深路徑進來的。
+        // 掛載根路徑怎麼還原見 Route::base()——後台可能是從 /manager/<mapid>/tools 這種深路徑進來的。
         $mapUrl = fn($p) => Route::abs(Route::map($p));
 
         // ── 動作 ──
@@ -655,7 +655,7 @@ if (!$authed) {
           $gate($p, 'delete_others');
           $id = (string)($_POST['id'] ?? '');
           // 刪別人投稿預設僅限主 PIN；專案管理者只有在被授權 delete_others、且動的是自己已登入的專案時才可以。
-          // 刪點位本身（kind:'spot'）另外還要有 edit_spots——delete_others 管的是別人的投稿，不等於能動點位識別記錄。
+          // 刪點位本身（kind:'spot'）另外還要有 edit_spots——delete_others 管的是別人的投稿，不等於能動點位識別紀錄。
           $rec = ($p !== '' && $id !== '') ? store_find($cfg, $p, $id) : null;
           $canDelete = !$rec || ($rec['kind'] ?? '') !== 'spot' || Auth::can($cfg, $p, 'edit_spots');
           if ($p !== '' && $id !== '' && $canDelete) {
@@ -1029,7 +1029,7 @@ if (!$authed) {
           $field = ($_POST['kind'] ?? '') === 'owner' ? 'owner_hash' : 'contrib_id';
           $key = (string)($_POST['key'] ?? '');
           if ($key !== '') {
-            // 沒有 edit_spots 就略過這批裡的 spot 記錄（點位本身），留著不刪、其餘照常整批刪除
+            // 沒有 edit_spots 就略過這批裡的 spot 紀錄（點位本身），留著不刪、其餘照常整批刪除
             $excludeKinds = Auth::can($cfg, $p, 'edit_spots') ? [] : ['spot'];
             $removedList = store_delete_by($cfg, $p, $field, $key, $excludeKinds);
             foreach ($removedList as $removed) {
@@ -1194,7 +1194,7 @@ if (!$authed) {
               && preg_match('#^(projects/[A-Za-z0-9_./-]+|data/(?:admin_)?pins\.json)$#', str_replace('\\', '/', (string)$nm));
             $entries = zip_unpack($_FILES['backup']['tmp_name'], $accept);
             // 1) 資料（jsonl）：spots.jsonl／entries.jsonl 各自獨立比對、各自寫回對應路徑
-            // （見 store.php 的 store_file()——備份的匯出本來就是整目錄打包，兩個檔名都會在 zip 裡）。
+            // （見 store.php 的 store_file()——備份的匯出本來就是整資料夾打包，兩個檔名都會在 zip 裡）。
             foreach ($entries as $nm => $content) {
               if (!preg_match('#^projects/([a-z0-9_-]+)/(spots|entries)\.jsonl$#', str_replace('\\', '/', $nm), $mm)) continue;
               $proj = $mm[1];
@@ -1319,7 +1319,7 @@ if (!$authed) {
           }
           require_once __DIR__ . '/zip.php';
           if (isset($_FILES['layer']) && $_FILES['layer']['error'] === UPLOAD_ERR_OK) {
-            // <id>/(層層子目錄/)?(layer.json | 白名單副檔名的圖檔)。子目錄放行是因為圖磚就是
+            // <id>/(層層子資料夾/)?(layer.json | 白名單副檔名的圖檔)。子資料夾放行是因為圖磚就是
             // <z>/<x>/<y>.png 三層；副檔名白名單與 souliong_layer_files() 共用同一份名單。
             // 匯進來的 SVG 可能內嵌 <script>，那在圖檔端點是靠回應的 CSP sandbox 擋掉的，不是靠
             // 這裡的過濾——這裡只保證「副檔名是圖檔」，執行與否由 layerfile.php 決定。
@@ -1329,7 +1329,7 @@ if (!$authed) {
             // 落地——那邊沒有存取管制（見 souliong_layersrc_dir() 的說明），原稿一旦落進
             // layers/<id>/ 底下，任何猜到網址的人都拿得到。全站層沒有原稿，$lp==='' 時一律不收。
             $exts = implode('|', array_keys(souliong_layer_mimes()));
-            // 子目錄那段要排掉 "_src/" 開頭——不然 _src/p0.png 這種原稿檔名同時也符合圖磚檔名的
+            // 子資料夾那段要排掉 "_src/" 開頭——不然 _src/p0.png 這種原稿檔名同時也符合圖磚檔名的
             // 形狀，會被這條規則收走，跟下面 $reSrc 兩邊都收，寫檔迴圈裡 $reMain 先判到就直接
             // 落地到圖層本體資料夾，原稿因此漏進沒有存取管制的那一邊。
             $reMain = '#^([a-z0-9_-]+)/((?:(?!_src/)[A-Za-z0-9_.-]+/)*(?:layer\.json|[A-Za-z0-9_.-]+\.(?:' . $exts . ')))$#';
@@ -1640,7 +1640,7 @@ if (!$authed) {
           exit;
         }
 
-        // ── 資料 ──（$allProjects 沿用前面「專案清單」算好的那份，中間的動作不會新增/刪除專案目錄）
+        // ── 資料 ──（$allProjects 沿用前面「專案清單」算好的那份，中間的動作不會新增/刪除專案資料夾）
         $viewProjects = $primary
           ? ($scopeProject !== '' ? [$scopeProject] : $allProjects)
           : ($isAcct ? ($scopeProject !== '' ? [$scopeProject] : $acctProjects) : [$reqProject]);
@@ -2484,7 +2484,7 @@ if (!$authed) {
       background: var(--bg)
     }
 
-    /* 專案卡片列：取代「所有專案」那排純文字分頁——項目一多會一路換行、頁面被拉得很長。
+    /* 專案卡片列：取代「所有專案」那排純文字分頁——專案一多會一路換行、頁面被拉得很長。
        預設橫向捲動（手機用手勢，桌機用捲輪/拖曳），旁邊給一顆展開鈕改成換行顯示全部。
        跟 .tabs／.tab（分頁動作、單一「返回」連結）分開一組類別，語意不同、不互相套用。 */
     .pcards-wrap {
@@ -2874,7 +2874,7 @@ if (!$authed) {
       border-radius: 999px;
       background: var(--bg);
       border: 1px solid var(--line);
-      /* 表格「類型」欄被壓窄時，沒有這行中文標籤會一個字一行直排 */
+      /* 表格「型別」欄被壓窄時，沒有這行中文標籤會一個字一行直排 */
       white-space: nowrap
     }
 

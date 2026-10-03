@@ -41,7 +41,7 @@ function uploadlib_ini_bytes(string $key): int {
  *   total  單次請求的總上限＝post_max_size、upload_max_filesize、max_bytes 的最小值
  *   post   post_max_size：同一次請求裡所有檔案加表單欄位的總和不能超過
  *   file   單一檔案的伺服器上限＝min(upload_max_filesize, post_max_size)
- *   kinds  各種類單檔的實際上限（該種類自己的大小上限與 file 取小）
+ *   kinds  各型別單檔的實際上限（該型別自己的大小上限與 file 取小）
  */
 function uploadlib_limits(array $cfg): array {
     $post = uploadlib_ini_bytes('post_max_size');

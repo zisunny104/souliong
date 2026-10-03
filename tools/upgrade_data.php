@@ -1,5 +1,5 @@
 <?php
-// 一次性升級工具（CLI only，冪等）：把舊版專案目錄（只有 data.jsonl）補成 spots.jsonl＋entries.jsonl。
+// 一次性升級工具（CLI only，冪等）：把舊版專案資料夾（只有 data.jsonl）補成 spots.jsonl＋entries.jsonl。
 // 由 tools/vps_upgrade.sh 依序呼叫，不必手動執行。升級完成並確認後可連同 vps_upgrade.sh 一起刪除。
 //
 //   php upgrade_data.php split    <project_dir> [--apply]   data.jsonl 依 kind 拆進兩個檔案

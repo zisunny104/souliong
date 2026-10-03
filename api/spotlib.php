@@ -1,5 +1,5 @@
 <?php
-// 點位（spot）共用邏輯（純函式，無副作用，可安全被多處 require）：起點記錄疊上 edit_of 版本鏈，
+// 點位（spot）共用邏輯（純函式，無副作用，可安全被多處 require）：起點紀錄疊上 edit_of 版本鏈，
 // 算出「目前有效狀態」，供 api/oglib.php、api/editspot.php、api/spotcontent.php 共用同一套演算法，
 // 不各自重寫一份；另外提供版本寫入、內容區塊穩定 id、Markdown 算繪等共用函式。
 require_once __DIR__ . '/store.php';

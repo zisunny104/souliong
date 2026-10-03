@@ -439,8 +439,8 @@ function rate_limit(array $cfg, string $bucket = 'default'): void {
     $f = $dir . '/' . substr(hash('sha256', $bucket . '|' . $ip), 0, 32) . '.txt';
     $now = time();
     // 機會式清除：每次呼叫約 1% 機率順手掃一次，刪掉超過一小時沒更新的 bucket 檔——遠大於現有任何
-    // window 設定，不會誤刪還在用的視窗。用機率取樣而非每次都掃整個目錄，避免高頻端點（如 upload）
-    // 每次請求都多付一次目錄掃描成本；不做也不影響功能，只是 state/.rate 檔案會無限累積。
+    // window 設定，不會誤刪還在用的視窗。用機率取樣而非每次都掃整個資料夾，避免高頻端點（如 upload）
+    // 每次請求都多付一次資料夾掃描成本；不做也不影響功能，只是 state/.rate 檔案會無限累積。
     if (random_int(1, 100) === 1) {
         $stale = $now - 3600;
         foreach ((glob($dir . '/*.txt') ?: []) as $old) { if ((int)@filemtime($old) < $stale) @unlink($old); }
