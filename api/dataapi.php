@@ -66,7 +66,7 @@ function dataapi_abs_url(string $u): string
 }
 
 /** layer.json 的 attribution 轉成 [{text,url}]；{osm_contributors} 這類佔位符補成英文。 */
-function dataapi_attribution($list): array
+function dataapi_attribution(mixed $list): array
 {
     $out = [];
     foreach ((array)$list as $a) {
