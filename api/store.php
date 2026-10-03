@@ -1,7 +1,7 @@
 <?php
 /**
  * 純 PHP 檔案儲存（零擴充依賴，取代 SQLite）。
- * 每個專案兩個 JSON-Lines 檔：projects/<project>/spots.jsonl（kind:'spot'，地點本身）與
+ * 每個專案兩個 JSON-Lines 檔：projects/<project>/spots.jsonl（kind:'spot'，點位本身）與
  * projects/<project>/entries.jsonl（其餘所有投稿），一行一筆紀錄，依 kind 分流見 store_file()。
  * 寫入用 LOCK_EX 附加、讀取用 LOCK_SH，append-only。
  *
@@ -95,7 +95,7 @@ function store_append(array $cfg, string $project, array $record): array {
 }
 
 /**
- * 「要先看過現有資料才能決定寫什麼」的附加（例如建立地點要配一個沒被用過的 num）。
+ * 「要先看過現有資料才能決定寫什麼」的附加（例如建立點位要配一個沒被用過的 num）。
  *
  * 不能用 store_all() + store_append() 兜出來：那是兩段各自上鎖的區間，兩個人同時建點會
  * 各自讀到同一個 max num、配出重複號碼。這裡把讀與寫包在同一個 LOCK_EX 區間裡，

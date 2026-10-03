@@ -1,4 +1,4 @@
-/* ---------- 浮動地點卡片 ---------- */
+/* ---------- 浮動點位卡片 ---------- */
 #panel {
   position: fixed;
   top: 14px;
@@ -617,7 +617,7 @@
   }
 }
 
-/* ---------- 地點故事（版本化說明） ---------- */
+/* ---------- 點位故事（版本化說明） ---------- */
 .btn.small {
   padding: 6px 11px;
   font-size: 0.75rem;
@@ -686,7 +686,7 @@
   flex-wrap: wrap
 }
 
-/* ---------- 地點內容區塊（content-editor.js 與核心 renderEntries() 的 .sc-*） ---------- */
+/* ---------- 點位內容區塊（content-editor.js 與核心 renderEntries() 的 .sc-*） ---------- */
 .sc-block+.sc-block {
   margin-top: 14px
 }
@@ -976,7 +976,7 @@
   margin-bottom: 8px
 }
 
-/* 迷你地圖外框顏色跟著目前選定的關聯地點分類走，方便一眼確認位置合不合理 */
+/* 迷你地圖外框顏色跟著目前選定的關聯點位分類走，方便一眼確認位置合不合理 */
 .photo-editor .pe-mini {
   height: 140px;
   border-radius: var(--r-sm);
@@ -1005,7 +1005,7 @@
   color: var(--muted)
 }
 
-/* 定位來源標示（.loc-src／.loc-hint）：卡片與這裡的地點編輯器共用同一組樣式，
+/* 定位來源標示（.loc-src／.loc-hint）：卡片與這裡的點位編輯器共用同一組樣式，
    所以留在這個檔案；投稿對話框自己的樣式全部在 contrib.css。 */
 .loc-src {
   display: inline-flex;

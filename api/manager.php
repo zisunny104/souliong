@@ -655,7 +655,7 @@ if (!$authed) {
           $gate($p, 'delete_others');
           $id = (string)($_POST['id'] ?? '');
           // 刪別人投稿預設僅限主 PIN；專案管理者只有在被授權 delete_others、且動的是自己已登入的專案時才可以。
-          // 刪地點本身（kind:'spot'）另外還要有 edit_spots——delete_others 管的是別人的投稿，不等於能動地點識別紀錄。
+          // 刪點位本身（kind:'spot'）另外還要有 edit_spots——delete_others 管的是別人的投稿，不等於能動點位識別紀錄。
           $rec = ($p !== '' && $id !== '') ? store_find($cfg, $p, $id) : null;
           $canDelete = !$rec || ($rec['kind'] ?? '') !== 'spot' || Auth::can($cfg, $p, 'edit_spots');
           if ($p !== '' && $id !== '' && $canDelete) {
@@ -685,7 +685,7 @@ if (!$authed) {
               $meta[$k] = $v;
             }
           }
-          // 地點編號顯示：三選一，非白名單值一律退回預設（名稱後面）
+          // 點位編號顯示：三選一，非白名單值一律退回預設（名稱後面）
           if (isset($_POST['numbering'])) {
             $nb = (string)$_POST['numbering'];
             $meta['numbering'] = in_array($nb, ['prefix', 'disable'], true) ? $nb : 'suffix';
@@ -1029,7 +1029,7 @@ if (!$authed) {
           $field = ($_POST['kind'] ?? '') === 'owner' ? 'owner_hash' : 'contrib_id';
           $key = (string)($_POST['key'] ?? '');
           if ($key !== '') {
-            // 沒有 edit_spots 就略過這批裡的 spot 紀錄（地點本身），留著不刪、其餘照常整批刪除
+            // 沒有 edit_spots 就略過這批裡的 spot 紀錄（點位本身），留著不刪、其餘照常整批刪除
             $excludeKinds = Auth::can($cfg, $p, 'edit_spots') ? [] : ['spot'];
             $removedList = store_delete_by($cfg, $p, $field, $key, $excludeKinds);
             foreach ($removedList as $removed) {
@@ -1657,7 +1657,7 @@ if (!$authed) {
         // 編輯版本的 photo/exif 依設計為 null（沿用原始投稿），顯示時要透過 edit_of 回原始那筆取值
         $byId = [];
         foreach ($rows as $r) { $byId[$r['project'] . '/' . (string)($r['id'] ?? '')] = $r; }
-        // spotId（地點起點紀錄的 id）：投稿列用 item_num 反查，供後台複製給外部系統當穩定識別
+        // spotId（點位起點紀錄的 id）：投稿列用 item_num 反查，供後台複製給外部系統當穩定識別
         $spotIdByNum = [];
         foreach ($rows as $r) {
             if (spot_kind_normalize($r['kind'] ?? '') === 'spot' && empty($r['edit_of']) && isset($r['num'], $r['id'])) {

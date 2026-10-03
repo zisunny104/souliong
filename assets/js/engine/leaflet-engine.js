@@ -89,7 +89,7 @@ window.LeafletEngine = (() => {
   }
 
   // 只取「pane 是 base」的第一筆——mini picker（mountBaseLayer）與 styleUrl() 只需要一張
-  // 單純的底圖，不需要疊圖用的插畫圖層，也不該被它們擋住地標。跟 MapLibreEngine 選整顆地圖
+  // 單純的底圖，不需要疊圖用的插畫圖層，也不該被它們擋住點位。跟 MapLibreEngine 選整顆地圖
   // style 用的「同 pane 取最後一筆、後面蓋前面」規則是兩回事，不要搞混。
   function baseManifests(manifests) {
     const base = manifests.filter(m => paneKey(m) === 'base');

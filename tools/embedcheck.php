@@ -204,7 +204,7 @@ $sp = json_decode($b, true);
 ck($c === 200 && is_array($sp), 'api=spots 200 且為 JSON', [$c, substr($b, 0, 200)]);
 ck($keysOf($sp) === ['etag', 'project', 'spots', 'v'] && ($sp['v'] ?? null) === 1 && ($sp['project'] ?? '') === $E, 'spots 頂層欄位白名單', $keysOf($sp));
 $list = $sp['spots'] ?? [];
-ck(count($list) === 3, '三個地點（point／newpoint 舊 kind 已正規化）', count($list));
+ck(count($list) === 3, '三個點位（point／newpoint 舊 kind 已正規化）', count($list));
 foreach ($list as $s) {
     ck($keysOf($s) === ['area', 'cat', 'lat', 'lon', 'nav', 'num', 'spotId', 'title'], 'spot 欄位白名單', $keysOf($s));
     ck(preg_match('/^[0-9a-f]{16}$/', $s['spotId']) === 1 && is_int($s['num']) && is_float($s['lat']) && is_float($s['lon']), 'spot 欄位型別', $s);
@@ -305,9 +305,9 @@ $rows[] = $mk($ID4, 3, '重用 3 號', 24.06, 120.7);
 ec_jsonl("$sb/projects/$E/spots.jsonl", $rows);
 $c2 = $spots();
 $ids2 = array_column($c2['spots'], 'spotId');
-ck(array_column($c2['spots'], 'num') === [1, 2, 3] && $ids2 === [$ID1, $ID2, $ID4], 'num 被重用時 spotId 不同，舊 spotId 不會指到新地點', $ids2);
-ck(!in_array($ID3, $ids2, true), '被刪除地點的 spotId 不再出現');
-ck(array_slice($ids2, 0, 2) === [$ID1, $ID2], '其餘地點的 spotId 不受影響');
+ck(array_column($c2['spots'], 'num') === [1, 2, 3] && $ids2 === [$ID1, $ID2, $ID4], 'num 被重用時 spotId 不同，舊 spotId 不會指到新點位', $ids2);
+ck(!in_array($ID3, $ids2, true), '被刪除點位的 spotId 不再出現');
+ck(array_slice($ids2, 0, 2) === [$ID1, $ID2], '其餘點位的 spotId 不受影響');
 require_once $root . '/api/spotlib.php';
 ck(spot_id_valid($ID1) && !spot_id_valid('A1A1A1A1A1A1A1A1') && !spot_id_valid('12') && !spot_id_valid($ID1 . '0') && !spot_id_valid(''), 'spot_id_valid 格式檢查');
 
@@ -330,7 +330,7 @@ ck($c === 404 && strpos($hv($h, 'cache-control'), 'no-store') !== false && strpo
 [$c] = ec_req($ns($E, '', ['embed' => '1']));
 ck($c === 404, 'navsheet 缺 spot 回 404', $c);
 [$c] = ec_req($ns($E, $ID3, ['embed' => '1']));
-ck($c === 404, 'navsheet 已被刪除地點的舊 spotId 回 404', $c);
+ck($c === 404, 'navsheet 已被刪除點位的舊 spotId 回 404', $c);
 [$c] = ec_req($ns('nope_none', $ID1, ['embed' => '1']));
 ck($c === 404, 'navsheet 不存在的專案回 404', $c);
 [$c] = ec_req($ns('Bad Slug!', $ID1, ['embed' => '1']));

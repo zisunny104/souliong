@@ -3,7 +3,7 @@
 // 由 tools/vps_upgrade.sh 依序呼叫，不必手動執行。升級完成並確認後可連同 vps_upgrade.sh 一起刪除。
 //
 //   php upgrade_data.php split    <project_dir> [--apply]   data.jsonl 依 kind 拆進兩個檔案
-//   php upgrade_data.php features <project_dir> [--apply]   primaryKind 專案：把每個地點目前顯示中的主要投稿回填成 feature
+//   php upgrade_data.php features <project_dir> [--apply]   primaryKind 專案：把每個點位目前顯示中的主要投稿回填成 feature
 //
 // split：kind point／newpoint 改寫成 spot（point 的 edit_of 指向同 num 的既有起點，找不到留空）；其餘進 entries。
 // 已存在於兩檔的 id 一律跳過；data.jsonl 本身不改、不刪。不加 --apply 為預覽。
@@ -97,7 +97,7 @@ foreach ($latest as $n => $e) {
     $out[] = ['id' => bin2hex(random_bytes(8)), 'project' => $project, 'kind' => 'spot', 'item_num' => $n,
               'edit_of' => $origins[$n], 'feature' => (string)$e['id'], 'name' => '升級工具', 'created_at' => gmdate('c')];
 }
-echo "$project: primaryKind=$pk；待回填 feature " . count($out) . " 個地點\n";
+echo "$project: primaryKind=$pk；待回填 feature " . count($out) . " 個點位\n";
 if (!$apply) { echo "預覽模式，未寫入。\n"; exit(0); }
 ug_append($spotsF, $out);
 echo "已寫入。\n";

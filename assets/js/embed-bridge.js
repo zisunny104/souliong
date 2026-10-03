@@ -549,7 +549,7 @@
       this.applyState();
     }
 
-    // 底圖樣式自帶的 symbol 圖層（引擎 hideBaseLabels 已排除 sl-／m3d- 疊圖）；地點標記是 DOM，不受影響
+    // 底圖樣式自帶的 symbol 圖層（引擎 hideBaseLabels 已排除 sl-／m3d- 疊圖）；點位標記是 DOM，不受影響
     applyLabels() {
       if (this.labels || !this.map) return;
       const m = this.map;

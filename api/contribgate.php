@@ -35,7 +35,7 @@ final class Contributor {
 /**
  * 投稿把關：依序 停權名單 → bypass_code（具備者不需要碼）→ 這張地圖有沒有開放投稿 → 投稿代碼（計一次使用）。
  * 任一關失敗直接 403 結束；通過回傳解析好的 Contributor。
- * $what 只用在缺碼時的訊息（「上傳」「建立地點」）。
+ * $what 只用在缺碼時的訊息（「上傳」「建立點位」）。
  */
 function contrib_gate(array $cfg, string $project, string $what = '上傳'): Contributor {
     $who = Contributor::fromRequest();

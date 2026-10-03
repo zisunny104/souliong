@@ -2,7 +2,7 @@
 
 Souliong 對外提供三種整合方式，彼此獨立，可單獨使用：
 
-1. **資料 API**：唯讀 JSON，取得專案設定與地點。
+1. **資料 API**：唯讀 JSON，取得專案設定與點位。
 2. **嵌入模式**：把地圖頁放進 iframe（`?embed=1&ui=bare`），由父頁用 `postMessage` 控制鏡頭。
 3. **導航小頁**：`?api=navsheet`，只含「用哪個軟體導航」選單，可放進 iframe 或 modal。
 
@@ -14,13 +14,13 @@ Souliong 對外提供三種整合方式，彼此獨立，可單獨使用：
 
 | 欄位 | 性質 | 能否當外部鍵 |
 |---|---|---|
-| `spotId` | 16 位小寫十六進位字串，建立地點時隨機產生，之後不變，備份匯出入時保留 | 可以 |
+| `spotId` | 16 位小寫十六進位字串，建立點位時隨機產生，之後不變，備份匯出入時保留 | 可以 |
 | `num` | 顯示編號，會出現在標籤與清單；刪除或重整後可能被重用，也可能被改號 | 不可以 |
 | 專案 `slug` | 專案識別，沿用建立時的名稱，不亂數化 | 可以 |
 
 - 凡是接受 `num` 的入口（`?spot=`、統計、`item_num` 等）同時接受 `spotId`；新產生的連結一律使用 `spotId`。
-- 外部系統要記住「某一個地點」時，請存 `spotId`，不要存 `num`。
-- 目前統計資料仍以 `num` 為鍵（顯示用途），所以統計數字在 `num` 被重用時可能與舊地點混在一起。這是已知限制。
+- 外部系統要記住「某一個點位」時，請存 `spotId`，不要存 `num`。
+- 目前統計資料仍以 `num` 為鍵（顯示用途），所以統計數字在 `num` 被重用時可能與舊點位混在一起。這是已知限制。
 
 ---
 
@@ -47,7 +47,7 @@ GET <站台>?api=project&project=<slug>
 }
 ```
 
-### 2.2 地點
+### 2.2 點位
 
 ```
 GET <站台>?api=spots&project=<slug>
@@ -121,12 +121,12 @@ GET <站台>?api=spots&project=<slug>
 | 參數 | 值 | 預設 | 說明 |
 |---|---|---|---|
 | `ui` | `bare` | 完整介面 | 隱藏標題、圖例、清單、選單、縮放鈕、重設鈕、投稿與解鎖等浮層，也不載入與地圖無關的功能。圖資版權標示保留（縮小置於右下角，不可移除） |
-| `interactive` | `0`、`1` | `0` | `0` 時地圖不接受使用者拖曳與縮放，也不送 `spot-click`；`1` 開放操作與地點點擊 |
-| `view` | `meta`、`fit`、`none` | `meta`（bare） | `meta` 用專案設定的中心與縮放；`fit` 縮放到涵蓋所有地點；`none` 不動鏡頭 |
+| `interactive` | `0`、`1` | `0` | `0` 時地圖不接受使用者拖曳與縮放，也不送 `spot-click`；`1` 開放操作與點位點擊 |
+| `view` | `meta`、`fit`、`none` | `meta`（bare） | `meta` 用專案設定的中心與縮放；`fit` 縮放到涵蓋所有點位；`none` 不動鏡頭 |
 | `bg` | `transparent`、`theme` | `theme` | 見下方說明 |
 | `theme` | `light`、`dark`、`auto` | 不指定 | 色彩模式；不指定時沿用預設行為（跟隨系統） |
 | `layer` | 圖層 id | 專案預設 | 必須是該專案已啟用的底圖圖層，否則忽略 |
-| `labels` | `0`、`1` | `1` | `0` 在執行期隱藏底圖的文字標籤（地點標記除外） |
+| `labels` | `0`、`1` | `1` | `0` 在執行期隱藏底圖的文字標籤（點位標記除外） |
 
 `bg=transparent` 的限制：它只影響底圖載入前的背景色與背景圖層，土地與水體的填色仍會繪出，**不保證整體透明**。需要與父頁融合時，請搭配 `layer`／`labels` 與父頁的版面處理。
 
@@ -158,7 +158,7 @@ GET <站台>?api=spots&project=<slug>
 | `ready` | `{project, view:{center,zoom}, spotCount, engine}` | 第一次進入閒置（地圖可操作） |
 | `idle` | 無 | 每次鏡頭停止且圖磚載入完 |
 | `tile-error` | 無 | 圖磚載入失敗；是否改用備援由父頁決定 |
-| `spot-click` | `{spotId, num}` | 使用者點擊地點，僅 `interactive=1` |
+| `spot-click` | `{spotId, num}` | 使用者點擊點位，僅 `interactive=1` |
 | `done` | `{id, state, center, zoom, result?}` | 指令完成 |
 | `error` | `{id, code, message}` | 指令失敗 |
 
@@ -172,7 +172,7 @@ GET <站台>?api=spots&project=<slug>
 
 | 參數 | 預設 | 說明 |
 |---|---|---|
-| `spotId` | `null` | 目標地點；`null` 只做畫面中心的緩慢放大，不發光、不淡化 |
+| `spotId` | `null` | 目標點位；`null` 只做畫面中心的緩慢放大，不發光、不淡化 |
 | `hold` | `0` | 先停留的毫秒數（維持目前視角） |
 | `fly` | `1500` | 飛行毫秒數 |
 | `zoom` | 專案目前縮放 | 目標縮放 |
@@ -188,7 +188,7 @@ GET <站台>?api=spots&project=<slug>
 - 新場景取代舊場景（以收到順序為準）；舊場景立刻放棄、不留殘餘動畫，並回 `done{state:"interrupted"}`。
 - 冪等：參數相同的 `scene` 連送兩次，效果等於一次。
 - 視窗被隱藏（切分頁、縮到背景）時暫停；回到前景時直接跳到目前場景的終點。
-- 視窗尺寸改變（旋轉、鍵盤）時重算偏移，地點維持在預期位置（誤差小於 2% 畫面）。
+- 視窗尺寸改變（旋轉、鍵盤）時重算偏移，點位維持在預期位置（誤差小於 2% 畫面）。
 - 連續亂序送出 `scene`／`skip`／`cancel` 時，最後一個指令的終點狀態必定正確。
 
 ### 5.4 低階指令
@@ -196,21 +196,21 @@ GET <站台>?api=spots&project=<slug>
 | 指令 | 參數 | 說明 |
 |---|---|---|
 | `getState` | 無 | `done.result` 含 `project, engine, theme, spotCount, highlight, markers, dimmed`、目前視角（`center, zoom`）、`bearing, pitch, minZoom, maxZoom, bounds, moving` |
-| `getSpots` | 無 | `done.result` 為與 `?api=spots` 相同格式的地點 |
+| `getSpots` | 無 | `done.result` 為與 `?api=spots` 相同格式的點位 |
 | `resetView` | `duration` | 回到專案預設視角 |
 | `setView` | `center, zoom, duration, easing` | `easing` 為 `linear`、`ease`、`easeInOut` |
-| `flyTo` | `spotId` 或 `center`、`zoom, duration, curve, offset` | 飛到地點或座標 |
+| `flyTo` | `spotId` 或 `center`、`zoom, duration, curve, offset` | 飛到點位或座標 |
 | `zoomAbout` | `by` 或 `to`、`duration`、`anchor` | `anchor` 為 `"view-center"` 或 `{x,y}` |
-| `fitSpots` | `padding, duration, spotIds?` | 縮放到涵蓋指定（預設全部）地點 |
+| `fitSpots` | `padding, duration, spotIds?` | 縮放到涵蓋指定（預設全部）點位 |
 | `highlight` | `spotId \| null`、`style:"glow"`、`pulse`、`color?` | 持續脈動；`null` 取消 |
 | `dimOthers` | `opacity, scale` | 淡化他點；`opacity:1, scale:1` 還原 |
-| `setMarkers` | `mode: "all"\|"dots"\|"none"\|"only"`、`spotIds?` | 控制地點標記顯示 |
+| `setMarkers` | `mode: "all"\|"dots"\|"none"\|"only"`、`spotIds?` | 控制點位標記顯示 |
 | `setTheme` | `theme` | `light`、`dark`、`auto` |
 | `setLayer` | `layer` | 只能在專案已啟用的向量底圖圖層之間切換 |
 | `setLabels` | `labels` | 布林，顯示或隱藏底圖文字標籤 |
 | `snapshot` | `width, height, mime` | `mime` 為 `image/png`、`image/jpeg`、`image/webp`；`done.result` 為 `{dataUrl, width, height, mime}`；邊長上限 4096 |
 
-`snapshot` 的已知限制：快照上的地點圓點疊圖不理會 `setMarkers`。
+`snapshot` 的已知限制：快照上的點位圓點疊圖不理會 `setMarkers`。
 
 ### 5.5 錯誤碼
 
@@ -235,7 +235,7 @@ GET <站台>?api=navsheet&project=<slug>&spot=<spotId|num>&embed=1[&theme=light|
 
 只輸出導航選單（Google 地圖、Apple 地圖僅 iOS、系統地圖 `geo:`、OpenStreetMap；選項清單與地圖頁相同），不帶起點、不做定位、無 session。外部連結以 `target="_blank" rel="noopener noreferrer"` 開啟。
 
-- 專案或地點不存在：`404`（頁面內顯示找不到的訊息）；`POST` 等其他方法：`405`。成功時 `Cache-Control: public, max-age=60`。
+- 專案或點位不存在：`404`（頁面內顯示找不到的訊息）；`POST` 等其他方法：`405`。成功時 `Cache-Control: public, max-age=60`。
 - 使用者按關閉鈕或向下滑動收起時，頁面對父視窗送 `{v:1, ns:"souliong", type:"navsheet-close"}`，目標 origin 只取自允許清單。父頁據此關閉 modal 或 iframe。
 - `embed=1` 且清單非空時送 `frame-ancestors`，規則與地圖頁相同。
 
@@ -248,7 +248,7 @@ GET <站台>?api=navsheet&project=<slug>&spot=<spotId|num>&embed=1[&theme=light|
 - 內容是管理者在後台擷取的 3D 視角圖，專案層級只有一張。
 - 格式 webp，最長邊上限 960 px（站台設定 `cover_max_dim`）；**不能指定寬高**，需要其他尺寸請用 `snapshot` 指令。
 - `Cache-Control: max-age=300`，無 ETag。
-- 沒有地點層級或視角層級的備援圖。
+- 沒有點位層級或視角層級的備援圖。
 
 ---
 
@@ -281,6 +281,6 @@ curl -I "<站台>?api=navsheet&project=<slug>&spot=<spotId>&embed=1"
 
 - [ ] 在站台設定或後台專案設定填入父頁 origin。
 - [ ] `curl -I` 確認沒有伺服器層的 `X-Frame-Options`。
-- [ ] 父頁用 `spotId` 而非 `num` 識別地點。
+- [ ] 父頁用 `spotId` 而非 `num` 識別點位。
 - [ ] 父頁訊息處理檢查 `event.source` 與 `event.origin`。
 - [ ] 用 `tools/embed-demo.html` 手動驗證所有指令；`php tools/checkall.php` 含 `embedcheck` 自動檢查。

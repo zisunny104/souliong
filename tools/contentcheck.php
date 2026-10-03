@@ -1,6 +1,6 @@
 <?php
 /**
- * 地點內容區（api/spotcontent.php）的行為回歸測試（CLI）。
+ * 點位內容區（api/spotcontent.php）的行為回歸測試（CLI）。
  *
  * 用法：php tools/contentcheck.php      全部通過結束碼 0，有任何一項失敗為 1。
  *
@@ -257,7 +257,7 @@ $did = $r['item']['content'][0]['id'] ?? 'x';
 ck($c === 400, '重複 id 回 400', [$c, $r]);
 ck(versions() === $v + 1, '被拒絕的輸入都沒有寫版本（只有 dup 那一筆）', [versions(), $v]);
 [$c, $r] = save([['kind' => 'text', 'comment' => 'x']], $rev6, [], ['fields' => ['item_num' => '99']]);
-ck($c === 404, '不存在的地點回 404', [$c, $r]);
+ck($c === 404, '不存在的點位回 404', [$c, $r]);
 
 // 超過上限：整個請求超過 post_max_size 與單檔超過 upload_max_filesize 都要回明確的 413
 $v = versions();

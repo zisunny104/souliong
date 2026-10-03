@@ -1,12 +1,12 @@
 <?php
 // 社群分享預覽卡（OG/Twitter Card）共用邏輯：純函式，無副作用，供 pages/view.php／pages/landing.php
-// 一起用。地點解析沿用 assets/js/viewer.core.js 的 effectiveSpots() 同一套「起點（有 num）＋
+// 一起用。點位解析沿用 assets/js/viewer.core.js 的 effectiveSpots() 同一套「起點（有 num）＋
 // edit_of 鏈取最新一筆覆寫 lat/lon/content」演算法，在伺服器端重寫一次。
 require_once __DIR__ . '/store.php';
 require_once __DIR__ . '/coverlib.php';
 require_once __DIR__ . '/spotlib.php';
 
-/** 地點「名稱」欄位不是單一 key，跟前端 spotName() 用同一套優先序。 */
+/** 點位「名稱」欄位不是單一 key，跟前端 spotName() 用同一套優先序。 */
 function souliong_og_spot_name(array $s): string
 {
     return (string)($s['theme'] ?? $s['title'] ?? $s['chair'] ?? '');
@@ -39,7 +39,7 @@ function souliong_og_truncate(string $s, int $len = 200): string
 
 /**
  * 解析 ?spot=<spotId|num>：委派給 api/spotlib.php 的 spot_effective_by_ref()，跟 editspot.php／
- * spotcontent.php 共用同一套「起點＋edit_of 鏈取最新覆寫」演算法。回傳 null 表示這個地點
+ * spotcontent.php 共用同一套「起點＋edit_of 鏈取最新覆寫」演算法。回傳 null 表示這個點位
  * 不存在（回退到專案預設卡）。
  */
 function souliong_og_resolve_spot(array $apiCfg, string $project, $ref): ?array

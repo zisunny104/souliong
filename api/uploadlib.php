@@ -1,7 +1,7 @@
 <?php
 // 上傳檔案共用邏輯（純函式，無副作用，可安全被多處 require）：從 api/upload.php 抽出的 MIME 偵測與
-// 檔案驗證／命名／落地，供 api/upload.php（投稿牆五種型別）與 api/spotcontent.php（地點原生內容）
-// 共用同一套規則。縮圖產生留在 upload.php——那是投稿牆卡片列表的顯示需求，地點原生內容沒有縮圖。
+// 檔案驗證／命名／落地，供 api/upload.php（投稿牆五種型別）與 api/spotcontent.php（點位原生內容）
+// 共用同一套規則。縮圖產生留在 upload.php——那是投稿牆卡片列表的顯示需求，點位原生內容沒有縮圖。
 require_once __DIR__ . '/store.php';
 require_once __DIR__ . '/features.php';
 

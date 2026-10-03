@@ -25,7 +25,7 @@ $id   = (string)($_REQUEST['id'] ?? '');
 $FEATURES = array_keys(souliong_features());
 $h = (int)($_REQUEST['h'] ?? -1);
 $d = (int)($_REQUEST['d'] ?? -1);
-// 地點統計：id 可以是 num 或 spotId；一律以 num 計（後台統計圖的既有鍵），spotId 先解回 num。
+// 點位統計：id 可以是 num 或 spotId；一律以 num 計（後台統計圖的既有鍵），spotId 先解回 num。
 $spotKey = null;
 if ($type === 'spot') {
     if (spot_id_valid($id)) {

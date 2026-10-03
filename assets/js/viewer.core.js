@@ -1,4 +1,4 @@
-/* 通用地圖檢視器 —— 由 ?p=<project> 載入 projects/<project>/meta.json 與地點資料。
+/* 通用地圖檢視器 —— 由 ?p=<project> 載入 projects/<project>/meta.json 與點位資料。
    後端：api/list.php、api/upload.php（純 PHP，append-only）。
    地圖繪製透過 assets/js/engine/ 底下的 MapEngine 抽象層（見 map-engine.js）：這個檔案跟所有
    plugin 一律只呼叫 engine.* / MapApp.getEngine().*，不直接認得 Leaflet 或 MapLibre 的 API。 */
@@ -54,7 +54,7 @@ window.MapApp = (() => {
     video: { icon: 'fa-film',             layer: true,  box: 'video' },
     audio: { icon: 'fa-microphone-lines', layer: true,  box: 'audio' },
     // 文字投稿不進地圖圖層：它沒有自己的座標（見 contrib/kind-text.js 的 needsLocation()），
-    // 只會出現在所屬地點的投稿牆上。
+    // 只會出現在所屬點位的投稿牆上。
     text:  { icon: 'fa-align-left',       layer: false, box: 'text'  },
   };
   // 沒有 kind 的舊紀錄一律當照片
@@ -198,7 +198,7 @@ window.MapApp = (() => {
     const err = new Error(t('failed_rate_limited_retry_manually')); err.rateLimited = true; throw err;
   }
 
-  // 建立新地點：身分欄位比照 submitContribution 統一在這裡補齊，但打的是 api/newspot.php——
+  // 建立新點位：身分欄位比照 submitContribution 統一在這裡補齊，但打的是 api/newspot.php——
   // 建點的權限是每張地圖自己設定的（meta.json 的 contrib.newSpot），由那支端點把關，
   // 所以有 csrf 的身分（admin 分支）要一併帶上（見 api/newspot.php）。
   async function submitNewSpot(fields) {
@@ -324,7 +324,7 @@ window.MapApp = (() => {
       if (cov && cov.updatedAt && (Date.now() - Date.parse(cov.updatedAt)) < (APP.coverMinInterval || 3600) * 1000) return;
     }
     const needLightSwap = isDark() && engine.hasDarkStyle;
-    // 封面不含地名：擷圖前隱藏底圖文字標籤（地點圓點是另外疊繪的，不受影響）。
+    // 封面不含地名：擷圖前隱藏底圖文字標籤（點位圓點是另外疊繪的，不受影響）。
     // 還原順序與淺色切換相反：先還原標籤，再切回深色；任何失敗路徑都經由 finish() 走同一段還原。
     let restoreLabels = null, done = false;
     const finish = () => {
@@ -533,8 +533,8 @@ window.MapApp = (() => {
     const p = n => String(n).padStart(2, '0');
     return d.getFullYear() + '/' + p(d.getMonth() + 1) + '/' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
   }
-  // 地點的顯示名稱。欄位名稱依資料來源而異（100chairs 是 theme／chair，一般地圖是 title，
-  // 訪客建立的地點也是 title），下拉選單與標題都走這一個函式，加新來源時只要改這裡。
+  // 點位的顯示名稱。欄位名稱依資料來源而異（100chairs 是 theme／chair，一般地圖是 title，
+  // 訪客建立的點位也是 title），下拉選單與標題都走這一個函式，加新來源時只要改這裡。
   const spotName = (p) => p.theme || p.title || p.chair || '';
   function spotTitle(p) {
     const base = spotName(p);
@@ -542,7 +542,7 @@ window.MapApp = (() => {
     if (META.numbering === 'prefix') return (p.num != null ? pad2(p.num) + ' ' : '') + base;
     return base + (p.num != null ? ' ' + pad2(p.num) : '');
   }
-  // 地點列表／跳轉選單共用的「編號｜名稱」標籤（回傳值已 HTML 跳脫，可直接接進 innerHTML）
+  // 點位列表／跳轉選單共用的「編號｜名稱」標籤（回傳值已 HTML 跳脫，可直接接進 innerHTML）
   function spotNumLabel(p) {
     const name = esc(spotName(p));
     return META.numbering === 'disable' ? name : pad2(p.num) + '｜' + name;
@@ -556,7 +556,7 @@ window.MapApp = (() => {
   }
   function spotOptionsHtml(selNum) {
     const none = '<option value=""' + (selNum == null ? ' selected' : '') + '>' + esc(t('spot_none_option')) + '</option>';
-    // 用 effectiveSpots() 而非 SPOTS：訪客建立的地點也要能被選成「這則投稿屬於哪個點」
+    // 用 effectiveSpots() 而非 SPOTS：訪客建立的點位也要能被選成「這則投稿屬於哪個點」
     return none + effectiveSpots().sort((a, b) => a.num - b.num).map(p =>
       '<option value="' + p.num + '"' + (p.num === selNum ? ' selected' : '') +
       (p.color ? ' style="color:' + esc(p.color) + '"' : '') + '>' +
@@ -596,12 +596,12 @@ window.MapApp = (() => {
     return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
   }
 
-  // 哪些紀錄是「排在投稿牆上的一則投稿」。spot 不算，它是地點本身而不是掛在地點底下的內容。
+  // 哪些紀錄是「排在投稿牆上的一則投稿」。spot 不算，它是點位本身而不是掛在點位底下的內容。
   // 每一種投稿型別（含音訊）一律算。
   const isEntry = (e) => !!(e && (KINDS[e.kind] || (!e.kind && e.photo)));
 
   // 合併「原始投稿」與其 edit_of 編輯紀錄，算出目前應顯示的內容：
-  // 留言/關聯地點/定位取最新一筆編輯，但檔案本身與原始拍攝時間永遠沿用原始那筆（編輯不能換照片/影音檔）。
+  // 留言/關聯點位/定位取最新一筆編輯，但檔案本身與原始拍攝時間永遠沿用原始那筆（編輯不能換照片/影音檔）。
   function effectiveEntries() {
     const originals = {}, edits = {};
     CONTRIB.forEach(e => {
@@ -633,9 +633,9 @@ window.MapApp = (() => {
   // 所以這裡維持照片語意不變，核心自己的呈現才改吃 effectiveEntries()。
   function effectivePhotos() { return effectiveEntries().filter(e => !!e.photo); }
 
-  // 合併「地點本身」的建立與後續編輯：起點（api/newspot.php 寫入的 kind:'spot'，一定帶 num、
+  // 合併「點位本身」的建立與後續編輯：起點（api/newspot.php 寫入的 kind:'spot'，一定帶 num、
   // 無 edit_of）疊上指向它的 edit_of 版本鏈（api/editspot.php、api/spotcontent.php 寫入）。
-  // spots.jsonl 是地點唯一的真相來源，這裡只吃 CONTRIB。
+  // spots.jsonl 是點位唯一的真相來源，這裡只吃 CONTRIB。
   // 疊加規則與 api/spotlib.php 的 spot_effective() 同一份規格：逐欄疊加，每個可覆寫欄位取
   // 「版本鏈上帶有該 key 的最新一筆」，created_at 相同時檔案裡較後面那筆勝出（sort 是穩定的，
   // list.php 也保持檔案順序）。欄位清單由伺服器給（APP.spotFields），這裡不硬編。
@@ -678,7 +678,7 @@ window.MapApp = (() => {
   // badgeColor 有給值時（篩選單一投稿者時）覆蓋角標底色，跟該投稿者的路徑同色
   // 回傳的是引擎無關的 marker spec（見 assets/js/engine/map-engine.js 的 setMarkerLayer()），
   // 不是某個引擎的原生 icon 物件——LeafletEngine／MapLibreEngine 各自決定怎麼把它畫出來。
-  // 幾何圖形固定由 num 算出（num 是地點建立時分配、之後永不改變的識別碼），
+  // 幾何圖形固定由 num 算出（num 是點位建立時分配、之後永不改變的識別碼），
   // 不需要另存欄位：同一個點每次算出來的圖形永遠一樣，效果等同「建立時隨機、之後固定」。
   const PIN_SHAPES = [
     '<polygon points="5,0.5 9.5,9.5 0.5,9.5"/>',                    // 三角形
@@ -701,7 +701,7 @@ window.MapApp = (() => {
     const sizeCls = META.pinSize === 'sm' ? ' sl-sz-sm' : META.pinSize === 'lg' ? ' sl-sz-lg' : '';
     // pinBorder：白色外框開關，沒設過就預設為 true
     const borderCls = META.pinBorder === false ? ' sl-noborder' : '';
-    // has-audio：這個地點掛了聲音；is-playing：其中一則正在播放，脈衝光暈只在播放中顯示（見 map-markers.css）
+    // has-audio：這個點位掛了聲音；is-playing：其中一則正在播放，脈衝光暈只在播放中顯示（見 map-markers.css）
     const cls = 'dot-pin' + sizeCls + borderCls + (count ? ' has-contrib' : '') + (audioSpots.has(c.num) ? ' has-audio' : '') + (playingSpots.has(c.num) ? ' is-playing' : '');
     // pinMark：地圖上圓點裡要放什麼——number（預設，顯示編號）／blank（留空）／shape（依 num 固定配一個幾何圖形）／image（自訂圖片取代整個標記）
     const isImage = META.pinMark === 'image';
@@ -713,7 +713,7 @@ window.MapApp = (() => {
       html: '<div class="' + cls + '" data-sid="' + esc(String(c.id || '')) + '" style="background:' + bg + '">' + pinMark + badge + '</div>'
     };
   }
-  // 音訊播放狀態切換：只有播放中的地點才顯示標記脈衝，切換時才需要重畫標記層
+  // 音訊播放狀態切換：只有播放中的點位才顯示標記脈衝，切換時才需要重畫標記層
   function setSpotPlaying(num, playing) {
     if (num == null) return;
     const had = playingSpots.has(num);
@@ -791,8 +791,8 @@ window.MapApp = (() => {
   }
 
   /* ---------- 依序探索（選用功能，見 META.personExplore） ----------
-     把某人的所有照片依「有沒有綁地點」分兩種：綁地點的（item_num 有值）同一地點合併成一站，
-     用該站最早一張照片的時間排序；沒綁地點的零散照片各自一站，用自己的拍攝時間排序。
+     把某人的所有照片依「有沒有綁點位」分兩種：綁點位的（item_num 有值）同一點位合併成一站，
+     用該站最早一張照片的時間排序；沒綁點位的零散照片各自一站，用自己的拍攝時間排序。
      兩種站合併後依時間排成一條時間軸，供左上卡片的兩個箭頭逐站切換。 */
   function personTimeline(name) {
     const groups = {}, loose = [];
@@ -816,8 +816,8 @@ window.MapApp = (() => {
     return personColorCache[name];
   }
   // 依目前「全部／投稿」模式切換下拉選單的用途：投稿模式列投稿者（跟 spotList 模組開關無關，
-  // 一定要用下拉選單，因為選了要記住、重新整理不會跑掉）；全部模式列地點標籤，開了 spotList
-  // 模組時改交給左上角卡片的地點列表（見 renderSpotList()），下拉選單本身隱藏。
+  // 一定要用下拉選單，因為選了要記住、重新整理不會跑掉）；全部模式列點位標籤，開了 spotList
+  // 模組時改交給左上角卡片的點位列表（見 renderSpotList()），下拉選單本身隱藏。
   function rebuildPersonFilter() {
     const sel = document.getElementById('personFilter');
     const selRow = document.getElementById('personFilterRow');
@@ -846,7 +846,7 @@ window.MapApp = (() => {
         ).join('');
     }
   }
-  // spotList 模組：左上角卡片直接列出可點擊的地點，取代「跳到地點」下拉選單（見上方 rebuildPersonFilter()）
+  // spotList 模組：左上角卡片直接列出可點擊的點位，取代「跳到點位」下拉選單（見上方 rebuildPersonFilter()）
   function renderSpotList(box) {
     const pts = effectiveSpots().sort((a, b) => a.num - b.num);
     box.style.display = '';
@@ -867,7 +867,7 @@ window.MapApp = (() => {
   }
 
   /* ---------- legend ---------- */
-  // 圖例的分類清單。用 effectiveSpots() 而非 SPOTS：訪客建立的地點可能帶了一個這張地圖
+  // 圖例的分類清單。用 effectiveSpots() 而非 SPOTS：訪客建立的點位可能帶了一個這張地圖
   // 原本沒有的分類（newspot.php 已把 catLabel／color 存進紀錄），不從這裡推導的話，
   // 那些點會畫在地圖上、圖例卻沒有對應的一格可以開關。投稿載入後會再跑一次。
   const urlCats = (params.get('cat') || '').split(',').map(s => s.trim()).filter(Boolean);
@@ -914,7 +914,7 @@ window.MapApp = (() => {
   }
   function closePanel() { document.getElementById('panel').classList.remove('open'); resetSpotEditor(); closeNavMenu(); current = null; emitHook('panelReset'); }
 
-  /* ---------- 地點導航選單 ---------- */
+  /* ---------- 點位導航選單 ---------- */
   // 連結模板由伺服器提供（APP.nav.apps，見 api/navlinks.php）；這裡只套值、依平台過濾、排成選單。
   // 選項用一般 <a>：新分頁、長按複製與鍵盤操作都交給瀏覽器，geo: 之類的協定也直接交給系統挑軟體開啟。
   const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -994,7 +994,7 @@ window.MapApp = (() => {
         navIcon(a.icon) + esc(t(a.lang)) + '</a>';
     }).join('');
     navBox.menu.querySelectorAll('.p-nav-item').forEach(a => a.addEventListener('click', () => setTimeout(closeNavMenu, 0)));
-    // 定位要用量到的實際尺寸：先用 visibility 量完再放開，避免選單從左上角 (0,0) 飛到地點的閃爍
+    // 定位要用量到的實際尺寸：先用 visibility 量完再放開，避免選單從左上角 (0,0) 飛到點位的閃爍
     navBox.menu.style.visibility = 'hidden';
     navBox.menu.style.display = 'block';
     positionNavMenu();
@@ -1013,7 +1013,7 @@ window.MapApp = (() => {
     if (refocus) navBox.btn.focus();
     return true;
   }
-  // 電腦版：地點卡片在「預設寬度」與「接近全螢幕的大卡片」之間切換（狀態保留到下次開啟）
+  // 電腦版：點位卡片在「預設寬度」與「接近全螢幕的大卡片」之間切換（狀態保留到下次開啟）
   function togglePanelSize() {
     const p = document.getElementById('panel');
     const wide = p.classList.toggle('wide');
@@ -1032,8 +1032,8 @@ window.MapApp = (() => {
     const p = el._picker; if (p) p.destroy();
     el._picker = null; el.style.display = 'none'; el.innerHTML = '';
   }
-  // 地點（椅子）位置微調面板：僅管理者可見，比照 buildPhotoEditorPanel 的迷你地圖模式，
-  // 但不需要留言/關聯地點欄位，多了「還原初始位置」讓管理者在儲存前能隨時退回起點的原始座標。
+  // 點位（椅子）位置微調面板：僅管理者可見，比照 buildPhotoEditorPanel 的迷你地圖模式，
+  // 但不需要留言/關聯點位欄位，多了「還原初始位置」讓管理者在儲存前能隨時退回起點的原始座標。
   function toggleSpotEditor() {
     const el = document.getElementById('spotEditor');
     if (!el || !current) return;
@@ -1072,7 +1072,7 @@ window.MapApp = (() => {
       btn.disabled = false;
     }
   }
-  // 地點寫入後重算：目前開著的地點面板換成最新有效狀態（標題、副標、說明區）
+  // 點位寫入後重算：目前開著的點位面板換成最新有效狀態（標題、副標、說明區）
   function refreshCurrentSpot(itemNum) {
     const updated = effectiveSpots().find(p => p.num === itemNum);
     if (!updated) return;
@@ -1081,7 +1081,7 @@ window.MapApp = (() => {
     document.getElementById('pSub').innerHTML = spotSub(updated);
     renderEntries();
   }
-  // 寫入地點的座標（editspot.php）：fields 可帶 lat、lon（至少一個）與選填的 name，
+  // 寫入點位的座標（editspot.php）：fields 可帶 lat、lon（至少一個）與選填的 name，
   // 沒帶的欄位沿用目前有效值。身分靠 csrf，權限是 edit_spots，不是投稿的 owner/code/ctoken 那一套。
   async function submitSpotEdit(itemNum, fields) {
     const fd = new FormData();
@@ -1098,7 +1098,7 @@ window.MapApp = (() => {
     refreshCurrentSpot(itemNum);
     return j.item;
   }
-  // 地點內容的整體儲存（api/spotcontent.php，權限 edit_spots，跟 submitSpotEdit() 同一組）：一次送出整份
+  // 點位內容的整體儲存（api/spotcontent.php，權限 edit_spots，跟 submitSpotEdit() 同一組）：一次送出整份
   // 區塊清單，產生一個版本、一個編輯者。opts：
   //   blocks   依顯示順序的區塊陣列；既有區塊帶 id（伺服器只採用 comment），新聲音區塊沒有 id、file 填 media_N
   //   files    { media_N: [blob, 檔名] }，跟 blocks 裡的 file 對應
@@ -1139,12 +1139,12 @@ window.MapApp = (() => {
     return '<div class="story-source">' + esc(t('field_source_label')) + '：<a href="' + esc(item.source_url) + '" target="_blank" rel="noopener">' + esc(host) + '</a>' +
       (lic ? '<span class="story-source-lic">' + lic + '</span>' : '') + '</div>';
   }
-  // 地點內容區塊（content 陣列，見 api/spotcontent.php）的算繪器註冊表：區塊的 kind 對應一個 handler，
+  // 點位內容區塊（content 陣列，見 api/spotcontent.php）的算繪器註冊表：區塊的 kind 對應一個 handler，
   // 核心依序把每個區塊交給它畫，新增型別不必動核心。handler 欄位：
   //   valid(item)          這一項能不能顯示（例如音訊要有檔案）
   //   bodyHtml(item, spot) 區塊主體 HTML
   //   footHtml(item, spot) 選填，主體下方的附註
-  //   standalone           選填，true＝地點只有這一個區塊時不畫「地點故事」標題，單獨成為說明區主體
+  //   standalone           選填，true＝點位只有這一個區塊時不畫「點位故事」標題，單獨成為說明區主體
   //   audible              選填，true＝地圖標記要顯示聲音脈動（見 recount()）
   //   summary(item)        選填，歷史版本列表用的純文字摘要
   //   wire(el, spot, item) 選填，區塊畫好後綁事件
@@ -1198,7 +1198,7 @@ window.MapApp = (() => {
     box.innerHTML = '';
     const entries = effectiveEntries().filter(e => e.item_num === current.num && photoFilters.every(f => f(e, current))).sort((a, b) => tv(a) - tv(b));
 
-    // 說明區：地點的 content 區塊依序渲染（見 registerSpotContent()）。只有一個獨立型區塊（例如單一音訊）
+    // 說明區：點位的 content 區塊依序渲染（見 registerSpotContent()）。只有一個獨立型區塊（例如單一音訊）
     // 時維持該型別自己的樣貌、不畫標題；沒有任何可顯示區塊時顯示空狀態。
     const blocks = spotBlocks(current);
     const sole = blocks.length === 1 && spotContentDef(blocks[0]).standalone;
@@ -1261,7 +1261,7 @@ window.MapApp = (() => {
     });
     box.appendChild(gwrap);
   }
-  // 聲音區塊的分享連結：?spot=<num>&block=<id>，進站時由 boot() 展開地點並標出這個聲音。
+  // 聲音區塊的分享連結：?spot=<num>&block=<id>，進站時由 boot() 展開點位並標出這個聲音。
   // 網址形式沿用 share-link 插件（origin + base + 專案 ID），這裡不依賴該插件。
   function blockLinkButton(num, blockId) {
     const b = document.createElement('button');
@@ -1283,7 +1283,7 @@ window.MapApp = (() => {
       return '<img class="sl-open" src="' + esc(entryThumbUrl(e) || '') + '" loading="lazy" decoding="async" alt="' + alt + '" tabindex="0">';
     }
     if (def.box === 'video') {
-      // 只鋪封面圖不放 <video>：一個地點可能有十幾則投稿，全部掛播放器等於同時開十幾條連線
+      // 只鋪封面圖不放 <video>：一個點位可能有十幾則投稿，全部掛播放器等於同時開十幾條連線
       const poster = entryThumbUrl(e);
       return '<div class="sl-prev sl-prev-video sl-open" role="button" tabindex="0" aria-label="' + alt + '">' +
         (poster
@@ -1347,7 +1347,7 @@ window.MapApp = (() => {
   const tv = (e) => new Date(e.photo_time || e.created_at).getTime() || 0;
   function spotColorOf(num) { const p = SPOTS.find(x => x.num === num); return p ? p.color : '#888'; }
 
-  // 編輯照片的留言/關聯地點/定位共用的面板內容建構（原始照片檔案本身不可更換）。
+  // 編輯照片的留言/關聯點位/定位共用的面板內容建構（原始照片檔案本身不可更換）。
   // opts.onCancel / opts.onSaved 讓呼叫端（照片卡片 vs. 單張檢視）各自決定取消/儲存完成後要做什麼。
   function buildPhotoEditorPanel(e, panel, opts) {
     opts = opts || {};
@@ -1396,8 +1396,8 @@ window.MapApp = (() => {
     panel.style.display = 'block';
     buildPhotoEditorPanel(e, panel);
   }
-  // 單張檢視（lightbox）裡的獨立編輯面板：有些照片沒有對應的地點（item_num 為空），
-  // 側欄的照片牆是依地點分組顯示，這種照片永遠不會出現在任何照片牆卡片上，
+  // 單張檢視（lightbox）裡的獨立編輯面板：有些照片沒有對應的點位（item_num 為空），
+  // 側欄的照片牆是依點位分組顯示，這種照片永遠不會出現在任何照片牆卡片上，
   // 所以這裡不能靠「捲到卡片」，要有一份完全獨立、平行的編輯入口。
   function toggleLightboxEditor(e) {
     const panel = document.getElementById('lbEditor');
@@ -1614,17 +1614,17 @@ window.MapApp = (() => {
         if (kindOf(e) === 'audio') audioSpots.add(e.item_num);
       }
     });
-    // 地點自己的原生內容（目前只有音訊）不是投稿，不計進 counts／contribTotal，
+    // 點位自己的原生內容（目前只有音訊）不是投稿，不計進 counts／contribTotal，
     // 但一樣要讓地圖標記顯示音訊脈動（has-audio，見 spotIcon()）。
     effectiveSpots().forEach(s => {
       if (spotBlocks(s).some(c => spotContentDef(c).audible)) audioSpots.add(s.num);
     });
     updatePhotoBtn();
   }
-  // 供插件在自己完成一次會影響地圖/清單顯示的動作（例如上傳、建立地點）後，一次重繪所有受影響的畫面。
-  // rebuildCats() 要排在 renderSpots() 之前：新建立的地點可能帶來一個新分類，圖例得先有那一格。
+  // 供插件在自己完成一次會影響地圖/清單顯示的動作（例如上傳、建立點位）後，一次重繪所有受影響的畫面。
+  // rebuildCats() 要排在 renderSpots() 之前：新建立的點位可能帶來一個新分類，圖例得先有那一格。
   function refreshAll() { rebuildCats(); buildLegend(); recount(); renderSpots(); renderContribLayer(); rebuildPersonFilter(); emitHook('stateChange'); renderEntries(); }
-  // 「投稿」鈕顯示投稿總則數；有投稿的地點數移到 title 提示裡
+  // 「投稿」鈕顯示投稿總則數；有投稿的點位數移到 title 提示裡
   function updatePhotoBtn() {
     const btn = document.getElementById('photoLayerBtn');
     if (!btn) return;
@@ -1641,7 +1641,7 @@ window.MapApp = (() => {
       const res = await fetch(apiUrl('list') + '&project=' + encodeURIComponent(PROJECT));
       const j = await res.json();
       if (j.error) throw new Error(j.error + (j.detail ? '：' + j.detail : ''));
-      // 地點的版本紀錄是稀疏的：沒帶 lat／lon 的 edit_of 紀錄要維持「沒有這個 key」，補成 null 會被
+      // 點位的版本紀錄是稀疏的：沒帶 lat／lon 的 edit_of 紀錄要維持「沒有這個 key」，補成 null 會被
       // 逐欄疊加（見 effectiveSpots()）當成明確清空座標。
       CONTRIB = (j.items || []).map(x => {
         const r = { ...x };
@@ -1649,11 +1649,11 @@ window.MapApp = (() => {
         ['lat', 'lon'].forEach(k => { if (!sparse || hasOwn(x, k)) r[k] = x[k] != null ? +x[k] : null; });
         return r;
       });
-      // 投稿裡可能含 kind:'newspot'（訪客建立的地點），分類與圖例得重算一次才看得到那些點
+      // 投稿裡可能含 kind:'newspot'（訪客建立的點位），分類與圖例得重算一次才看得到那些點
       rebuildCats(); buildLegend();
       recount(); renderSpots(); renderContribLayer(); rebuildPersonFilter(); emitHook('stateChange');
       // 注意：這裡不因為 filterPerson 記得先前篩選就把地圖對焦過去——那樣專案層級的進站縮放
-      // 會被投稿者自己散落各地的投稿位置拉開，核心地點範圍反而被壓縮成一小塊。進站永遠維持
+      // 會被投稿者自己散落各地的投稿位置拉開，核心點位範圍反而被壓縮成一小塊。進站永遠維持
       // boot() 那份只看 SPOTS 的縮放；使用者自己從下拉選單「重新選取」投稿者時（見下方
       // #personFilter 的 onchange）才會對焦到那個人的範圍，這是刻意保留的互動行為。
       document.getElementById('cloudWarn').style.display = 'none';
@@ -1779,13 +1779,13 @@ window.MapApp = (() => {
       lsSet('ctlCollapsed', c ? '1' : '0');
     };
 
-    // 地點位置微調（僅有 edit_spots 權限者，顯示與否由 openPanel() 依 APP.canEditSpots 控制）
+    // 點位位置微調（僅有 edit_spots 權限者，顯示與否由 openPanel() 依 APP.canEditSpots 控制）
     const peBtn = document.getElementById('spotEditBtn');
     if (peBtn) peBtn.onclick = toggleSpotEditor;
 
-    // 全部地點／投稿：互斥的顯示模式，預設「全部」；?contrib=1（嵌入用）或曾記住的投稿者篩選可預設改成「投稿」
+    // 全部點位／投稿：互斥的顯示模式，預設「全部」；?contrib=1（嵌入用）或曾記住的投稿者篩選可預設改成「投稿」
     // apb/plb 不存在＝這張地圖關了 contribBrowse 模組（見 api/features.php），photoLayerOn 永遠留在
-    // 預設值 false，行為等同一直停在「全部」模式；#personFilter 仍會渲染，只是只剩「跳到地點」用途。
+    // 預設值 false，行為等同一直停在「全部」模式；#personFilter 仍會渲染，只是只剩「跳到點位」用途。
     const apb = document.getElementById('allSpotsBtn'), plb = document.getElementById('photoLayerBtn');
     if (apb && plb) {
       function setContribMode(on, opts) {
@@ -1793,7 +1793,7 @@ window.MapApp = (() => {
         plb.classList.toggle('on', on);
         apb.classList.toggle('on', !on);
         document.body.classList.toggle('focus-contrib', on);
-        if (!on) filterPerson = '';   // 切回「全部」時，下拉選單改用途（跳到地點），投稿者篩選狀態一併清掉
+        if (!on) filterPerson = '';   // 切回「全部」時，下拉選單改用途（跳到點位），投稿者篩選狀態一併清掉
         rebuildPersonFilter();
         renderContribLayer();
         if (on && !(opts && opts.silent)) feature('photos');
@@ -1812,7 +1812,7 @@ window.MapApp = (() => {
     }
 
     // 下拉選單依模式切換用途：「投稿」模式＝篩選投稿者（看他的觀察地圖，選擇會記住，重新整理不會跑掉）；
-    // 「全部」模式＝跳到指定地點標籤（不是持續篩選，選完會自動重置）
+    // 「全部」模式＝跳到指定點位標籤（不是持續篩選，選完會自動重置）
     const pf = document.getElementById('personFilter');
     if (pf) pf.onchange = () => {
       if (photoLayerOn) {
@@ -1906,10 +1906,10 @@ window.MapApp = (() => {
     await computeContribId();    // 若已建立投稿者身分，算出對外可見的投稿者ID（供「刪自己的」判斷）
     await loadContributions();
 
-    // 網址帶 ?spot=<num> 時直接開啟該地點卡片並平移過去（QR／NFC／分享連結用，例如聲音地景現場掃碼）；
+    // 網址帶 ?spot=<num> 時直接開啟該點位卡片並平移過去（QR／NFC／分享連結用，例如聲音地景現場掃碼）；
     // 要排在 loadContributions() 之後：effectiveSpots() 疊的是 CONTRIB（spots.jsonl 的即時內容），
-    // 伺服器端內嵌的 SPOTS 只是進站當下的快照，剛建立或剛編輯的地點得等 CONTRIB 抓回來才找得到。
-    // 找不到對應地點（號碼錯誤或已刪除）就安靜略過，不擋其餘初始化。
+    // 伺服器端內嵌的 SPOTS 只是進站當下的快照，剛建立或剛編輯的點位得等 CONTRIB 抓回來才找得到。
+    // 找不到對應點位（號碼錯誤或已刪除）就安靜略過，不擋其餘初始化。
     const urlSpot = BARE ? '' : params.get('spot');
     if (urlSpot) {
       const pt = effectiveSpots().find(p => p.id === urlSpot || p.num === +urlSpot);

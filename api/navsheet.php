@@ -1,7 +1,7 @@
 <?php
 /**
  * 導航選單小頁：GET ?api=navsheet&project=<slug>&spot=<spotId|num>&embed=1[&theme=light|dark|auto][&lang=]
- * 只輸出「用哪個軟體導航」選單，給 iframe／modal 引用。選項清單、連結模板、平台條件與地圖頁的地點
+ * 只輸出「用哪個軟體導航」選單，給 iframe／modal 引用。選項清單、連結模板、平台條件與地圖頁的點位
  * 導航選單同一份（api/navlinks.php）；樣式沿用 .p-nav-item（assets/css/spot-panel.css）。
  *
  * 無狀態：不開 session、不送 Set-Cookie、不帶起點、不做定位。外部連結一律 target=_blank

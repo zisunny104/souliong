@@ -50,7 +50,7 @@
     // 這樣不同地圖的分頁排列才一致（跟 souliong_contrib_cfg() 依註冊表排序是同一個道理）。
     initTabs() {
       const cfg = this.mapApp.contribCfg() || {};
-      // 載入了型別檔不代表這張地圖開放它（例如地點聲音編輯借用了 kind-audio.js）：註冊表只留 contrib.kinds 列出的，建立地點不在其中
+      // 載入了型別檔不代表這張地圖開放它（例如點位聲音編輯借用了 kind-audio.js）：註冊表只留 contrib.kinds 列出的，建立點位不在其中
       const allowed = cfg.kinds || [];
       for (let i = SL.kinds.length - 1; i >= 0; i--) {
         if (SL.kinds[i].key !== 'newspot' && !allowed.includes(SL.kinds[i].key)) SL.kinds.splice(i, 1);
@@ -291,8 +291,8 @@
     }
 
     // 一筆投稿的座標怎麼來：型別自己知道的最優先（照片的 EXIF GPS），再來是裝置定位，
-    // 然後是開啟來源的地點，最後退回目前地圖中心。不需要座標的型別（文字紀錄）不問裝置定位，
-    // 免得為了一則純文字跳出定位權限詢問——但仍會算出一個參考點，讓「關聯地點」有合理的預設值。
+    // 然後是開啟來源的點位，最後退回目前地圖中心。不需要座標的型別（文字紀錄）不問裝置定位，
+    // 免得為了一則純文字跳出定位權限詢問——但仍會算出一個參考點，讓「關聯點位」有合理的預設值。
     async resolveLoc(kind, state) {
       const own = kind.initialLoc(state);
       if (own) return { lat: own.lat, lon: own.lon, source: own.source || 'exif' };
@@ -327,7 +327,7 @@
         '</div>';
     }
 
-    // file 為 null＝這個型別本來就沒有檔案（文字紀錄、建立地點）
+    // file 為 null＝這個型別本來就沒有檔案（文字紀錄、建立點位）
     async addCard(kind, file) {
       const qe = document.querySelector('.queue-empty'); if (qe) qe.remove();
       const id = 'q' + (++this.queueSeq);
@@ -361,7 +361,7 @@
         state.source = ref.source;
         state.origLoc = { lat: ref.lat, lon: ref.lon, source: ref.source };
       } else {
-        state.ref = ref;   // 只用來算「最近的地點」，不會被送出
+        state.ref = ref;   // 只用來算「最近的點位」，不會被送出
       }
 
       if (kind.needsSpot()) {
@@ -378,7 +378,7 @@
       if (kind.needsLocation()) this.setupMiniMap(state, card);
     }
 
-    // 迷你地圖（可拖曳；只調整這一筆投稿自己的座標，不會改動地點座標）
+    // 迷你地圖（可拖曳；只調整這一筆投稿自己的座標，不會改動點位座標）
     setupMiniMap(state, card) {
       const miniDiv = card.querySelector('.mini');
       const picker = this.mapApp.getEngine().createMiniPicker(miniDiv, { lat: state.loc.lat, lon: state.loc.lon, zoom: 16 });
@@ -453,7 +453,7 @@
         this.mapApp.trackFeature(kind.key === 'newspot' ? 'newspot' : 'upload');
         // 成功：鎖定卡片
         state.done = true;
-        // 建立地點會改變地點清單與圖例，批次模式那套「只更新計數」不夠用，一律整個重繪
+        // 建立點位會改變點位清單與圖例，批次模式那套「只更新計數」不夠用，一律整個重繪
         if (opts.bulk && kind.key !== 'newspot') { this.mapApp.refreshCounts(); } else { this.mapApp.refreshAll(); }
         card.classList.add('done');
         card.querySelectorAll('input,textarea,button,select').forEach(el => el.disabled = true);

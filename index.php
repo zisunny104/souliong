@@ -93,10 +93,10 @@ switch ($action) {
         require __DIR__ . '/api/editspot.php';
         return;
     case 'newspot':
-        require __DIR__ . '/api/newspot.php';   // 訪客／管理者建立新地點（權限見 meta.json 的 contrib.newSpot）
+        require __DIR__ . '/api/newspot.php';   // 訪客／管理者建立新點位（權限見 meta.json 的 contrib.newSpot）
         return;
     case 'spotcontent':
-        require __DIR__ . '/api/spotcontent.php';   // 地點原生內容（text／audio／photo 區塊），把關比照 editspot.php
+        require __DIR__ . '/api/spotcontent.php';   // 點位原生內容（text／audio／photo 區塊），把關比照 editspot.php
         return;
     case 'unlock':
         require __DIR__ . '/api/unlock.php';

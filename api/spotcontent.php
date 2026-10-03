@@ -1,8 +1,8 @@
 <?php
-// POST spotcontent.php：整體儲存地點內容（spots.jsonl 起點的 content 區塊陣列）。
+// POST spotcontent.php：整體儲存點位內容（spots.jsonl 起點的 content 區塊陣列）。
 // 內容區是一個整體：編輯就是編輯整體，一次儲存 = 一筆版本 = 一個編輯者。
-// 投稿與地點是兩個平行的域：投稿在 entries.jsonl，content 是地點自己的原生內容，兩者不互相引用。
-// 權限是地點軸的 edit_spots（含 CSRF），跟投稿代碼、contrib_open()、模組旗標都無關——模組旗標只決定
+// 投稿與點位是兩個平行的域：投稿在 entries.jsonl，content 是點位自己的原生內容，兩者不互相引用。
+// 權限是點位軸的 edit_spots（含 CSRF），跟投稿代碼、contrib_open()、模組旗標都無關——模組旗標只決定
 // 前端要不要顯示編輯入口，不是後端的把關條件。item_num 對不到起點回 404，不產生孤兒紀錄。
 // POST project, item_num（必填，起點的 num 或 spotId）, csrf, op=save, name（選填，編輯者顯示名稱）,
 //   base_rev（前端載入內容時的 content_rev）, blocks（JSON 陣列，依顯示順序）,
@@ -47,7 +47,7 @@ if (!is_array($submitted) || ($submitted && array_keys($submitted) !== range(0, 
 try {
     $eff = spot_effective($cfg, $project, $item_num);
     if ($eff === null) {
-        json_out(['error' => '找不到這個地點'], 404);
+        json_out(['error' => '找不到這個點位'], 404);
     }
     $rev = (string)$eff['content_rev'];
     if ((string)($_POST['base_rev'] ?? '') !== $rev) {
