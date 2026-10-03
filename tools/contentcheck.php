@@ -95,7 +95,7 @@ for ($i = 0; $i < 50 && !$up; $i++) {
     $s = @fsockopen('127.0.0.1', $port, $en, $es, 0.2);
     if ($s) { fclose($s); $up = true; }
 }
-if (!$up) { fwrite(STDERR, "內建伺服器起不來（port $port 被占用？）\n"); exit(1); }
+if (!$up) { fwrite(STDERR, "內建伺服器起不來（port $port 被佔用？）\n"); exit(1); }
 
 /** multipart POST；$files: 欄位名 => [檔名, 內容]。回傳 [http 狀態, 解碼後 JSON 或原文]。 */
 function cc_post(string $url, array $fields, array $files, ?string $cookie): array {

@@ -1,5 +1,5 @@
 <?php
-// list：回傳某項目所有投稿（依時間）。純檔案儲存，零擴充依賴。
+// list：回傳某專案所有投稿（依時間）。純檔案儲存，零擴充依賴。
 require __DIR__ . '/store.php';
 require __DIR__ . '/spotlib.php';
 $cfg = require __DIR__ . '/config.php';

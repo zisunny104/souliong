@@ -1,6 +1,6 @@
 <?php
 // 點位（spot）共用邏輯（純函式，無副作用，可安全被多處 require）：起點記錄疊上 edit_of 版本鏈，
-// 算出「目前有效狀態」，供 api/oglib.php、api/editspot.php、api/spotcontent.php 共用同一套算法，
+// 算出「目前有效狀態」，供 api/oglib.php、api/editspot.php、api/spotcontent.php 共用同一套演算法，
 // 不各自重寫一份；另外提供版本寫入、內容區塊穩定 id、Markdown 算繪等共用函式。
 require_once __DIR__ . '/store.php';
 require_once __DIR__ . '/markdown.php';
@@ -8,7 +8,7 @@ require_once __DIR__ . '/routes.php';
 
 // ---------------------------------------------------------------------------
 // 點位「目前有效狀態」共用邏輯：起點＋edit_of 鏈疊加，供 api/oglib.php、api/editspot.php、
-// api/spotcontent.php 共用同一套算法，取代各自重寫一份（原本 oglib.php 自己疊一份、
+// api/spotcontent.php 共用同一套演算法，取代各自重寫一份（原本 oglib.php 自己疊一份、
 // editspot.php 完全不疊、直接要求前端每次帶齊全部欄位）。
 // ---------------------------------------------------------------------------
 

@@ -410,7 +410,7 @@ if (($_GET['help'] ?? '') !== '') {
 $reqProject = in_array($backProject, $allProjects, true) ? $backProject : ($allProjects[0] ?? '');
 $csrf = (string)Auth::actor($cfg, $reqProject)->csrf($reqProject);
 
-// 分塊多大：跟 tilecut.php 同一套算法（取 upload_max_filesize 與 post_max_size 的較小者留兩成餘裕）。
+// 分塊多大：跟 tilecut.php 同一套演算法（取 upload_max_filesize 與 post_max_size 的較小者留兩成餘裕）。
 $iniBytes = function (string $k): int {
     $v = trim((string)ini_get($k));
     $mul = ['k' => 1024, 'm' => 1048576, 'g' => 1073741824][strtolower(substr($v, -1))] ?? 1;

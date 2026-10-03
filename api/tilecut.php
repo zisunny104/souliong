@@ -1971,7 +1971,7 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
         exCommit(b, live ? m : null);
       };
     }
-    // 平移：位移算在投影空間，整個選區的形狀才不會隨著往南北走而變形，跟 Piece 的 move() 同一套算法。
+    // 平移：位移算在投影空間，整個選區的形狀才不會隨著往南北走而變形，跟 Piece 的 move() 同一套演算法。
     function exMoveDrag(live) {
       return () => {
         const b0 = readExportFields();

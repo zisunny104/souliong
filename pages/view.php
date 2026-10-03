@@ -1,10 +1,10 @@
 <?php
 /**
  * Souliong 主視圖。base 路徑自動推導、資料伺服器端內嵌（框架不供應靜態檔）。
- * ?embed=1 → 精簡檢視模式（僅供瀏覽）。?p=<project> → 切換項目。
+ * ?embed=1 → 精簡檢視模式（僅供瀏覽）。?p=<project> → 切換專案。
  */
 $cfg = include __DIR__ . '/../config.php';
-require_once __DIR__ . '/../api/routes.php';   // 網址表：掛載根目錄與各種網址的算法，全站只有這一份
+require_once __DIR__ . '/../api/routes.php';   // 網址表：掛載根目錄與各種網址的演算法，全站只有這一份
 $base = Route::base();
 
 $b       = htmlspecialchars($base, ENT_QUOTES);

@@ -19,25 +19,19 @@
 - 匿名聚合統計（後台附純 CSS 圖表，無圖表函式庫）、可嵌入（`?embed=1`）
 - **分層管理 PIN／帳號**：專案各自獨立授權，權限逐項開放
 
-## 維護
-
-本站由作者維運。既有環境使用 `./deploy.sh` 更新；變更前先備份資料，並執行 `php tools/checkall.php` 驗證。
-
-
 ## 建立一張地圖（專案）
 
-在 `projects/<id>/` 放兩個檔，**免改程式**：
+以主 PIN 登入後開 `<base>/newproject`，填標題、拖曳標記定位即可建立；也可以手動在 `projects/<id>/` 放 `meta.json`，**免改程式**：
 
-- `meta.json`：標題、中心點、分類、模組開關（投稿要不要碼由後台的投稿代碼決定，不寫在這裡）
-- 點位 JSON（`meta.json` 的 `points` 指定檔名）
+- `meta.json`：標題、中心點、分類順序、模組開關（投稿要不要碼由後台的投稿代碼決定，不寫在這裡）
 
 ```json
 // projects/mymap/meta.json
 { "id":"mymap", "title":"我的地圖", "subtitle":"副標",
-  "center":[23.95,120.69], "zoom":14, "points":"points.json",
+  "center":[23.95,120.69], "zoom":14,
   "numbering":"suffix", "categoryOrder":["green","pink","blue"] }
 ```
-點位每筆：`num, theme, area, chair, material, lat, lon, cat, catLabel, color`。點位說明是原生 `content` 區塊（text／audio／photo），底稿若帶 `story` 只在遷移時轉成 content 的一個文字區塊，之後不再讀取。詳見 [EXTENDING.md](docs/EXTENDING.md)（投稿型別、模組開關、圖層系統）。對外資料 API、iframe 嵌入與 postMessage 控制見 [EMBED-API.md](docs/EMBED-API.md)。
+點位存在 `projects/<id>/spots.jsonl`，由後台或投稿視窗的「建立地點」新增（可設為管理者限定或開放投稿者建立），沒有另外的點位檔。詳見 [EXTENDING.md](docs/EXTENDING.md)（投稿型別、模組開關、圖層系統）。對外資料 API、iframe 嵌入與 postMessage 控制見 [EMBED-API.md](docs/EMBED-API.md)。
 
 網址：`/koilisu/souliong/<id>`；`/koilisu/souliong/` 首頁自動列出所有地圖；後台在 `/koilisu/souliong/manager`。
 

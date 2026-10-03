@@ -468,7 +468,7 @@
 /* 通用播放鍵：圓形、半透明底＋輕微毛玻璃，不是整片實色。任何地方要放播放/暫停鍵都掛這顆，
    不要各自重寫一份——大小只透過 --sl-play-size / --sl-play-icon 兩個變數覆寫（見下面
    .sl-aplay-btn／sound-player.css 的 .sl-mp-medium-play／.sl-mp-mini-play 怎麼疊）。
-   三角形圖示的視覺重心偏左，用 icon 本身的 margin-left（em 為單位，隨字體大小縮放）補回來，
+   三角形圖示的視覺重心偏左，用 icon 本身的 margin-left（em 為單位，隨字型大小縮放）補回來，
    而且只挑 .fa-play 補：切成暫停鍵是 .fa-pause，形狀本身對稱不用補，圖示一切換就自動歸位，
    不會像固定在按鈕上的 padding 那樣，暫停時反而被推歪。 */
 .sl-play-btn {
