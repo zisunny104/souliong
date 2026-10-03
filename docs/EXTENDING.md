@@ -25,7 +25,7 @@ license, owner_hash, src_hash, contrib_id, contrib_hash, edit_of, created_at
 1. 用 `<base>/newproject` 建立（主 PIN），或手動建 `projects/<新id>/meta.json`。
 2. 點位寫在 `projects/<新id>/spots.jsonl`（kind:`spot`），由「建立點位」（`api/newspot.php`）新增，見 3.6 節。
 3. 要開放投稿就到後台建一組投稿代碼（碼即開關，見 `api/security.php` 的 `contrib_open()`）。
-4. 進入方式：`<基底路徑>/<新id>`；`<基底路徑>/` 首頁會自動列出它。
+4. 進入方式：`https://example.com/souliong/demo`；`https://example.com/souliong/` 首頁會自動列出它。
 
 點位紀錄欄位：`num, item_num, title, cat, catLabel, color, lat, lon, content`（非椅子主題可自訂欄位；`spotSub()` 會退回 `sub` 欄位。）
 

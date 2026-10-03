@@ -21,7 +21,7 @@ fail() { echo "  ${RED}✗${RESET} $1"; }
 # 預設只檢查不代勞；明確加旗標才動檔案。只動 projects/、state/、api/config.php：
 # 資料夾 2775（setgid，新檔繼承群組）、檔案 664、擁有者＝php-fpm 使用者；config.php 640（含機密，不給 other 讀）。
 # php-fpm 使用者：DEPLOY_WEB_USER 指定，否則從執行中的 php-fpm／apache／nginx 行程偵測。需要 root 或 sudo。
-# 儲存網站對外網址，供自我檢查使用：./deploy.sh --set-check-url https://example.com/<基底路徑>
+# 儲存網站對外網址，供自我檢查使用：./deploy.sh --set-check-url https://example.com/souliong
 if [ "${1:-}" = "--set-check-url" ]; then
   case "${2:-}" in https://*|http://*) ;; *) fail "請提供以 https:// 開頭的網址"; exit 2 ;; esac
   [ -d state ] || { fail "找不到 state/"; exit 1; }
@@ -41,8 +41,8 @@ for arg in "$@"; do
     -h|--help)
       echo "用法：./deploy.sh [--fix-perms-only] [--no-fix-perms] [--check-only] [--dry-run]"
       echo "  --check-only  不更新程式碼，只跑「設定與網站自我檢查」"
-      echo "  --set-check-url <網址>  儲存網站對外網址，之後自我檢查自動使用"
-      echo "環境變數：DEPLOY_BRANCH、DEPLOY_WEB_USER、DEPLOY_RELOAD_CMD、DEPLOY_CHECK_URL（網站對外網址，例：https://example.com/<基底路徑>）"
+      echo "  --set-check-url URL  儲存網站對外網址，之後自我檢查自動使用"
+      echo "環境變數：DEPLOY_BRANCH、DEPLOY_WEB_USER、DEPLOY_RELOAD_CMD、DEPLOY_CHECK_URL（網站對外網址，例：https://example.com/souliong）"
       exit 0 ;;
     *) fail "未知參數：$arg"; exit 2 ;;
   esac
@@ -136,7 +136,7 @@ selfcheck_web() {
   CHECK_URL="${DEPLOY_CHECK_URL:-}"
   [ -n "$CHECK_URL" ] || CHECK_URL="$(head -n1 state/deploy_check_url 2>/dev/null || true)"
   if [ -z "$CHECK_URL" ]; then
-    warn "略過「敏感路徑可否被直接下載」檢查：未設定檢查網址，可執行 ./deploy.sh --set-check-url <網址>"
+    warn "略過「敏感路徑可否被直接下載」檢查：未設定檢查網址，可執行 ./deploy.sh --set-check-url https://example.com/souliong"
     return 0
   fi
   if ! command -v curl >/dev/null 2>&1; then
@@ -343,7 +343,7 @@ fi
 
 # 選用：PHP 開了 opcache 且不檢查檔案時間戳（validate_timestamps=0）的伺服器，
 # 換了檔案要重載 PHP-FPM 才會生效；用環境變數帶進來，例如
-#   DEPLOY_RELOAD_CMD="systemctl reload <PHP-FPM 服務名稱>" ./deploy.sh
+#   DEPLOY_RELOAD_CMD="systemctl reload php-fpm" ./deploy.sh
 if [ -n "${DEPLOY_RELOAD_CMD:-}" ] && [ "$BEFORE" != "$AFTER" ]; then
   echo
   step "重載 PHP"
