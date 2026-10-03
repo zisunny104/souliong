@@ -23,10 +23,11 @@ fail() { echo "  ${RED}✗${RESET} $1"; }
 # php-fpm 使用者：DEPLOY_WEB_USER 指定，否則從執行中的 php-fpm／apache／nginx 行程偵測。需要 root 或 sudo。
 # 儲存網站對外網址，供自我檢查使用：./deploy.sh --set-check-url https://example.com/project
 if [ "${1:-}" = "--set-check-url" ]; then
-  case "${2:-}" in https://*|http://*) ;; *) fail "請提供以 https:// 開頭的網址"; exit 2 ;; esac
+  case "${2:-}" in https://*|http://*) ;; *) fail "請提供以 https:// 或 http:// 開頭的網址"; exit 2 ;; esac
   [ -d state ] || { fail "找不到 state/"; exit 1; }
-  printf '%s
-' "${2%/}" > state/deploy_check_url && ok "已儲存檢查網址"
+  printf '%s\n' "${2%/}" > state/deploy_check_url
+  ok "已儲存"
+  echo "  ${DIM}之後 ./deploy.sh 會自動使用${RESET}"
   exit 0
 fi
 
@@ -42,7 +43,8 @@ for arg in "$@"; do
       echo "用法：./deploy.sh [--fix-perms-only] [--no-fix-perms] [--check-only] [--dry-run]"
       echo "  --check-only  不更新程式碼，只跑「設定與網站自我檢查」"
       echo "  --set-check-url URL  儲存網站對外網址，之後自我檢查自動使用"
-      echo "環境變數：DEPLOY_BRANCH、DEPLOY_WEB_USER、DEPLOY_RELOAD_CMD、DEPLOY_CHECK_URL（網站對外網址，例：https://example.com/project）"
+      echo "環境變數：DEPLOY_BRANCH、DEPLOY_WEB_USER、DEPLOY_RELOAD_CMD、DEPLOY_CHECK_URL"
+      echo "  ${DIM}DEPLOY_CHECK_URL 是網站對外網址，例如 https://example.com/project${RESET}"
       exit 0 ;;
     *) fail "未知參數：$arg"; exit 2 ;;
   esac
@@ -121,12 +123,25 @@ probe_canary() {
   rm -f "$tmp"
 }
 
+# 向 $1/.git/HEAD 發 GET，輸出 exposed（200 且以 ref: 開頭）、notgit（200 但不是 git 內容）、unreach 或狀態碼
+probe_git() {
+  local tmp code
+  tmp="$(mktemp)"
+  code="$(curl -sS --max-time 8 --max-redirs 0 -o "$tmp" -w '%{http_code}' "$1/.git/HEAD" 2>/dev/null)" || code="000"
+  if [ "$code" = "000" ]; then echo "unreach"
+  elif [ "$code" = "200" ]; then
+    if head -c 4 "$tmp" 2>/dev/null | grep -q '^ref:'; then echo "exposed"; else echo "notgit"; fi
+  else echo "$code"; fi
+  rm -f "$tmp"
+}
+
 NGINX_SNIPPET='    location ~ /(state|projects)/ { deny all; return 404; }
-    location ~ \.jsonl$ { deny all; return 404; }'
+    location ~ \.jsonl$ { deny all; return 404; }
+    location ~ /\.git { deny all; return 404; }'
 
 selfcheck_web() {
   local d f base url r exposed=0 notfound=0
-  # 金絲雀由腳本建立與維護（已在 .gitignore）；寫不進去就沒辦法測，不當成錯誤
+  # 金絲雀由腳本建立與維護，已在 .gitignore；寫不進去就沒辦法測，不當成錯誤
   for d in state projects; do
     f="$d/.canary-selfcheck"
     if [ -d "$d" ] && [ -w "$d" ]; then
@@ -136,44 +151,72 @@ selfcheck_web() {
   CHECK_URL="${DEPLOY_CHECK_URL:-}"
   [ -n "$CHECK_URL" ] || CHECK_URL="$(head -n1 state/deploy_check_url 2>/dev/null || true)"
   if [ -z "$CHECK_URL" ]; then
-    warn "略過「敏感路徑可否被直接下載」檢查：未設定檢查網址，可執行 ./deploy.sh --set-check-url https://example.com/project"
+    warn "沒設檢查網址，略過外洩檢查"
+    echo "    ${DIM}只需設一次：./deploy.sh --set-check-url https://example.com/project${RESET}"
     return 0
   fi
   if ! command -v curl >/dev/null 2>&1; then
-    warn "略過「敏感路徑可否被直接下載」檢查：找不到 curl"
+    warn "找不到 curl，略過外洩檢查"
     return 0
   fi
   base="${CHECK_URL%/}"
   case "$base" in
     https://*) ok "檢查網址使用 HTTPS" ;;
-    http://*)  warn "檢查網址是 http://：定位、相機與刪除判斷（crypto.subtle）都需要安全情境，全站請走 HTTPS" ;;
-    *)         warn "檢查網址要以 https:// 或 http:// 開頭：$base"; return 0 ;;
+    http://*)
+      warn "檢查網址是 http://，全站請走 HTTPS"
+      echo "    ${DIM}定位、相機與刪除判斷都需要安全情境${RESET}" ;;
+    *)         warn "檢查網址要以 https:// 或 http:// 開頭"; echo "    ${DIM}$base${RESET}"; return 0 ;;
   esac
   for d in state projects; do
-    [ -f "$d/.canary-selfcheck" ] || { warn "$d/ 沒有金絲雀檔（資料夾不可寫），略過這一項"; continue; }
+    [ -f "$d/.canary-selfcheck" ] || { warn "$d/ 沒有金絲雀檔，略過"; echo "    ${DIM}資料夾不可寫${RESET}"; continue; }
     url="$base/$d/.canary-selfcheck"
     r="$(probe_canary "$url")"
     case "$r" in
       exposed)
         exposed=1
-        fail "${BOLD}${RED}嚴重：$d/ 可被網頁直接下載${RESET}（$url 回 200 並送出檔案內容）" ;;
+        fail "${BOLD}${RED}$d/ 可被下載${RESET}  ${DIM}回 200，$url${RESET}" ;;
       unreach)
-        warn "連不上 $url（逾時或網路不通），略過這一項" ;;
+        warn "$d/ 連不上，略過" ;;
       3??)
-        warn "$url 回 $r 轉址，腳本不跟隨；請把檢查網址改成最終網址（例如直接用 https://）再測" ;;
+        warn "$d/ 回 $r 轉址，不跟隨"
+        echo "    ${DIM}請改用最終網址${RESET}" ;;
+      200)
+        warn "$d/ 回 200 但不是預期內容"
+        echo "    ${DIM}請確認檢查網址指向本站${RESET}" ;;
       *)
         [ "$r" = 404 ] && notfound=1
-        ok "$d/ 無法被直接下載（回 $r）" ;;
+        ok "$d/ 已擋住  ${DIM}回 $r${RESET}" ;;
     esac
   done
+  r="$(probe_git "$base")"
+  case "$r" in
+    exposed)
+      exposed=1
+      fail "${BOLD}${RED}.git/ 可被下載${RESET}  ${DIM}回 200，$base/.git/HEAD${RESET}" ;;
+    unreach)
+      warn ".git/ 連不上，略過" ;;
+    notgit)
+      warn ".git/ 回 200 但不是 git 內容"
+      echo "    ${DIM}請確認檢查網址指向本站${RESET}" ;;
+    3??)
+      warn ".git/ 回 $r 轉址，不跟隨"
+      echo "    ${DIM}請改用最終網址${RESET}" ;;
+    403|404)
+      ok ".git/ 已擋住  ${DIM}回 $r${RESET}" ;;
+    *)
+      warn ".git/ 回 $r，無法判斷" ;;
+  esac
   if [ "$exposed" -eq 1 ]; then
     CRIT=1
-    echo "  ${BOLD}${RED}!!! projects/ 內有投稿代碼，state/ 內有明碼的管理 PIN 清單，任何人都能直接下載 !!!${RESET}"
-    echo "  ${BOLD}修法：${RESET}把下面兩條貼進 Nginx 的 server { } 區塊（與 listen／root 同一層），再執行 sudo nginx -t && sudo systemctl reload nginx："
-    echo "${YELLOW}${NGINX_SNIPPET}${RESET}"
-    echo "  ${DIM}完成後重跑 ./deploy.sh --check-only 確認；已外流的 PIN 與投稿代碼請一併更換${RESET}"
+    echo
+    echo "  ${BOLD}${RED}投稿代碼、明碼管理 PIN 或整份原始碼與提交歷史，任何人都能取得${RESET}"
+    echo "  ${BOLD}修法${RESET}：貼進 nginx 的 server 區塊，再 reload"
+    echo "${CYAN}${NGINX_SNIPPET}${RESET}"
+    echo "  ${DIM}完成後執行 ./deploy.sh --check-only 重測${RESET}"
+    echo "  ${DIM}已外流的 PIN 與投稿代碼請一併更換${RESET}"
+    echo
   elif [ "$notfound" -eq 1 ]; then
-    echo "  ${DIM}（回 404 時，請確認檢查網址指向的是本站，而不是別的站台）${RESET}"
+    echo "  ${DIM}回 404 時，請確認檢查網址指向本站，而不是別的站台${RESET}"
   fi
 }
 
@@ -367,4 +410,4 @@ if [ "$HAS_PHP" -eq 1 ]; then
 fi
 echo "  目前 commit：${BOLD}$(git rev-parse --short HEAD)${RESET}"
 echo "  完成時間：${DIM}$(date '+%Y-%m-%d %H:%M:%S')${RESET}"
-[ "$CRIT" -eq 0 ] || { echo; fail "自我檢查有嚴重問題（見上方 ✗），請先處理"; exit 1; }
+[ "$CRIT" -eq 0 ] || { echo; fail "自我驗證發現外洩，請依上面修法處理"; exit 1; }
