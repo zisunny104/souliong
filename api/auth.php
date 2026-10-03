@@ -106,7 +106,7 @@ final class Actor {
         if ($project === null) {
             return $acct !== null ? new Actor($cfg, null, 'account', (string)$acct['id'], null) : new Actor($cfg, null, 'anon', null, null);
         }
-        // delegation 關閉時，帳號型專案管理員與 PIN 都立即失效，只剩主 PIN 能從 /manager 管理——
+        // delegation 關閉時，帳號型專案管理者與 PIN 都立即失效，只剩主 PIN 能從 /manager 管理——
         // 跟 souliong_modules() 裡 delegation 的說明文字（「只能用主 PIN 從後台網址登入管理」）一致。
         // 每個請求都重新解析 Actor，所以這裡是整站唯一一處、對「已登入」工作階段也生效的關卡。
         $m = json_decode((string)@file_get_contents($cfg['projects_dir'] . '/' . $project . '/meta.json'), true);

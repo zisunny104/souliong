@@ -3,7 +3,7 @@
  * Souliong 網址表 —— 全站唯一一份「網址長什麼樣」的定義。
  *
  * 為什麼要有這支：後台網址原本是各檔案自己黏字串黏出來的（`?api=admin` 一支檔案裡出現 47 次，
- * 「還原 app 掛載根目錄」那段計算被複製了七份，其中兩份的邊界情況還算得不一樣）。改一次網址形狀就要全域搜尋
+ * 「還原 app 掛載根路徑」那段計算被複製了七份，其中兩份的邊界情況還算得不一樣）。改一次網址形狀就要全域搜尋
  * 改一輪，而且漏改的地方不會報錯，只會在某些部署下靜靜連到錯的地方。這裡把「有哪些路徑段」與
  * 「怎麼組回網址」收在同一個檔案：
  *   - index.php 用 Route::parseManager() 把網址拆開
@@ -36,9 +36,9 @@ final class Route
     /** 後台分頁。這份清單同時決定「網址上允許出現什麼」與前端 pane-<name> 的 id，只有這一份 */
     public const PANES = ['overview', 'records', 'access', 'tools'];
 
-    /** manager 路徑裡的保留字。地圖代號撞到這些字時，parseManager() 的 $isProject 會讓真實資料優先 */
+    /** manager 路徑裡的保留字。專案 id撞到這些字時，parseManager() 的 $isProject 會讓真實資料優先 */
     public const LOGOUT = 'logout';
-    public const BACKUP = 'backup.zip';   // 地圖代號只允許 [a-z0-9_-]，含點的字串永遠不可能撞名
+    public const BACKUP = 'backup.zip';   // 專案 id只允許 [a-z0-9_-]，含點的字串永遠不可能撞名
     public const PACKS  = 'packs';
     public const LAYERS = 'layers';
     public const REGIONS3D = 'regions3d';
@@ -49,7 +49,7 @@ final class Route
     // ── 掛載位置 ────────────────────────────────────────────────────────────
 
     /**
-     * app 掛載根目錄，結尾一定有斜線（例：`/souliong/`、獨立部署時是 `/`）。
+     * app 掛載根路徑，結尾一定有斜線（例：`/souliong/`、獨立部署時是 `/`）。
      * 不能用「目前網址去掉 query string」代替：後台可能是從 /manager/<mapid>/tools 這種深路徑
      * 進來的，那樣算出來的 base 會多黏後面幾段，組出的公開網址與分享連結會整個是壞的。
      */
@@ -191,7 +191,7 @@ final class Route
      * 把 manager 之後的路徑段拆成一組 GET 參數，回傳的鍵就是 manager.php 讀的那些。
      *
      * $tail       manager 這一段之後的路徑段（已 rawurldecode）
-     * $isProject  判斷一個代號是不是真的存在的地圖。用途是消歧義：地圖代號跟 PANES／PACKS／
+     * $isProject  判斷一個代號是不是真的存在的地圖。用途是消歧義：專案 id跟 PANES／PACKS／
      *             LAYERS 撞名時，**真實資料優先**——不然一張叫 tools 的地圖會永遠打不開後台。
      */
     public static function parseManager(array $tail, callable $isProject): array
@@ -203,7 +203,7 @@ final class Route
         $head = $seg[0];
         $rest = array_slice($seg, 1);
 
-        // 全域層級的保留字（都不帶地圖代號）
+        // 全域層級的保留字（都不帶專案 id）
         if ($head === self::BACKUP) return ['backup' => 'all'];
         if (!$isProject($head)) {
             if ($head === self::LOGOUT && !$rest) return ['logout' => '1'];
@@ -219,7 +219,7 @@ final class Route
             }
         }
 
-        // 其餘一律當地圖代號，後面再接該地圖底下的動作
+        // 其餘一律當專案 id，後面再接該地圖底下的動作
         $out['project'] = $head;
         if (!$rest) return $out;
         $sub = $rest[0];

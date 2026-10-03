@@ -1,9 +1,9 @@
 <?php
 /**
- * 點位導航的外部連結模板 —— 全站唯一一份。跟 routes.php 同精神：外部網址不散落在前端或各頁面，
+ * 地點導航的外部連結模板 —— 全站唯一一份。跟 routes.php 同精神：外部網址不散落在前端或各頁面，
  * 前端只拿 APP.nav 的清單套值，不自己拼。
  *
- * 模板佔位符：{lat}、{lon}（十進位度數，原樣填入）、{name}（點位名稱，已 URL 編碼；沒有名稱時
+ * 模板佔位符：{lat}、{lon}（十進位度數，原樣填入）、{name}（地點名稱，已 URL 編碼；沒有名稱時
  * 呼叫端改填 "lat,lon"）。platform 是顯示條件：all＝所有裝置，ios＝只在 iOS 裝置顯示
  * （Apple 地圖在其他平台開不起來）。icon 是 Font Awesome 6（pages/view.php 載入 all.min.css，含 brands）的 class。
  *

@@ -3,8 +3,8 @@
 return [
     'projects_dir'    => __DIR__ . '/../projects',
     'state_dir'       => __DIR__ . '/../state',
-    'packs_dir'       => __DIR__ . '/../packs',              // 主題包（面板材質／外框／字型），每個子目錄一包
-    'layers_dir'      => __DIR__ . '/../layers',             // 平台內建地圖圖層（底圖／疊圖），每個子目錄一層；某張地圖專屬的圖層放 projects/<id>/layers/
+    'packs_dir'       => __DIR__ . '/../packs',              // 主題包（面板材質／外框／字型），每個子資料夾一包
+    'layers_dir'      => __DIR__ . '/../layers',             // 平台內建地圖圖層（底圖／疊圖），每個子資料夾一層；某張地圖專屬的圖層放 projects/<id>/layers/
     'default_layers'  => ['paper-ink'],                       // meta.json 沒寫 layers 時套用的圖層組，由下往上疊
 
     'landing_bg_center' => [24.046, 120.687],  // 平台首頁背景裝飾地圖的中心點

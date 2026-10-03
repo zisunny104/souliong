@@ -1,7 +1,7 @@
 <?php
 // 上傳檔案共用邏輯（純函式，無副作用，可安全被多處 require）：從 api/upload.php 抽出的 MIME 偵測與
-// 檔案驗證／命名／落地，供 api/upload.php（投稿牆五種型別）與 api/spotcontent.php（點位原生內容）
-// 共用同一套規則。縮圖產生留在 upload.php——那是投稿牆卡片列表的顯示需求，點位原生內容沒有縮圖。
+// 檔案驗證／命名／落地，供 api/upload.php（投稿牆五種型別）與 api/spotcontent.php（地點原生內容）
+// 共用同一套規則。縮圖產生留在 upload.php——那是投稿牆卡片列表的顯示需求，地點原生內容沒有縮圖。
 require_once __DIR__ . '/store.php';
 require_once __DIR__ . '/features.php';
 
@@ -41,7 +41,7 @@ function uploadlib_ini_bytes(string $key): int {
  *   total  單次請求的總上限＝post_max_size、upload_max_filesize、max_bytes 的最小值
  *   post   post_max_size：同一次請求裡所有檔案加表單欄位的總和不能超過
  *   file   單一檔案的伺服器上限＝min(upload_max_filesize, post_max_size)
- *   kinds  各種類單檔的實際上限（該種類自己的大小上限與 file 取小）
+ *   kinds  各型別單檔的實際上限（該型別自己的大小上限與 file 取小）
  */
 function uploadlib_limits(array $cfg): array {
     $post = uploadlib_ini_bytes('post_max_size');

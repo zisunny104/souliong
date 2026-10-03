@@ -283,7 +283,7 @@ body.embed .tr-group .tr-toggle {
   }
 }
 
-/* 桌機時把點位卡片下移，讓出右上群組 */
+/* 桌機時把地點卡片下移，讓出右上群組 */
 @media (min-width:641px) {
   #panel {
     top: 60px;

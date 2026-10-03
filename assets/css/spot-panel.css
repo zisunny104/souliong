@@ -686,7 +686,7 @@
   flex-wrap: wrap
 }
 
-/* ---------- 點位內容區塊（content-editor.js 與核心 renderEntries() 的 .sc-*） ---------- */
+/* ---------- 地點內容區塊（content-editor.js 與核心 renderEntries() 的 .sc-*） ---------- */
 .sc-block+.sc-block {
   margin-top: 14px
 }

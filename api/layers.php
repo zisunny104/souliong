@@ -1,5 +1,5 @@
 <?php
-// 地圖圖層（底圖／疊圖）註冊表。跟 packs.php 是同一套精神——註冊表就是圖層目錄底下的
+// 地圖圖層（底圖／疊圖）註冊表。跟 packs.php 是同一套精神——註冊表就是圖層資料夾底下的
 // 資料夾本身，沒有中央 index 檔，新增一層只要新增一個資料夾。
 //
 // 跟主題包的差別在「數量與順序」：一張地圖只套一個 pack，卻可以疊好幾層圖層，而且由下往上的
@@ -13,7 +13,7 @@
 // site    : <app>/layers/<id>/          平台內建、所有地圖共用，隨程式碼進版控
 // project : projects/<proj>/layers/<id>/  這張地圖專屬（自繪插畫多半屬於這類）
 //
-// 專案層之所以放在 projects/ 底下，是因為那整棵目錄本來就在 .gitignore：自繪插畫、切好的
+// 專案層之所以放在 projects/ 底下，是因為那整棵資料夾本來就在 .gitignore：自繪插畫、切好的
 // 圖磚金字塔這種「內容而非程式」的檔案因此天然不進版控，不必為了體積另立規則。同名時專案層
 // 覆蓋全站層，讓單一地圖能在不影響其他地圖的前提下改掉內建圖層。
 //
@@ -22,7 +22,7 @@
 // 全站層也走同一條網址，<project> 只是決定解析範圍。反過來說，url 直接指向外部圖磚服務的
 // 圖層（國土測繪中心、Esri…）一個檔案都不落地，自然也沒有檔案數量的問題。
 
-/** 平台內建 layers/ 目錄；layers_dir 沒設也要能運作（舊部署的 api/config.php 不會有這個 key）。 */
+/** 平台內建 layers/ 資料夾；layers_dir 沒設也要能運作（舊部署的 api/config.php 不會有這個 key）。 */
 function souliong_layers_dir(array $cfg): string
 {
     $dir = (string)($cfg['layers_dir'] ?? '');
@@ -49,7 +49,7 @@ function souliong_layer_roots(array $cfg, string $proj = ''): array
 
 /**
  * 掃所有搜尋路徑，回傳 [ id => layer.json 解析後的陣列 ]；沒有合法 layer.json 就跳過。
- * manifest 會被補上 id 與 scope 兩個欄位，端點靠 scope 才知道該去哪個目錄拿圖檔。
+ * manifest 會被補上 id 與 scope 兩個欄位，端點靠 scope 才知道該去哪個資料夾拿圖檔。
  */
 function souliong_layer_list(array $cfg, string $proj = ''): array
 {
@@ -95,7 +95,7 @@ function souliong_layer_dir(array $cfg, string $id, string $proj = ''): ?string
 }
 
 /**
- * 「保留原稿」的落點：`projects/<proj>/layersrc/<id>/`，跟圖磚那份 `layers/<id>/` 是兄弟目錄。
+ * 「保留原稿」的落點：`projects/<proj>/layersrc/<id>/`，跟圖磚那份 `layers/<id>/` 是兄弟資料夾。
  * 裡面放 `edit.json`（整疊圖片的位置與設定）與工具自己命名的原稿檔（`p0.png`、`p1.webp`…）。
  *
  * 為什麼擺在圖層搜尋路徑「之外」，而不是放進圖層資料夾裡再加一條黑名單：layerfile.php 的
@@ -347,7 +347,7 @@ function souliong_layer_bounds_valid(float $s, float $w, float $n, float $e): bo
 }
 
 /**
- * 刪掉一棵目錄樹，但只准刪 $root 之內、且不等於 $root 的東西。
+ * 刪掉一棵資料夾樹，但只准刪 $root 之內、且不等於 $root 的東西。
  *
  * 兩個地方要用：重切圖層時得先清掉舊磚（金字塔是稀疏的，上一版畫到、這一版沒畫到的格子若
  * 留著，就會變成怎麼擦都擦不掉的殘影），以及後台整層刪除。刪除不可逆，所以這裡用 realpath

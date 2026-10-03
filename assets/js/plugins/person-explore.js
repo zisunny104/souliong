@@ -1,7 +1,7 @@
 /* 選用插件：依序探索（見 souliong/docs/EXTENDING.md 第七節）
    只在 projects/<project>/meta.json 設 "personExplore": true 時，view.php 才會載入這個檔案。
    完全透過 window.MapApp 公開的掛勾點 API 運作，不碰核心 viewer.core.js 的內部變數。
-   選了投稿者之後：把他所有照片依「有沒有綁地標」合併／排序成一條時間軸，
+   選了投稿者之後：把他所有照片依「有沒有綁地點」合併／排序成一條時間軸，
    卡片新增一個子區塊，兩個箭頭可逐站切換，切到某站就展開對應的單張照片或地點面板。 */
 (() => {
   const App = window.MapApp;

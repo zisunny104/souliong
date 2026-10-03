@@ -1,6 +1,6 @@
 <?php
 // 維護工具（常駐、可重複使用，CLI only，純唯讀）：核對某專案的 spots.jsonl＋entries.jsonl
-// 是否已經完整涵蓋遷移前 data.jsonl 的每一筆記錄，做為「這份 data.jsonl 存底可以安全刪除」
+// 是否已經完整涵蓋遷移前 data.jsonl 的每一筆紀錄，做為「這份 data.jsonl 存底可以安全刪除」
 // 的判準依據。見 souliong/docs/EXTENDING.md 的「舊機制淘汰與退場」一節。
 //
 // 用法：php retirecheck.php <project_dir>
@@ -52,7 +52,7 @@ foreach ($dataById as $id => $old) {
     $new = $newById[$id];
     $oldCmp = $old; unset($oldCmp['kind']);
     $newCmp = $new; unset($newCmp['kind']);
-    // 遷移腳本對舊 kind 為 point／newpoint 的記錄會多補 edit_of（原本沒有這個欄位）、
+    // 遷移腳本對舊 kind 為 point／newpoint 的紀錄會多補 edit_of（原本沒有這個欄位）、
     // 部分專案還會順手補上 feature（例如 soundspace，指向遷移當下實際顯示中的投稿）——
     // 這兩項都是遷移設計上刻意的改動（見 EXTENDING.md「舊機制淘汰與退場」一節），
     // 不是資料漂移，比對時要放行。
@@ -67,7 +67,7 @@ foreach ($dataById as $id => $old) {
 $extra = array_diff(array_keys($newById), array_keys($dataById)); // 新檔案裡有、data.jsonl 沒有 —— 正常（遷移後的新投稿），僅供參考
 
 echo "data.jsonl 共 " . count($dataById) . " 筆；spots.jsonl+entries.jsonl 共 " . count($newById) . " 筆。\n";
-echo "遷移後新增的記錄（正常現象）：" . count($extra) . " 筆\n";
+echo "遷移後新增的紀錄（正常現象）：" . count($extra) . " 筆\n";
 
 if ($missing) {
     echo "\n[缺漏] 以下 " . count($missing) . " 筆 id 在 data.jsonl 有、但新檔案找不到，遷移不完整，不能刪 data.jsonl：\n";
@@ -79,7 +79,7 @@ if ($mismatched) {
 }
 
 if (!$missing && !$mismatched) {
-    echo "\n通過：spots.jsonl＋entries.jsonl 完整涵蓋 data.jsonl 的每一筆記錄，欄位（除 kind 外）逐一相符。\n";
+    echo "\n通過：spots.jsonl＋entries.jsonl 完整涵蓋 data.jsonl 的每一筆紀錄，欄位（除 kind 外）逐一相符。\n";
     echo "可以安全刪除 {$dataPath}（刪除動作請自行手動執行，這支工具不會幫你刪）。\n";
     exit(0);
 }

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# 一次性升級腳本（舊版 → 最新 origin/main）。在 souliong 目錄執行，順序：
+# 一次性升級腳本（舊版 → 最新 origin/main）。在 souliong 資料夾執行，順序：
 #   1. df81aba  ：data.jsonl 拆成 spots/entries、靜態底稿併入 spots、核對 retirecheck
-#   2. 3e85c83  ：精選音訊轉成點位原生 content
+#   2. 3e85c83  ：精選音訊轉成地點原生 content
 #   3. origin/main：content_migrate（說明與內容合併）、修權限、重載 PHP
 # 資料夾 projects/、state/、api/config.php 不受 git 影響（未追蹤）。任何一步失敗立刻停下並說明目前停在哪。
 #
@@ -29,7 +29,7 @@ $cfg = ['projects_dir' => $root . '/projects'];
 foreach (array_slice($argv, 2) as $p) {
     if (!spotmigrate_needed($cfg, $p)) { echo "$p: 靜態底稿已併入或沒有，略過\n"; continue; }
     $r = spotmigrate_run($cfg, $p);
-    echo "$p: 併入 " . count($r['added']) . " 個點位、改指 " . count($r['repointed']) . " 筆編輯\n";
+    echo "$p: 併入 " . count($r['added']) . " 個地點、改指 " . count($r['repointed']) . " 筆編輯\n";
 }
 P
 

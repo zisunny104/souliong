@@ -6,7 +6,7 @@
    錄音用 MediaRecorder。它產出的容器由瀏覽器決定（Chrome/Firefox 是 webm/opus、Safari 是 mp4/aac），
    這裡不強求統一——伺服器端本來就是用 finfo 認實際內容，不看副檔名也不看瀏覽器說的 MIME。
 
-   檔案分兩層：window.SLAudioTools 是跟投稿無關的錄音／選檔／量時長工具（點位內容編輯的
+   檔案分兩層：window.SLAudioTools 是跟投稿無關的錄音／選檔／量時長工具（地點內容編輯的
    content-editor.js 也直接用，不需要 upload 模組與 kind-base.js）；「audio 投稿型別」則只在這張地圖
    確實開了 upload 模組、且 contrib.kinds 含 audio 時才登記進投稿型別註冊表。 */
 (() => {

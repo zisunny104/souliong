@@ -79,7 +79,7 @@
   }
 
   // 型別註冊表。view.php 只輸出這張地圖開放的型別檔；contribution.js 開機時還會再依
-  // APP.contrib.kinds 過濾一次，借用型別檔的其他功能（例如點位聲音編輯載入 kind-audio.js）不會多出投稿分頁。
+  // APP.contrib.kinds 過濾一次，借用型別檔的其他功能（例如地點聲音編輯載入 kind-audio.js）不會多出投稿分頁。
   const kinds = [];
   window.SLContrib = {
     Kind: ContribKind,

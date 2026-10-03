@@ -4,7 +4,7 @@
  * ?embed=1 → 精簡檢視模式（僅供瀏覽）。?p=<project> → 切換專案。
  */
 $cfg = include __DIR__ . '/../config.php';
-require_once __DIR__ . '/../api/routes.php';   // 網址表：掛載根目錄與各種網址的演算法，全站只有這一份
+require_once __DIR__ . '/../api/routes.php';   // 網址表：掛載根路徑與各種網址的演算法，全站只有這一份
 $base = Route::base();
 
 $b       = htmlspecialchars($base, ENT_QUOTES);
@@ -35,8 +35,8 @@ require_once __DIR__ . '/../api/embedorigins.php';
 $embedOrigins = embed_origins_allowed($apiCfg, $meta);
 if ($embed) embed_send_frame_headers($embedOrigins);
 require_once __DIR__ . '/../api/uploadlib.php';
-// 點位：spots.jsonl 裡的起點記錄（一定有 num、無 edit_of），api/newspot.php 動態建立的——
-// spots.jsonl 是點位唯一的真相來源，跟 assets/js/viewer.core.js 的 effectiveSpots() 同一套判斷式。
+// 地點：spots.jsonl 裡的起點紀錄（一定有 num、無 edit_of），api/newspot.php 動態建立的——
+// spots.jsonl 是地點唯一的真相來源，跟 assets/js/viewer.core.js 的 effectiveSpots() 同一套判斷式。
 // 位置與內容的版本疊加交給前端讀 CONTRIB 做，這裡只給起點紀錄；起點自帶的 content 區塊附加
 // 衍生欄位 html（見 spot_content_render()）。
 $spots     = $meta ? array_values(array_filter(store_all($apiCfg, $proj), fn($r) => ($r['kind'] ?? null) === 'spot' && empty($r['edit_of']) && isset($r['num']))) : [];
@@ -83,7 +83,7 @@ $contribFiles = $mod('upload') ? $contribCfg['kinds'] : [];
 if ($contribFiles && ($contribCfg['newSpot'] === 'contributor' || ($contribCfg['newSpot'] === 'admin' && $canEditSpots))) {
     $contribFiles[] = 'newspot';
 }
-// 點位內容編輯器（content-editor.js）：只給具 edit_spots 的身分載入（純顯示判斷）。它借用 kind-audio.js 的
+// 地點內容編輯器（content-editor.js）：只給具 edit_spots 的身分載入（純顯示判斷）。它借用 kind-audio.js 的
 // 錄音／選檔，型別檔的載入獨立於 upload 模組——唯讀地圖的管理者一樣要能錄音，所以投稿型別沒載到 audio 時另外補載。
 $contentEditOn = $mod('contentEdit') && $canEditSpots;
 $needAudioKind = $contentEditOn && !in_array('audio', $contribFiles, true);
@@ -121,7 +121,7 @@ $APP = [
     // 純身分（顯示身分小標籤用），不是能力
     'isManager'   => $isManager,
     'canEditSpots' => $canEditSpots,
-    // 點位版本紀錄裡可被覆寫的欄位（前端疊加點位版本時的欄位清單，跟 spot_effective() 同一份）
+    // 地點版本紀錄裡可被覆寫的欄位（前端疊加地點版本時的欄位清單，跟 spot_effective() 同一份）
     'spotFields'  => spot_overridable_fields(),
     'moduleState' => $moduleState,
     'contrib'     => $contribCfg,
@@ -136,7 +136,7 @@ $APP = [
     'map3d'       => $map3d,
     // 封面快照（api/cover.php）：POST 目標網址＋前端節流用的最小間距，避免管理者每次開頁
     // 都白白擷圖編碼一次（伺服器端仍是權威判斷，這裡只是省一趟沒意義的請求）。
-    // 導航連結模板（api/navlinks.php）：前端只負責套值與顯示選單，有座標的點位才出現導航鈕
+    // 導航連結模板（api/navlinks.php）：前端只負責套值與顯示選單，有座標的地點才出現導航鈕
     'nav'         => souliong_nav_config(),
     'coverUrl'         => Route::api('cover', ['project' => $proj]),
     'coverMinInterval' => (int)($apiCfg['cover_min_interval'] ?? 3600),
@@ -215,8 +215,8 @@ $cssFiles = ['theme', 'control-card', 'popups', 'map-markers', 'spot-panel', 'ma
 if ($mod('upload')) {
     $cssFiles[] = 'contrib';
 }
-// 播放器／點位卡片的中卡、全卡、迷你列樣式：有兩種來源都可能需要播音訊，任一種成立就要備好
-// 這組樣式——開放 audio 投稿（$hasAudioKind，投稿牆上的音訊）、開了 contentEdit（點位自己的
+// 播放器／地點卡片的中卡、全卡、迷你列樣式：有兩種來源都可能需要播音訊，任一種成立就要備好
+// 這組樣式——開放 audio 投稿（$hasAudioKind，投稿牆上的音訊）、開了 contentEdit（地點自己的
 // 原生音訊內容，見 api/spotcontent.php）。純顯示判斷，不查有沒有真的錄過內容：地圖錄過音訊
 // 後又把 contentEdit 關掉，播放器就不會載入，這種邊界情形本次接受不處理。
 $hasAudioKind = !$bare && in_array('audio', $contribCfg['kinds'], true);

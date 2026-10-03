@@ -2,7 +2,7 @@
    沒有檔案，也沒有自己的座標——一則文字是「掛在某個地點上的一筆紀錄」，不是地圖上的一個座標點，
    所以 needsLocation() 回 false，viewer.core.js 的 KINDS 表也把它標成 layer:false（不進圖層）。
 
-   要跟點位內容裡的 text 區塊分清楚：那是地點自己的說明（寫在 spots.jsonl，由 content-editor.js
+   要跟地點內容裡的 text 區塊分清楚：那是地點自己的說明（寫在 spots.jsonl，由 content-editor.js
    編輯，不出現在這個對話框）；這裡的 text 是「我留下的一則紀錄」，跟照片平行地排在投稿牆上。 */
 (() => {
   const { Kind, t, esc, register } = window.SLContrib;

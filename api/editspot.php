@@ -1,6 +1,6 @@
 <?php
-// 編輯點位本身的座標。權限是點位軸的 edit_spots（含 CSRF），預設僅限主要管理者，可個別授權給專案管理者。
-// 點位不論是官方資料還是 newspot.php 建立的動態點位，此刻都是 spots.jsonl 裡同一種起點紀錄
+// 編輯地點本身的座標。權限是地點軸的 edit_spots（含 CSRF），預設僅限主要管理者，可個別授權給專案管理者。
+// 地點不論是官方資料還是 newspot.php 建立的動態地點，此刻都是 spots.jsonl 裡同一種起點紀錄
 // （一定有 num），因此不比照 editentry.php 驗 owner/ctoken。
 // 不覆寫起點，而是新增一筆 kind:'spot' 版本紀錄（spot_append_version()），edit_of 指回起點紀錄 id；
 // 版本紀錄是稀疏的，這支只寫 lat、lon，content 不動（疊加規則見 spot_effective()）。
@@ -32,7 +32,7 @@ if ($item_num === null || $item_num === false || $lat === null || $lon === null 
 try {
     $eff = spot_effective($cfg, $project, $item_num);
     if ($eff === null) {
-        json_out(['error' => '找不到這個點位'], 404);
+        json_out(['error' => '找不到這個地點'], 404);
     }
     $name   = clean_str($_POST['name'] ?? null, $cfg['name_max']) ?? '管理者';
     $record = spot_append_version($cfg, $project, $eff, ['lat' => $lat, 'lon' => $lon], $actor->audit(), $name);

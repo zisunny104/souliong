@@ -1,7 +1,7 @@
 /* 照片：EXIF 讀取（exifr）、HEIC 轉檔（heic2any）、WebP 壓縮全部收在這裡——這三件事只有照片用得到，
    view.php 也只在需要照片的地圖才輸出那兩支 CDN script。
 
-   檔案分兩層：window.SLPhotoTools 是跟投稿無關的選檔判斷與 WebP 轉檔（點位內容編輯的
+   檔案分兩層：window.SLPhotoTools 是跟投稿無關的選檔判斷與 WebP 轉檔（地點內容編輯的
    content-editor.js 也用，不需要 upload 模組與 kind-base.js）；「photo 投稿型別」則只在這張地圖
    確實開了 upload 模組、且 contrib.kinds 含 photo 時才登記進投稿型別註冊表。 */
 (() => {

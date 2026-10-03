@@ -5,7 +5,7 @@
  * 內容為平台通則；不含任何個別使用者資料。
  */
 $cfg = @include __DIR__ . '/../config.php';
-require_once __DIR__ . '/../api/routes.php';   // 網址表：掛載根目錄的演算法只有這一份（見 api/routes.php）
+require_once __DIR__ . '/../api/routes.php';   // 網址表：掛載根路徑的演算法只有這一份（見 api/routes.php）
 require_once __DIR__ . '/../api/markdown.php';
 $base = Route::base();
 $b = htmlspecialchars($base, ENT_QUOTES);

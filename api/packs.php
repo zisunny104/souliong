@@ -13,7 +13,7 @@
 // site    : <app>/packs/<id>/             平台內建、所有地圖共用，隨程式碼進版控
 // project : projects/<proj>/packs/<id>/   這張地圖專屬（客製材質不想污染全站清單時用）
 //
-// 專案層放在 projects/ 底下的理由跟圖層一樣：那整棵目錄本來就在 .gitignore，天然不進版控。
+// 專案層放在 projects/ 底下的理由跟圖層一樣：那整棵資料夾本來就在 .gitignore，天然不進版控。
 // 同名時專案層覆蓋全站層。
 //
 // 作用範圍以專案為主，另有一層全站預設（state/settings.json 的 pack，後台「工具」分頁設定），
@@ -21,7 +21,7 @@
 
 require_once __DIR__ . '/settings.php';
 
-/** 平台內建 packs/ 目錄；packs_dir 沒設也要能運作（舊部署的 api/config.php 不會有這個 key）。 */
+/** 平台內建 packs/ 資料夾；packs_dir 沒設也要能運作（舊部署的 api/config.php 不會有這個 key）。 */
 function souliong_packs_dir(array $cfg): string
 {
     $dir = (string)($cfg['packs_dir'] ?? '');
@@ -94,7 +94,7 @@ function souliong_pack_dir(array $cfg, string $id, string $proj = ''): ?string
 }
 
 /**
- * $meta 是專案 meta.json 解析後的陣列（可能是 null），$proj 是該專案代號（用來解析專案層的包）。
+ * $meta 是專案 meta.json 解析後的陣列（可能是 null），$proj 是該專案 id（用來解析專案層的包）。
  * 回傳該專案目前生效的主題包 manifest；選的包已不存在或最後解析成空 → null（維持黑白預設）。
  *
  * 解析順序（以專案為主，全站只是沒指定時的退路）：

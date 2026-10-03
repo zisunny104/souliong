@@ -2,10 +2,10 @@
 /**
  * 對外唯讀資料 API（v1）。由 index.php 以 $dataApiKind 指定要哪一支：
  *   GET ?api=project&project=<slug>   專案描述：標題、預設視角、圖層、分類
- *   GET ?api=spots&project=<slug>     目前有效狀態的點位清單（spotId／num／座標／導航連結）
+ *   GET ?api=spots&project=<slug>     目前有效狀態的地點清單（spotId／num／座標／導航連結）
  *
  * 輸出一律由白名單欄位組成，不含任何雜湊（contrib_hash、owner_hash、src_hash）、IP、投稿者身分、
- * 後台網址、CSRF、perms。點位以起點＋edit_of 鏈算出的有效狀態為準（api/spotlib.php）。
+ * 後台網址、CSRF、perms。地點以起點＋edit_of 鏈算出的有效狀態為準（api/spotlib.php）。
  * spotId 是穩定外部鍵；num 只是顯示編號，可能被重用，外部系統不可當鍵。
  *
  * 快取：ETag＋Cache-Control: public, max-age=60，支援 If-None-Match 回 304。
@@ -101,7 +101,7 @@ function dataapi_layers(array $cfg, array $meta, string $slug): array
     return $out;
 }
 
-/** 有效點位 → 對外白名單形狀；沒有合法座標的點位略過。 */
+/** 有效地點 → 對外白名單形狀；沒有合法座標的地點略過。 */
 function dataapi_spots(array $cfg, string $slug): array
 {
     $out = [];
@@ -130,7 +130,7 @@ function dataapi_spots(array $cfg, string $slug): array
     return $out;
 }
 
-/** 分類：key／label／color，依 meta.categoryOrder 優先，其餘依點位出現順序。 */
+/** 分類：key／label／color，依 meta.categoryOrder 優先，其餘依地點出現順序。 */
 function dataapi_cats(array $cfg, array $meta, string $slug): array
 {
     $seen = [];

@@ -379,7 +379,7 @@ ac_guard('contributor', function () {
     $_POST = ['owner' => 'dev1', 'ctoken' => 'tok'];
     $c = Contributor::fromRequest();
     ck('contributor', $c->owns(['owner_hash' => hash('sha256', 'dev1')]) && $c->owns(['contrib_hash' => contrib_hash_of('tok')]), 'owns：owner 或 ctoken 任一相符');
-    ck('contributor', !$c->owns(['owner_hash' => hash('sha256', 'other'), 'contrib_hash' => 'x']) && !$c->owns([]), 'owns：都不符或記錄沒有身分欄位為 false');
+    ck('contributor', !$c->owns(['owner_hash' => hash('sha256', 'other'), 'contrib_hash' => 'x']) && !$c->owns([]), 'owns：都不符或紀錄沒有身分欄位為 false');
     $_POST = [];
     ck('contributor', !Contributor::fromRequest()->owns(['owner_hash' => hash('sha256', '')]), 'owns：沒送任何身分不會比對到空字串雜湊');
 });

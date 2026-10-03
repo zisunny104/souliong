@@ -57,7 +57,7 @@ function tilecut_dir(array $cfg, string $project, string $id): ?string
 }
 
 // ── 讀回原稿（GET）：這是「保留原稿」唯一的出口 ──
-// layerfile.php 走不到 layersrc/（不同的母目錄，見 souliong_layersrc_dir() 的說明），所以沒有
+// layerfile.php 走不到 layersrc/（不同的上層資料夾，見 souliong_layersrc_dir() 的說明），所以沒有
 // 「網址猜對就拿得到高解析手稿」這種事。這條路查的是專案管理權，跟寫入端同一套。
 if (($_GET['action'] ?? '') === 'srcfile') {
     $project = preg_replace('/[^a-z0-9_-]/', '', $_GET['project'] ?? '');

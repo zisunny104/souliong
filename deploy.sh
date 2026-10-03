@@ -19,7 +19,7 @@ fail() { echo "  ${RED}✗${RESET} $1"; }
 
 # ── 選用：修復路徑權限（./deploy.sh --fix-perms[-only] [--dry-run]）──────────────────
 # 預設只檢查不代勞；明確加旗標才動檔案。只動 projects/、state/、api/config.php：
-# 目錄 2775（setgid，新檔繼承群組）、檔案 664、擁有者＝php-fpm 使用者；config.php 640（含機密，不給 other 讀）。
+# 資料夾 2775（setgid，新檔繼承群組）、檔案 664、擁有者＝php-fpm 使用者；config.php 640（含機密，不給 other 讀）。
 # php-fpm 使用者：DEPLOY_WEB_USER 指定，否則從執行中的 php-fpm／apache／nginx 行程偵測。需要 root 或 sudo。
 FIX_PERMS=1; FIX_ONLY=0; DRY_RUN=0; AUTO=1; CHECK_ONLY=0
 for arg in "$@"; do
@@ -73,14 +73,14 @@ fix_perms() {
     bad_d="$(find "$d" -type d ! -perm 2775 2>/dev/null | wc -l | tr -d ' ')"
     bad_f="$(find "$d" -type f ! -perm 664 2>/dev/null | wc -l | tr -d ' ')"
     if [ "$DRY_RUN" -eq 1 ]; then
-      warn "$d/：擁有者不符 ${bad_o}、目錄權限不符 ${bad_d}、檔案權限不符 ${bad_f}（dry-run，未修改）"
+      warn "$d/：擁有者不符 ${bad_o}、資料夾權限不符 ${bad_d}、檔案權限不符 ${bad_f}（dry-run，未修改）"
       continue
     fi
     if [ "$((bad_o + bad_d + bad_f))" -eq 0 ]; then ok "$d/：權限已正確"; continue; fi
     $SUDO chown -R "$WEB_USER:$WEB_GROUP" "$d"
     $SUDO find "$d" -type d -exec chmod 2775 {} +
     $SUDO find "$d" -type f -exec chmod 664 {} +
-    ok "$d/：已修正（擁有者 ${bad_o}、目錄 ${bad_d}、檔案 ${bad_f} 項）"
+    ok "$d/：已修正（擁有者 ${bad_o}、資料夾 ${bad_d}、檔案 ${bad_f} 項）"
   done
   if [ -f api/config.php ]; then
     if [ "$DRY_RUN" -eq 1 ]; then
@@ -138,7 +138,7 @@ selfcheck_web() {
     *)         warn "DEPLOY_CHECK_URL 要以 https:// 或 http:// 開頭：$base"; return 0 ;;
   esac
   for d in state projects; do
-    [ -f "$d/.canary-selfcheck" ] || { warn "$d/ 沒有金絲雀檔（目錄不可寫），略過這一項"; continue; }
+    [ -f "$d/.canary-selfcheck" ] || { warn "$d/ 沒有金絲雀檔（資料夾不可寫），略過這一項"; continue; }
     url="$base/$d/.canary-selfcheck"
     r="$(probe_canary "$url")"
     case "$r" in

@@ -1,13 +1,13 @@
 <?php
-// 投稿種類（kind）與功能使用統計（feature）的中央註冊表。
+// 投稿型別（kind）與功能使用統計（feature）的中央註冊表。
 // upload.php 依此決定怎麼收檔案、stat.php 依此限制可用的 feature key、manager.php 依此產生中文標籤、
 // view.php 依 tab 決定要載哪些前端型別檔、投稿對話框依 tab 分頁——四邊共用同一份定義，不必個別維護。
 
-// 投稿種類：key => 中繼資料
-//   label    後台投稿列表的種類標籤
+// 投稿型別：key => 中繼資料
+//   label    後台投稿列表的型別標籤
 //   tab      投稿對話框的分頁代號；null＝不出現在對話框（由專屬流程產生）
 //   postable upload.php 是否接受前端直接 POST 這個 kind。**這個旗標是安全邊界，不是分類**：
-//            spot（點位本身，含建立與搬移）只能由 newspot.php／editspot.php 在
+//            spot（地點本身，含建立與搬移）只能由 newspot.php／editspot.php 在
 //            Auth::require() 把關後寫入；若讓它 postable，任何人都能 POST 到
 //            upload.php 偽造一筆座標覆蓋紀錄，繞過整個權限檢查。新增 kind 時預設要想清楚。
 //   file     要收的 $_FILES 欄位名；null＝純文字投稿。photo 沿用歷史欄位名 'photo' 且存進
@@ -15,12 +15,12 @@
 //            photoFullUrl() 全部不用改；影音一律用 'media' 欄位、存進 projects/<id>/media/。
 //   thumb    是否伴隨一張顯示用縮圖（影片由前端抽第一幀，見 assets/js/contrib/kind-video.js）
 //   mimes    允許的 MIME => 副檔名。這份取代了 config 裡只服務照片的 allowed_mime。
-//   max_bytes 該種類的大小上限；沒寫就用 config 的 max_bytes，config 也可用 max_bytes_<kind>
+//   max_bytes 該型別的大小上限；沒寫就用 config 的 max_bytes，config 也可用 max_bytes_<kind>
 //            單獨覆寫（部署主機的實際上限還是卡在 php.ini 的 upload_max_filesize／
 //            post_max_size，那是這裡改不到的）。
-//   spotContent 這個種類能不能被寫進點位自己的原生 content 陣列（api/spotcontent.php），
+//   spotContent 這個型別能不能被寫進地點自己的原生 content 陣列（api/spotcontent.php），
 //            跟 postable 是兩件不同的事：postable 管的是 entries.jsonl 投稿牆，spotContent
-//            管的是 spots.jsonl 點位覆寫紀錄本身，兩者互不影響。
+//            管的是 spots.jsonl 地點覆寫紀錄本身，兩者互不影響。
 function souliong_kinds(): array
 {
     return [
@@ -76,7 +76,7 @@ function souliong_kind_spot_content_postable(string $kind): bool
     return (bool)(souliong_kinds()[$kind]['spotContent'] ?? false);
 }
 
-/** 可以出現在投稿對話框、由使用者自己選擇要投什麼的內容種類（spot 不算，它是建立/搬移地點不是投內容）。 */
+/** 可以出現在投稿對話框、由使用者自己選擇要投什麼的內容型別（spot 不算，它是建立/搬移地點不是投內容）。 */
 function souliong_contrib_kinds(): array
 {
     $out = [];
@@ -132,7 +132,7 @@ function souliong_features(): array
         'embed'  => '嵌入載入',
         'random' => '隨機探索',
         'upload' => '上傳投稿',
-        'content' => '點位內容',
+        'content' => '地點內容',
         'theme'  => '主題切換',
         'info'   => '照片資訊',
         'share'  => '分享',
@@ -151,14 +151,14 @@ function souliong_modules(): array
         'route'  => ['label' => '路線導覽', 'desc' => '依編號的路徑導覽，及連點路線鈕的時間軸動畫彩蛋。', 'default' => true],
         'contribBrowse' => ['label' => '投稿瀏覽切換', 'desc' => '地圖控制卡上的「全部／投稿」切換鈕與投稿者篩選下拉。關閉後只保留單一檢視、點地標一樣看得到內容，適合每個地點內容是策展而非群眾投稿的地圖。', 'default' => true],
         'categoryLegend' => ['label' => '分類圖例', 'desc' => '地圖控制卡上的分類色塊清單（可點擊切換各分類顯示／隱藏）。分類只有一種、或不想讓訪客切換顯示範圍時可關閉，地標本身與點開的內容不受影響。', 'default' => true],
-        'spotList' => ['label' => '點位列表', 'desc' => '地圖控制卡上直接列出可點擊的點位清單，取代「跳到地點」下拉選單。開啟後下拉選單只在投稿者篩選模式（見 contribBrowse）才會出現。', 'default' => false],
-        'contentEdit' => ['label' => '點位內容編輯', 'desc' => '具編輯點位權限的管理者可在點位說明區新增、修改、刪除、排序內容區塊（文字、聲音、照片），直接寫入該點位的原生內容（spots.jsonl 的 content 欄位）。這只是前端顯示開關，寫入權限看 edit_spots，與投稿代碼無關。', 'default' => true],
+        'spotList' => ['label' => '地點列表', 'desc' => '地圖控制卡上直接列出可點擊的地點清單，取代「跳到地點」下拉選單。開啟後下拉選單只在投稿者篩選模式（見 contribBrowse）才會出現。', 'default' => false],
+        'contentEdit' => ['label' => '地點內容編輯', 'desc' => '具編輯地點權限的管理者可在地點說明區新增、修改、刪除、排序內容區塊（文字、聲音、照片），直接寫入該地點的原生內容（spots.jsonl 的 content 欄位）。這只是前端顯示開關，寫入權限看 edit_spots，與投稿代碼無關。', 'default' => true],
         'upload' => ['label' => '上傳投稿', 'desc' => '訪客上傳照片／文字紀錄；關閉後整張地圖唯讀，投稿代碼與解鎖流程一併隱藏。', 'default' => true],
         'embed'  => ['label' => '嵌入載入', 'desc' => '產生可嵌入其他網站的 iframe 碼。', 'default' => true],
         'share'  => ['label' => '分享', 'desc' => '分享連結／QR Code 彈窗。', 'default' => true],
         'homeLink' => ['label' => '回平台首頁', 'desc' => '右上角回到地圖清單的房子鈕。單獨對外掛一張地圖、不想讓訪客看到平台上其他地圖時可關閉（頁尾的來源標示不受影響）。', 'default' => true],
         'identity' => ['label' => '投稿者身分', 'desc' => '右上角身分小標籤（暱稱／管理者／匿名預覽名）與建立身分（PIN）欄位。關閉後依序探索也會一併隱藏。', 'default' => true, 'dependsOn' => 'upload'],
-        'personExplore' => ['label' => '依序探索（插件）', 'desc' => '選了投稿者後，可依序探索他的地標／零散照片時間軸。', 'default' => false, 'dependsOn' => 'identity'],
+        'personExplore' => ['label' => '依序探索（插件）', 'desc' => '選了投稿者後，可依序探索他的地點／零散照片時間軸。', 'default' => false, 'dependsOn' => 'identity'],
         'delegation' => ['label' => '管理者邀請登入', 'desc' => '地圖頁上的管理者登入／邀請兌換彈窗。關閉後這張地圖不再產生新的專案 PIN 或邀請連結，只能用主 PIN 從後台網址（/manager）登入管理，適合純檢視、僅超級管理者更新內容的部署。', 'default' => true],
         'map3d'  => ['label' => '3D 地圖模式', 'desc' => '訪客可切換到 MapLibre 3D 檢視（公用建物擠出＋自訂模型）。關閉後只有既有 Leaflet 2D 地圖，不載入 MapLibre。', 'default' => false],
     ];

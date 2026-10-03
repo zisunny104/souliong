@@ -1,7 +1,7 @@
-/* 選用插件：點位內容編輯（見 souliong/docs/EXTENDING.md 第七節）
+/* 選用插件：地點內容編輯（見 souliong/docs/EXTENDING.md 第七節）
    只在該地圖 meta.json 的 features.contentEdit 為 true、且目前身分具備 edit_spots 權限時，view.php 才會載入這個檔案；
    這只是顯示層級的判斷，真正擋寫入的是 api/spotcontent.php 的 Auth::require(edit_spots)。
-   點位的說明是 spots.jsonl 裡的 content 區塊陣列，不是投稿；它是「一個整體」：可以組合多段文字、多個聲音，
+   地點的說明是 spots.jsonl 裡的 content 區塊陣列，不是投稿；它是「一個整體」：可以組合多段文字、多個聲音，
    但編輯的是整份內容，一次儲存產生一個版本、一個編輯者，沒有「各區塊各自的作者」。
    按「編輯內容」進入編輯模式後，所有改動（改文字、增刪、上下移動、錄好或選好的聲音）都只留在前端草稿，
    按「儲存」才一次呼叫 MapApp.saveSpotContent()；別人在這期間改過內容時伺服器回 409，草稿原樣保留。
@@ -22,7 +22,7 @@
 
   /* ---------- 區塊型別 ---------- */
 
-  // 草稿區塊：{ key, kind, id?, comment, item?, ... }。既有區塊帶 id 與原始項目 item，新區塊沒有；型別自己的欄位另外加。
+  // 草稿區塊：{ key, kind, id?, comment, item?, ... }。既有區塊帶 id 與原始資料 item，新區塊沒有；型別自己的欄位另外加。
   // ctx = { mapApp, add(block) }：add 把新區塊接到草稿最後並重畫清單。
   class BlockType {
     get kind() { return ''; }
@@ -229,7 +229,7 @@
   const opaque = new OpaqueBlockType();
   window.SLContentEditor = { BlockType, registerBlockType };
 
-  // 既有項目 → 草稿區塊；沒有對應型別（或聲音沒有檔案）的一律當不透明區塊
+  // 既有區塊 → 草稿區塊；沒有對應型別（或聲音沒有檔案）的一律當不透明區塊
   const blockFromItem = (item) => {
     const type = types.find(k => k.kind === item.kind && (k.kind !== 'audio' || item.media) && (k.kind !== 'photo' || item.photo));
     return type ? type.fromItem(item) : { key: ++uid, kind: item.kind, id: item.id, opaque: true, item };
@@ -242,7 +242,7 @@
 
     mount() {
       this.mapApp.registerEntriesHint(spot => { this.decorate(spot); return null; });
-      // 開啟或關閉點位面板都會觸發 panelReset；下一次畫出還留著草稿的點位時要提醒使用者
+      // 開啟或關閉地點面板都會觸發 panelReset；下一次畫出還留著草稿的地點時要提醒使用者
       this.mapApp.onHook('panelReset', () => { this.fresh = true; });
       window.addEventListener('beforeunload', (ev) => {
         if ([...this.drafts.values()].some(d => !d.done && this.isDirty(d))) { ev.preventDefault(); ev.returnValue = ''; }
@@ -251,8 +251,8 @@
 
     typeOf(block) { return block.opaque ? opaque : (types.find(k => k.kind === block.kind) || opaque); }
 
-    // #storyActions 是核心 renderEntries() 每次重建 #entries 時一定會重畫的節點；草稿留在這裡（依點位），
-    // 重繪後如果這個點位還有進行中的草稿，就把編輯介面接回去，改動不會因為畫面重繪而消失。
+    // #storyActions 是核心 renderEntries() 每次重建 #entries 時一定會重畫的節點；草稿留在這裡（依地點），
+    // 重繪後如果這個地點還有進行中的草稿，就把編輯介面接回去，改動不會因為畫面重繪而消失。
     decorate(spot) {
       types.forEach(k => k.teardown());
       const fresh = this.fresh; this.fresh = false;

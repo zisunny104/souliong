@@ -1,15 +1,15 @@
 <?php
 /**
  * 純 PHP 檔案儲存（零擴充依賴，取代 SQLite）。
- * 每個專案兩個 JSON-Lines 檔：projects/<project>/spots.jsonl（kind:'spot'，點位本身）與
- * projects/<project>/entries.jsonl（其餘所有投稿），一行一筆記錄，依 kind 分流見 store_file()。
+ * 每個專案兩個 JSON-Lines 檔：projects/<project>/spots.jsonl（kind:'spot'，地點本身）與
+ * projects/<project>/entries.jsonl（其餘所有投稿），一行一筆紀錄，依 kind 分流見 store_file()。
  * 寫入用 LOCK_EX 附加、讀取用 LOCK_SH，append-only。
  *
- * 舊專案目錄下可能還留著遷移前的 data.jsonl：那是遷移腳本讀完之後刻意留下的唯讀存底，
+ * 舊專案資料夾下可能還留著遷移前的 data.jsonl：那是遷移腳本讀完之後刻意留下的唯讀存底，
  * 從這裡開始的所有函式都不會再讀寫它。
  *
  * 已淘汰、只留給舊資料相容用的舊機制：data.jsonl 本身、kind 值 point／newpoint（已併入 spot，
- * 見 store_file()）、primaryKind（已由 spot 記錄的 content 欄位取代）。退場判準與流程見
+ * 見 store_file()）、primaryKind（已由 spot 紀錄的 content 欄位取代）。退場判準與流程見
  * docs/EXTENDING.md「舊機制淘汰與退場」一節，判準腳本見 tools/retirecheck.php。
  */
 
@@ -29,7 +29,7 @@ function photo_abs_path(array $cfg, string $photoRel): ?string {
 
 /**
  * 同 photo_abs_path()，但指向 media/（影片與音訊）。
- * 影音沒有跟照片共用 photos/ 目錄，是為了讓既有的照片工具（exiffix.php／thumbfix.php、
+ * 影音沒有跟照片共用 photos/ 資料夾，是為了讓既有的照片工具（exiffix.php／thumbfix.php、
  * 以及所有把 photos/ 當「全都是圖檔」在掃的程式）不用學會忽略非圖檔，見 features.php
  * 的 souliong_kinds() 說明。
  */
@@ -39,7 +39,7 @@ function media_abs_path(array $cfg, string $mediaRel): ?string {
 }
 
 /**
- * 刪掉一筆記錄附帶的檔案（主檔 ＋ 縮圖）。刪投稿的地方有三處（delete.php、manager.php 的
+ * 刪掉一筆紀錄附帶的檔案（主檔 ＋ 縮圖）。刪投稿的地方有三處（delete.php、manager.php 的
  * 單筆刪除與整批刪某身分），影音上線後每一處都要多記得清 media/ 一次；集中在這裡，
  * 之後再加新的檔案欄位也只有這一個地方要改。
  * 縮圖一律是 <主檔名>_t.<ext>（photo.php 自動產生的、上傳附帶的、影片抽幀的都同一套命名）。
@@ -57,7 +57,7 @@ function store_purge_files(array $cfg, ?array $record): void {
     }
 }
 
-/** 讀單一 jsonl 檔案的全部記錄（LOCK_SH）；檔案不存在回空陣列。 */
+/** 讀單一 jsonl 檔案的全部紀錄（LOCK_SH）；檔案不存在回空陣列。 */
 function _store_read_lines(string $f): array {
     if (!is_file($f)) return [];
     $fp = fopen($f, 'rb');
@@ -101,9 +101,9 @@ function store_append(array $cfg, string $project, array $record): array {
  * 各自讀到同一個 max num、配出重複號碼。這裡把讀與寫包在同一個 LOCK_EX 區間裡，
  * 後到的那個一定看得到先到的那筆。
  *
- * $build(array $records): array —— 收到目前檔案裡的全部記錄，回傳要附加的那一筆。
+ * $build(array $records): array —— 收到目前檔案裡的全部紀錄，回傳要附加的那一筆。
  * 想中止就在 $build 裡丟例外（此時什麼都不會寫入）。
- * $kind 決定鎖的是哪個實體檔案（見 store_file()）；$build 收到的 $records 只有該檔案裡的記錄。
+ * $kind 決定鎖的是哪個實體檔案（見 store_file()）；$build 收到的 $records 只有該檔案裡的紀錄。
  */
 function store_append_locked(array $cfg, string $project, callable $build, string $kind): array {
     $f = store_file($cfg, $project, $kind);
@@ -136,7 +136,7 @@ function store_backup(string $path): void {
 }
 
 /**
- * 專案整包備份成 ZIP：把專案目錄現況打包，存在 projects/<proj>/_backup/ 底下——比 store_backup()
+ * 專案整包備份成 ZIP：把專案資料夾現況打包，存在 projects/<proj>/_backup/ 底下——比 store_backup()
  * 單一滾動快照更完整（含所有 jsonl、照片、其他檔案），危險操作（批次改寫、一次性遷移工具）前
  * 先備份用，萬一出錯也能整個還原，不只回復單一檔案。做法比照 api/manager.php 既有的
  * backup=project 匯出（同樣用 zip.php 打包整個 project_dir()、跳過 .rate 快取），差別只在這裡
@@ -169,7 +169,7 @@ function project_backup_zip(array $cfg, string $proj, array $overrides = []): ?s
 
 /**
  * 整檔重寫、跳過符合 $shouldRemove() 的那些行（store_delete()／store_delete_by() 共用）。
- * 回傳被移除的記錄陣列；檔案不存在就什麼都不做。
+ * 回傳被移除的紀錄陣列；檔案不存在就什麼都不做。
  */
 function _store_rewrite(string $path, callable $shouldRemove): array {
     if (!is_file($path)) return [];
@@ -197,7 +197,7 @@ function _store_rewrite(string $path, callable $shouldRemove): array {
     return $removed;
 }
 
-/** 依 id 找一筆記錄；不論它落在 spots.jsonl 或 entries.jsonl 都找得到。 */
+/** 依 id 找一筆紀錄；不論它落在 spots.jsonl 或 entries.jsonl 都找得到。 */
 function store_find(array $cfg, string $project, string $id): ?array {
     foreach (store_all($cfg, $project) as $r) {
         if ((string)($r['id'] ?? '') === $id) return $r;
@@ -214,7 +214,7 @@ function store_delete(array $cfg, string $project, string $id): ?array {
 }
 
 /**
- * 依欄位值批次刪除（例如某個 contrib_id 或 owner_hash 的全部投稿）；回傳被刪除的記錄陣列供呼叫端清照片檔。
+ * 依欄位值批次刪除（例如某個 contrib_id 或 owner_hash 的全部投稿）；回傳被刪除的紀錄陣列供呼叫端清照片檔。
  * $excludeKinds：即使符合條件也不刪、留在檔案裡不動的 kind 清單（見 manager.php 的 edit_spots 分流）。
  */
 function store_delete_by(array $cfg, string $project, string $field, string $value, array $excludeKinds = []): array {
@@ -230,7 +230,7 @@ function store_delete_by(array $cfg, string $project, string $field, string $val
 }
 
 /**
- * 就地修補單筆記錄的指定欄位（唯一打破 append-only 的例外，僅供資料修復工具（如 exiffix.php）使用，
+ * 就地修補單筆紀錄的指定欄位（唯一打破 append-only 的例外，僅供資料修復工具（如 exiffix.php）使用，
  * 例如補救誤存為 null 的欄位；一般編輯一律走 store_append 版本化，不要用這個）。
  */
 function store_patch(array $cfg, string $project, string $id, array $fields): ?array {
@@ -274,7 +274,7 @@ function store_projects(array $cfg): array {
 }
 
 /**
- * 目錄底下所有檔案大小遞迴加總。跟 manager.php 的 backup=all 用的 $addDir closure
+ * 資料夾底下所有檔案大小遞迴加總。跟 manager.php 的 backup=all 用的 $addDir closure
  * 同一套 RecursiveIteratorIterator 寫法，但只加總不收集檔案清單。
  */
 function souliong_dir_bytes(string $dir): int {

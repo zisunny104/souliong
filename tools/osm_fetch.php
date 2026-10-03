@@ -8,7 +8,7 @@
  *
  * 用法：php tools/osm_fetch.php <project> [--kind=roofs|trees|power] [--bbox=南,西,北,東] [--endpoint=<url>] [--contact=<信箱或網址>] [--dry-run]
  *   不指定 --kind 就依序抓全部資料集。
- *   範圍預設取這張地圖點位的外框加 25% 邊距；沒有點位就用 meta.json 的 center 上下左右各約 500 公尺。
+ *   範圍預設取這張地圖地點的外框加 25% 邊距；沒有地點就用 meta.json 的 center 上下左右各約 500 公尺。
  *   --dry-run 只印查詢與範圍，不連線、不寫檔。
  *
  * 對 Overpass 的禮貌：一次一個請求（不平行、資料集之間停頓）、自訂 User-Agent（建議用 --contact 留聯絡方式）、
@@ -167,7 +167,7 @@ function osm_parse_bbox(string $s): array
     return array_map('floatval', $p);
 }
 
-/** 專案點位外框＋25% 邊距（至少各邊 0.004 度）；沒有點位則取 meta.center 為中心 */
+/** 專案地點外框＋25% 邊距（至少各邊 0.004 度）；沒有地點則取 meta.center 為中心 */
 function osm_project_bbox(string $dir): array
 {
     $lats = $lons = [];
@@ -181,7 +181,7 @@ function osm_project_bbox(string $dir): array
     if (!$lats) {
         $c = json_decode((string)@file_get_contents($dir . '/meta.json'), true)['center'] ?? null;
         if (!is_array($c) || count($c) < 2) {
-            osm_die('專案沒有點位也沒有 meta.center，請用 --bbox 指定範圍。');
+            osm_die('專案沒有地點也沒有 meta.center，請用 --bbox 指定範圍。');
         }
         $lats = [(float)$c[0]];
         $lons = [(float)$c[1]];

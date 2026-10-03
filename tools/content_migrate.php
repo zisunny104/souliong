@@ -1,5 +1,5 @@
 <?php
-// 一次性維護工具（CLI only）：把一個點位散在多個來源的「說明與內容」合併成一個內容區（spots.jsonl 的
+// 一次性維護工具（CLI only）：把一個地點散在多個來源的「說明與內容」合併成一個內容區（spots.jsonl 的
 // content 陣列），操作者記為「系統合併」。之後系統不再有 story 欄位與 kind:'desc' 投稿。做四件事：
 //   1. 合併：起點紀錄的 story、entries.jsonl 裡訪客送出的 kind:'desc' 版本、現有 content 裡的聲音區塊，
 //      合成同一個內容區——文字取最新的一版排在最前面，後面接原有的區塊；整個內容區寫成一筆版本紀錄，
@@ -15,7 +15,7 @@
 // 不加 --apply 是預覽模式，只列出會處理什麼，不寫入也不備份；加 --apply 才會先把整個專案備份成 ZIP
 // （見 project_backup_zip()）再寫入。
 //
-// 冪等：點位版本鏈上已有 actor 為 system:merge 的紀錄就跳過該點位（之後被人刪掉的內容不會被加回來）；
+// 冪等：地點版本鏈上已有 actor 為 system:merge 的紀錄就跳過該地點（之後被人刪掉的內容不會被加回來）；
 // meta.json 沒有 story／soundEdit 鍵就不動。所有環境都遷移完之後可以刪除這支工具。
 require_once __DIR__ . '/../api/store.php';
 require_once __DIR__ . '/../api/spotlib.php';
@@ -91,7 +91,7 @@ function content_merge_text_block(string $comment, ?string $sourceUrl = null, ?s
 }
 
 /**
- * 產出這個點位要依序寫入的版本：每個元素是 ['content' => 完整區塊陣列, 'name' => 名稱, 'actor' => 稽核字串]。
+ * 產出這個地點要依序寫入的版本：每個元素是 ['content' => 完整區塊陣列, 'name' => 名稱, 'actor' => 稽核字串]。
  * 較舊的文字各一筆歷史版本（只含那段文字，保留原作者名稱），最後一筆是系統合併的完整內容區。
  */
 function content_migrate_plan(array $eff, string $sourceLabel, array $descs): array
@@ -169,7 +169,7 @@ if (!$apply) {
     exit(0);
 }
 if (!$plans && $newMeta === null) {
-    echo "\n沒有需要處理的項目。\n";
+    echo "\n沒有需要處理的專案。\n";
     exit(0);
 }
 

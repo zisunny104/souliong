@@ -1,6 +1,6 @@
-/* 選用插件：聲音地圖的播放器／點位卡片（見 souliong/docs/EXTENDING.md 第七節）
-   只在該地圖 meta.json 的 contrib.kinds 有開放 audio 種類時，view.php 才會載入這個檔案——
-   任何一個點位都可能帶有 audio 原生內容，不看是不是「聲音地圖」，看的是有沒有 audio 內容。
+/* 選用插件：聲音地圖的播放器／地點卡片（見 souliong/docs/EXTENDING.md 第七節）
+   只在該地圖 meta.json 的 contrib.kinds 有開放 audio 型別時，view.php 才會載入這個檔案——
+   任何一個地點都可能帶有 audio 原生內容，不看是不是「聲音地圖」，看的是有沒有 audio 內容。
    不碰 viewer.core.js 一行程式碼——全靠 registerEntriesHint()（每次 renderEntries() 都會呼叫，
    可以動任何 DOM，不限於 #entries）跟 panelReset 這個既有 hook 來擴充既有的 #panel，
    .p-close/.p-expand 的 onclick 完全沿用核心預設，這裡不重新綁定。
@@ -334,7 +334,7 @@
       this.showMini();
     }
 
-    /* ---------- 封面圖：點位自己的 photo/thumb 欄位，沒有就用分類色＋唱片圖示頂替 ---------- */
+    /* ---------- 封面圖：地點自己的 photo/thumb 欄位，沒有就用分類色＋唱片圖示頂替 ---------- */
 
     coverUrlFor(spot) {
       return this.mapApp.entryThumbUrl(spot) || null;
@@ -463,7 +463,7 @@
     }
 
     // 循環／靜音的狀態直接讀寫 <audio> 本身，不另外存旗標——renderEntries() 每次都重建 <audio>，
-    // 換點位時自然重置回預設值。中卡的按鈕作用在 this.audioEl，大播放器的按鈕作用在自己那一顆。
+    // 換地點時自然重置回預設值。中卡的按鈕作用在 this.audioEl，大播放器的按鈕作用在自己那一顆。
     toggleLoop(a) {
       a = a || this.audioEl;
       if (!a) return;

@@ -50,7 +50,7 @@
     // 這樣不同地圖的分頁排列才一致（跟 souliong_contrib_cfg() 依註冊表排序是同一個道理）。
     initTabs() {
       const cfg = this.mapApp.contribCfg() || {};
-      // 載入了型別檔不代表這張地圖開放它（例如點位聲音編輯借用了 kind-audio.js）：註冊表只留 contrib.kinds 列出的，建立地點不在其中
+      // 載入了型別檔不代表這張地圖開放它（例如地點聲音編輯借用了 kind-audio.js）：註冊表只留 contrib.kinds 列出的，建立地點不在其中
       const allowed = cfg.kinds || [];
       for (let i = SL.kinds.length - 1; i >= 0; i--) {
         if (SL.kinds[i].key !== 'newspot' && !allowed.includes(SL.kinds[i].key)) SL.kinds.splice(i, 1);
@@ -453,7 +453,7 @@
         this.mapApp.trackFeature(kind.key === 'newspot' ? 'newspot' : 'upload');
         // 成功：鎖定卡片
         state.done = true;
-        // 建立地點會改變點位清單與圖例，批次模式那套「只更新計數」不夠用，一律整個重繪
+        // 建立地點會改變地點清單與圖例，批次模式那套「只更新計數」不夠用，一律整個重繪
         if (opts.bulk && kind.key !== 'newspot') { this.mapApp.refreshCounts(); } else { this.mapApp.refreshAll(); }
         card.classList.add('done');
         card.querySelectorAll('input,textarea,button,select').forEach(el => el.disabled = true);

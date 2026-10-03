@@ -17,7 +17,7 @@
 // ── 待驗證事項（尚未在真實瀏覽器跑過，見 magical-plotting-ladybug 計畫「驗證方式」第 1 點）──
 // OpenFreeMap 的 building 圖層 feature.id 是否穩定（同一棟建物重整頁面後 id 不變）目前只是設計假設。
 // 若某次 queryRenderedFeatures 抓到的建物沒有 feature.id（top-level id，不是 properties 裡的欄位），
-// 排除機制對那些建物就是做不到，前端會用 region3d_missing_id_warn 當場提示管理員，但不會擋下存檔
+// 排除機制對那些建物就是做不到，前端會用 region3d_missing_id_warn 當場提示管理者，但不會擋下存檔
 // ——這不是靜默失敗，是留給人判斷。真的發生大規模 id 失效，復原路徑是「重新掃描」（action=rescan）：
 // 多邊形不變，只重新查一次、覆寫排除清單。
 require __DIR__ . '/store.php';

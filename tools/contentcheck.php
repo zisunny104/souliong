@@ -1,10 +1,10 @@
 <?php
 /**
- * 點位內容區（api/spotcontent.php）的行為回歸測試（CLI）。
+ * 地點內容區（api/spotcontent.php）的行為回歸測試（CLI）。
  *
  * 用法：php tools/contentcheck.php      全部通過結束碼 0，有任何一項失敗為 1。
  *
- * 在臨時沙盒跑（sys_get_temp_dir()/contentcheck_*，結束時清掉）：複製 api／pages／lang 與根目錄檔案，
+ * 在臨時沙盒跑（sys_get_temp_dir()/contentcheck_*，結束時清掉）：複製 api／pages／lang 與根資料夾檔案，
  * 起一個內建伺服器（127.0.0.1:8123），用真正的 multipart 上傳打 op=save，不碰真正的 state/ 與 projects/。
  * 涵蓋：新增 text／photo／audio、版本衝突、清空、相同內容不寫版本、id 保留（photo／audio 只吃 comment）、
  * 未列出即刪除、壞 MIME、缺檔、非法區塊、權限與 CSRF、photo 網址實際可取（含 th=1 產縮圖）、list 輸出。
@@ -152,7 +152,7 @@ ck(versions() === 1, '失敗的請求不寫版本');
 ], $rev, ['media_0' => ['p.png', $png], 'media_1' => ['t.png', $thumb], 'media_2' => ['a.wav', $wav]]);
 ck($c === 200 && !empty($r['ok']), '新增三種區塊', [$c, $r]);
 $blocks = $r['item']['content'] ?? [];
-ck(count($blocks) === 3 && array_column($blocks, 'kind') === ['text', 'photo', 'audio'], '區塊順序與種類', array_column($blocks, 'kind'));
+ck(count($blocks) === 3 && array_column($blocks, 'kind') === ['text', 'photo', 'audio'], '區塊順序與型別', array_column($blocks, 'kind'));
 [$t, $ph, $au] = $blocks + [null, null, null];
 ck(!empty($t['id']) && !empty($ph['id']) && !empty($au['id']) && count(array_unique([$t['id'], $ph['id'], $au['id']])) === 3, '每個區塊有唯一 id');
 ck(strpos($t['html'] ?? '', '第一段') !== false, 'text 有衍生 html');
@@ -257,7 +257,7 @@ $did = $r['item']['content'][0]['id'] ?? 'x';
 ck($c === 400, '重複 id 回 400', [$c, $r]);
 ck(versions() === $v + 1, '被拒絕的輸入都沒有寫版本（只有 dup 那一筆）', [versions(), $v]);
 [$c, $r] = save([['kind' => 'text', 'comment' => 'x']], $rev6, [], ['fields' => ['item_num' => '99']]);
-ck($c === 404, '不存在的點位回 404', [$c, $r]);
+ck($c === 404, '不存在的地點回 404', [$c, $r]);
 
 // 超過上限：整個請求超過 post_max_size 與單檔超過 upload_max_filesize 都要回明確的 413
 $v = versions();

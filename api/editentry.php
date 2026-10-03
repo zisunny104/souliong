@@ -30,7 +30,7 @@ try {
     if (!$orig) {
         json_out(['error' => 'not found'], 404);
     }
-    $origKind = (string)($orig['kind'] ?? 'photo');   // 多型別之前的舊記錄沒有 kind，一律是照片
+    $origKind = (string)($orig['kind'] ?? 'photo');   // 多型別之前的舊紀錄沒有 kind，一律是照片
     $hasBody  = !empty($orig['photo']) || !empty($orig['media']) || ($origKind === 'text' && !empty($orig['comment']));
     if (!in_array($origKind, souliong_contrib_kinds(), true) || !$hasBody) {
         json_out(['error' => 'not found'], 404);
@@ -65,7 +65,7 @@ try {
         'id'           => bin2hex(random_bytes(8)),
         'project'      => $project,
         'item_num'     => $item_num,
-        // 種類沿用被編輯的那一筆：影片的編輯紀錄若標成 photo，後台投稿列表的種類欄會整排標錯
+        // 型別沿用被編輯的那一筆：影片的編輯紀錄若標成 photo，後台投稿列表的型別欄會整排標錯
         'kind'         => $origKind,
         'edit_of'      => $editOf,               // 指向被編輯的原始投稿 id，供前端組出「最新版本」
         'name'         => $editorName,

@@ -168,7 +168,7 @@ window.MapLibreEngine = (() => {
         (gltf) => {
           const s = Number(m.scale) || 1;   // 公尺→麥卡托的換算已在 render() 的矩陣裡，這裡只放使用者給的倍率
           gltf.scene.scale.set(s, s, s);
-          // glTF 是 Y-up，麥卡托世界是「地面 XY、高度 Z」，先繞 X 轉正，水平朝向（管理員填的角度）
+          // glTF 是 Y-up，麥卡托世界是「地面 XY、高度 Z」，先繞 X 轉正，水平朝向（管理者填的角度）
           // 才能單純疊在轉正後的 Z 軸上，不會跟這個座標系轉正操作互相纏在一起
           gltf.scene.rotation.x = Math.PI / 2;
           gltf.scene.rotation.z = -(Number(m.rotationDeg) || 0) * Math.PI / 180;
@@ -577,7 +577,7 @@ window.MapLibreEngine = (() => {
       });
     }
 
-    // 排除機制見 api/regions3d.php 開頭的說明：清單是管理員存檔當下算好的靜態 id，這裡只是
+    // 排除機制見 api/regions3d.php 開頭的說明：清單是管理者存檔當下算好的靜態 id，這裡只是
     // 原樣套成 filter，不做任何即時查詢或重算——圖層建立當下就生效，訪客怎麼平移都一樣。
     _applyBuildingExclusion(excludedIds) {
       this.setBuildingExclusion('regions', excludedIds && excludedIds.length ? ['in', ['id'], ['literal', excludedIds]] : null);

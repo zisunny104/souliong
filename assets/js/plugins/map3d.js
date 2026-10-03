@@ -45,7 +45,7 @@
           this.activeEngine.setMarkerLayer('spots', this.mapApp.spotMarkerSpecs());
         }
       });
-      // 重新整理後回到 3D：首次 stateChange 時主引擎和點位都已就緒。只還原模式與傾斜／旋轉，
+      // 重新整理後回到 3D：首次 stateChange 時主引擎和地點都已就緒。只還原模式與傾斜／旋轉，
       // 不動中心與縮放，?spot= 之類的深連結照舊決定畫面位置
       const saved = this.loadState();
       if (saved) {

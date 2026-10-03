@@ -1,11 +1,11 @@
 <?php
-// 建立新的定位點。POST project, name(建立者暱稱), title, cat, catLabel, color, description, lat, lon, csrf(管理者模式)
+// 建立新的地點。POST project, name(建立者暱稱), title, cat, catLabel, color, description, lat, lon, csrf(管理者模式)
 //
-// 點位資料只有 spots.jsonl 一個來源：往裡附加一筆 kind:'spot' 起點
-// （無 edit_of，帶 num/title），前端讀取時把它併進點位清單（見 viewer.core.js
+// 地點資料只有 spots.jsonl 一個來源：往裡附加一筆 kind:'spot' 起點
+// （無 edit_of，帶 num/title），前端讀取時把它併進地點清單（見 viewer.core.js
 // 的 effectiveSpots()）。建立出來的點之後一樣能被管理者用 editspot.php 搬位置——那條路徑會
 // 找到這筆當 edit_of 的鏈頭。建立時填的說明（description）寫成起點紀錄 content 裡的一個 text 區塊，
-// 點位沒有獨立的說明欄位（區塊規則見 api/spotlib.php 的 spot_content_render()）。
+// 地點沒有獨立的說明欄位（區塊規則見 api/spotlib.php 的 spot_content_render()）。
 //
 // 權限跟 editspot.php 不同，是每張地圖自己決定的（meta.json 的 contrib.newSpot）：
 //   off（預設）  誰都不能建，端點直接 403——舊地圖不改設定檔就完全沒有這個功能
@@ -43,17 +43,17 @@ if (!souliong_module_on($meta, 'upload')) {
 }
 
 if ($who === 'admin') {
-    // 管理者建點是點位軸：edit_spots＋CSRF 同一道關卡（api/auth.php），身分為 Auth 解析出的 Actor。
+    // 管理者建點是地點軸：edit_spots＋CSRF 同一道關卡（api/auth.php），身分為 Auth 解析出的 Actor。
     Auth::require($cfg, $project, 'edit_spots', true, auth_msg('deny_create_spot'));
     $contributor = Contributor::fromRequest();
 } else {
     // contributor：訪客建點走投稿軸同一道關卡（停權名單 → bypass_code → 投稿代碼並計一次使用），
     // 跟 upload.php 共用 contrib_gate()——建點跟投稿是等價的寫入行為，限次的碼不能無限建點。
-    // 點位軸（建立地點）與投稿軸本應分開計算（docs/part4-coordination.md 血淚教訓 #1），這裡把兩者
+    // 地點軸（建立地點）與投稿軸本應分開計算（docs/part4-coordination.md 血淚教訓 #1），這裡把兩者
     // 接在一起只是現況尚未拆開（newSpot 全站目前皆為 off，等於沒在跑），之後處理訪客建點權限模型時再釐清。
     $contributor = contrib_gate($cfg, $project, '建立地點');
 }
-// 建立者身分：跟投稿記錄用同一組欄位，主辦者才能在後台認出「這個點是誰建的」，
+// 建立者身分：跟投稿紀錄用同一組欄位，主辦者才能在後台認出「這個地點是誰建的」，
 // 停權與刪除也才有東西可以對。管理者建的點這兩欄通常是 null。
 $ownerHash = $contributor->ownerHash();
 $contribId = $contributor->contribId();
@@ -109,7 +109,7 @@ try {
             'project'    => $project,
             'kind'       => 'spot',
             'num'        => $max + 1,
-            // item_num 跟 num 同值：投稿與座標編輯都是照 item_num 掛到點位上的，
+            // item_num 跟 num 同值：投稿與座標編輯都是照 item_num 掛到地點上的，
             // 建立點自己也填一份，之後查「這個點底下有什麼」不用分兩種寫法。
             'item_num'   => $max + 1,
             'title'      => $title,

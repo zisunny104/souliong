@@ -51,7 +51,7 @@
 }
 
 /* 脈衝光暈：有聲音內容的地點播放中（is-playing 由 viewer.core.js 依 <audio> 播放狀態切換），以及嵌入
-   橋接強調的點位（is-highlight，見 embed-bridge.js）共用同一組宣告。
+   橋接強調的地點（is-highlight，見 embed-bridge.js）共用同一組宣告。
    用 box-shadow 擴散半徑做，不是實心圓＋scale：::after 本身完全透明、只帶 box-shadow，陰影只會畫在
    盒子外面，不會蓋到盒子裡的圖示（實心圓 background 會蓋住，box-shadow 不會）。inset:0 讓光暈起點跟
    圓點邊緣完全貼合，不留空隙；擴散最大半徑抽成 --pulse-max 變數，sm/lg 只要覆寫這個數字，不用整組
