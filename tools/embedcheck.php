@@ -112,7 +112,7 @@ for ($i = 0; $i < 50 && !$up; $i++) {
     $s = @fsockopen('127.0.0.1', $port, $en, $es, 0.2);
     if ($s) { fclose($s); $up = true; }
 }
-if (!$up) { fwrite(STDERR, "內建伺服器起不來（port $port 被占用？）\n"); exit(1); }
+if (!$up) { fwrite(STDERR, "內建伺服器起不來（port $port 被佔用？）\n"); exit(1); }
 
 /** 回傳 [狀態碼, 標頭（小寫名稱 => 值陣列）, 原文]；不跟隨轉址。 */
 function ec_req(string $url, string $method = 'GET', array $headers = [], ?string $body = null): array {

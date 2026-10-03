@@ -9,7 +9,7 @@ $apiCfg = require __DIR__ . '/../api/config.php';
 $randomExplore = souliong_random_explore_on($apiCfg);
 [$LANG, $DICT] = i18n_init();
 $t = fn(string $key, array $vars = []): string => htmlspecialchars(i18n_t($DICT, $key, $vars), ENT_QUOTES);
-require_once __DIR__ . '/../api/routes.php';   // 網址表：掛載根目錄的算法只有這一份（見 api/routes.php）
+require_once __DIR__ . '/../api/routes.php';   // 網址表：掛載根目錄的演算法只有這一份（見 api/routes.php）
 require_once __DIR__ . '/../api/layers.php';   // 版權標註共用函式（souliong_credit_html 等）＋圖層解析
 $base = Route::base();
 

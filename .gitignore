@@ -36,3 +36,6 @@ Thumbs.db
 *.p12
 *.pfx
 /secrets/
+
+# 部署自我檢查的金絲雀檔
+.canary-selfcheck

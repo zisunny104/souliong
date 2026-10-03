@@ -1,10 +1,10 @@
 <?php
-// 主題包（面板材質／外框／字體）註冊表。跟 features.php 的模組開關不同：
+// 主題包（面板材質／外框／字型）註冊表。跟 features.php 的模組開關不同：
 // 這裡選的不是布林值，是「用哪一包」，所以檔案分開放，機制卻刻意跟模組系統同一套精神——
 // 註冊表就是資料夾本身，沒有中央 index 檔，新增一包只要新增一個資料夾。
 //
 // 一包最少要有 pack.json（給後台列表/匯出檔名用的中繼資料）跟 pack.css（真正的樣式，含材質、
-// 外框、字體）。pack.css 由 view.php 在既有的 base 主題 CSS 之後原樣 readfile() 進同一個
+// 外框、字型）。pack.css 由 view.php 在既有的 base 主題 CSS 之後原樣 readfile() 進同一個
 // <style> 區塊，純靠 cascade 順序覆寫、不需要 !important；沒選包時這個 readfile() 根本不會執行，
 // 因此舊專案（meta.json 沒有 pack 欄位）行為與拆分之前完全一致。素材一律用 CSS 內嵌的
 // data: URI（見 demo-loud 範例），不落地圖檔，所以不需要像 layers.php 那樣另開檔案端點。

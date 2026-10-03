@@ -21,14 +21,19 @@ fail() { echo "  ${RED}✗${RESET} $1"; }
 # 預設只檢查不代勞；明確加旗標才動檔案。只動 projects/、state/、api/config.php：
 # 目錄 2775（setgid，新檔繼承群組）、檔案 664、擁有者＝php-fpm 使用者；config.php 640（含機密，不給 other 讀）。
 # php-fpm 使用者：DEPLOY_WEB_USER 指定，否則從執行中的 php-fpm／apache／nginx 行程偵測。需要 root 或 sudo。
-FIX_PERMS=1; FIX_ONLY=0; DRY_RUN=0; AUTO=1
+FIX_PERMS=1; FIX_ONLY=0; DRY_RUN=0; AUTO=1; CHECK_ONLY=0
 for arg in "$@"; do
   case "$arg" in
     --fix-perms)      FIX_PERMS=1; AUTO=0 ;;
     --no-fix-perms)   FIX_PERMS=0 ;;
     --fix-perms-only) FIX_PERMS=1; FIX_ONLY=1; AUTO=0 ;;
     --dry-run)        DRY_RUN=1 ;;
-    -h|--help) echo "用法：./deploy.sh [--fix-perms-only] [--no-fix-perms] [--dry-run]"; exit 0 ;;
+    --check-only)     CHECK_ONLY=1; FIX_PERMS=0 ;;
+    -h|--help)
+      echo "用法：./deploy.sh [--fix-perms-only] [--no-fix-perms] [--check-only] [--dry-run]"
+      echo "  --check-only  不更新程式碼，只跑「設定與網站自我檢查」"
+      echo "環境變數：DEPLOY_BRANCH、DEPLOY_WEB_USER、DEPLOY_RELOAD_CMD、DEPLOY_CHECK_URL（網站對外網址，例：https://toka.dev/koilisu/souliong）"
+      exit 0 ;;
     *) fail "未知參數：$arg"; exit 2 ;;
   esac
 done
@@ -90,6 +95,149 @@ fix_perms() {
   echo
 }
 
+# ── 設定與網站自我檢查（部署後執行；也可單獨跑：./deploy.sh --check-only）──────────────
+CANARY_TEXT="souliong-selfcheck-canary-do-not-serve"
+CRIT=0
+
+# 向 $1 發 GET（不跟隨轉址、8 秒逾時），輸出「HTTP 狀態碼」與內容比對結果：
+#   exposed＝200 且內容是金絲雀；redirect＝3xx；unreach＝連不上；其他為狀態碼本身
+probe_canary() {
+  local tmp code
+  tmp="$(mktemp)"
+  code="$(curl -sS --max-time 8 --max-redirs 0 -o "$tmp" -w '%{http_code}' "$1" 2>/dev/null)" || code="000"
+  if [ "$code" = "000" ]; then echo "unreach"
+  elif [ "$code" = "200" ] && grep -qF "$CANARY_TEXT" "$tmp" 2>/dev/null; then echo "exposed"
+  else echo "$code"; fi
+  rm -f "$tmp"
+}
+
+NGINX_SNIPPET='    location ~ /(state|projects)/ { deny all; return 404; }
+    location ~ \.jsonl$ { deny all; return 404; }'
+
+selfcheck_web() {
+  local d f base url r exposed=0 notfound=0
+  # 金絲雀由腳本建立與維護（已在 .gitignore）；寫不進去就沒辦法測，不當成錯誤
+  for d in state projects; do
+    f="$d/.canary-selfcheck"
+    if [ -d "$d" ] && [ -w "$d" ]; then
+      [ "$(cat "$f" 2>/dev/null)" = "$CANARY_TEXT" ] || printf '%s' "$CANARY_TEXT" > "$f"
+    fi
+  done
+  if [ -z "${DEPLOY_CHECK_URL:-}" ]; then
+    warn "略過「敏感路徑可否被直接下載」檢查：未設定 DEPLOY_CHECK_URL（例：DEPLOY_CHECK_URL=https://toka.dev/koilisu/souliong ./deploy.sh）"
+    return 0
+  fi
+  if ! command -v curl >/dev/null 2>&1; then
+    warn "略過「敏感路徑可否被直接下載」檢查：找不到 curl"
+    return 0
+  fi
+  base="${DEPLOY_CHECK_URL%/}"
+  case "$base" in
+    https://*) ok "DEPLOY_CHECK_URL 使用 HTTPS" ;;
+    http://*)  warn "DEPLOY_CHECK_URL 是 http://：定位、相機與刪除判斷（crypto.subtle）都需要安全情境，全站請走 HTTPS" ;;
+    *)         warn "DEPLOY_CHECK_URL 要以 https:// 或 http:// 開頭：$base"; return 0 ;;
+  esac
+  for d in state projects; do
+    [ -f "$d/.canary-selfcheck" ] || { warn "$d/ 沒有金絲雀檔（目錄不可寫），略過這一項"; continue; }
+    url="$base/$d/.canary-selfcheck"
+    r="$(probe_canary "$url")"
+    case "$r" in
+      exposed)
+        exposed=1
+        fail "${BOLD}${RED}嚴重：$d/ 可被網頁直接下載${RESET}（$url 回 200 並送出檔案內容）" ;;
+      unreach)
+        warn "連不上 $url（逾時或網路不通），略過這一項" ;;
+      3??)
+        warn "$url 回 $r 轉址，腳本不跟隨；請把 DEPLOY_CHECK_URL 改成最終網址（例如直接用 https://）再測" ;;
+      *)
+        [ "$r" = 404 ] && notfound=1
+        ok "$d/ 無法被直接下載（回 $r）" ;;
+    esac
+  done
+  if [ "$exposed" -eq 1 ]; then
+    CRIT=1
+    echo "  ${BOLD}${RED}!!! projects/ 內有投稿代碼，state/ 內有明碼的管理 PIN 清單，任何人都能直接下載 !!!${RESET}"
+    echo "  ${BOLD}修法：${RESET}把下面兩條貼進 Nginx 的 server { } 區塊（與 listen／root 同一層），再執行 sudo nginx -t && sudo systemctl reload nginx："
+    echo "${YELLOW}${NGINX_SNIPPET}${RESET}"
+    echo "  ${DIM}完成後重跑 ./deploy.sh --check-only 確認；已外流的 PIN 與投稿代碼請一併更換${RESET}"
+  elif [ "$notfound" -eq 1 ]; then
+    echo "  ${DIM}（回 404 時，請確認 DEPLOY_CHECK_URL 指向的是本站，而不是別的站台）${RESET}"
+  fi
+}
+
+selfcheck_php_ini() {
+  [ "$HAS_PHP" -eq 1 ] || return 0
+  local out
+  # 取各投稿型別上限的最大值（影片 64 MB 等）；max_file_uploads 供切圖磚工具一批 16 張
+  out="$(php -r '
+    $b = static function ($k) { $v = trim((string)ini_get($k)); $m = ["k"=>1024,"m"=>1048576,"g"=>1073741824][strtolower(substr($v,-1))] ?? 1; $n = (int)((float)$v * $m); return $n > 0 ? $n : PHP_INT_MAX; };
+    $cfg = is_file("api/config.php") ? (require "api/config.php") : ["max_bytes" => 12 * 1048576];
+    require "api/features.php";
+    $need = (int)($cfg["max_bytes"] ?? 0);
+    foreach (souliong_kinds() as $d) if (!empty($d["file"])) $need = max($need, (int)($d["max_bytes"] ?? 0));
+    $mb = static fn($n) => $n === PHP_INT_MAX ? "不限" : (int)ceil($n / 1048576) . "M";
+    $w = [];
+    if ($b("upload_max_filesize") < $need) $w[] = "upload_max_filesize=" . $mb($b("upload_max_filesize")) . "（需 ≥ " . $mb($need) . "）";
+    if ($b("post_max_size") < $need) $w[] = "post_max_size=" . $mb($b("post_max_size")) . "（需 ≥ " . $mb($need) . "，建議多留幾 MB）";
+    if ((int)ini_get("max_file_uploads") < 20) $w[] = "max_file_uploads=" . ini_get("max_file_uploads") . "（需 ≥ 20，否則切圖磚工具一批 16 張會被無聲丟掉）";
+    echo implode("; ", $w);
+  ' 2>/dev/null || true)"
+  if [ -n "$out" ]; then
+    warn "PHP CLI 讀到的上傳設定偏小：$out"
+    echo "  ${DIM}CLI 與 PHP-FPM 的 php.ini 可能不同，FPM 請設 upload_max_filesize=64M、post_max_size=68M；Nginx 設 client_max_body_size 70m;${RESET}"
+  else
+    ok "PHP CLI 的上傳設定足夠（FPM 的 php.ini 與 Nginx client_max_body_size 70m 請另外確認）"
+  fi
+}
+
+run_selfcheck() {
+  step "設定與網站自我檢查"
+  echo "  ${DIM}密鑰與權限需要人判斷，腳本只檢查、不代勞${RESET}"
+  if [ ! -f api/config.php ]; then
+    fail "api/config.php 不存在——幾乎每一支 api/*.php 都會 require 它，整站目前無法運作"
+    echo "  ${DIM}手動執行：cp api/config.example.php api/config.php，再編輯填入 primary_pin／ip_salt，並把 trust_forwarded 設 true（Nginx 反代後）、debug 設 false${RESET}"
+    echo "  ${DIM}這一步刻意不自動做——自動產生等於用範本裡的預設密鑰上線，不安全${RESET}"
+  else
+    ok "api/config.php 存在"
+    if [ "$HAS_PHP" -eq 1 ]; then
+      CFG_WARN="$(php -r '
+        $c = require "api/config.php";
+        $w = [];
+        if (($c["primary_pin"] ?? "") === "CHANGE-ME") $w[] = "primary_pin 仍是範本預設值 CHANGE-ME，請改成不易猜的 PIN";
+        if (($c["ip_salt"] ?? "") === "CHANGE-ME-隨機鹽值") $w[] = "ip_salt 仍是範本預設值，請改成隨機字串";
+        if (($c["debug"] ?? false) === true) $w[] = "debug 是 true：錯誤會回傳內部細節，上線穩定後請設 false";
+        if (($c["trust_forwarded"] ?? false) === false) $w[] = "trust_forwarded 是 false：若前面有 Nginx 反代請設 true，否則所有訪客共用一個 IP，限流與統計會失準（直接對外、沒有反代則維持 false）";
+        foreach ((array)($c["default_layers"] ?? []) as $l) {
+          if (strpos((string)$l, "carto-") === 0) { $w[] = "default_layers 含已封存的 carto-*（$l），請改成 [\"paper-ink\"]"; break; }
+        }
+        echo implode("\n", $w);
+      ' 2>/dev/null || true)"
+      if [ -n "$CFG_WARN" ]; then
+        while IFS= read -r line; do warn "$line"; done <<< "$CFG_WARN"
+      else
+        ok "primary_pin／ip_salt／debug／trust_forwarded／default_layers 都已調整"
+      fi
+    fi
+  fi
+  local d
+  for d in projects state; do
+    if [ -d "$d" ] && [ -w "$d" ]; then
+      ok "$d/ 可寫（以目前執行者身分測試；php-fpm 執行者若是不同帳號，仍請另外確認）"
+    else
+      warn "$d/ 以目前執行者身分測試為不可寫：可執行 ./deploy.sh --fix-perms 自動修復（需 root／sudo）"
+    fi
+  done
+  selfcheck_php_ini
+  selfcheck_web
+}
+
+if [ "$CHECK_ONLY" -eq 1 ]; then
+  HAS_PHP=0; command -v php >/dev/null 2>&1 && HAS_PHP=1
+  run_selfcheck
+  [ "$CRIT" -eq 0 ]
+  exit $?
+fi
+
 if [ "$FIX_ONLY" -eq 1 ]; then
   fix_perms
   exit $?
@@ -147,12 +295,12 @@ else
   # 在 merge「之前」就檢查：把 FETCH_HEAD 的內容放到旁邊一個獨立 worktree 去跑 checkall，
   # 有錯就中止，線上的檔案完全沒動。merge 之後才發現，網站已經是壞的了。
   # authcheck／contentcheck 會自己另開臨時沙盒跑，但啟動時仍需要讀到 api/config.php
-  # （機密設定，没進版控），所以複製現有那份進 worktree，用完整個 worktree 一起丟棄，
+  # （機密設定，沒進版控），所以複製現有那份進 worktree，用完整個 worktree 一起丟棄，
   # 不會留下任何痕跡、也不會動到正式的 api/config.php。
   if [ "$HAS_PHP" -eq 1 ]; then
     if [ ! -f api/config.php ]; then
       fail "找不到 api/config.php，authcheck／contentcheck 無法啟動沙盒，部署已中止"
-      echo "  ${DIM}首次部署請先依下方「機密設定」的說明手動建立 api/config.php，再重新執行${RESET}"
+      echo "  ${DIM}首次部署請先手動執行 cp api/config.example.php api/config.php 並填入密鑰，再重新執行${RESET}"
       exit 1
     fi
     WT="$(mktemp -d)"
@@ -197,43 +345,7 @@ fi
 
 echo
 if [ "$FIX_PERMS" -eq 1 ]; then fix_perms || true; fi
-step "機密設定與可寫目錄"
-echo "  ${DIM}改密鑰、改權限都需要人判斷，腳本只檢查、不代勞${RESET}"
-if [ ! -f api/config.php ]; then
-  fail "api/config.php 不存在——幾乎每一支 api/*.php 都會 require 它，整站目前無法運作"
-  echo "  ${DIM}手動執行：cp api/config.example.php api/config.php，再編輯填入 primary_pin／ip_salt 等機密值${RESET}"
-  echo "  ${DIM}這一步刻意不自動做——自動產生等於用範本裡的預設密鑰上線，不安全${RESET}"
-else
-  ok "api/config.php 存在"
-  if [ "$HAS_PHP" -eq 1 ]; then
-    CFG_WARN="$(php -r '
-      $c = require "api/config.php";
-      $w = [];
-      if (($c["primary_pin"] ?? "") === "CHANGE-ME") $w[] = "primary_pin 仍是範本預設值 CHANGE-ME";
-      if (($c["ip_salt"] ?? "") === "CHANGE-ME-隨機鹽值") $w[] = "ip_salt 仍是範本預設值";
-      if (($c["debug"] ?? false) === true) $w[] = "debug 仍是 true，上線穩定後建議設 false（否則錯誤會回傳內部細節）";
-      if (($c["trust_forwarded"] ?? false) === false) $w[] = "trust_forwarded 是 false——若這台伺服器前面有 Nginx 反代請設 true，否則所有訪客會共用一個 IP（限流、統計都會失準）";
-      foreach ((array)($c["default_layers"] ?? []) as $l) {
-        if (strpos((string)$l, "carto-") === 0) { $w[] = "default_layers 含已封存的 carto-*（$l），建議改用 paper-ink 或 openfreemap-liberty"; break; }
-      }
-      echo implode("\n", $w);
-    ' 2>/dev/null || true)"
-    if [ -n "$CFG_WARN" ]; then
-      while IFS= read -r line; do warn "$line"; done <<< "$CFG_WARN"
-    else
-      ok "primary_pin／ip_salt／debug／trust_forwarded／default_layers 都不是預設值"
-    fi
-  fi
-fi
-for d in projects state; do
-  if [ -d "$d" ] && [ -w "$d" ]; then
-    ok "$d/ 可寫（以目前執行者身分測試；php-fpm 執行者若是不同帳號，仍請另外確認）"
-  else
-    warn "$d/ 以目前執行者身分測試為不可寫：可執行 ./deploy.sh --fix-perms 自動修復（需 root／sudo）"
-  fi
-done
-echo "  ${DIM}系統層級設定與備份由維運者另行確認${RESET}"
-
+run_selfcheck
 echo
 echo "${DIM}------------------------------------------------------------${RESET}"
 step "部署完成"
@@ -243,3 +355,4 @@ if [ "$HAS_PHP" -eq 1 ]; then
 fi
 echo "  目前 commit：${BOLD}$(git rev-parse --short HEAD)${RESET}"
 echo "  完成時間：${DIM}$(date '+%Y-%m-%d %H:%M:%S')${RESET}"
+[ "$CRIT" -eq 0 ] || { echo; fail "自我檢查有嚴重問題（見上方 ✗），請先處理"; exit 1; }

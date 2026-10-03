@@ -39,7 +39,7 @@ function souliong_og_truncate(string $s, int $len = 200): string
 
 /**
  * 解析 ?spot=<spotId|num>：委派給 api/spotlib.php 的 spot_effective_by_ref()，跟 editspot.php／
- * spotcontent.php 共用同一套「起點＋edit_of 鏈取最新覆寫」算法。回傳 null 表示這個點位
+ * spotcontent.php 共用同一套「起點＋edit_of 鏈取最新覆寫」演算法。回傳 null 表示這個點位
  * 不存在（回退到專案預設卡）。
  */
 function souliong_og_resolve_spot(array $apiCfg, string $project, $ref): ?array

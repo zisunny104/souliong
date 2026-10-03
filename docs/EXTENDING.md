@@ -22,12 +22,12 @@ license, owner_hash, src_hash, contrib_id, contrib_hash, edit_of, created_at
 
 ## 二、新增一張地圖（完全不用改程式）
 
-1. 建 `projects/<新id>/meta.json` 與點位 JSON（參考 `projects/100chairs/`）。
-2. 要開放投稿就到後台建一組投稿代碼（碼即開關，見 `api/security.php` 的 `contrib_open()`）。
-3. 進入方式：`/koilisu/souliong/<新id>`；`souliong/` 首頁會自動列出它。
+1. 用 `<base>/newproject` 建立（主 PIN），或手動建 `projects/<新id>/meta.json`。
+2. 點位寫在 `projects/<新id>/spots.jsonl`（kind:`spot`），由「建立地點」（`api/newspot.php`）新增，見 3.6 節。
+3. 要開放投稿就到後台建一組投稿代碼（碼即開關，見 `api/security.php` 的 `contrib_open()`）。
+4. 進入方式：`/koilisu/souliong/<新id>`；`souliong/` 首頁會自動列出它。
 
-點位 JSON 每筆：`num, theme, area, chair, material, lat, lon, cat, catLabel, color`
-（非椅子主題可自訂欄位；`spotSub()` 會退回 `sub` 欄位。）
+點位記錄欄位：`num, item_num, title, cat, catLabel, color, lat, lon, content`（非椅子主題可自訂欄位；`spotSub()` 會退回 `sub` 欄位。）
 
 ## 三、投稿型別（kind）：一個殼 ＋ 一組型別檔
 
@@ -139,12 +139,11 @@ license, owner_hash, src_hash, contrib_id, contrib_hash, edit_of, created_at
   `kind:'spot'`、帶 `edit_of` 指回起點的 `id` 的記錄。可覆寫欄位只有 `lat`／`lon`／`content`
   （單一清單見 `spot_overridable_fields()`），伺服器端用 `spot_effective()` 算出目前有效狀態，再以
   `spot_append_version()` 寫一筆稀疏版本紀錄：只帶這次改的欄位，沒提到的欄位不寫、也不會被蓋掉。
-  寫入前會掃 `spots.jsonl` 找同 `item_num` 的起點記錄來解析 `edit_of`；找不到（點位來自靜態底稿
-  `chairs.json`／`points.json`，從沒被建立過 `spot` 記錄）就把 `edit_of` 留空，退回用 `item_num`
-  取最新一筆覆蓋——這是唯一沒辦法納入 `edit_of` 鏈的情況，因為靜態底稿的點位天生沒有 jsonl id 可指。
+  寫入前會掃 `spots.jsonl` 找同 `item_num` 的起點記錄來解析 `edit_of`；找不到起點記錄就把 `edit_of` 留空，
+  退回用 `item_num` 取最新一筆覆蓋——這是唯一沒辦法納入 `edit_of` 鏈的情況。
 - **`effectiveSpots()`**（`viewer.core.js`，即原本的 `effectivePoints()`）比照 `effectiveEntries()`
   的 origins/edits 分組演算法：有 `title` 的是起點，`edit_of` 指向它的是版本鏈，取最新一筆疊加顯示；
-  沒有起點可循的（`item_num` 覆蓋那批）疊到靜態底稿對應 `num` 上。
+  沒有起點可循的（`item_num` 覆蓋那批）疊到對應 `num` 的起點上。
 
 **`content` 是點位自己的原生內容**：投稿（`entries.jsonl`）與點位（`spots.jsonl`）是兩個平行的域，
 點位記錄不指向任何投稿。`content` 是型別標記物件的陣列（目前有 `text`、`audio`、`photo`，形狀刻意設計成可擴充），
@@ -180,7 +179,7 @@ license, owner_hash, src_hash, contrib_id, contrib_hash, edit_of, created_at
 `kind`（`point`／`newpoint` 改寫為 `spot`）、`edit_of`（遷移時對這些記錄新增的欄位，原本沒有）、
 `feature`（舊版部分專案遷移時對 `spot` 起點記錄回填的欄位，系統已不再讀寫它，比對時忽略）。
 
-**程序**：執行 `php tools/retirecheck.php <project_dir>`（唯讀、CLI only，不寫入也不刪除任何東西）。
+**步驟**：執行 `php tools/retirecheck.php <project_dir>`（唯讀、CLI only，不寫入也不刪除任何東西）。
 報告 PASS 才手動刪除該專案的 `data.jsonl`——刪除動作永遠由人工執行，這支工具不會替你刪。
 
 **範圍**：這裡列的三項只涵蓋這次 `spot`／`entries` 重構本身淘汰的機制。專案裡其他既有的相容／
@@ -657,7 +656,9 @@ MapLibre 沒有 Leaflet 的「pane／可疊多張獨立底圖」概念，向量 
 
 ## 十二、檢查工具
 
-`php tools/checkall.php` 依序跑 `php -l`（全專案 php，不含 `vendor`／`projects`／`state`）、`authlint`、`authcheck`、`contentcheck`；環境有 `node` 時再對 `assets/js` 跑 `node --check`。全過結束碼 0，任一項失敗結束碼 1，最後列出每項結果與失敗摘要。`authcheck` 與 `contentcheck` 在臨時沙盒跑，不碰真實的 `projects/` 與 `state/`。改動端點、權限或前端腳本後跑一次。
+`php tools/checkall.php` 依序跑 `php -l`（全專案 php，不含 `vendor`／`projects`／`state`）、`authlint`、`authcheck`、`contentcheck`、`embedcheck`、`securitycheck`；環境有 `node` 時再對 `assets/js` 跑 `node --check`。全過結束碼 0，任一項失敗結束碼 1，最後列出每項結果與失敗摘要。`authcheck` 與 `contentcheck` 在臨時沙盒跑，不碰真實的 `projects/` 與 `state/`。改動端點、權限或前端腳本後跑一次。
+
+部署用 `./deploy.sh`（`--check-only` 只做設定與網站自我檢查，包含用金絲雀檔確認 `state/`、`projects/` 沒有被網頁直接下載；需設環境變數 `DEPLOY_CHECK_URL`），其檢查邏輯用 `bash tools/deploycheck.sh` 驗證。
 
 ## 十三、權限系統：`Auth` / `Actor` / `auth_registry()`
 
