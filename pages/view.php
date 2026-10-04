@@ -437,6 +437,7 @@ window.maplibregl = maplibregl;
 <?php if ($primaryEngine === 'maplibre' || $mod('map3d')): ?>
 <script src="<?= $assetUrl('assets/js/engine/maplibre-engine.js') ?>"></script>
 <?php endif; ?>
+<script src="<?= $assetUrl('assets/js/marker-colors.js') ?>"></script>
 <script src="<?= $assetUrl('assets/js/viewer.core.js') ?>"></script>
 <?php if ($bare): ?>
 <script src="<?= $assetUrl('assets/js/embed-bridge.js') ?>"></script>

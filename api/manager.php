@@ -8,6 +8,7 @@ require_once __DIR__ . '/features.php';
 require_once __DIR__ . '/packs.php';
 require_once __DIR__ . '/layers.php';     // 地圖圖層註冊表（底圖／疊圖），形狀同 packs.php
 require_once __DIR__ . '/labellang.php';
+require_once __DIR__ . '/markercolors.php';
 require_once __DIR__ . '/spotlib.php';     // spot_kind_normalize()／spotId 判斷
 require_once __DIR__ . '/embedorigins.php';   // 允許嵌入的來源清單解析與驗證（CORS／frame-ancestors／postMessage 共用）
 require_once __DIR__ . '/regions3d.php';  // 3D 自訂模型區域註冊表，形狀同上，見 api/region3d.php
@@ -704,6 +705,15 @@ if (!$authed) {
             $psz = (string)($_POST['pinSize'] ?? '');
             $meta['pinSize'] = in_array($psz, ['sm', 'lg'], true) ? $psz : 'md';
             $meta['pinBorder'] = isset($_POST['pinBorder']);
+            if (isset($_POST['badgeColor'])) $meta['badgeColor'] = souliong_hex_color($_POST['badgeColor'], '#c0392b');
+            if (isset($_POST['categoryColors']) && is_array($_POST['categoryColors'])) {
+              foreach ($_POST['categoryColors'] as $catKey => $catColor) {
+                $catKey = (string)$catKey;
+                if (!is_string($catKey) || !preg_match('/^[a-z0-9_-]{1,64}$/D', $catKey) || $catKey === 'new') continue;
+                if (!is_string($catColor) || !preg_match('/^#[0-9a-f]{6}$/iD', $catColor)) continue;
+                $meta['categoryColors'][$catKey] = strtolower($catColor);
+              }
+            }
           }
           // 功能模組開關：checkbox 沒勾就不會出現在 $_POST，所以「沒出現」＝關閉（非「保留原值」）
           if (isset($_POST['features']) || isset($_POST['modules_submitted'])) {
@@ -3587,6 +3597,12 @@ if (!$authed) {
                 $pinMarkHasImg = cover_file_of(project_dir($cfg, $p) . '/pinmark') !== null;
                 $pinMarkCur = in_array($meta['pinMark'] ?? '', ['blank', 'shape', 'image'], true) ? $meta['pinMark'] : 'number';
                 $pinSizeCur = in_array($meta['pinSize'] ?? '', ['sm', 'lg'], true) ? $meta['pinSize'] : 'md';
+                $markerCategories = [];
+                foreach (spot_effective_all($cfg, $p) as $markerSpot) {
+                  $catKey = (string)($markerSpot['cat'] ?? '');
+                  if ($catKey === '' || $catKey === 'new' || !preg_match('/^[a-z0-9_-]{1,64}$/D', $catKey)) continue;
+                  if (!isset($markerCategories[$catKey])) $markerCategories[$catKey] = $markerSpot;
+                }
               ?>
               <details class="metasec">
                 <summary><span class="metasec-title"><i class="fa-solid fa-location-dot"></i> <?= $t('marker_appearance_heading') ?> <i class="fa-solid fa-chevron-down metasec-chevron" aria-hidden="true"></i></span></summary>
@@ -3620,6 +3636,16 @@ if (!$authed) {
                     <input type="checkbox" name="pinBorder" <?= ($meta['pinBorder'] ?? true) ? 'checked' : '' ?>>
                     <span><?= $t('field_pinborder_label') ?></span>
                   </label>
+                  <label><?= $t('field_badgecolor_label') ?>
+                    <input type="color" name="badgeColor" value="<?= $esc(souliong_hex_color($meta['badgeColor'] ?? null, '#c0392b')) ?>">
+                  </label>
+                  <div class="hint"><?= $t('badgecolor_hint') ?></div>
+                  <div class="hint"><?= $t('uncategorized_color_hint') ?></div>
+                  <?php foreach ($markerCategories as $catKey => $markerSpot): ?>
+                  <label><?= $t('field_categorycolor_label') ?> · <?= $esc($markerSpot['catLabel'] ?? $catKey) ?>
+                    <input type="color" name="categoryColors[<?= $esc($catKey) ?>]" value="<?= $esc(souliong_spot_color($meta, $markerSpot)) ?>">
+                  </label>
+                  <?php endforeach; ?>
                 </div>
               </details>
 

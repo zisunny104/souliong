@@ -43,7 +43,7 @@
         getState: this.getState, getSpots: this.getSpots, resetView: this.resetView, setView: this.setView,
         flyTo: this.flyTo, zoomAbout: this.zoomAbout, fitSpots: this.fitSpots, highlight: this.highlight,
         dimOthers: this.dimOthers, setMarkers: this.setMarkers, setTheme: this.setTheme, snapshot: this.snapshot,
-        scene: this.scene_, skip: this.skip, cancel: this.cancel, setLabels: this.setLabels, setLayer: this.setLayer,
+        scene: this.scene_, skip: this.skip, cancel: this.cancel, setDisplay: this.setDisplay, setLabels: this.setLabels, setLayer: this.setLayer,
       }));
       this.motion = new Set(['resetView', 'setView', 'flyTo', 'zoomAbout', 'fitSpots', 'scene', 'skip', 'cancel']);
       this.scene = null;               // 目前場景（進行中，或已抵達並維持終點）
@@ -130,7 +130,7 @@
       if (!fn) return this.reply(job, 'error', { code: 'unknown_command', message: 'unknown command: ' + String(msg.type).slice(0, 40) });
       try {
         if (this.motion.has(msg.type) || msg.type === 'snapshot') this.needMapLibre();
-        else if (!this.supported && !['getState', 'getSpots', 'setTheme'].includes(msg.type)) this.needMapLibre();
+        else if (!this.supported && !['getState', 'getSpots', 'setTheme', 'setDisplay'].includes(msg.type)) this.needMapLibre();
         const result = await fn.call(this, job, msg);
         if (result !== NOREPLY) this.reply(job, 'done', Object.assign({ state: job.state || 'completed' }, this.cameraInfo(), result === undefined ? {} : { result }));
       } catch (err) {
@@ -407,7 +407,7 @@
       const base = Object.assign({
         project: APP.project, engine: this.engine.type, theme: document.documentElement.dataset.theme || 'auto',
         spotCount: this.spots().length, highlight: this.state.hl && this.state.hl.id, markers: this.state.markers.mode,
-        dimmed: !!this.state.dim,
+        dimmed: !!this.state.dim, display: this.app.getDisplay(),
       }, this.cameraInfo());
       if (m) {
         const b = m.getBounds();
@@ -539,6 +539,14 @@
       if (msg.scale != null) { if (!isNum(msg.scale)) throw bad('scale must be a number'); scale = clamp(msg.scale, .2, 2); }
       this.state.dim = (opacity === 1 && scale === 1) ? null : { opacity, scale };
       this.applyState();
+    }
+
+    setDisplay(job, msg) {
+      if (typeof msg.spots !== 'boolean' && typeof msg.contributions !== 'boolean') throw bad('spots or contributions boolean required');
+      for (const key of ['spots', 'contributions']) {
+        if (msg[key] !== undefined && typeof msg[key] !== 'boolean') throw bad(key + ' must be boolean');
+      }
+      return this.app.setDisplay(msg);
     }
 
     setMarkers(job, msg) {

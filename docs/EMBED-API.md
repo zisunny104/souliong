@@ -126,6 +126,8 @@ GET <站台>?api=spots&project=<slug>
 | `bg` | `transparent`、`theme` | `theme` | 見下方說明 |
 | `theme` | `light`、`dark`、`auto` | 不指定 | 色彩模式；不指定時沿用預設行為（跟隨系統） |
 | `layer` | 圖層 id | 專案預設 | 必須是該專案已啟用的底圖圖層，否則忽略 |
+| `spots` | `0`、`1` | `1` | 顯示點位標記；`0` 隱藏點位，仍可用 spotId 控制鏡頭 |
+| `contributions` | `0`、`1` | `1` | 顯示投稿縮圖與投稿數量角標；`0` 隱藏這些顯示，不刪除投稿 |
 | `labels` | `0`、`1` | `1` | `0` 在執行期隱藏底圖的文字標籤（點位標記除外） |
 
 `bg=transparent` 的限制：它只影響底圖載入前的背景色與背景圖層，土地與水體的填色仍會繪出，**不保證整體透明**。需要與父頁融合時，請搭配 `layer`／`labels` 與父頁的版面處理。
@@ -207,6 +209,7 @@ GET <站台>?api=spots&project=<slug>
 | `setMarkers` | `mode: "all"\|"dots"\|"none"\|"only"`、`spotIds?` | 控制點位標記顯示 |
 | `setTheme` | `theme` | `light`、`dark`、`auto` |
 | `setLayer` | `layer` | 只能在專案已啟用的向量底圖圖層之間切換 |
+| `setDisplay` | `spots`、`contributions`（至少一個布林） | 獨立切換點位與投稿顯示，兩個引擎皆支援；不修改專案設定。`getState` 的 `display` 回報目前值 |
 | `setLabels` | `labels` | 布林，顯示或隱藏底圖文字標籤 |
 | `snapshot` | `width, height, mime` | `mime` 為 `image/png`、`image/jpeg`、`image/webp`；`done.result` 為 `{dataUrl, width, height, mime}`；邊長上限 4096 |
 

@@ -15,6 +15,7 @@
 require_once __DIR__ . '/store.php';
 require_once __DIR__ . '/security.php';
 require_once __DIR__ . '/spotlib.php';
+require_once __DIR__ . '/markercolors.php';
 require_once __DIR__ . '/oglib.php';
 require_once __DIR__ . '/layers.php';
 require_once __DIR__ . '/navlinks.php';
@@ -85,7 +86,8 @@ function dataapi_layers(array $cfg, array $meta, string $slug): array
     $out = [];
     foreach (souliong_layers_public($cfg, $meta, $slug, Route::base()) as $l) {
         $isVector = ($l['type'] ?? '') === 'vector';
-        $row = ['id' => (string)($l['id'] ?? ''), 'type' => $isVector ? 'vector-style' : 'raster'];
+        $row = ['id' => (string)($l['id'] ?? ''), 'type' => $isVector ? 'vector-style' : 'raster',
+            'label' => (string)($l['label'] ?? $l['id'] ?? ''), 'pane' => (string)($l['pane'] ?? 'art')];
         if ($isVector) {
             $row['styleUrl'] = dataapi_abs_url((string)($l['url'] ?? ''));
             if (!empty($l['urlDark'])) $row['styleUrlDark'] = dataapi_abs_url((string)$l['urlDark']);
@@ -137,7 +139,7 @@ function dataapi_cats(array $cfg, array $meta, string $slug): array
     foreach (spot_effective_all($cfg, $slug) as $s) {
         $k = (string)($s['cat'] ?? '');
         if ($k === '' || isset($seen[$k])) continue;
-        $seen[$k] = ['key' => $k, 'label' => (string)($s['catLabel'] ?? $k), 'color' => (string)($s['color'] ?? '')];
+        $seen[$k] = ['key' => $k, 'label' => (string)($s['catLabel'] ?? $k), 'color' => souliong_spot_color($meta, $s)];
     }
     $out = [];
     foreach ((array)($meta['categoryOrder'] ?? []) as $k) {

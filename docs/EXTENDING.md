@@ -722,3 +722,10 @@ MapLibre 沒有 Leaflet 的「pane／可疊多張獨立底圖」概念，向量 
 - `$gateLayers($lp, $denyKey, $back)`：圖層／主題包動作專用——全站層（`$lp===''`）歸 `manage_layers`，專案層歸該專案的 `edit_layers`，權限跟著「這個圖層／主題包實際住在哪裡」走，不是「誰在操作」。`packimport`／`packdelete`、`layerimport`／`layerdelete` 都呼叫它。
 
 `$canProject`／`$canMeta`／`$canLayers`／`$canContrib`／`$canBackup` 是渲染用的唯讀判斷（底層就是 `Auth::can()` 或 `isMember()`），決定要不要畫某個區塊／按鈕。**`$canProject` 只判斷是否為該專案成員，不是動作門檻**——實際放行一律另外呼叫 `$gate`／`$gateLayers`／`Auth::can()`，不會只憑 `$canProject` 就讓動作通過。
+
+
+### 地圖標記配色
+
+專案後台「標記外觀」可設定分類顏色（`meta.categoryColors`，分類代號對應 `#rrggbb`）與投稿數量角標底色（`meta.badgeColor`，預設 `#c0392b`）。分類配色只影響顯示，不改寫既有投稿紀錄；無分類或預設 `new` 點位固定使用中性灰 `#7a7f87`。篩選單一投稿者時，角標沿用該投稿者的顏色，文字保持白色。自訂圖片標記仍使用原圖片，不重新染色。
+
+嵌入地圖預設同時顯示點位和投稿。`spots=0` 隱藏地標，`contributions=0` 同時隱藏獨立投稿標記與數量角標。外部網站也可透過 postMessage 的 `setDisplay` 指令獨立切換；只影響該次嵌入顯示，不修改地圖資料。

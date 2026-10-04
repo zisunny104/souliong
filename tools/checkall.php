@@ -73,6 +73,8 @@ if ($nodeCode === 0) {
     $results[] = ["node --check（$n 個檔案）", $c, $o];
     [$c, $o] = checkall_run('node tools/securitycheck.js', $root);
     $results[] = ['securitycheck.js', $c, $c === 0 ? '' : $o];
+    [$c, $o] = checkall_run('node tools/markercolorcheck.js', $root);
+    $results[] = ['markercolorcheck.js', $c, $c === 0 ? '' : $o];
 } else {
     echo "（略過 node --check：找不到 node）\n";
 }

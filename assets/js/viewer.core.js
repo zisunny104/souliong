@@ -25,8 +25,18 @@ window.MapApp = (() => {
     view: pick(params.get('view'), ['meta', 'fit', 'none'], BARE ? 'meta' : 'fit'),
     layer: /^[\w-]{1,64}$/.test(params.get('layer') || '') ? params.get('layer') : '',   // 須是專案已啟用的底圖，否則忽略
     labels: params.get('labels') !== '0',
+    spots: params.get('spots') !== '0',
+    contributions: params.get('contributions') !== '0',
   } : null;
   const VIEW_MODE = EMBED_UI ? EMBED_UI.view : 'fit';
+  let showSpots = !EMBED_UI || EMBED_UI.spots;
+  let showContributions = !EMBED_UI || EMBED_UI.contributions;
+  function setDisplay(display) {
+    if (typeof display.spots === 'boolean') showSpots = display.spots;
+    if (typeof display.contributions === 'boolean') showContributions = display.contributions;
+    if (engine) { renderSpots(); renderContribLayer(); emitHook('stateChange'); }
+    return { spots: showSpots, contributions: showContributions };
+  }
   // 瀏覽器儲存可能被封鎖或丟例外（第三方 iframe、無痕）：一律走這兩個函式
   const lsGet = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
@@ -666,7 +676,7 @@ window.MapApp = (() => {
       });
       eff.content = asBlocks(eff.content);
       return {
-        ...eff, cat: o.cat || 'new', color: o.color || '#7a7f87',
+        ...eff, cat: o.cat || 'new', color: SouliongMarkerColors.spot(META, o),
         addedBy: o.name, addedAt: o.created_at,
         posEdited: eff.lat !== o.lat || eff.lon !== o.lon, origLat: o.lat, origLon: o.lon,
         contentVersions, contentRev,
@@ -697,7 +707,8 @@ window.MapApp = (() => {
   // pinSize：圓點直徑——sm/lg 對應 CSS 的 .sl-sz-sm/.sl-sz-lg 修飾類別，沒設或非白名單值就是預設 24px
   const PIN_SIZE_PX = { sm: 18, lg: 32 };
   function spotIcon(c, count, badgeColor) {
-    const badge = count ? '<div class="badge"' + (badgeColor ? ' style="background:' + badgeColor + '"' : '') + '>' + count + '</div>' : '';
+    const badgeBg = SouliongMarkerColors.badge(META, badgeColor);
+    const badge = count ? '<div class="badge" style="background:' + badgeBg + '">' + count + '</div>' : '';
     const sizeCls = META.pinSize === 'sm' ? ' sl-sz-sm' : META.pinSize === 'lg' ? ' sl-sz-lg' : '';
     // pinBorder：白色外框開關，沒設過就預設為 true
     const borderCls = META.pinBorder === false ? ' sl-noborder' : '';
@@ -737,10 +748,11 @@ window.MapApp = (() => {
       badgeColor = personColor(filterPerson);
     }
     const specs = [];
+    if (!showSpots) return specs;
     effectiveSpots().forEach(c => {
       if (active[c.cat] === false) return;
       const count = personCounts ? (personCounts[c.num] || 0) : (counts[c.num] || 0);
-      const icon = spotIcon(c, count, badgeColor);
+      const icon = spotIcon(c, showContributions ? count : 0, badgeColor);
       specs.push({
         id: c.num, lat: c.lat, lon: c.lon, html: icon.html, size: icon.size, anchor: icon.anchor,
         color: c.color || '#888',
@@ -767,7 +779,7 @@ window.MapApp = (() => {
     return { size: [sz, sz], anchor: [half, half], html: html };
   }
   function renderContribLayer() {
-    if (!photoLayerOn) { engine.clearMarkerLayer('contrib'); return; }
+    if ((!EMBED && !photoLayerOn) || !showContributions) { engine.clearMarkerLayer('contrib'); return; }
     const thumb = engine.getZoom() >= THUMB_ZOOM;
     const specs = [];
     effectiveEntries().forEach(e => {
@@ -1703,7 +1715,7 @@ window.MapApp = (() => {
       dark: isDark(), manifests: layerManifests(),
     });
     engine.mountControls({ zoomPosition: 'bottomleft', attributionPosition: 'bottomright', opButtons: [{ el: document.getElementById('resetBtn') }] });
-    engine.onZoomThresholdCross(THUMB_ZOOM, () => { if (photoLayerOn) renderContribLayer(); });
+    engine.onZoomThresholdCross(THUMB_ZOOM, () => { if (EMBED || photoLayerOn) renderContribLayer(); });
 
     buildLegend();
     renderSpots();
@@ -2128,6 +2140,7 @@ window.MapApp = (() => {
     can, registerSpotContent,
     rerollAnon, identityChipClick,
     spotOptionsHtml, nearestSpot, locNote, srcTone, fmtTime,
+    setDisplay, getDisplay: () => ({ spots: showSpots, contributions: showContributions }),
     getMeta: () => META, getCats: () => CATS.slice(),
     refreshCounts: recount, refreshAll, refreshCurrentSpot, reloadContributions: loadContributions,
     Plugin: SouliongPlugin,
