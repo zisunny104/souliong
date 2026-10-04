@@ -17,6 +17,7 @@ window.MapApp = (() => {
   // 嵌入參數（僅 embed=1 有效）。bare＝純地圖，控制由 assets/js/embed-bridge.js 負責，核心只讀這份旗標。
   const pick = (v, allowed, fallback) => (allowed.includes(v) ? v : fallback);
   const BARE = EMBED && params.get('ui') === 'bare';
+  const SUBMIT = EMBED && params.get('ui') === 'submit';   // 嵌入的投稿對話框：嵌入裡唯一可以投稿的模式
   const EMBED_UI = EMBED ? {
     bare: BARE,
     interactive: BARE && params.get('interactive') === '1',
@@ -260,7 +261,7 @@ window.MapApp = (() => {
   let codeStillValid = true;
   function storedCode() { try { return localStorage.getItem('uploadCode_' + PROJECT) || ''; } catch (e) { return ''; } }
   function isUnlocked() { return can('bypass_code') || !!(APP.contributionAccess && APP.contributionAccess.open) || (!!APP.gated && !!storedCode() && codeStillValid); }
-  function canPost() { return !EMBED && MOD('upload') && isUnlocked(); }
+  function canPost() { return (!EMBED || SUBMIT) && MOD('upload') && isUnlocked(); }
   // 建立點位跟投稿是兩條軸：管理者專屬時看編輯點位權限，開放時比照投稿條件；唯讀地圖（關閉上傳）一律不能建立
   function canCreateSpot() {
     if (EMBED || !MOD('upload')) return false;
@@ -1893,7 +1894,7 @@ window.MapApp = (() => {
     if (pinBtn) pinBtn.onclick = pinSubmit;
     const pinInputEl = document.getElementById('pinInput');
     if (pinInputEl) pinInputEl.addEventListener('keydown', e => { if (e.key === 'Enter') pinSubmit(); });
-    if (params.get('code') && !EMBED && MOD('upload')) {
+    if (params.get('code') && (!EMBED || SUBMIT) && MOD('upload')) {
       const c = params.get('code');
       params.delete('code');
       const qs = params.toString();
@@ -2137,7 +2138,7 @@ window.MapApp = (() => {
     getEngine: () => engine,
     getFilterPerson: () => filterPerson, isPhotoLayerOn: () => photoLayerOn,
     getCurrentSpot: () => current,
-    isUnlocked, isEmbedMode: () => EMBED, embedOpts: () => EMBED_UI, applyTheme,
+    isUnlocked, isEmbedMode: () => EMBED, isSubmitEmbed: () => SUBMIT, embedOpts: () => EMBED_UI, applyTheme,
     canTogglePreview: canPreview, isPreviewMode: () => PREVIEW_MODE, setPreviewMode,
     hasIdentity: () => !!contribToken(),
     trackFeature: feature, currentScopeParams, getProjectId: () => PROJECT,

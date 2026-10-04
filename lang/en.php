@@ -41,6 +41,7 @@ return [
     'contrib_fab_create'   => 'Create',
     'admin_settings_btn'   => 'Open admin settings',
     'contrib_fab'          => 'Contribute',
+    'embed_submit_closed'    => 'Contributions are not open right now.',
     'unlock_contrib'       => 'Unlock submissions',
     'close'                => 'Close',
     'expand_panel'         => 'Expand to large card',

@@ -191,7 +191,7 @@
         btn.onclick = () => this.switchTab(btn.dataset.tab);
       });
 
-      if (!this.mapApp.isEmbedMode()) {
+      if (!this.mapApp.isEmbedMode() || this.submitEmbed()) {
         const pick = document.getElementById('pickImages');   // 只有投稿對話框有
         const uploadBtn = this.$('fab');
         if (uploadBtn) uploadBtn.onclick = () => { this.modalContext = null; this.resetQueue(); this.openModal(null); };
@@ -200,8 +200,10 @@
         if (pick) pick.onchange = e => { this.addFiles(Array.from(e.target.files)); };
         const submitAllBtn = this.$('submit');
         if (submitAllBtn) submitAllBtn.onclick = () => this.submitAll();
-        if (this.tabs.length && this.scope === 'contrib') this.mapApp.registerShortcut({ key: 'U', label: t('shortcut_upload') });
+        if (this.tabs.length && this.scope === 'contrib' && !this.submitEmbed()) this.mapApp.registerShortcut({ key: 'U', label: t('shortcut_upload') });
       }
+
+      if (this.scope === 'contrib' && this.submitEmbed()) this.mountSubmitEmbed();
 
       if (this.scope === 'contrib') document.addEventListener('keydown', e => {
         const tag = (e.target && e.target.tagName) || '';
@@ -210,6 +212,41 @@
         if (this.mapApp.isUnlocked()) { this.resetQueue(); this.openModal(this.mapApp.getCurrentSpot()); }
         else if (window.APP && window.APP.gated) this.mapApp.openUnlock();
       });
+    }
+
+    submitEmbed() { return this.scope === 'contrib' && !!this.mapApp.isSubmitEmbed && this.mapApp.isSubmitEmbed(); }
+
+    // 嵌入的投稿對話框（?embed=1&ui=submit）：需要投稿碼就先跳解鎖視窗，開放狀態直接開對話框；
+    // 都不成立就顯示未開放。解鎖後 identityChanged 會再觸發一次，所以每次狀態變動都重判。
+    mountSubmitEmbed() {
+      const note = document.createElement('p');
+      note.id = 'submitClosed';
+      note.textContent = t('embed_submit_closed');
+      note.hidden = true;
+      document.body.appendChild(note);
+      const origins = (window.APP && APP.embedOrigins) || [];
+      const ref = (() => { try { return new URL(document.referrer).origin; } catch (e) { return ''; } })();
+      const notify = (type, extra) => {
+        if (window.parent === window || !origins.includes(ref)) return;
+        window.parent.postMessage(Object.assign({ v: 1, ns: 'souliong', type }, extra), ref);
+      };
+      this.notifyParent = notify;
+      const sync = () => {
+        const dlg = document.getElementById('unlockDialog');
+        if (this.mapApp.isUnlocked()) {
+          note.hidden = true;
+          if (dlg) dlg.classList.remove('open');
+          if (!this.$('modal').classList.contains('open')) { this.resetQueue(); this.openModal(null); }
+        } else if (window.APP && APP.gated) {
+          note.hidden = true;
+          if (dlg && !dlg.classList.contains('open')) this.mapApp.openUnlock();
+        } else {
+          note.hidden = false;
+        }
+      };
+      this.mapApp.onHook('identityChanged', sync);
+      sync();
+      notify('contribReady');
     }
 
     // 「投稿到這個點」鈕：放在說明區底下、第一則投稿之前（核心 renderEntries() 在說明區後、投稿牆前呼叫這裡）。
@@ -529,6 +566,7 @@
       // 批次跑完後才一次重繪地圖／清單，避免每送出一筆就整層重繪造成卡頓
       this.mapApp.refreshAll();
       this.batchRunning = false;
+      if (this.notifyParent) this.notifyParent('contribSubmitted', { ok, fail });
       if (submitBtn) submitBtn.disabled = false;
       if (prog) {
         if (!fail) { prog.dataset.done = '1'; prog.innerHTML = '<i class="fa-solid fa-check"></i> ' + esc(t('upload_all_done', { ok: ok })); setTimeout(() => { if (prog.dataset.done === '1') { prog.textContent = ''; delete prog.dataset.done; } }, 5000); }

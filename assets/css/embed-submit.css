@@ -1,0 +1,45 @@
+/* 嵌入投稿對話框（?embed=1&ui=submit）。只在 body.embed-submit 下生效：
+   地圖與所有浮層都藏起來，投稿對話框鋪滿整個 iframe，不提供關閉。 */
+body.embed-submit #skeleton,
+body.embed-submit #controls,
+body.embed-submit #topright,
+body.embed-submit #resetBtn,
+body.embed-submit #cloudWarn,
+body.embed-submit #panel,
+body.embed-submit #lb,
+body.embed-submit .fab-stack,
+body.embed-submit .toast,
+body.embed-submit .maplibregl-ctrl-top-left,
+body.embed-submit .maplibregl-ctrl-top-right,
+body.embed-submit .maplibregl-ctrl-bottom-left,
+body.embed-submit .cr-bar,
+body.embed-submit #unlockDialog .dialog-head .icon-btn,
+body.embed-submit #contribModal .modal-head > .btn {
+  display: none !important
+}
+
+body.embed-submit #map {
+  visibility: hidden
+}
+
+body.embed-submit #contribModal,
+body.embed-submit #unlockDialog {
+  background: var(--bg);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  padding: 0
+}
+
+body.embed-submit #contribModal .modal-box {
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  border-radius: 0;
+  box-shadow: none
+}
+
+#submitClosed {
+  margin: 24px 16px;
+  text-align: center;
+  color: var(--muted)
+}

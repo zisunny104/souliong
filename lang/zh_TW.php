@@ -42,6 +42,7 @@ return [
     'contrib_fab_create'     => '建立',
     'admin_settings_btn'     => '前往後台設定',
     'contrib_fab'            => '投稿',
+    'embed_submit_closed'    => '目前未開放投稿。',
     'unlock_contrib'         => '解鎖投稿',
     'close'                   => '關閉',
     'expand_panel'            => '展開成大卡片',

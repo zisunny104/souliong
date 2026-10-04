@@ -292,6 +292,19 @@ GET <站台>?api=navsheet&project=<slug>&spot=<spotId|num>&embed=1[&theme=light|
 
 `GET ?api=contribstatus&project=demo` 提供免碼 `open`、`state`（disabled/scheduled/ended/open）、`starts_at`、`expires_at`、`serverTime`、`next_change_at`、`codesAvailable`、`kinds`、`newSpot`。POST 同一接口可帶 `project`、`code`、`owner`、`ctoken`，回傳 `codeValid`、`blocked`，不扣碼次數。`open` 專指免碼開放，需碼投稿另看 `codeValid`。回應不快取，不暴露投稿碼或身分秘密；跨網站依允許來源送 CORS。
 
+### 完整投稿對話框（所有型別）
+
+`ui=submit` 把地圖頁縮成只剩投稿對話框，等同網站上的投稿視窗，可投的型別（照片、影片、音訊、文字）由 `meta.contrib.kinds` 決定，不含建立點位：
+
+```html
+<iframe title="投稿" src="https://example.com/souliong/?p=demo&embed=1&ui=submit"></iframe>
+```
+
+- 需要投稿碼：先跳出解鎖視窗；可加 `&code=123456` 帶入投稿碼自動解鎖。
+- 免碼開放：直接顯示投稿對話框。
+- 未開放（上傳模組關閉或沒有有效條件）：顯示「目前未開放投稿」。
+- 父頁需先把來源 origin 加入允許嵌入來源。起始與完成時會對該 origin 送出 `{ v:1, ns:'souliong', type:'contribReady' }` 與 `{ …, type:'contribSubmitted', ok, fail }`。
+
 照片嵌入介面只顯示照片操作，權限仍取自上述共用接口，沒有照片專屬開放設定。需先將父網站 origin 加入允許嵌入來源：
 
 ```html

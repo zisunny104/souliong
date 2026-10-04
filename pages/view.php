@@ -12,7 +12,8 @@ $embed   = (($_GET['embed'] ?? '') === '1');
 // 嵌入參數（僅 embed=1 有效）。bare＝純地圖：不輸出任何 UI 與選用模組，只留地圖、標記與版權標示，
 // 由 assets/js/embed-bridge.js 以 postMessage 接受父頁控制。
 $bare    = $embed && (($_GET['ui'] ?? '') === 'bare');
-$bodyCls = trim(($embed ? 'embed' : '') . ($bare ? ' embed-bare' : '')
+$submit  = $embed && (($_GET['ui'] ?? '') === 'submit');   // 只放投稿對話框的嵌入模式
+$bodyCls = trim(($embed ? 'embed' : '') . ($bare ? ' embed-bare' : '') . ($submit ? ' embed-submit' : '')
     . ($bare && ($_GET['interactive'] ?? '') !== '1' ? ' embed-static' : '')
     . ($embed && ($_GET['bg'] ?? '') === 'transparent' ? ' embed-bg-transparent' : ''));
 $proj    = preg_replace('/[^a-z0-9_-]/', '', $_GET['p'] ?? ($cfg['default_project'] ?? 'chairs'));
@@ -217,6 +218,7 @@ $hasAudioKind = !$bare && in_array('audio', $contribCfg['kinds'], true);
 if ($hasAudioKind || $mod('contentEdit')) {
     $cssFiles[] = 'sound-player';
 }
+if ($submit) $cssFiles[] = 'embed-submit';
 if ($bare) $cssFiles[] = 'embed-bare';   // 排在最後：蓋掉前面各檔的浮層與版權樣式
 foreach ($cssFiles as $f) {
 ?>

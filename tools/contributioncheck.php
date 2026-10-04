@@ -149,6 +149,8 @@ ck(!empty($entry['photo']) && is_file($cfg['projects_dir'] . '/' . $P . '/photos
 ck($c === 200 && $r['open'] === true, 'status endpoint');
 [$c, $r] = cc_http("$base/?api=photosubmit&project=$P&embed=1");
 ck($c === 200 && str_contains($r, 'capture="environment"') && str_contains($r, 'photo-comment'), 'embedded camera and caption controls');
+[$c, $r] = cc_http("$base/?p=$P&embed=1&ui=submit");
+ck($c === 200 && str_contains($r, 'embed-submit') && str_contains($r, 'contribution.js'), 'embedded contribution dialog page');
 [$c, $r] = cc_post($url, $fields, ['photo' => ['bad.png', 'not an image']], null);
 ck($c === 415, 'fake photo MIME rejected', [$c, $r]);
 [$c, $r] = cc_post($url, $fields, [], null);
