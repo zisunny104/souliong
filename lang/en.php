@@ -37,6 +37,7 @@ return [
     'shortcut_upload'        => 'Open contribution form',
     'shortcut_share'         => 'Share this map',
 
+    'create_dialog_title'  => 'Create a spot',
     'contrib_fab_create'   => 'Create',
     'admin_settings_btn'   => 'Open admin settings',
     'contrib_fab'          => 'Contribute',

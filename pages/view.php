@@ -207,8 +207,8 @@ if ($entryId !== '' && ($entry = souliong_og_resolve_entry($apiCfg, $proj, $entr
 <?php
 // 依 style.css 原本的層疊順序列出各檔（見 assets/css/），新增樣式分類時在陣列加檔名即可。
 $cssFiles = ['theme', 'control-card', 'popups', 'map-markers', 'spot-panel', 'map-controls', 'lightbox', 'page-frame'];
-// 投稿對話框的樣式跟著它的外掛走：唯讀地圖根本不會有 #contribModal，沒必要送這段 CSS
-if ($mod('upload')) {
+// 投稿與建立點位對話框的樣式跟著它們的外掛走：沒載入外掛就沒必要送這段 CSS
+if ($contribFiles) {
     $cssFiles[] = 'contrib';
 }
 // 播放器／點位卡片的中卡、全卡、迷你列樣式：有兩種來源都可能需要播音訊，任一種成立就要備好

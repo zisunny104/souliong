@@ -193,7 +193,8 @@ body.embed .hide-in-embed {
   }
 }
 
-body.noupload .upload-only {
+body.noupload .upload-only,
+body.nocreate .create-only {
   display: none !important
 }
 

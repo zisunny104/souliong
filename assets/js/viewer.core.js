@@ -260,11 +260,15 @@ window.MapApp = (() => {
   let codeStillValid = true;
   function storedCode() { try { return localStorage.getItem('uploadCode_' + PROJECT) || ''; } catch (e) { return ''; } }
   function isUnlocked() { return can('bypass_code') || !!(APP.contributionAccess && APP.contributionAccess.open) || (!!APP.gated && !!storedCode() && codeStillValid); }
-  // 管理者可建立點位時，即使地圖唯讀（關閉上傳投稿）也要有建立入口
-  function canCreateSpot() { return !EMBED && CONTRIB_CFG.newSpot === 'admin' && can('edit_spots'); }
-  function canPost() { return !EMBED && ((MOD('upload') && isUnlocked()) || canCreateSpot()); }
+  function canPost() { return !EMBED && MOD('upload') && isUnlocked(); }
+  // 建立點位跟投稿是兩條軸：管理者專屬時只看編輯點位權限（唯讀地圖也能建），開放時比照投稿條件
+  function canCreateSpot() {
+    if (EMBED) return false;
+    return CONTRIB_CFG.newSpot === 'admin' ? can('edit_spots') : (CONTRIB_CFG.newSpot === 'contributor' && canPost());
+  }
   function applyPostState() {
     document.body.classList.toggle('noupload', !canPost());
+    document.body.classList.toggle('nocreate', !canCreateSpot());
     const fab = document.getElementById('unlockFab');
     if (fab) fab.style.display = (APP.gated && !isUnlocked() && !EMBED) ? '' : 'none';
     emitHook('identityChanged');

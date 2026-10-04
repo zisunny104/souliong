@@ -1,7 +1,8 @@
-/* 選用插件：投稿（見 souliong/docs/EXTENDING.md 第三、七節）
-   只在該地圖 meta.json 的 features.upload 為 true 時，view.php 才會載入這個檔案。
-   #uploadBtn／#unlockFab／#pickImages（插在 #resetBtn 之後）與投稿對話框 #contribModal（插在 #panel 之後）
-   都由這裡的 injectDom() 自己建立、插入固定位置。
+/* 選用插件：投稿與建立點位（見 souliong/docs/EXTENDING.md 第三、七節）
+   view.php 在有任何投稿型別、或管理者可建立點位時才載入這個檔案。
+   投稿（#contribModal，入口 #uploadBtn）與建立點位（#spotModal，入口 #createBtn）是兩個各自獨立的
+   對話框，由同一個殼的兩個實例負責；入口鈕收在 #fabStack（插在 #resetBtn 之後），
+   對話框插在 #panel 之後，都由 injectDom() 自己建立。
 
    這個檔案是**與型別無關的殼**：批次佇列、進度、429 倒數重試、授權勾選、暱稱同步、u 快速鍵、
    小地圖定位校正都在這裡；「這個檔案是什麼、要怎麼轉檔、要送哪些欄位」全部問 assets/js/contrib/
@@ -34,8 +35,14 @@
   }
 
   class ContributionPlugin extends MapApp.Plugin {
-    constructor() {
-      super('upload');
+    // scope：'contrib' 是投稿對話框（照片／影片／聲音／文字），'spot' 是建立點位對話框；
+    // 兩者共用批次佇列的殼，但各有各的入口鈕與對話框，DOM id 由 ids 對應。
+    constructor(scope) {
+      super(scope === 'spot' ? 'newspot' : 'upload');
+      this.scope = scope;
+      this.ids = scope === 'spot'
+        ? { modal: 'spotModal', queue: 'spotQueue', name: 'spotModalName', submit: 'spotSubmitAll', add: 'spotAddMore', prog: 'spotBatchProgress', fab: 'createBtn' }
+        : { modal: 'contribModal', queue: 'queue', name: 'modalName', submit: 'submitAllBtn', add: 'addMoreBtn', prog: 'batchProgress', fab: 'uploadBtn' };
       this.cards = {};
       this.queueSeq = 0;
       this.modalContext = null;
@@ -44,6 +51,8 @@
       this.tabs = [];
       this.tab = null;
     }
+
+    $(key) { return document.getElementById(this.ids[key]); }
 
     // ---- 分頁 ----
     // 有哪些分頁＝已載入的型別檔涵蓋到哪些分頁。順序依 TABS 的宣告順序，不依載入順序，
@@ -56,7 +65,7 @@
         if (SL.kinds[i].key !== 'newspot' && !allowed.includes(SL.kinds[i].key)) SL.kinds.splice(i, 1);
       }
       const have = SL.kinds.map(k => k.tab);
-      this.tabs = Object.keys(TABS).filter(tb => have.includes(tb));
+      this.tabs = Object.keys(TABS).filter(tb => have.includes(tb) && (tb === 'newspot') === (this.scope === 'spot'));
       this.tab = this.tabs.includes(cfg.default) ? cfg.default : this.tabs[0];
     }
     tabKinds(tab) { return SL.byTab(tab); }
@@ -77,69 +86,87 @@
       return out;
     }
 
-    // #uploadBtn／#unlockFab／#pickImages 緊接在 #resetBtn 之後、#myName 之前；
-    // #contribModal 緊接在 #panel 之後、#unlockDialog 之前。
+    // 右下角的入口鈕都放進同一個直排容器（#fabStack，插在 #resetBtn 之後），建立在上、投稿與解鎖在下，
+    // 才不會疊在一起。#pickImages 跟著容器；對話框緊接在 #panel 之後、#unlockDialog 之前。
+    fabStack() {
+      let st = document.getElementById('fabStack');
+      if (!st) {
+        const resetBtn = document.getElementById('resetBtn');
+        if (!resetBtn) return null;
+        resetBtn.insertAdjacentHTML('afterend', '<div id="fabStack" class="fab-stack"></div>');
+        st = document.getElementById('fabStack');
+      }
+      return st;
+    }
+
     injectDom() {
-      const resetBtn = document.getElementById('resetBtn');
-      if (resetBtn) {
-        // 沒有分頁可投時（見 initTabs()）這顆鈕沒有東西可開，先天隱藏
-        const hideUpload = this.tabs.length ? '' : ' style="display:none"';
-        // 只剩「建立點位」一個分頁時，這顆鈕的意思是建立而不是投稿
-        const createOnly = this.tabs.length === 1 && this.tabs[0] === 'newspot';
-        resetBtn.insertAdjacentHTML('afterend',
-          '<button class="fabtn upload-only" id="uploadBtn"' + hideUpload + '><i class="fa-solid ' + (createOnly ? 'fa-map-pin' : 'fa-plus') + '"></i> ' + esc(t(createOnly ? 'contrib_fab_create' : 'contrib_fab')) + '</button>' +
+      // 沒有分頁可用（見 initTabs()）就什麼都不放
+      if (!this.tabs.length) return;
+      const stack = this.fabStack();
+      const spot = this.scope === 'spot';
+      if (stack && spot) {
+        stack.insertAdjacentHTML('afterbegin',
+          '<button class="fabtn create-only" id="createBtn"><i class="fa-solid fa-map-pin"></i> ' + esc(t('contrib_fab_create')) + '</button>');
+      } else if (stack) {
+        stack.insertAdjacentHTML('beforeend',
+          '<button class="fabtn upload-only" id="uploadBtn"><i class="fa-solid fa-plus"></i> ' + esc(t('contrib_fab')) + '</button>' +
           '<button class="fabtn fab-unlock" id="unlockFab" style="display:none"><i class="fa-solid fa-lock"></i> ' + esc(t('unlock_contrib')) + '</button>' +
           '<input type="file" id="pickImages" multiple hidden>');
       }
 
       const panel = document.getElementById('panel');
-      if (panel) {
-        // 只有一個分頁的地圖（沒設定 contrib 的地圖就是這種）不渲染分頁列
-        const tabsHtml = this.tabs.length < 2 ? '' :
-          '<div class="sl-tabs" role="tablist">' + this.tabs.map(tb => {
-            const m = this.tabMeta(tb);
-            return '<button class="sl-tab" type="button" role="tab" data-tab="' + esc(tb) + '">' +
-              '<i class="fa-solid ' + m.icon + '"></i>' + esc(t(m.label)) + '</button>';
-          }).join('') +
-          '</div>';
-        panel.insertAdjacentHTML('afterend',
-          '<div id="contribModal">' +
-            '<div class="modal-box">' +
-              '<div class="modal-head">' +
-                '<h3>' + esc(t('contrib_dialog_title')) + '</h3>' +
-                '<input class="name-in" id="modalName" placeholder="' + esc(t('your_nickname')) + '" autocomplete="off" style="width:130px">' +
-                '<button class="btn" onclick="MapApp.closeModal()">' + esc(t('close')) + '</button>' +
-              '</div>' +
-              tabsHtml +
-              '<div class="modal-body" id="queue"></div>' +
-              '<div class="modal-consent" id="modalConsent">' +
-                '<label id="ccByRow" style="display:none"><input type="checkbox" id="ccByChk"> ' + esc(t('license_ccby_label')) + '</label>' +
-                '<label><input type="checkbox" id="wikidataChk"> ' + esc(t('wikidata_consent_label')) + '</label>' +
-              '</div>' +
-              '<div class="modal-foot">' +
-                '<button class="btn" id="addMoreBtn"><i class="fa-solid fa-plus"></i> ' + esc(t('add_more')) + '</button>' +
-                '<span class="spacer"></span>' +
-                '<span class="hint" id="batchProgress"></span>' +
-                '<button class="btn primary" id="submitAllBtn">' + esc(t('submit_all')) + '</button>' +
-              '</div>' +
+      if (!panel) return;
+      // 只有一個分頁的對話框（建立點位、沒設定 contrib 的地圖）不渲染分頁列
+      const tabsHtml = this.tabs.length < 2 ? '' :
+        '<div class="sl-tabs" role="tablist">' + this.tabs.map(tb => {
+          const m = this.tabMeta(tb);
+          return '<button class="sl-tab" type="button" role="tab" data-tab="' + esc(tb) + '">' +
+            '<i class="fa-solid ' + m.icon + '"></i>' + esc(t(m.label)) + '</button>';
+        }).join('') +
+        '</div>';
+      const closeFn = spot ? 'closeSpotModal' : 'closeModal';
+      const consent = spot ? '' :
+        '<div class="modal-consent" id="modalConsent">' +
+          '<label id="ccByRow" style="display:none"><input type="checkbox" id="ccByChk"> ' + esc(t('license_ccby_label')) + '</label>' +
+          '<label><input type="checkbox" id="wikidataChk"> ' + esc(t('wikidata_consent_label')) + '</label>' +
+        '</div>';
+      const anchor = document.getElementById('contribModal') || panel;
+      anchor.insertAdjacentHTML('afterend',
+        '<div id="' + this.ids.modal + '" class="contrib-modal">' +
+          '<div class="modal-box">' +
+            '<div class="modal-head">' +
+              '<h3>' + esc(t(spot ? 'create_dialog_title' : 'contrib_dialog_title')) + '</h3>' +
+              '<input class="name-in" id="' + this.ids.name + '" placeholder="' + esc(t('your_nickname')) + '" autocomplete="off" style="width:130px">' +
+              '<button class="btn" onclick="MapApp.' + closeFn + '()">' + esc(t('close')) + '</button>' +
             '</div>' +
-          '</div>');
-      }
+            tabsHtml +
+            '<div class="modal-body" id="' + this.ids.queue + '"></div>' +
+            consent +
+            '<div class="modal-foot">' +
+              '<button class="btn" id="' + this.ids.add + '"><i class="fa-solid fa-plus"></i> ' + esc(t('add_more')) + '</button>' +
+              '<span class="spacer"></span>' +
+              '<span class="hint" id="' + this.ids.prog + '"></span>' +
+              '<button class="btn primary" id="' + this.ids.submit + '">' + esc(t('submit_all')) + '</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>');
     }
 
     mount() {
       this.initTabs();
       this.injectDom();
-      this.mapApp.registerEntriesHint(spot => this.entriesUploadButton(spot));
       this.mapApp.onHook('closeAll', () => this.closeModal());
-      this.mapApp.onHook('identityUploadShortcut', () => {
-        this.resetQueue();
-        this.openModal(null);
-        setTimeout(() => { const n = document.getElementById('modalName'); if (n) n.focus(); }, 60);
-      });
+      if (this.scope === 'contrib') {
+        this.mapApp.registerEntriesHint(spot => this.entriesUploadButton(spot));
+        this.mapApp.onHook('identityUploadShortcut', () => {
+          this.resetQueue();
+          this.openModal(null);
+          setTimeout(() => { const n = this.$('name'); if (n) n.focus(); }, 60);
+        });
+      }
       // 暱稱：#modalName 是這個模組自己的欄位，開機時從核心的 #myName（單一真實來源）帶入初始值，
       // 之後雙向同步；長按身分鈕換一個匿名名時（identityReroll）把預覽 placeholder 換過來。
-      const modalName = document.getElementById('modalName');
+      const modalName = this.$('name');
       if (modalName) {
         modalName.value = document.getElementById('myName').value;
         modalName.setAttribute('placeholder', this.mapApp.anonName());
@@ -157,25 +184,26 @@
       if (ccByChk) ccByChk.onchange = () => localStorage.setItem('prefCcBy', ccByChk.checked ? '1' : '0');
       if (wikidataChk) wikidataChk.onchange = () => localStorage.setItem('prefWikidata', wikidataChk.checked ? '1' : '0');
       // 供核心 view.php 內嵌的 onclick="MapApp.closeModal()" 呼叫（HTML 屬性只能呼叫掛在 MapApp 上的方法，無法用 hook）
-      this.mapApp.closeModal = () => this.closeModal();
+      this.mapApp[this.scope === 'spot' ? 'closeSpotModal' : 'closeModal'] = () => this.closeModal();
 
-      document.querySelectorAll('.sl-tab').forEach(btn => {
+      const modalEl = this.$('modal');
+      if (modalEl) modalEl.querySelectorAll('.sl-tab').forEach(btn => {
         btn.onclick = () => this.switchTab(btn.dataset.tab);
       });
 
       if (!this.mapApp.isEmbedMode()) {
-        const pick = document.getElementById('pickImages');
-        const uploadBtn = document.getElementById('uploadBtn');
+        const pick = document.getElementById('pickImages');   // 只有投稿對話框有
+        const uploadBtn = this.$('fab');
         if (uploadBtn) uploadBtn.onclick = () => { this.modalContext = null; this.resetQueue(); this.openModal(null); };
-        const addMoreBtn = document.getElementById('addMoreBtn');
+        const addMoreBtn = this.$('add');
         if (addMoreBtn) addMoreBtn.onclick = () => this.primaryAdd();
         if (pick) pick.onchange = e => { this.addFiles(Array.from(e.target.files)); };
-        const submitAllBtn = document.getElementById('submitAllBtn');
+        const submitAllBtn = this.$('submit');
         if (submitAllBtn) submitAllBtn.onclick = () => this.submitAll();
-        if (this.tabs.length) this.mapApp.registerShortcut({ key: 'U', label: t('shortcut_upload') });
+        if (this.tabs.length && this.scope === 'contrib') this.mapApp.registerShortcut({ key: 'U', label: t('shortcut_upload') });
       }
 
-      document.addEventListener('keydown', e => {
+      if (this.scope === 'contrib') document.addEventListener('keydown', e => {
         const tag = (e.target && e.target.tagName) || '';
         if (/^(INPUT|TEXTAREA|SELECT)$/.test(tag) || e.metaKey || e.ctrlKey || e.altKey) return;
         if (e.key.toLowerCase() !== 'u' || this.mapApp.isEmbedMode()) return;
@@ -188,7 +216,7 @@
     // 沒有任何分頁可投（例如地圖 meta.json 的 contrib.kinds 只設了 spot 以外零種型別，理論上不會發生）
     // 時，通用投稿對話框沒有東西好顯示，不出現這顆鈕。
     entriesUploadButton(spot) {
-      if (!this.tabs.length || (this.tabs.length === 1 && this.tabs[0] === 'newspot')) return null;
+      if (!this.tabs.length) return null;
       const upBtn = document.createElement('button');
       upBtn.className = 'btn primary upload-only'; upBtn.style.width = '100%';
       upBtn.innerHTML = '<i class="fa-solid fa-plus"></i> ' + esc(t('upload_to_spot'));
@@ -199,7 +227,7 @@
     openModal(contextSpot) {
       // 沒有分頁可投時整個對話框沒有內容（見 initTabs()），所有入口（FAB、快捷鍵 U、身分鈕）共用這道保險
       if (!this.tabs.length) return;
-      document.getElementById('modalName').value = document.getElementById('myName').value || localStorage.getItem('myName') || '';
+      this.$('name').value = document.getElementById('myName').value || localStorage.getItem('myName') || '';
       // CC BY 只在已建立身分時才顯示（沒有穩定身分就沒有名字可標示）；每次開窗都重新判斷，
       // 並從上次記憶的選擇還原勾選狀態，讓使用者能再次確認而不是被迫重選。
       const ccByRow = document.getElementById('ccByRow');
@@ -208,11 +236,11 @@
       if (ccByRow) ccByRow.style.display = this.mapApp.hasIdentity() ? '' : 'none';
       if (ccByChk) ccByChk.checked = localStorage.getItem('prefCcBy') === '1';
       if (wikidataChk) wikidataChk.checked = localStorage.getItem('prefWikidata') === '1';
-      document.getElementById('contribModal').classList.add('open');
+      this.$('modal').classList.add('open');
       this.modalContext = contextSpot || null;
     }
     closeModal() {
-      const m = document.getElementById('contribModal');
+      const m = this.$('modal');
       if (!m) return;
       m.classList.remove('open');
       // 批次送出仍在背景進行時不可清空佇列，否則尚未送出的內容會直接遺失；重開視窗會看到原本的佇列與進度
@@ -228,14 +256,15 @@
       if (!Object.keys(this.cards).length) this.renderEmpty();
     }
     syncTabUi() {
-      document.querySelectorAll('.sl-tab').forEach(b => {
+      const modalEl = this.$('modal');
+      if (modalEl) modalEl.querySelectorAll('.sl-tab').forEach(b => {
         const on = b.dataset.tab === this.tab;
         b.classList.toggle('on', on);
         b.setAttribute('aria-selected', on ? 'true' : 'false');
       });
       const pick = document.getElementById('pickImages');
       if (pick) pick.setAttribute('accept', this.tabAccept(this.tab));
-      const addMore = document.getElementById('addMoreBtn');
+      const addMore = this.$('add');
       const meta = this.tabMeta(this.tab);
       if (addMore) addMore.innerHTML = '<i class="fa-solid fa-plus"></i> ' + esc(t(meta.pick ? 'add_more' : meta.add));
     }
@@ -249,7 +278,8 @@
     }
 
     renderEmpty() {
-      const q = document.getElementById('queue');
+      const q = this.$('queue');
+      if (!q) return;   // 這個對話框沒有分頁可用，沒有 DOM
       if (!this.tabs.length) { q.innerHTML = ''; return; }   // 沒有分頁可投（見 initTabs()），對話框本來就不會被打開
       const meta = this.tabMeta(this.tab);
       q.innerHTML = '<div class="queue-empty"><div class="sl-actions">' +
@@ -338,14 +368,14 @@
 
     // file 為 null＝這個型別本來就沒有檔案（文字紀錄、建立點位）
     async addCard(kind, file) {
-      const qe = document.querySelector('.queue-empty'); if (qe) qe.remove();
-      const id = 'q' + (++this.queueSeq);
+      const qe = this.$('queue').querySelector('.queue-empty'); if (qe) qe.remove();
+      const id = (this.scope === 'spot' ? 'sq' : 'q') + (++this.queueSeq);
       const card = document.createElement('div');
       card.className = 'card sl-kind-' + kind.key + (kind.hasPreview() ? '' : ' sl-noprev');
       card.id = id;
       card.innerHTML = this.cardHtml(kind);
-      document.getElementById('queue').appendChild(card);
-      card.querySelector('.c-name').value = document.getElementById('modalName').value || '';
+      this.$('queue').appendChild(card);
+      card.querySelector('.c-name').value = this.$('name').value || '';
 
       const state = { id, kind, file, blob: null, thumb: null, duration: null, urls: [], loc: null, origLoc: null, source: null, done: false, picker: null };
       this.cards[id] = state;
@@ -482,8 +512,8 @@
       const ids = Object.keys(this.cards).filter(id => !this.cards[id].done);
       if (!ids.length) return;
       this.batchRunning = true;
-      const submitBtn = document.getElementById('submitAllBtn');
-      const prog = document.getElementById('batchProgress');
+      const submitBtn = this.$('submit');
+      const prog = this.$('prog');
       const total = ids.length;
       let ok = 0, fail = 0;
       if (submitBtn) submitBtn.disabled = true;
@@ -507,9 +537,12 @@
     }
   }
 
-  const plugin = new ContributionPlugin();
-  plugin.init(window.MapApp);
-  // 分頁列與空狀態要等 DOM 都插好才畫得出來（init() 內部會呼叫 mount()）
-  plugin.syncTabUi();
-  plugin.resetQueue();
+  // 建立點位對話框只在載入了 kind-newspot.js 時才有分頁，沒有分頁的實例什麼都不放
+  ['contrib', 'spot'].forEach(scope => {
+    const plugin = new ContributionPlugin(scope);
+    plugin.init(window.MapApp);
+    // 分頁列與空狀態要等 DOM 都插好才畫得出來（init() 內部會呼叫 mount()）
+    plugin.syncTabUi();
+    plugin.resetQueue();
+  });
 })();
