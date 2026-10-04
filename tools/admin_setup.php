@@ -59,7 +59,7 @@ if ($cmd === 'account') {
     if ($userid === '') { fwrite(STDERR, "帳號格式不符\n"); exit(1); }
     if (account_find_by_userid($cfg, $userid) !== null) { fwrite(STDERR, "帳號已存在\n"); exit(1); }
     $pw = as_secret_twice('密碼（至少 8 字元）');
-    $label = as_ask('顯示名稱（可留空）');
+    $label = as_ask('顯示名稱（留空則用 @ 前的部分）');
     $r = account_register($cfg, $userid, $pw, $label);
     if (!$r['ok']) { fwrite(STDERR, "無法建立：{$r['error']}\n"); exit(1); }
     $d = accounts_load($cfg);

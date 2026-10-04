@@ -51,6 +51,27 @@ function account_find_by_userid(array $cfg, string $userid): ?array {
     foreach (accounts_load($cfg)['accounts'] as $a) { if (strtolower((string)($a['userid'] ?? '')) === $userid) return $a; }
     return null;
 }
+/** 登入用：先比完整帳號；沒有 @ 的輸入再比電子郵件帳號 @ 前的部分，唯一符合才採用。 */
+function account_find_for_login(array $cfg, string $input): ?array {
+    $a = account_find_by_userid($cfg, $input);
+    if ($a !== null) return $a;
+    $in = strtolower(trim($input));
+    if ($in === '' || str_contains($in, '@')) return null;
+    $hit = null;
+    foreach (accounts_load($cfg)['accounts'] as $e) {
+        $u = strtolower((string)($e['userid'] ?? ''));
+        if (($at = strpos($u, '@')) !== false && substr($u, 0, $at) === $in) {
+            if ($hit !== null) return null;
+            $hit = $e;
+        }
+    }
+    return $hit;
+}
+/** 沒填顯示名稱時的預設：電子郵件帳號取 @ 前，其他沿用帳號。 */
+function account_default_label(string $userid): string {
+    $at = strpos($userid, '@');
+    return $at ? substr($userid, 0, $at) : $userid;
+}
 function account_find_by_id(array $cfg, string $id): ?array {
     foreach (accounts_load($cfg)['accounts'] as $a) { if ((string)($a['id'] ?? '') === $id) return $a; }
     return null;
@@ -103,7 +124,7 @@ function _account_default_perms(): array { return auth_perms_default(); }
 define('ACCOUNT_DUMMY_HASH', '$2y$10$dTLVeAjwEKpp0FwAqcPLUuP/YC2K5g4zJ/yQDyGTjXv8YDV/M9GEm');
 /** 回傳 ['ok'=>true,'account'=>...] 或 ['ok'=>false,'error'=>'invalid'|'locked']。 */
 function account_login(array $cfg, string $userid, string $pw): array {
-    $a = account_find_by_userid($cfg, $userid);
+    $a = account_find_for_login($cfg, $userid);
     if ($a === null || !empty($a['disabled']) || ($a['password_hash'] ?? '') === '') {
         password_verify($pw, ACCOUNT_DUMMY_HASH);
         return ['ok' => false, 'error' => 'invalid'];
@@ -139,7 +160,7 @@ function account_register(array $cfg, string $userid, string $pw, string $label)
         'id' => 'acc_' . bin2hex(random_bytes(6)),
         'userid' => $userid,
         'password_hash' => password_hash($pw, PASSWORD_DEFAULT),
-        'label' => substr(trim($label), 0, 80),
+        'label' => substr(trim($label) !== '' ? trim($label) : account_default_label($userid), 0, 80),
         'role' => 'user',
         'created_at' => gmdate('c'),
         'disabled' => false,
@@ -306,7 +327,7 @@ function account_migrate_activate(array $cfg, string $token, string $legacyPin, 
         'id' => 'acc_' . bin2hex(random_bytes(6)),
         'userid' => $userid,
         'password_hash' => password_hash($pw, PASSWORD_DEFAULT),
-        'label' => $pending['label'] !== '' ? $pending['label'] : $userid,
+        'label' => $pending['label'] !== '' ? $pending['label'] : account_default_label($userid),
         'role' => $pending['source'] === 'project' ? 'user' : 'primary',
         'created_at' => gmdate('c'),
         'disabled' => false,
