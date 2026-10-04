@@ -115,13 +115,8 @@ window.MapApp = (() => {
   }
 
   // 擁有者標記（此裝置）：用於「只刪自己的」。90 天後自動更換（過期即無法再刪舊內容）。
-  function ownerToken() {
-    const KEY = 'ownerToken', TTL = 90 * 24 * 3600 * 1000;
-    try { const o = JSON.parse(localStorage.getItem(KEY) || 'null'); if (o && o.t && (Date.now() - o.c) < TTL) return o.t; } catch (e) {}
-    const t = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).slice(2));
-    try { localStorage.setItem(KEY, JSON.stringify({ t: t, c: Date.now() })); } catch (e) {}
-    return t;
-  }
+  function ownerToken() { return SouliongContribution.ownerToken(); }
+
   let myOwnerHash = '';
   async function computeMyHash() {
     try {
@@ -183,18 +178,10 @@ window.MapApp = (() => {
       return { blob: Array.isArray(v) ? v[0] : v, kind: k === 'thumb' ? null : fields.kind };
     }));
     for (let attempt = 0; attempt <= maxRetry; attempt++) {
-      const fd = new FormData();
-      fd.append('project', PROJECT);
-      if (APP.csrf) fd.append('csrf', APP.csrf);
-      fd.append('owner', ownerToken());
-      fd.append('code', storedCode());
-      const ct = contribToken(); if (ct) fd.append('ctoken', ct);
-      for (const k in fields) {
-        const v = fields[k];
-        if (v === undefined || v === null) continue;
-        if (Array.isArray(v)) fd.append(k, v[0], v[1]); else fd.append(k, v);
-      }
-      const res = await fetch(apiUrl('upload'), { method: 'POST', body: fd });
+      const common = { project: PROJECT, owner: ownerToken(), code: storedCode() };
+      if (APP.csrf) common.csrf = APP.csrf;
+      const ct = contribToken(); if (ct) common.ctoken = ct;
+      const res = await SouliongContribution.request(apiUrl('upload'), fields, common);
       if (res.status === 429 && attempt < maxRetry) {
         const wait = parseInt(res.headers.get('Retry-After') || '10', 10) || 10;
         if (opts.onRetry) await opts.onRetry(wait, attempt + 1, maxRetry);
@@ -268,10 +255,11 @@ window.MapApp = (() => {
     } catch (e) {}
   }
 
-  // 上傳權限：能不能投稿完全看投稿代碼。APP.gated＝這張地圖現在有還有效的碼（見 api/security.php contrib_open）；
+  // 上傳權限：免碼開放或有效投稿碼皆可投稿。APP.gated＝這張地圖現在有還有效的碼（見 api/security.php contrib_open）；
   // 一組都沒有＝目前未開放投稿，解鎖鈕也不出現。具 bypass_code 權限者免碼視為已解鎖。EMBED 一律不可上傳。
+  let codeStillValid = true;
   function storedCode() { try { return localStorage.getItem('uploadCode_' + PROJECT) || ''; } catch (e) { return ''; } }
-  function isUnlocked() { return can('bypass_code') || (!!APP.gated && !!storedCode()); }
+  function isUnlocked() { return can('bypass_code') || !!(APP.contributionAccess && APP.contributionAccess.open) || (!!APP.gated && !!storedCode() && codeStillValid); }
   function canPost() { return !EMBED && MOD('upload') && isUnlocked(); }
   function applyPostState() {
     document.body.classList.toggle('noupload', !canPost());
@@ -280,6 +268,26 @@ window.MapApp = (() => {
     emitHook('identityChanged');
     if (current) renderEntries();   // 讓「編輯說明」鈕跟著出現/消失
   }
+  let accessBoundaryTimer = null;
+  async function refreshContributionAccess() {
+    if (!MOD('upload') || document.hidden) return;
+    try {
+      const fd = new FormData(); fd.set('project', PROJECT); fd.set('code', storedCode()); fd.set('owner', ownerToken());
+      const ct = contribToken(); if (ct) fd.set('ctoken', ct);
+      const response = await fetch(apiUrl('contribstatus'), { method: 'POST', body: fd, cache: 'no-store' });
+      if (!response.ok) throw Error('status');
+      const status = await response.json();
+      clearTimeout(accessBoundaryTimer);
+      if (status.next_change_at) accessBoundaryTimer = setTimeout(refreshContributionAccess, Math.max(100, Math.min(Date.parse(status.next_change_at) - Date.parse(status.serverTime) + 100, 2147483647)));
+      APP.contributionAccess = status; APP.gated = status.codesAvailable; codeStillValid = status.codeValid === true;
+      applyPostState();
+    } catch (e) {
+      APP.contributionAccess = { open: false }; APP.gated = false; codeStillValid = false; applyPostState();
+    }
+  }
+  setTimeout(refreshContributionAccess, 0);
+  setInterval(refreshContributionAccess, 15000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshContributionAccess(); });
   // 管理者「檢視模式」：把整組身分（actor／perms／csrf／isManager）蓋成訪客，能力判斷一律走 can()
   // 與 APP.csrf，所以一次蓋掉全部一起生效；真實值另存一份快照，切回時還原。
   // 不做持久化，重新整理頁面就回到真實身分。
@@ -312,6 +320,7 @@ window.MapApp = (() => {
       const res = await fetch(apiUrl('unlock'), { method: 'POST', body: fd });
       const j = await res.json().catch(() => ({}));
       if (res.ok && j.ok) {
+        codeStillValid = true;
         try { localStorage.setItem('uploadCode_' + PROJECT, code); } catch (e) {}
         if (j.contrib) { setContribInfo(j.contrib); await computeContribId(); }
         applyPostState(); return { ok: true };

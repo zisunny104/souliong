@@ -51,9 +51,10 @@ unset($spotRec);
 $actor     = Auth::actor($apiCfg, $proj);
 $isManager = $actor->isMember($proj);
 $canEditSpots = $actor->can($proj, 'edit_spots');   // 過渡期保留給舊前端；新前端改用 APP.can('edit_spots')
-// 投稿開關＝有沒有還有效的投稿代碼（真正的碼在伺服器端 codes.json，前端拿不到）。
+// 投稿開放條件由免碼設定與有效投稿碼組成；前端不取得真正的碼。
 // APP.gated 因此變成「現在有碼可解鎖」：一組都沒有時前端連解鎖鈕都不出現。
-$gated = contrib_open($apiCfg, $proj);
+$gated = codes_active($apiCfg, $proj) !== [];
+$freeAccess = contrib_free_state($meta);
 // 寫入類端點（Auth::require）比對的 CSRF 值：跟端點用同一個 Actor 衍生，anon 為 null。
 $csrfTok   = $actor->csrf($proj);
 [$LANG, $DICT] = i18n_init();
@@ -111,6 +112,7 @@ $APP = [
     'embed'       => $embed,
     'embedOrigins' => $embed ? $embedOrigins : [],   // postMessage 白名單（只在嵌入模式注入）
     'gated'       => $gated,
+    'contributionAccess' => $freeAccess,
     'meta'        => $meta,
     'spots'       => $spots,
     // 權限契約：actor 是身分種類，perms 是此身分在這張地圖具備的專案層級權限鍵（primary 為全部），
@@ -438,6 +440,7 @@ window.maplibregl = maplibregl;
 <script src="<?= $assetUrl('assets/js/engine/maplibre-engine.js') ?>"></script>
 <?php endif; ?>
 <script src="<?= $assetUrl('assets/js/marker-colors.js') ?>"></script>
+<script src="<?= $assetUrl('assets/js/contribution-client.js') ?>"></script>
 <script src="<?= $assetUrl('assets/js/viewer.core.js') ?>"></script>
 <?php if ($bare): ?>
 <script src="<?= $assetUrl('assets/js/embed-bridge.js') ?>"></script>

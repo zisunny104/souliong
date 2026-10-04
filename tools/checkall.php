@@ -60,7 +60,7 @@ $phpFiles = checkall_files($root, 'php');
 [$c, $o, $n] = checkall_each($root, $phpFiles, fn($f) => "$php -l " . escapeshellarg($f));
 $results[] = ["php -l（$n 個檔案）", $c, $o];
 
-foreach (['authlint', 'authcheck', 'contentcheck', 'embedcheck', 'securitycheck', 'publicphotocheck'] as $tool) {
+foreach (['authlint', 'authcheck', 'contentcheck', 'embedcheck', 'securitycheck', 'contributioncheck'] as $tool) {
     [$c, $o] = checkall_run("$php " . escapeshellarg("tools/$tool.php"), $root);
     $results[] = [$tool, $c, $c === 0 ? '' : $o];
 }

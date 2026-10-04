@@ -9,7 +9,7 @@ require_once __DIR__ . '/packs.php';
 require_once __DIR__ . '/layers.php';     // 地圖圖層註冊表（底圖／疊圖），形狀同 packs.php
 require_once __DIR__ . '/labellang.php';
 require_once __DIR__ . '/markercolors.php';
-require_once __DIR__ . '/publicphoto.php';
+require_once __DIR__ . '/contribaccess.php';
 require_once __DIR__ . '/spotlib.php';     // spot_kind_normalize()／spotId 判斷
 require_once __DIR__ . '/embedorigins.php';   // 允許嵌入的來源清單解析與驗證（CORS／frame-ancestors／postMessage 共用）
 require_once __DIR__ . '/regions3d.php';  // 3D 自訂模型區域註冊表，形狀同上，見 api/region3d.php
@@ -668,24 +668,26 @@ if (!$authed) {
           header('Location: ' . Route::manager($scopeProject, 'records'));
           exit;
         }
-        if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'publicphoto') {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'contribaccess') {
           $p = clean_id($_POST['project'] ?? '');
           $gate($p, 'manage_contrib', null, Route::manager($scopeProject, 'access'));
           $mf = project_dir($cfg, $p) . '/meta.json';
           $meta = is_file($mf) ? json_decode((string)file_get_contents($mf), true) : null;
           if (!is_array($meta)) error_page(404, '找不到專案', '請確認專案存在。');
-          $enabled = isset($_POST['public_photo_enabled']);
-          $start = public_photo_local_time((string)($_POST['public_photo_start'] ?? ''));
-          $end = public_photo_local_time((string)($_POST['public_photo_end'] ?? ''));
-          if ($enabled && (!$start || !$end || strtotime($end) <= strtotime($start)
-              || !souliong_module_on($meta, 'upload') || !in_array('photo', souliong_contrib_cfg($meta)['kinds'], true))) {
-            error_page(400, '無法啟用免碼照片投稿', '請啟用照片上傳，並設定有效的開始與結束時間（台北時間）。', Route::manager($scopeProject, 'access'));
+          $enabled = isset($_POST['contrib_free_enabled']);
+          $startRaw = (string)($_POST['contrib_free_start'] ?? '');
+          $endRaw = (string)($_POST['contrib_free_end'] ?? '');
+          $start = $startRaw === '' ? null : contrib_local_time($startRaw);
+          $end = $endRaw === '' ? null : contrib_local_time($endRaw);
+          if (($startRaw !== '' && $start === null) || ($endRaw !== '' && $end === null)
+              || ($start !== null && $end !== null && strtotime($end) <= strtotime($start))) {
+            error_page(400, '無法儲存免碼投稿設定', '請設定有效的開始與結束時間（台北時間）；留空表示不限制。', Route::manager($scopeProject, 'access'));
           }
-          $meta['publicPhoto'] = ['enabled' => $enabled, 'startsAt' => $start, 'endsAt' => $end];
+          $meta['contributionAccess'] = ['enabled' => $enabled, 'starts_at' => $start, 'expires_at' => $end];
           if (file_put_contents($mf, json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) . "\n", LOCK_EX) === false) {
             error_page(500, '儲存失敗', '請稍後再試。');
           }
-          audit_log($cfg, $auditWho(), 'public_photo_window', $p, $enabled ? 'enabled' : 'disabled');
+          audit_log($cfg, $auditWho(), 'contribution_access', $p, $enabled ? 'enabled' : 'disabled');
           header('Location: ' . Route::manager($scopeProject, 'access'));
           exit;
         }
@@ -1016,6 +1018,17 @@ if (!$authed) {
             audit_log($cfg, $auditWho(), $disable ? 'account_disable' : 'account_enable', null, $accountId);
           }
           header('Location: ' . Route::manager('', 'tools'));
+          exit;
+        }
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'togglecode') {
+          $p = clean_id($_POST['project'] ?? '');
+          $gate($p, 'manage_contrib', null, Route::manager($scopeProject, 'access'));
+          $code = preg_replace('/\D/', '', (string)($_POST['code'] ?? ''));
+          if (!code_set_enabled($cfg, $p, $code, ($_POST['enabled'] ?? '') === '1')) {
+            error_page(400, '無法變更投稿碼', '請確認投稿碼仍存在，並稍後再試。', Route::manager($scopeProject, 'access'));
+          }
+          audit_log($cfg, $auditWho(), 'toggle_contribution_code', $p, '');
+          header('Location: ' . Route::manager($scopeProject, 'access'));
           exit;
         }
         // 移除附加投稿代碼（立即失效；常駐碼另走 rotate）
@@ -3338,6 +3351,13 @@ if (!$authed) {
       color: var(--muted);
       font-size: 0.8125rem
     }
+
+    .contrib-access-form { display: grid; gap: 12px; padding: 20px; margin-bottom: 20px; }
+    .contrib-access-form h3, .contrib-access-form p { margin: 0; }
+    .contrib-access-dates { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 12px; }
+    .contrib-access-dates label { display: grid; gap: 6px; min-width: 0; }
+    .contrib-access-dates input { width: 100%; min-width: 0; box-sizing: border-box; padding: 9px; }
+    .contrib-access-actions { display: flex; flex-wrap: wrap; gap: 8px; }
   </style>
 </head>
 
@@ -3582,7 +3602,7 @@ if (!$authed) {
     <h2><?= $t('project_access_heading') ?></h2>
     <?php foreach ($viewProjects as $p):
       $meta = json_decode((string)@file_get_contents($cfg['projects_dir'] . '/' . $p . '/meta.json'), true);
-      $contribOpen = contrib_open($cfg, $p);   // 有沒有還有效的投稿代碼＝這張地圖現在開不開放投稿
+      $contribOpen = codes_active($cfg, $p) !== [];   // 有沒有還有效的投稿代碼＝這張地圖現在開不開放投稿
       $ppinsAll = $pinsAllData['projects'][$p] ?? [];
       $realPins = array_values(array_filter($ppinsAll, fn($e) => ($e['kind'] ?? 'pin') !== 'invite'));
       $invites = array_values(array_filter($ppinsAll, fn($e) => ($e['kind'] ?? 'pin') === 'invite'));
@@ -4081,20 +4101,24 @@ if (!$authed) {
         <?php };
       ?>
         <?php if ($canContrib($p)):
-          $photoPolicy = $meta['publicPhoto'] ?? [];
-          $photoTime = static function ($v) { try { return $v ? (new DateTimeImmutable($v))->setTimezone(new DateTimeZone('Asia/Taipei'))->format('Y-m-d\TH:i') : ''; } catch (Throwable $e) { return ''; } };
+          $accessPolicy = contrib_free_policy($meta);
+          $accessTime = static function ($v) { try { return $v ? (new DateTimeImmutable($v))->setTimezone(new DateTimeZone('Asia/Taipei'))->format('Y-m-d\TH:i') : ''; } catch (Throwable $e) { return ''; } };
         ?>
-        <form method="post" class="card">
-          <input type="hidden" name="action" value="publicphoto">
+        <form method="post" class="card contrib-access-form">
+          <input type="hidden" name="action" value="contribaccess">
           <input type="hidden" name="project" value="<?= $esc($p) ?>">
           <input type="hidden" name="csrf" value="<?= $esc_csrf ?>">
-          <h3>限時免碼照片投稿</h3>
-          <p class="hint">期間內任何人都能提交照片與說明；其他投稿仍使用原有代碼。嵌入網站需加入此專案允許的來源。</p>
-          <label><input type="checkbox" name="public_photo_enabled" <?= !empty($photoPolicy['enabled']) ? 'checked' : '' ?>> 啟用</label>
-          <label>開始（台北時間）<input type="datetime-local" name="public_photo_start" value="<?= $esc($photoTime($photoPolicy['startsAt'] ?? null)) ?>"></label>
-          <label>結束（台北時間）<input type="datetime-local" name="public_photo_end" value="<?= $esc($photoTime($photoPolicy['endsAt'] ?? null)) ?>"></label>
-          <button class="btn" type="submit">儲存免碼期間</button>
-          <a class="btn" target="_blank" rel="noopener" href="<?= $esc(Route::api('photosubmit', ['project' => $p])) ?>">開啟照片投稿頁</a>
+          <h3>免碼投稿</h3>
+          <?php $accessState = contrib_free_state($meta); $accessLabels = ['disabled' => '已關閉', 'scheduled' => '尚未開始', 'ended' => '已到期', 'open' => $accessState['expires_at'] ? '限時開放中' : '長期開放中']; ?>
+          <p class="hint">目前狀態：<?= $esc($accessLabels[$accessState['state']]) ?><?= !souliong_module_on($meta, 'upload') ? '（專案上傳功能已關閉）' : '' ?></p>
+          <p class="hint">可投稿的內容依專案設定。時間留空為長期開放，取消啟用即可關閉免碼；既有投稿碼仍可獨立使用。</p>
+          <label><input type="checkbox" name="contrib_free_enabled" <?= !empty($accessPolicy['enabled']) ? 'checked' : '' ?>> 啟用</label>
+          <div class="contrib-access-dates">
+          <label>開始（台北時間，可留空）<input type="datetime-local" name="contrib_free_start" value="<?= $esc($accessTime($accessPolicy['starts_at'] ?? null)) ?>"></label>
+          <label>結束（台北時間，可留空）<input type="datetime-local" name="contrib_free_end" value="<?= $esc($accessTime($accessPolicy['expires_at'] ?? null)) ?>"></label>
+          </div>
+          <div class="contrib-access-actions"><button class="btn" type="submit">儲存免碼設定</button>
+          <a class="btn" target="_blank" rel="noopener" href="<?= $esc(Route::api('photosubmit', ['project' => $p])) ?>">開啟照片投稿頁</a></div>
         </form>
         <?php endif; ?>
         <!-- 投稿代碼：一碼一張卡，連結／QR／限制／用量都在同一張卡上 -->
@@ -4109,11 +4133,13 @@ if (!$authed) {
                 </div>
                 <div class="codecard-info">
                   <div class="badge">
-                    <?= !empty($ce2['expires_at']) ? $t('expires_at_label', ['date' => substr((string)$ce2['expires_at'], 0, 16)]) : $t('no_expiry_label') ?>
+                    <?= ($ce2['enabled'] ?? true) ? '已啟用' : '已停用' ?> ・<?= !empty($ce2['expires_at']) ? $t('expires_at_label', ['date' => substr((string)$ce2['expires_at'], 0, 16)]) : $t('no_expiry_label') ?>
                     ・<?= isset($ce2['max_uses']) && $ce2['max_uses'] !== null ? $t('used_of_max_label', ['used' => (int)($ce2['used_count'] ?? 0), 'max' => (int)$ce2['max_uses']]) : $t('unlimited_used_label', ['used' => (int)($ce2['used_count'] ?? 0)]) ?>
                   </div>
                 </div>
                 <div class="codecard-acts">
+                  <form method="post"><input type="hidden" name="csrf" value="<?= $esc_csrf ?>"><input type="hidden" name="action" value="togglecode"><input type="hidden" name="project" value="<?= $esc($p) ?>"><input type="hidden" name="code" value="<?= $esc($cc) ?>"><input type="hidden" name="enabled" value="<?= ($ce2['enabled'] ?? true) ? '0' : '1' ?>"><button class="btn"><?= ($ce2['enabled'] ?? true) ? '停用投稿碼' : '啟用投稿碼' ?></button></form>
+
                   <button type="button" class="btn qr-trigger" data-url="<?= $esc($inviteC) ?>" data-title="<?= $esc($meta['title'] ?? $p) ?>" data-code="<?= $esc($cc) ?>" title="<?= $t('show_qr_title') ?>"><i class="fa-solid fa-share-nodes"></i> <?= $t('share_code_btn') ?></button>
                   <button type="button" class="chipbtn" data-copy="<?= $esc($inviteC) ?>" title="<?= $t('copy_code_invite_link_title') ?>"><i class="fa-solid fa-link"></i></button>
                   <form method="post"><input type="hidden" name="csrf" value="<?= $esc_csrf ?>"><input type="hidden" name="action" value="delcode"><input type="hidden" name="project" value="<?= $esc($p) ?>"><input type="hidden" name="code_del" value="<?= $esc($cc) ?>"><button class="x" title="<?= $t('remove_code_title') ?>">×</button></form>

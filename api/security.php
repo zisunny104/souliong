@@ -4,6 +4,7 @@
  * 無外部相依；限流本身失敗時「放行」而非拒服務（避免自我 DoS）。
  * 位於 Nginx 反代後，需在 config 開 trust_forwarded 才會用 X-Forwarded-For。
  */
+require_once __DIR__ . '/contribaccess.php';
 require_once __DIR__ . '/accounts.php';   // 帳號登入判斷需要 account_current() 等函式
 
 function client_ip(array $cfg): string {
@@ -255,7 +256,7 @@ function gen_code(int $len = 6): string {
 /**
  * 投稿代碼：可建多組，各自可設到期時間／次數上限（皆留空＝不限期不限次數），
  * 達到即失效；存 projects/<project>/codes.json = [{code, label, created, expires_at, max_uses, used_count}]。
- * 有沒有還有效的碼就是這張地圖的投稿開關（見 contrib_open）。
+ * 有效投稿碼與免碼設定共同決定投稿是否開放。
  */
 function codes_file(array $cfg, string $project): string { return project_dir($cfg, $project) . '/codes.json'; }
 function codes_load(array $cfg, string $project): array {
@@ -298,12 +299,33 @@ function codes_grant_create(array $cfg, string $project, ?string $code, ?string 
         'code'       => $code,
         'label'      => $label !== null ? substr(trim((string)$label), 0, 80) : '',
         'created'    => gmdate('c'),
+        'enabled'    => true,
+        'starts_at'  => null,
         'expires_at' => $expiresAt,
         'max_uses'   => $maxUses,
         'used_count' => 0,
     ];
     codes_save($cfg, $project, $d);
     return $code;
+}
+/** Change only enabled under the same lock as usage counting. */
+function code_set_enabled(array $cfg, string $project, string $code, bool $enabled): bool {
+    codes_load($cfg, $project);
+    $fp = @fopen(codes_file($cfg, $project), 'c+');
+    if (!$fp) return false;
+    try {
+        if (!flock($fp, LOCK_EX)) return false;
+        $rows = json_decode((string)stream_get_contents($fp), true);
+        if (!is_array($rows)) return false;
+        foreach ($rows as &$row) {
+            if (!is_array($row) || (string)($row['code'] ?? '') !== $code) continue;
+            $row['enabled'] = $enabled;
+            $json = json_encode($rows, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            rewind($fp);
+            return $json !== false && ftruncate($fp, 0) && fwrite($fp, $json) === strlen($json) && fflush($fp);
+        }
+        return false;
+    } finally { flock($fp, LOCK_UN); fclose($fp); }
 }
 /** 驗證附加投稿代碼；$bump=true（實際上傳）時計一次使用。到期／用罄／不存在回 false。 */
 function code_check(array $cfg, string $project, string $given, bool $bump): bool {
@@ -318,9 +340,7 @@ function code_check(array $cfg, string $project, string $given, bool $bump): boo
         if (!is_array($d)) return false;
         foreach ($d as $i => $e) {
             if (!hash_equals((string)($e['code'] ?? ''), $given)) continue;
-            if (!empty($e['expires_at']) && gmdate('c') > (string)$e['expires_at']) return false;
-            $max = $e['max_uses'] ?? null;
-            if ($max !== null && (int)($e['used_count'] ?? 0) >= (int)$max) return false;
+            if (!contrib_code_active($e)) return false;
             if ($bump) {
                 $d[$i]['used_count'] = (int)($e['used_count'] ?? 0) + 1;
                 $json = json_encode($d, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
@@ -336,21 +356,16 @@ function code_check(array $cfg, string $project, string $given, bool $bump): boo
     }
 }
 
-/**
- * 投稿開關＝有沒有還有效的投稿代碼。碼是唯一的開關：
- *   一組有效碼都沒有 → 這張地圖現在未開放投稿（管理者不受限，方便主辦者自己補資料）
- *   有 → 要碼才能投稿，且各碼自己的到期／次數上限照常生效
- * 舊版的 meta.gated 已停用：那個旗標後台沒有任何地方能設，等於投稿代碼形同虛設。
- */
+/** Active codes share the same enabled/time-window check as code-free access. */
 function codes_active(array $cfg, string $project): array {
-    $now = gmdate('c');
-    return array_values(array_filter(codes_load($cfg, $project), function ($e) use ($now) {
-        if (!empty($e['expires_at']) && $now > (string)$e['expires_at']) return false;
-        $max = $e['max_uses'] ?? null;
-        return !($max !== null && (int)($e['used_count'] ?? 0) >= (int)$max);
-    }));
+    return array_values(array_filter(codes_load($cfg, $project), fn($e) => is_array($e) && contrib_code_active($e)));
 }
-function contrib_open(array $cfg, string $project): bool { return codes_active($cfg, $project) !== []; }
+function contrib_open(array $cfg, string $project): bool {
+    $path = project_dir($cfg, $project) . '/meta.json';
+    $meta = is_file($path) ? json_decode((string)file_get_contents($path), true) : null;
+    return souliong_module_on(is_array($meta) ? $meta : null, 'upload')
+        && (contrib_free_state(is_array($meta) ? $meta : null)['open'] || codes_active($cfg, $project) !== []);
+}
 
 /**
  * 投稿者身分（可選，設 PIN 才有；匿名投稿者無此身分）：可用一組 PIN 建立跨裝置的身分，用來在別的裝置管理自己的投稿。

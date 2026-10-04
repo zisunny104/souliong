@@ -5,12 +5,7 @@
   let status = cfg.status, blob = null, previewUrl = '', selection = 0, busy = false, submitted = false;
   let name = '', spot = '', parentOrigin = '', boundaryTimer = null;
   let serverOffset = Date.parse(status.serverTime) - Date.now();
-  let owner;
-  try { owner = localStorage.getItem('souliong-photo-owner'); } catch (e) {}
-  if (!owner) {
-    owner = Array.from(crypto.getRandomValues(new Uint8Array(24)), b => b.toString(16).padStart(2, '0')).join('');
-    try { localStorage.setItem('souliong-photo-owner', owner); } catch (e) {}
-  }
+  const owner = SouliongContribution.ownerToken();
   function post(type, extra) {
     if (!parentOrigin || window.parent === window) return;
     window.parent.postMessage(Object.assign({ v: 1, ns: 'souliong-photo', type, project: cfg.project }, extra), parentOrigin);
@@ -29,13 +24,17 @@
   function resize() { post('resize', { height: Math.ceil(document.querySelector('main').getBoundingClientRect().height) }); }
   new ResizeObserver(resize).observe(document.querySelector('main'));
   function update() {
-    $('photo-submit').disabled = busy || submitted || !status.open || !blob;
-    ['pick-photo', 'take-photo', 'photo-comment', 'photo-consent'].forEach(id => { $(id).disabled = busy || submitted || !status.open; });
-    const messages = { disabled: '目前未開放照片投稿。', scheduled: '照片投稿將於 ' + localTime(status.startsAt) + ' 開放。',
-      ended: '本次照片投稿時段已結束。', open: '現在可以拍攝或上傳照片，不需要投稿代碼。' };
-    $('availability').textContent = messages[status.state] || messages.disabled;
+    const allowed = status.kinds && status.kinds.includes('photo') && (status.open || status.codesAvailable);
+    $('photo-code-label').hidden = !!status.open || !status.codesAvailable;
+    $('photo-code').required = !status.open && !!status.codesAvailable;
+    $('photo-code').disabled = busy || submitted;
+    $('photo-submit').disabled = busy || submitted || !allowed || !blob;
+    ['pick-photo', 'take-photo', 'photo-comment', 'photo-consent'].forEach(id => { $(id).disabled = busy || submitted || !allowed; });
+    const messages = { disabled: '目前未開放照片投稿。', scheduled: '照片投稿將於 ' + localTime(status.starts_at) + ' 開放。',
+      ended: '本次照片投稿時段已結束。', open: '現在開放免碼投稿，可拍攝或選擇照片。' };
+    $('availability').textContent = status.blocked ? '此身分已被停權，無法投稿。' : !status.kinds || !status.kinds.includes('photo') ? '這個專案未開放照片投稿。' : !status.open && status.codesAvailable ? '請輸入投稿碼後送出照片。' : messages[status.state] || messages.disabled;
     clearTimeout(boundaryTimer);
-    const boundary = submitted ? null : status.state === 'scheduled' ? status.startsAt : status.open ? status.endsAt : null;
+    const boundary = submitted ? null : status.next_change_at;
     if (boundary) {
       const delay = Date.parse(boundary) - (Date.now() + serverOffset);
       boundaryTimer = setTimeout(refreshStatus, Math.max(100, Math.min(delay + 100, 2147483647)));
@@ -44,7 +43,8 @@
   function localTime(value) { return value ? new Intl.DateTimeFormat('zh-TW', { timeZone: 'Asia/Taipei', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value)) : ''; }
   async function refreshStatus() {
     try {
-      const response = await fetch(cfg.statusUrl, { cache: 'no-store' });
+      const query = new FormData(); query.set('project', cfg.project); query.set('owner', owner); query.set('code', $('photo-code').value);
+      const response = await fetch(cfg.statusUrl, { method: 'POST', body: query, cache: 'no-store' });
       if (!response.ok) throw Error('status');
       status = await response.json(); serverOffset = Date.parse(status.serverTime) - Date.now(); update(); post('status', { status });
     } catch (e) {
@@ -83,26 +83,17 @@
     busy = true; update(); post('uploading'); $('photo-message').textContent = '正在確認投稿時段…';
     try {
       await refreshStatus();
-      if (!status.open) throw Error('目前不在開放投稿的時段內。');
-      const form = new FormData();
-      form.set('project', cfg.project); form.set('kind', 'photo'); form.set('owner', owner);
-      form.set('name', $('photo-name') ? $('photo-name').value : name); form.set('comment', $('photo-comment').value);
-      form.set('photo', blob, 'photo.webp'); if (spot) form.set('item_num', spot);
+      if (!status.kinds || !status.kinds.includes('photo') || (!status.open && !status.codeValid)) throw Error(status.codesAvailable ? '需要有效的投稿碼。' : '目前未開放投稿。');
+      const fields = { kind: 'photo', name: $('photo-name') ? $('photo-name').value : name,
+        comment: $('photo-comment').value, photo: [blob, 'photo.webp'] };
+      if (spot) fields.item_num = spot;
       $('photo-progress').hidden = false; $('photo-progress').value = 0;
       $('photo-message').textContent = '正在送出照片，請稍候…';
-      const result = await new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest(); xhr.open('POST', cfg.uploadUrl); xhr.timeout = 120000;
-        xhr.upload.onprogress = event => { if (event.lengthComputable) $('photo-progress').value = Math.round(event.loaded / event.total * 100); };
-        xhr.onload = () => {
-          let data; try { data = JSON.parse(xhr.responseText); } catch (e) { reject(Error('無法確認投稿結果，請先確認是否已送出。')); return; }
-          if (xhr.status < 200 || xhr.status >= 300 || !data.ok || !data.item || !data.item.id) reject(Error(data.error || '投稿失敗，請稍後再試。'));
-          else resolve(data);
-        };
-        xhr.onerror = xhr.ontimeout = () => reject(Error('連線中斷，無法確認投稿結果；請先確認是否已送出，避免重複投稿。'));
-        xhr.send(form);
-      });
+      const result = await SouliongContribution.submit(cfg.uploadUrl, fields,
+        { project: cfg.project, owner, code: $('photo-code').value, csrf: cfg.csrf },
+        { onProgress: value => { $('photo-progress').value = Math.round(value * 100); } });
       submitted = true; $('photo-message').textContent = '照片與說明已送出，謝謝你的分享。';
-      post('submitted', { entryId: result.item.id });
+      post('submitted', { entryId: result.id });
     } catch (e) { $('photo-message').textContent = e.message; post('error', { message: e.message }); }
     finally { busy = false; $('photo-progress').hidden = true; update(); }
   };

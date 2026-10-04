@@ -10,7 +10,7 @@ rate_limit($cfg, 'unlock');
 $project = preg_replace('/[^a-z0-9_-]/', '', $_POST['project'] ?? '');
 if ($project === '' || !is_dir($cfg['projects_dir'] . '/' . $project)) { json_out(['error' => 'bad request'], 400); }
 
-// 沒有任何有效碼＝這張地圖現在沒開放投稿，連解鎖都不該成功（前端也不會顯示解鎖鈕）
+// 專案唯讀或沒有有效開放條件時不可解鎖；輸入的碼仍須獨立驗證。
 if (!contrib_open($cfg, $project)) { json_out(['error' => '這張地圖目前未開放投稿'], 403); }
 $given = preg_replace('/\D/', '', (string)($_POST['code'] ?? ''));   // 純數字碼：容忍空白/貼上
 // 只驗證不計次（次數在實際上傳時才扣，見 upload.php）

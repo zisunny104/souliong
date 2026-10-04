@@ -46,8 +46,10 @@ switch ($action) {
         require __DIR__ . '/api/navsheet.php';   // 導航選單小頁（供 iframe／modal 嵌入）
         return;
     case 'photosubmit':
-    case 'photostatus':
         require __DIR__ . '/api/photosubmit.php';
+        return;
+    case 'contribstatus':
+        require __DIR__ . '/api/contribstatus.php';
         return;
     case 'upload':
         require __DIR__ . '/api/upload.php';
