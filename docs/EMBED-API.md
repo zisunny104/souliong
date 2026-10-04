@@ -278,7 +278,7 @@ GET <站台>?api=navsheet&project=<slug>&spot=<spotId|num>&embed=1[&theme=light|
 - [ ] 父頁訊息處理檢查 `event.source` 與 `event.origin`。
 - [ ] 用 `tools/embed-demo.html` 手動驗證所有指令；`php tools/checkall.php` 含 `embedcheck` 自動檢查。
 
-## 10. 投稿開放條件與照片嵌入介面
+## 10. 投稿開放條件與嵌入投稿
 
 所有投稿共用既有 `upload`／`newspot` 接口、資料儲存與專案內容設定。投稿碼和免碼開放是兩種授權條件，可以並存：有效投稿碼可投稿，或免碼開放時不必輸入碼。免碼期間不扣投稿碼次數。照片、文字、音訊、影片由 `meta.contrib.kinds` 決定；建立點位仍由 `meta.contrib.newSpot` 決定，停權與唯讀設定照常生效。
 
@@ -292,12 +292,12 @@ GET <站台>?api=navsheet&project=<slug>&spot=<spotId|num>&embed=1[&theme=light|
 
 `GET ?api=contribstatus&project=demo` 提供免碼 `open`、`state`（disabled/scheduled/ended/open）、`starts_at`、`expires_at`、`serverTime`、`next_change_at`、`codesAvailable`、`kinds`、`newSpot`。POST 同一接口可帶 `project`、`code`、`owner`、`ctoken`，回傳 `codeValid`、`blocked`，不扣碼次數。`open` 專指免碼開放，需碼投稿另看 `codeValid`。回應不快取，不暴露投稿碼或身分秘密；跨網站依允許來源送 CORS。
 
-### 完整投稿對話框（所有型別）
+### 嵌入投稿對話框
 
-`ui=submit` 把地圖頁縮成只剩投稿對話框，等同網站上的投稿視窗，可投的型別（照片、影片、音訊、文字）由 `meta.contrib.kinds` 決定，不含建立點位：
+`ui=submit` 把地圖頁縮成只剩投稿對話框，等同網站上的投稿視窗，可投的型別（照片、影片、音訊、文字）由 `meta.contrib.kinds` 決定，不含建立點位。要只開放部分型別就加 `type`（逗號分隔），只能收窄專案已開放的型別：
 
 ```html
-<iframe title="投稿" src="https://example.com/souliong/?p=demo&embed=1&ui=submit"></iframe>
+<iframe title="投稿" src="https://example.com/souliong/?p=demo&embed=1&ui=submit&type=photo"></iframe>
 ```
 
 - 需要投稿碼：先跳出解鎖視窗；可加 `&code=123456` 帶入投稿碼自動解鎖。
@@ -305,22 +305,3 @@ GET <站台>?api=navsheet&project=<slug>&spot=<spotId|num>&embed=1[&theme=light|
 - 未開放（上傳模組關閉或沒有有效條件）：顯示「目前未開放投稿」。
 - 父頁需先把來源 origin 加入允許嵌入來源。起始與完成時會對該 origin 送出 `{ v:1, ns:'souliong', type:'contribReady' }` 與 `{ …, type:'contribSubmitted', ok, fail }`。
 
-照片嵌入介面只顯示照片操作，權限仍取自上述共用接口，沒有照片專屬開放設定。需先將父網站 origin 加入允許嵌入來源：
-
-```html
-<iframe id="photo" title="照片投稿"
-  src="https://example.com/souliong/?api=photosubmit&project=demo&embed=1"></iframe>
-```
-
-支援選照片、手機拍攝、照片說明與 CC0 同意。需碼時顯示投稿碼欄位，免碼時省略；專案未開放照片則不能提交。瀏覽器將照片縮至最長邊 1600px 後轉 WebP，與地圖投稿共用身分 token 與 multipart 提交工具，直接非同步提交到同一個 `upload` 接口。上傳成功依據伺服器回覆的 `item.id`。
-
-iframe 載入後，父頁送初始化訊息，targetOrigin 必須精確：
-
-```js
-frame.contentWindow.postMessage({
-  ns: 'souliong-photo', v: 1, type: 'init', project: 'demo',
-  name: '體驗者', spotId: '0123456789abcdef' // spotId 選填，須屬於該專案
-}, 'https://example.com');
-```
-
-回傳訊息使用同一個 `ns`、`v`、`project`：`ready`／`status` 帶 `status`，`resize` 帶 `height`，`uploading` 表示開始送出，`submitted` 帶 `entryId` 表示儲存成功，`error` 帶 `message`。父頁應同時檢查 source、origin 與 project，上傳中暫停離開按鈕，完成或失敗後再恢復。不帶 `embed=1` 可獨立使用，額外顯示暱稱欄位。

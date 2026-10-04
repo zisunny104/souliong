@@ -233,7 +233,9 @@
       this.notifyParent = notify;
       const sync = () => {
         const dlg = document.getElementById('unlockDialog');
-        if (this.mapApp.isUnlocked()) {
+        if (!this.tabs.length) {
+          note.hidden = false;
+        } else if (this.mapApp.isUnlocked()) {
           note.hidden = true;
           if (dlg) dlg.classList.remove('open');
           if (!this.$('modal').classList.contains('open')) { this.resetQueue(); this.openModal(null); }

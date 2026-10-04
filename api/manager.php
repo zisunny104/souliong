@@ -4234,7 +4234,7 @@ if (!$authed) {
           <label>結束（台北時間，可留空）<input type="datetime-local" name="contrib_free_end" value="<?= $esc($accessTime($accessPolicy['expires_at'] ?? null)) ?>"></label>
           </div>
           <div class="contrib-access-actions"><button class="btn" type="submit">儲存開放投稿設定</button>
-          <a class="btn" target="_blank" rel="noopener" href="<?= $esc(Route::api('photosubmit', ['project' => $p])) ?>">開啟照片投稿頁</a></div>
+          <a class="btn" target="_blank" rel="noopener" href="<?= $esc(Route::map($p) . '?embed=1&ui=submit') ?>">預覽嵌入投稿頁</a></div>
         </form>
         <?php endif; ?>
         <!-- 投稿代碼：一碼一張卡，連結／QR／限制／用量都在同一張卡上 -->
