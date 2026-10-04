@@ -261,9 +261,9 @@ window.MapApp = (() => {
   function storedCode() { try { return localStorage.getItem('uploadCode_' + PROJECT) || ''; } catch (e) { return ''; } }
   function isUnlocked() { return can('bypass_code') || !!(APP.contributionAccess && APP.contributionAccess.open) || (!!APP.gated && !!storedCode() && codeStillValid); }
   function canPost() { return !EMBED && MOD('upload') && isUnlocked(); }
-  // 建立點位跟投稿是兩條軸：管理者專屬時只看編輯點位權限（唯讀地圖也能建），開放時比照投稿條件
+  // 建立點位跟投稿是兩條軸：管理者專屬時看編輯點位權限，開放時比照投稿條件；唯讀地圖（關閉上傳）一律不能建立
   function canCreateSpot() {
-    if (EMBED) return false;
+    if (EMBED || !MOD('upload')) return false;
     return CONTRIB_CFG.newSpot === 'admin' ? can('edit_spots') : (CONTRIB_CFG.newSpot === 'contributor' && canPost());
   }
   function applyPostState() {

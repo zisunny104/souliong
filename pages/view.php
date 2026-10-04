@@ -80,8 +80,6 @@ $contribCfg = souliong_contrib_cfg($meta);
 $contribFiles = $mod('upload') ? $contribCfg['kinds'] : [];
 if ($contribFiles && ($contribCfg['newSpot'] === 'contributor' || ($contribCfg['newSpot'] === 'admin' && $canEditSpots))) {
     $contribFiles[] = 'newspot';
-} elseif (!$contribFiles && !$bare && $contribCfg['newSpot'] === 'admin' && $canEditSpots) {
-    $contribFiles = ['newspot'];   // 唯讀地圖：管理者仍能建立點位
 }
 // 點位內容編輯器（content-editor.js）：只給具 edit_spots 的身分載入（純顯示判斷）。它借用 kind-audio.js 的
 // 錄音／選檔，型別檔的載入獨立於 upload 模組——唯讀地圖的管理者一樣要能錄音，所以投稿型別沒載到 audio 時另外補載。
