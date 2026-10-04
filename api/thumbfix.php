@@ -158,7 +158,7 @@ $reqProject = preg_replace('/[^a-z0-9_-]/', '', $_GET['project'] ?? ($allProject
       margin: 0 auto
     }
 
-    /* 原本 position:fixed 貼右上角，視窗一窄就壓在標題上；改成跟著版面走的一列 */
+    /* 語言切換：跟著版面走的一列，不浮在右上角 */
     .langsw {
       max-width: 45rem;
       margin: 0 auto var(--sp-2);
@@ -290,7 +290,7 @@ $reqProject = preg_replace('/[^a-z0-9_-]/', '', $_GET['project'] ?? ($allProject
       color: var(--accent)
     }
 
-    /* 返回後台：原本是一行純文字連結，點擊面積不足一個手指 */
+    /* 返回後台：點擊面積至少一個手指寬 */
     .backlink {
       margin-top: var(--sp-5)
     }

@@ -1838,8 +1838,7 @@ if (!$authed) {
       -webkit-font-smoothing: antialiased
     }
 
-    /* 語言切換：原本是 position:fixed 貼右上角，但 .wrap 只有 62.5rem 寬且置中，
-       視窗窄於約 1192px 時就會壓在「登出」按鈕上。改成跟著版面走的一列，任何寬度都不會疊到。 */
+    /* 語言切換：跟著版面走的一列，任何寬度都不會疊到登出鈕 */
     .langsw {
       display: flex;
       justify-content: flex-end;
@@ -2126,8 +2125,7 @@ if (!$authed) {
       gap: var(--sp-3)
     }
 
-    /* 編輯專案描述：原本用 <details> 內嵌展開，但 .projactions 是 flex 排版，
-       表單的 flex-basis:100% 只會相對「按鈕列」換行，不是相對整列，導致跑版；改用原生 <dialog> 徹底脫離該排版脈絡 */
+    /* 編輯專案描述：用原生 <dialog>，不受 .projactions 的 flex 排版影響 */
     .metadlg {
       border: 1px solid var(--line);
       border-radius: var(--r-lg);
@@ -2625,8 +2623,7 @@ if (!$authed) {
       border-color: var(--accent)
     }
 
-    /* 只有可點的分頁才有 hover。原本寫 .tab:hover，跟 .tab.on 同權重又排在後面，
-       滑過目前所在的「全部」分頁時只有底色被蓋回淺色、字色仍是反白，整顆字就消失了。 */
+    /* 只有可點的分頁才有 hover，避免目前分頁的反白字色被蓋掉 */
     .tab:not(.on):hover {
       background: var(--bg)
     }
@@ -2753,7 +2750,7 @@ if (!$authed) {
       color: var(--muted)
     }
 
-    /* 每格數字底下自己的一句話解釋，取代原本另開一張「這些數字的意思」卡 */
+    /* 每格數字底下的一句話解釋 */
     .tile .d {
       font-size: 0.75rem;
       color: var(--muted);
@@ -3080,7 +3077,7 @@ if (!$authed) {
       margin: 0
     }
 
-    /* 移除／撤銷。原本 17×16px，遠低於 WCAG 2.2 SC 2.5.8 的 24×24 下限 */
+    /* 移除／撤銷：點擊區至少 24×24px（WCAG 2.2 SC 2.5.8） */
     .x {
       background: var(--card);
       border: 1px solid var(--line);
@@ -3254,7 +3251,7 @@ if (!$authed) {
       margin-top: 0
     }
 
-    /* pinchip 內的小型連結按鈕（複製邀請連結等）。原本 18×14px，點不到 */
+    /* pinchip 內的小型連結按鈕（複製邀請連結等） */
     .chipbtn {
       background: var(--card);
       border: 1px solid var(--line);
@@ -3438,8 +3435,7 @@ if (!$authed) {
       min-height: var(--tap)
     }
 
-    /* 空狀態：原本是一行置中文字浮在空白裡，看起來像版面破了。給它虛線框，
-       明確表示「這一格現在是空的」，並把下一步的按鈕就放在框裡。 */
+    /* 空狀態：虛線框表示這一格是空的，下一步按鈕放在框裡 */
     .emptystate {
       display: flex;
       align-items: center;
@@ -3724,7 +3720,7 @@ if (!$authed) {
               <h3><i class="fa-solid fa-gear"></i> <?= $t('project_settings_btn') ?></h3>
               <input type="hidden" name="csrf" value="<?= $esc_csrf ?>"><input type="hidden" name="action" value="meta"><input type="hidden" name="project" value="<?= $esc($p) ?>">
 
-              <?php // 基本資訊：原本「編輯專案描述」直覺對應的內容，最常被找，預設展開。 ?>
+              <?php // 基本資訊：最常被找，預設展開 ?>
               <details class="metasec" open>
                 <summary><span class="metasec-title"><i class="fa-solid fa-circle-info"></i> <?= $t('newproject_basic_heading') ?> <i class="fa-solid fa-chevron-down metasec-chevron" aria-hidden="true"></i></span></summary>
                 <div class="metasec-body">

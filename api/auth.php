@@ -10,9 +10,7 @@
  *   2. account        在「此專案」有成員資格的帳號
  *   3. pin            此專案仍有效的專案 PIN cookie
  *   4. anon
- * 取到第一個就定案。舊版 perm_check() 是 primary → PIN → 帳號，CSRF 衍生卻是 primary → 帳號 → PIN，
- * 瀏覽器同時帶帳號與專案 PIN cookie 時權限吃 PIN、CSRF 吃帳號而對不上；現在兩者都吃同一個 Actor，
- * 順序統一為 primary → 帳號 → PIN，這是刻意的修正。
+ * 取到第一個就定案；權限與 CSRF 都吃同一個 Actor，順序固定為 primary → 帳號 → PIN。
  *
  * 權限鍵註冊表 auth_registry() 是所有權限鍵的唯一來源：primary 的全開表、新建 PIN／帳號的預設表、
  * 既有身分缺鍵時的回填與舊鍵名搬遷都由它產生。新增權限鍵只需在註冊表加一行。
