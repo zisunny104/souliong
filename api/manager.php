@@ -806,19 +806,22 @@ if (!$authed) {
               $lid = (string)$lid;
               if (isset($avail[$lid]) && !in_array($lid, $picked, true)) $picked[] = $lid;
             }
-            if ($picked) {
+            // 跟全站預設一模一樣就不另存，之後全站預設改了這張地圖會跟著變
+            if ($picked && array_reverse($picked) !== array_values(souliong_default_layers($cfg))) {
               $meta['layers'] = array_reverse($picked);
             } else {
               unset($meta['layers']);
             }
           }
-          // 允許嵌入的網域（專案層）：格式不合法就整筆不存並說明哪幾項有問題，不靜默吞掉；空白＝移除欄位
+          // 允許嵌入的網域（專案層）：只有這一欄格式不合法時不動它，其餘設定照常儲存，
+          // 存完再說明哪幾項有問題；空白＝移除欄位
+          $embedInvalid = [];
           if (isset($_POST['embed_submitted'])) {
             $eo = embed_origins_parse((string)($_POST['embedOrigins'] ?? ''));
-            if ($eo['invalid']) {
-              error_page(400, $t('embed_origins_invalid_title'), $t('embed_origins_invalid_msg', ['list' => implode('、', $eo['invalid'])]), Route::manager($scopeProject !== '' ? $p : '', 'access'), $t('back_to_admin'));
-            }
-            if ($eo['valid']) {
+            $embedInvalid = $eo['invalid'];
+            if ($embedInvalid) {
+              // 保留原值
+            } elseif ($eo['valid']) {
               $meta['embedOrigins'] = $eo['valid'];
             } else {
               unset($meta['embedOrigins']);
@@ -828,6 +831,9 @@ if (!$authed) {
           if ($json !== false && is_dir(dirname($mf))) {
             @file_put_contents($mf, $json, LOCK_EX);
           }   // 編碼失敗絕不覆寫，避免清空 meta
+          if ($embedInvalid) {
+            error_page(400, $t('embed_origins_invalid_title'), $t('embed_origins_invalid_msg', ['list' => implode('、', $embedInvalid)]), Route::manager($scopeProject !== '' ? $p : '', 'access'), $t('back_to_admin'));
+          }
           header('Location: ' . Route::manager($scopeProject !== '' ? $p : '', 'access'));
           exit;
         }
@@ -3718,7 +3724,7 @@ if (!$authed) {
                 // 勾選的排在前面（照現有疊法），沒勾的接在後面等著被叫上來。
                 $layAll  = $layAllForP;
                 $layCur  = array_values(array_filter(
-                  array_reverse((array)($meta['layers'] ?? [])),
+                  array_reverse((array)($meta['layers'] ?? souliong_default_layers($cfg))),
                   fn($lid) => is_string($lid) && isset($layAll[$lid])
                 ));
                 $layRows = $layCur;

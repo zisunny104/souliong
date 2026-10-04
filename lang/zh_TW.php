@@ -467,7 +467,7 @@ return [
     'embed_origins_hint'         => '每行一個，格式為 https://網域[:埠]，不可含路徑或萬用字元；本機開發可用 http://localhost[:埠]。列在這裡的網站才能用 iframe 嵌入這張地圖，也才能從瀏覽器讀取它的資料 API。留空＝不開放。',
     'embed_origins_site_note'    => '全站另外已允許：{list}（由伺服器設定檔管理，這裡無法修改）。',
     'embed_origins_invalid_title' => '來源格式不正確',
-    'embed_origins_invalid_msg'  => '以下項目格式不正確，設定尚未儲存：{list}。請使用 https://網域[:埠]，不要加路徑或萬用字元。',
+    'embed_origins_invalid_msg'  => '其他設定已儲存；允許嵌入的來源有以下項目格式不正確，這一欄維持原狀：{list}。請使用 https://網域[:埠]，不要加路徑或萬用字元。',
     'copy_spot_id_title'         => '複製 spotId（對外穩定識別）',
     'metasec_contrib_summary'    => '開放型別：{kinds}；建立點位：{newspot}',
     'share_created_badge'        => '已建立：{kind}——把連結或 QR 給對方',

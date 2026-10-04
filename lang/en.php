@@ -457,7 +457,7 @@ return [
     'embed_origins_hint'         => 'One per line, as https://host[:port]; no paths or wildcards. For local development use http://localhost[:port]. Only listed sites may embed this map in an iframe or read its data API from a browser. Empty = not open.',
     'embed_origins_site_note'    => 'Also allowed site-wide: {list} (managed in the server config; not editable here).',
     'embed_origins_invalid_title' => 'Invalid origin format',
-    'embed_origins_invalid_msg'  => 'These entries are not valid and nothing was saved: {list}. Use https://host[:port] without a path or wildcard.',
+    'embed_origins_invalid_msg'  => 'Other settings were saved. These embed origins are not valid and were left unchanged: {list}. Use https://host[:port] without a path or wildcard.',
     'copy_spot_id_title'         => 'Copy spotId (stable public identifier)',
     'metasec_contrib_summary'    => 'Open types: {kinds}; create spots: {newspot}',
     'share_created_badge'        => 'Created: {kind} — send the link or QR to them',
