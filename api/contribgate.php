@@ -1,6 +1,7 @@
 <?php
 /** 共用投稿關卡；管理免碼權限與匿名投稿憑證分別驗證。 */
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/publicphoto.php';
 
 /** 這個請求聲稱的投稿者身分（owner／ctoken 兩個 bearer 秘密），由請求解析一次。 */
 final class Contributor {
@@ -37,11 +38,12 @@ final class Contributor {
  * 任一關失敗直接 403 結束；通過回傳解析好的 Contributor。
  * $what 只用在缺碼時的訊息（「上傳」「建立點位」）。
  */
-function contrib_gate(array $cfg, string $project, string $what = '上傳'): Contributor {
+function contrib_gate(array $cfg, string $project, string $what = '上傳', bool $publicPhoto = false): Contributor {
     $who = Contributor::fromRequest();
     if (is_blocked($cfg, $project, $who->ownerHash(), $who->contribId())) {
         json_out(['error' => '此身分已被主辦者停權，無法繼續投稿'], 403);
     }
+    if ($publicPhoto && public_photo_open($cfg, $project)) return $who;
     if (Auth::can($cfg, $project, 'bypass_code')) {
         Auth::require($cfg, $project, 'bypass_code', true);
         return $who;

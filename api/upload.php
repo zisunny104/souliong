@@ -34,7 +34,9 @@ if (!souliong_module_on($metaU, 'upload')) {
 
 // 投稿軸把關（停權名單 → bypass_code → 是否開放投稿 → 投稿代碼並計一次使用）全在 contrib_gate()，
 // 跟 newspot.php 的 contributor 模式共用同一道關卡（api/contribgate.php）。
-$who = contrib_gate($cfg, $project);
+$publicPhoto = ($_POST['kind'] ?? 'photo') === 'photo' && isset($_FILES['photo'])
+    && ($_FILES['photo']['error'] ?? -1) === UPLOAD_ERR_OK;
+$who = contrib_gate($cfg, $project, '上傳', $publicPhoto);
 
 // kind 白名單看的是 postable 而不是「註冊表裡有沒有這個 key」——spot 也在註冊表裡，
 // 但它只能由 editspot.php／newspot.php 在權限檢查後寫入，放行等於開後門讓任何人偽造

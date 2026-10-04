@@ -277,3 +277,29 @@ GET <站台>?api=navsheet&project=<slug>&spot=<spotId|num>&embed=1[&theme=light|
 - [ ] 父頁用 `spotId` 而非 `num` 識別點位。
 - [ ] 父頁訊息處理檢查 `event.source` 與 `event.origin`。
 - [ ] 用 `tools/embed-demo.html` 手動驗證所有指令；`php tools/checkall.php` 含 `embedcheck` 自動檢查。
+
+## 10. 限時免碼照片投稿（獨立嵌入）
+
+後台「存取與權限 → 限時免碼照片投稿」設定啟用、開始與結束（台北時間）。需啟用上傳模組與 photo 型別。時間存成 UTC，依伺服器時間判斷 `[開始, 結束)`，預設關閉。期間內只有含實際照片檔案的 photo 投稿免碼；文字、影音與建立點位仍依原權限，停權名單仍優先。原有投稿碼與次數限制不變。
+
+將父網站的 origin 加入專案允許嵌入來源，然後在體驗流程中加入：
+
+```html
+<iframe id="photo" title="照片投稿"
+  src="https://example.com/souliong/?api=photosubmit&project=demo&embed=1"></iframe>
+```
+
+畫面支援選照片、手機拍攝、照片說明與 CC0 同意；照片在瀏覽器縮至最長邊 1600px 後轉 WebP，以非同步請求直接提交到同一個 Souliong 專案。上傳成功依據 `upload` 回覆的 `item.id`，不使用背景假成功。裝置不支援直接拍攝時，可使用系統選檔。
+
+iframe 載入後，父頁用精確的 Souliong origin 送初始化訊息：
+
+```js
+frame.contentWindow.postMessage({
+  ns: 'souliong-photo', v: 1, type: 'init', project: 'demo',
+  name: '體驗者', spotId: '0123456789abcdef' // spotId 選填，須屬於該專案
+}, 'https://example.com');
+```
+
+回傳訊息使用同一個 `ns`、`v`、`project`：`ready`／`status` 帶 `status`（`open`、`state`、`startsAt`、`endsAt`、`serverTime`），`resize` 帶 `height`，`uploading` 表示開始送出，`submitted` 帶 `entryId` 表示確實儲存，`error` 帶 `message`。父頁必須同時檢查 `event.source === frame.contentWindow`、精確 `event.origin` 與專案。上傳中應停用離開按鈕，收到完成或錯誤才恢復。
+
+`GET ?api=photostatus&project=demo` 提供上述即時狀態（no-store，依允許來源送 CORS）。不帶 `embed=1` 的投稿頁可獨立使用，會額外顯示暱稱欄位。關閉期間仍可顯示此頁，但不能免碼提交。

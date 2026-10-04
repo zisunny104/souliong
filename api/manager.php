@@ -9,6 +9,7 @@ require_once __DIR__ . '/packs.php';
 require_once __DIR__ . '/layers.php';     // 地圖圖層註冊表（底圖／疊圖），形狀同 packs.php
 require_once __DIR__ . '/labellang.php';
 require_once __DIR__ . '/markercolors.php';
+require_once __DIR__ . '/publicphoto.php';
 require_once __DIR__ . '/spotlib.php';     // spot_kind_normalize()／spotId 判斷
 require_once __DIR__ . '/embedorigins.php';   // 允許嵌入的來源清單解析與驗證（CORS／frame-ancestors／postMessage 共用）
 require_once __DIR__ . '/regions3d.php';  // 3D 自訂模型區域註冊表，形狀同上，見 api/region3d.php
@@ -665,6 +666,27 @@ if (!$authed) {
             store_purge_files($cfg, $removed);   // 照片與影音的主檔＋縮圖一起清（見 store.php）
           }
           header('Location: ' . Route::manager($scopeProject, 'records'));
+          exit;
+        }
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'publicphoto') {
+          $p = clean_id($_POST['project'] ?? '');
+          $gate($p, 'manage_contrib', null, Route::manager($scopeProject, 'access'));
+          $mf = project_dir($cfg, $p) . '/meta.json';
+          $meta = is_file($mf) ? json_decode((string)file_get_contents($mf), true) : null;
+          if (!is_array($meta)) error_page(404, '找不到專案', '請確認專案存在。');
+          $enabled = isset($_POST['public_photo_enabled']);
+          $start = public_photo_local_time((string)($_POST['public_photo_start'] ?? ''));
+          $end = public_photo_local_time((string)($_POST['public_photo_end'] ?? ''));
+          if ($enabled && (!$start || !$end || strtotime($end) <= strtotime($start)
+              || !souliong_module_on($meta, 'upload') || !in_array('photo', souliong_contrib_cfg($meta)['kinds'], true))) {
+            error_page(400, '無法啟用免碼照片投稿', '請啟用照片上傳，並設定有效的開始與結束時間（台北時間）。', Route::manager($scopeProject, 'access'));
+          }
+          $meta['publicPhoto'] = ['enabled' => $enabled, 'startsAt' => $start, 'endsAt' => $end];
+          if (file_put_contents($mf, json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) . "\n", LOCK_EX) === false) {
+            error_page(500, '儲存失敗', '請稍後再試。');
+          }
+          audit_log($cfg, $auditWho(), 'public_photo_window', $p, $enabled ? 'enabled' : 'disabled');
+          header('Location: ' . Route::manager($scopeProject, 'access'));
           exit;
         }
         // 編輯專案描述（只改標題/副標/說明/資料來源，其餘欄位保留；免手改 meta.json）
@@ -4058,6 +4080,23 @@ if (!$authed) {
           </div>
         <?php };
       ?>
+        <?php if ($canContrib($p)):
+          $photoPolicy = $meta['publicPhoto'] ?? [];
+          $photoTime = static function ($v) { try { return $v ? (new DateTimeImmutable($v))->setTimezone(new DateTimeZone('Asia/Taipei'))->format('Y-m-d\TH:i') : ''; } catch (Throwable $e) { return ''; } };
+        ?>
+        <form method="post" class="card">
+          <input type="hidden" name="action" value="publicphoto">
+          <input type="hidden" name="project" value="<?= $esc($p) ?>">
+          <input type="hidden" name="csrf" value="<?= $esc_csrf ?>">
+          <h3>限時免碼照片投稿</h3>
+          <p class="hint">期間內任何人都能提交照片與說明；其他投稿仍使用原有代碼。嵌入網站需加入此專案允許的來源。</p>
+          <label><input type="checkbox" name="public_photo_enabled" <?= !empty($photoPolicy['enabled']) ? 'checked' : '' ?>> 啟用</label>
+          <label>開始（台北時間）<input type="datetime-local" name="public_photo_start" value="<?= $esc($photoTime($photoPolicy['startsAt'] ?? null)) ?>"></label>
+          <label>結束（台北時間）<input type="datetime-local" name="public_photo_end" value="<?= $esc($photoTime($photoPolicy['endsAt'] ?? null)) ?>"></label>
+          <button class="btn" type="submit">儲存免碼期間</button>
+          <a class="btn" target="_blank" rel="noopener" href="<?= $esc(Route::api('photosubmit', ['project' => $p])) ?>">開啟照片投稿頁</a>
+        </form>
+        <?php endif; ?>
         <!-- 投稿代碼：一碼一張卡，連結／QR／限制／用量都在同一張卡上 -->
         <div class="sechead"><i class="fa-solid fa-ticket"></i> <?= $t('contrib_code') ?><span class="sechint"><?= $contribOpen ? $t('codes_gated_hint') : $t('codes_none_hint') ?></span></div>
         <?php if ($codesList): ?>
