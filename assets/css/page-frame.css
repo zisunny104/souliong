@@ -428,15 +428,6 @@ body.embed .tr-group .tr-toggle {
 }
 
 /* ── 標題跑馬燈（單擊一次；與形狀彩蛋並存）── */
-.brand {
-  max-width: min(52vw, 220px)
-}
-
-.brand-txt {
-  display: inline-block;
-  white-space: nowrap
-}
-
 .brand.marquee {
   overflow: hidden
 }
@@ -493,10 +484,6 @@ body.embed .tr-group .tr-toggle {
 body.focus-contrib .dot-pin:not(.has-contrib) {
   opacity: .32;
   filter: grayscale(.55)
-}
-
-.dot-pin {
-  transition: opacity .2s, filter .2s
 }
 
 /* 「投稿」鈕上的數量標 */

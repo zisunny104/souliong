@@ -94,11 +94,13 @@
   text-overflow: ellipsis;
   -webkit-user-select: none;
   user-select: none;
-  cursor: pointer
+  cursor: pointer;
+  max-width: min(52vw, 220px)
 }
 
 .brand-txt {
-  font-weight: 800
+  font-weight: 800;
+  display: inline-block
 }
 
 .brand-sub {

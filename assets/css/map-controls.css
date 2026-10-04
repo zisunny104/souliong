@@ -119,12 +119,3 @@
   }
 }
 
-/* 版權置中於下方（縮放留在左下）：只讓 .cr-bar 自己用 fixed 定位置中，不搬整個 bottom-right 角，
-   以免連同角落裡其他控制項（如插件加的）一起被搬走。 */
-.cr-bar {
-  position: fixed;
-  left: 50%;
-  bottom: 14px;
-  transform: translateX(-50%);
-  margin: 0 !important
-}

@@ -215,7 +215,6 @@ function primary_pin_ref(array $cfg, string $pin): ?string {
     }
     return null;
 }
-function check_primary_pin(array $cfg, string $pin): bool { return primary_pin_ref($cfg, $pin) !== null; }
 /** 找出符合此 PIN 的專案 PIN 紀錄（含 id/perms），供登入時決定 cookie 要記哪把；不符合回傳 null。 */
 function project_pin_match(array $cfg, string $project, string $pin): ?array {
     if ($pin === '') return null;
