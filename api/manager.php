@@ -823,6 +823,43 @@ if (!$authed) {
             } else {
               unset($meta['layerDefaultBase']);
             }
+            // 僅限嵌入的圖層：只收有被勾選的；全部取消＝移除欄位
+            $embOnly = [];
+            foreach ((array)($_POST['layers_embed_only'] ?? []) as $lid) {
+              $lid = (string)$lid;
+              if (in_array($lid, $picked, true) && !in_array($lid, $embOnly, true)) $embOnly[] = $lid;
+            }
+            if ($embOnly) $meta['layersEmbedOnly'] = $embOnly;
+            else unset($meta['layersEmbedOnly']);
+          }
+          // 依目前點位重算預設視角（meta.center／zoom，嵌入 view=meta 與首次進入用）：
+          // 以約 800x560 的視窗估算，留 8% 邊距；沒有有效點位就不動
+          if (!empty($_POST['refit_view'])) {
+            $la = [];
+            $lo = [];
+            foreach (spot_effective_all($cfg, $p) as $sp) {
+              if (is_numeric($sp['lat'] ?? null) && is_numeric($sp['lon'] ?? null)) {
+                $la[] = (float)$sp['lat'];
+                $lo[] = (float)$sp['lon'];
+              }
+            }
+            if ($la) {
+              $merc = fn(float $d): float => log(tan(M_PI / 4 + deg2rad($d) / 2));
+              $y0 = $merc(min($la));
+              $y1 = $merc(max($la));
+              $cLat = rad2deg(2 * atan(exp(($y0 + $y1) / 2)) - M_PI / 2);
+              $cLon = (min($lo) + max($lo)) / 2;
+              $dx = (max($lo) - min($lo)) / 360;
+              $dy = ($y1 - $y0) / (2 * M_PI);
+              $z = 17.0;
+              if ($dx > 0 || $dy > 0) {
+                $zx = $dx > 0 ? log(800 * 0.84 / (512 * $dx), 2) : 99;
+                $zy = $dy > 0 ? log(560 * 0.84 / (512 * $dy), 2) : 99;
+                $z = max(3.0, min(17.0, min($zx, $zy)));
+              }
+              $meta['center'] = [round($cLat, 6), round($cLon, 6)];
+              $meta['zoom'] = round($z, 1);
+            }
           }
           // 允許嵌入的網域（專案層）：只有這一欄格式不合法時不動它，其餘設定照常儲存，
           // 存完再說明哪幾項有問題；空白＝移除欄位
@@ -2307,7 +2344,8 @@ if (!$authed) {
       pointer-events: none
     }
 
-    .lyvis input[type="radio"] {
+    .lyvis input[type="radio"],
+    .lyvis input[type="checkbox"] {
       width: 1rem;
       height: 1rem
     }
@@ -3789,6 +3827,7 @@ if (!$authed) {
                 $layRows = array_merge($layCur, $layTail);
                 $layBasesOn = array_values(array_filter($layCur, fn($l) => ($layAll[$l]['pane'] ?? 'art') === 'base'));
                 $layDefBase = in_array($meta['layerDefaultBase'] ?? '', $layBasesOn, true) ? $meta['layerDefaultBase'] : ($layBasesOn[0] ?? '');
+                $layEmbOnly = is_array($meta['layersEmbedOnly'] ?? null) ? $meta['layersEmbedOnly'] : [];
                 $layDefault = implode('、', souliong_default_layers($cfg));
               ?>
               <details class="metasec">
@@ -3815,11 +3854,14 @@ if (!$authed) {
                     </select>
                   </label>
                   <div class="hint"><?= $t('maplabel_hint') ?></div>
+                  <label class="modrow"><input type="checkbox" name="refit_view" value="1"><span><?= $t('refit_view_label') ?></span></label>
+                  <div class="hint"><?= $t('refit_view_hint') ?></div>
                   <input type="hidden" name="layers_submitted" value="1">
                   <div class="modfields lyfields">
                     <div class="modfields-head"><?= $t('layers_heading') ?></div>
                     <div class="hint"><?= $t('layers_pick_hint', ['default' => $layDefault]) ?></div>
                     <div class="hint"><?= $t('layers_visitor_hint') ?></div>
+                    <div class="hint"><?= $t('layers_embed_only_hint') ?></div>
                     <?php if ($layRows): ?>
                     <div class="lylist lysort">
                       <?php foreach ($layRows as $lid): $li = $layAll[$lid];
@@ -3839,6 +3881,10 @@ if (!$authed) {
                           <?= $t('layer_default_base_label') ?>
                         </label>
                         <?php endif; ?>
+                        <label class="lyvis" title="<?= $t('layer_embed_only_hint') ?>">
+                          <input type="checkbox" name="layers_embed_only[]" value="<?= $esc($lid) ?>" <?= in_array($lid, $layEmbOnly, true) ? 'checked' : '' ?>>
+                          <?= $t('layer_embed_only_label') ?>
+                        </label>
                         <span class="lymove">
                           <button type="button" class="lybtn" data-lymove="-1" aria-label="<?= $t('layer_move_up_aria') ?>" title="<?= $t('layer_move_up_aria') ?>"><i class="fa-solid fa-chevron-up"></i></button>
                           <button type="button" class="lybtn" data-lymove="1" aria-label="<?= $t('layer_move_down_aria') ?>" title="<?= $t('layer_move_down_aria') ?>"><i class="fa-solid fa-chevron-down"></i></button>

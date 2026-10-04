@@ -196,17 +196,32 @@ function souliong_default_layers(array $cfg): array
  * 回傳該地圖生效的圖層 manifest 陣列，由下往上排序；選到不存在的 id 會被靜靜略過，全部都不存在則退回 default_layers
  * （比照 souliong_pack_for()：資料指到已刪除的資源時退回預設，不讓整張地圖開天窗）。
  */
-function souliong_layers_for(array $cfg, ?array $meta, string $proj = ''): array
+function souliong_layers_for(array $cfg, ?array $meta, string $proj = '', array $embedIds = []): array
 {
-    $sel = souliong_layers_selected($cfg, $meta, $proj);
+    $sel = souliong_layers_visible($cfg, $meta, $proj, $embedIds);
     $bases = array_values(array_filter($sel, fn(array $m): bool => ($m['pane'] ?? 'art') === 'base'));
     if (count($bases) < 2) return $sel;
     // 勾了多張底圖：同時只會畫一張，預設用 meta.layerDefaultBase，沒指定或已不在勾選內就用疊在最上面的那張
     $def = (string)($meta['layerDefaultBase'] ?? '');
     $keep = null;
     foreach ($bases as $b) if (($b['id'] ?? '') === $def) $keep = $b;
+    // 嵌入網址指定的底圖優先
+    foreach ($bases as $b) if (in_array($b['id'] ?? '', $embedIds, true)) $keep = $b;
     $keep ??= end($bases);
     return array_values(array_filter($sel, fn(array $m): bool => ($m['pane'] ?? 'art') !== 'base' || $m === $keep));
+}
+
+/**
+ * 勾選的圖層扣掉「僅限嵌入」的（meta.layersEmbedOnly）；嵌入網址用 ?layer= 明確點名、且確實在勾選內的才放行。
+ * 沒勾選的圖層點名也沒用，因為這裡只從勾選清單裡挑。
+ */
+function souliong_layers_visible(array $cfg, ?array $meta, string $proj = '', array $embedIds = []): array
+{
+    $sel = souliong_layers_selected($cfg, $meta, $proj);
+    $hidden = is_array($meta['layersEmbedOnly'] ?? null) ? $meta['layersEmbedOnly'] : [];
+    if (!$hidden) return $sel;
+    $vis = array_values(array_filter($sel, fn(array $m): bool => !in_array($m['id'] ?? '', $hidden, true) || in_array($m['id'] ?? '', $embedIds, true)));
+    return $vis ?: $sel;
 }
 
 /** 勾選的全部圖層（含沒被選為預設的底圖），由下往上；訪客圖層面板的選項範圍。解析規則同 souliong_layers_for()。 */
@@ -263,11 +278,11 @@ function souliong_layer_public(array $manifest, string $base, string $proj): arr
 }
 
 /** souliong_layers_for() 的前端版本：解析順序相同，額外套用 souliong_layer_public()。 */
-function souliong_layers_public(array $cfg, ?array $meta, string $proj, string $base): array
+function souliong_layers_public(array $cfg, ?array $meta, string $proj, string $base, array $embedIds = []): array
 {
     return array_map(
         fn(array $m): array => souliong_layer_public_preview($cfg, $m, $base, $proj),
-        souliong_layers_for($cfg, $meta, $proj)
+        souliong_layers_for($cfg, $meta, $proj, $embedIds)
     );
 }
 
@@ -284,11 +299,11 @@ function souliong_layer_public_preview(array $cfg, array $manifest, string $base
 }
 
 /** 勾選了、但因同時只畫一張底圖而沒被選為預設的底圖；前端把它跟生效圖層合成訪客可挑的清單。 */
-function souliong_layers_alternates(array $cfg, ?array $meta, string $proj, string $base): array
+function souliong_layers_alternates(array $cfg, ?array $meta, string $proj, string $base, array $embedIds = []): array
 {
-    $active = array_column(souliong_layers_for($cfg, $meta, $proj), 'id');
+    $active = array_column(souliong_layers_for($cfg, $meta, $proj, $embedIds), 'id');
     $out = [];
-    foreach (souliong_layers_selected($cfg, $meta, $proj) as $m) {
+    foreach (souliong_layers_visible($cfg, $meta, $proj, $embedIds) as $m) {
         if (!in_array($m['id'] ?? '', $active, true)) $out[] = souliong_layer_public_preview($cfg, $m, $base, $proj);
     }
     return $out;

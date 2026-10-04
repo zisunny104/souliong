@@ -66,9 +66,11 @@ $moduleState = array_combine(array_keys(souliong_modules()), array_map($mod, arr
 $pack = souliong_pack_for($apiCfg, $meta, $proj);
 // 這張地圖由下往上要疊哪幾層圖磚／插畫。跟 $pack 同樣是「用哪一包」而非布林開關，差別只在
 // 圖層是有序陣列。相對路徑的圖檔在這裡就被改寫成 <base>/layer/... 絕對網址，前端不必分辨。
-$layers = souliong_layers_public($apiCfg, $meta, $proj, $base);
+// 嵌入網址 ?layer=id1,id2：點名要用的圖層（含「僅限嵌入」的）；只認專案已勾選的，其餘忽略
+$embedLayerIds = $embed ? array_values(array_filter(array_map('trim', explode(',', (string)($_GET['layer'] ?? ''))), fn($v) => preg_match('/^[A-Za-z0-9_-]{1,64}$/', $v))) : [];
+$layers = souliong_layers_public($apiCfg, $meta, $proj, $base, $embedLayerIds);
 // 勾選的圖層就是訪客可挑的範圍：多張底圖擇一、多張疊圖各自開關；只有一張就沒得挑
-$layerExtra = souliong_layers_alternates($apiCfg, $meta, $proj, $base);
+$layerExtra = souliong_layers_alternates($apiCfg, $meta, $proj, $base, $embedLayerIds);
 // 這張地圖開放哪些投稿型別、對話框預設開哪一頁、誰能建立點位（meta.json 的 contrib 區塊）。
 // 跟 $moduleState 同樣的原則：PHP 端解析一次，前端直接讀 APP.contrib，不在兩邊各自算預設值。
 $contribCfg = souliong_contrib_cfg($meta);
