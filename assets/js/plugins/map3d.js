@@ -4,9 +4,9 @@
    3D 渲染管線（建物排除、自訂模型、pitch 切換）本身在 MapLibreEngine（見
    assets/js/engine/maplibre-engine.js 的 enter3D()/exit3D()），這裡只剩下判斷「要不要另開
    一顆地圖」的膠水邏輯：
-   - 如果這張地圖的主引擎是 MapLibre（任何向量底圖），就直接在同一顆地圖上呼叫
+   - 如果這張地圖的底圖是向量圖磚（engine.hasVectorBase），就直接在同一顆地圖上呼叫
      enter3D()/exit3D()，3D 沿用專案原本的底圖樣式，不開第二個 WebGL context。
-   - 否則（主引擎是 Leaflet、底圖是光柵圖磚），另開一顆獨立的 MapLibreEngine 載入 3D 專用 style，
+   - 否則（底圖是光柵圖磚，沒有建物可擠出），另開一顆獨立的 MapLibreEngine 載入 3D 專用 style，
      蓋在 #map 上面、切換時互相隱藏顯示，兩顆地圖互不知情，2D 地圖的任何狀態（圖層、投稿、主題）
      都不會被這裡碰到、也不會反過來被 3D 影響。 */
 (() => {
@@ -117,7 +117,7 @@
     enter() {
       this.mapApp.trackFeature('map3d');
       const primary = this.mapApp.getEngine();
-      if (primary.type === 'maplibre') {
+      if (primary.hasVectorBase) {
         this.activeEngine = primary;
       } else {
         document.getElementById('map').style.display = 'none';

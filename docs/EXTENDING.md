@@ -254,7 +254,7 @@ CSS 全部前綴 `.stat-card .col`，因為要蓋過同層的 `.stat-card .col o
 - **事件**：`MapApp.onHook(name, fn)` 訂閱、核心內部用 `emitHook(name, ...)` 發送。目前有 `'stateChange'`（投稿新增／刪除／編輯、投稿者篩選、全部-投稿模式切換、資料重新整理等任何「顯示內容可能變了」的時機都會發送一次，插件不需要知道確切原因，收到就重新算自己要畫什麼）、`'panelReset'`（有其他管道直接開/關點位面板時發送，插件若有自己的「聚焦」狀態應在這裡清掉）、`'closeAll'`（全域 Esc 鍵或其他「全部關閉」時機發送；插件若有自己的浮層／對話框應在這裡關閉——核心不需要知道插件的對話框 id）、`'identityUploadShortcut'`（訪客點擊身分小標籤且已有投稿權限時發送；核心自己不認得「打開上傳批次視窗」這件事，改由上傳模組訂閱這個事件自己決定要做什麼——模組關閉時核心呼叫 `emitHook` 也只是發到空氣中，不會出錯）、`'identityChanged'`（顯示用的身分狀態可能變了——長按換匿名名、或解鎖狀態改變時發送；核心自己不畫身分小標籤，改由身分插件訂閱重繪）、`'identityReroll'`（專門給「換了一個新匿名名」這個更窄的時機，跟 `'identityChanged'` 分開是因為上傳模組批次視窗的暱稱欄位只需要在真的換名時重設 placeholder，不需要每次身分狀態變動就重設，否則會把使用者已經打的字清掉）。
 - **延伸點（有回傳值）**：`MapApp.registerPhotoFilter(fn)`（`fn(photoEntry, currentSpot) => bool`，篩掉不想顯示的照片，AND 疊加）、`MapApp.registerEntriesHint(fn)`（`fn(currentSpot) => HTMLElement|null`，插進點位卡片內容裡的提示區塊，插件自己建節點、自己綁事件）、`MapApp.registerScopeParam(fn)`（`fn() => {key: value}|null`，插件自己想在分享連結／嵌入代碼網址上多帶的參數，會併進 `currentScopeParams()` 的輸出；讀回來則不用核心幫忙——插件自己在 `mount()` 裡 `new URLSearchParams(location.search)` 讀自己定義的 key 即可，核心不需要知道有這個參數存在）。
 - **資料／動作**：`MapApp.personTimeline(name)`、`MapApp.spotTitle(p)`、`MapApp.photoFullUrl(item)`、`MapApp.openPanel(spot)`、`MapApp.openLightbox(entry, url)`、`MapApp.openUnlock()`（跳出投稿代碼／解鎖視窗）、`MapApp.refreshEntries()`（＝目前點位卡片重繪一次，通常在插件自己改了篩選狀態之後呼叫）、`MapApp.trackFeature(name)`（記一筆功能使用統計，寫進該地圖的 `stats.json`）、`MapApp.currentScopeParams()`（目前的投稿者／分類篩選狀態，序列化成 querystring 片段，分享連結／嵌入代碼都靠這個帶入範圍限制）、`MapApp.effectiveEntries()`（合併「原始投稿」與其編輯紀錄後的目前有效清單，**所有型別**都在裡面，是投稿資料的單一事實來源）、`MapApp.effectivePhotos()`（同一份清單只留有照片的那些；`route-tour`／`person-explore` 這種畫面只處理得了 `<img>` 的插件用這個，不要為了「支援新型別」把它們改成吃 `effectiveEntries()`）、`MapApp.entryFullUrl(entry)` / `MapApp.entryThumbUrl(entry)`（依型別給出主檔／縮圖網址，照片走 `?api=photo`、影音走 `?api=media`，插件不需要自己判斷 kind）、`MapApp.kindOf(entry)`（一筆投稿的 kind，舊紀錄沒有這個欄位時退回 `photo`）、`MapApp.contribCfg()`（這張地圖的投稿設定，見第三節的 `souliong_contrib_cfg()`）、`MapApp.fmtDur(sec)`（影音長度的顯示格式化）、`MapApp.effectiveSpots()`（併入新建立點位並套上搬移／內容紀錄後的目前點位清單，見 3.6 節的 `spot` 版本鏈）、`MapApp.getCats()`（目前地圖的分類清單）、`MapApp.submitNewSpot(fields)`（送出一筆新點位，走 `api/newspot.php` 而非投稿端點）、`MapApp.personColor(name)`（某投稿者的固定配色，跟篩選角標同一份快取，同一頁內顏色不會兜不起來）、`MapApp.toast(html)`（畫面上方跳出的短暫提示訊息）、`MapApp.displayName()`（目前裝置設定的暱稱，沒設定就退回本次隨機匿名名）、`MapApp.anonName()`（純粹讀本次隨機匿名名，不管暱稱欄位有沒有填——輸入框 placeholder 要用這個而非 `displayName()`）、`MapApp.submitContribution(fields)`（送出一筆新投稿的共用管道；`project`/`owner`/`code`/`ctoken` 這些每筆投稿都要帶的欄位由核心統一補上，插件只要給業務欄位，例如 `{kind:'text', item_num, name, comment, photo_time}`）、`MapApp.refreshPersonFilter()`（投稿者篩選下拉重新計算一次，新增投稿可能帶入新名字時要呼叫）、`MapApp.refreshCounts()`（只重算統計數字，不重繪地圖圖層／卡片——批次上傳中途每張都呼叫這個即可，比全套 `refreshAll()` 省事）、`MapApp.refreshAll()`（資料異動後的完整重繪：統計、地圖圖層、投稿者篩選、`'stateChange'` 事件、目前點位卡片，一次呼叫涵蓋所有連動，插件不需要自己記得哪些要重繪）、`MapApp.fmtTime(date)`（統一的時間顯示格式化）、`MapApp.getMeta()`（目前地圖的 `meta.json` 內容；用函式而非直接暴露屬性，是因為部分欄位可能是非同步取得，插件不該假設它在 `mount()` 當下就是最終值）、`MapApp.getCurrentSpot()`（目前面板開著的點位物件，沒開面板則為 `null`——例如上傳快速鍵要「以目前點位為預設脈絡」開啟批次視窗時要用這個，而不是自己記一份）、`MapApp.nearestSpot(lat, lon)`（找離某座標最近的點位，EXIF GPS 定位配對用）、`MapApp.spotOptionsHtml(selectedNum)`（點位下拉選單的 `<option>` HTML，批次卡片讓使用者手動指定/修正點位用）、`MapApp.srcTone(src)` / `MapApp.locNote(src)`（照片定位來源的顯示文字與樣式，核心的照片編輯面板與上傳模組的批次卡片共用同一份判斷邏輯，避免兩處各自維護一份、日後兜不起來）、`MapApp.rerollAnon()`（換一個新的本次匿名名；會依序發送 `'identityChanged'` 與 `'identityReroll'`，實際換算 `SESSION_ANON` 這個私有狀態的邏輯留在核心，插件只管觸發時機，例如長按身分小標籤）、`MapApp.identityChipClick()`（身分小標籤被點擊時該做什麼——已有投稿權限就發 `'identityUploadShortcut'`、被鎖住就開解鎖視窗、上傳模組整個關閉則什麼都不做；這個判斷要用到 `MOD('upload')`/`canPost()` 等核心私有狀態，所以決策邏輯留在核心，身分插件只負責把點擊事件轉呼叫過來）。
-- **唯讀狀態**：`MapApp.getEngine()`（**新插件的正式地圖介面**，回傳 `MapEngine` 抽象基底的實例——`LeafletEngine` 或 `MapLibreEngine`，依這張地圖的主引擎而定，見第八節 8.4。插件需要碰地圖（畫 marker、畫路線、鏡頭移動、開一顆小地圖選點器…）一律呼叫這個拿到的物件上的方法，不分辨底下是哪個引擎——`route-tour.js`／`person-explore.js`／`contribution.js`／`map3d.js` 都已經是這個寫法，可以直接參考）、`MapApp.getFilterPerson()`、`MapApp.isPhotoLayerOn()`、`MapApp.isUnlocked()`（裝置是否已解鎖投稿權限——核心原生的權限判斷，見上面第 5 點）、`MapApp.hasIdentity()`（這台裝置有沒有建立跨裝置的投稿者身分；跟 `isUnlocked()` 是兩件事——能投稿不代表具名，CC BY 選項就是靠這個決定顯不顯示）、`MapApp.isEmbedMode()`（這個頁面是不是以 `?embed=1` 嵌入模式載入）、`MapApp.getProjectId()`（目前地圖的 project id，已做過安全字元過濾）。
+- **唯讀狀態**：`MapApp.getEngine()`（**新插件的正式地圖介面**，回傳 `MapEngine` 抽象基底的實例（目前只有 `MapLibreEngine`），見第八節 8.4。插件需要碰地圖（畫 marker、畫路線、鏡頭移動、開一顆小地圖選點器…）一律呼叫這個拿到的物件上的方法，不碰底下引擎的原生 API——`route-tour.js`／`person-explore.js`／`contribution.js`／`map3d.js` 都已經是這個寫法，可以直接參考）、`MapApp.getFilterPerson()`、`MapApp.isPhotoLayerOn()`、`MapApp.isUnlocked()`（裝置是否已解鎖投稿權限——核心原生的權限判斷，見上面第 5 點）、`MapApp.hasIdentity()`（這台裝置有沒有建立跨裝置的投稿者身分；跟 `isUnlocked()` 是兩件事——能投稿不代表具名，CC BY 選項就是靠這個決定顯不顯示）、`MapApp.isEmbedMode()`（這個頁面是不是以 `?embed=1` 嵌入模式載入）、`MapApp.getProjectId()`（目前地圖的 project id，已做過安全字元過濾）。
 
 參考實作：
 - `assets/js/plugins/embed-code.js`（`embed` 旗標——產生 `<iframe>` 嵌入代碼；`class EmbedCodePlugin extends MapApp.Plugin` 寫法，是目前符合完整標準的範例）。
@@ -332,32 +332,17 @@ CSS 全部前綴 `.stat-card .col`，因為要蓋過同層的 `.stat-card .col o
 
 **這些欄位必須整組跟著 manifest，不能只抽 URL**：`subdomains`／`detectRetina`／`maxNativeZoom` 都是跟著來源走的屬性，少一個就破圖。
 
-`attribution` 也一樣跟著來源走——OpenFreeMap 的圖磚是 OSM 資料，國土測繪中心的不是，寫死在檢視器裡一定會錯。格式是一個物件陣列，每則署名 `{text, url, copyright, suffix}`：`url` 有值才會包成連結，`copyright` 是 `true` 時前面加 `&copy;`，`suffix` 接在連結後面（例 `{osm_contributors}`，跟 `text` 一樣可以用 `{key}` 引用翻譯字串，不必為每種語言各寫一份）。標籤怎麼組（要不要連結、要不要 `&copy;`）固定由 `assets/js/engine/map-engine.js` 的 `buildCredit()`/`creditHtml()` 決定，manifest 只描述資料，不寫 HTML——這樣同一份框架換圖磚來源只是換這幾個欄位的值，不會因為換供應商就要在別的地方另刻一份標註邏輯。透過「建立圖層」／去背裁切工具（`api/manager.php`／`region3d.php`／`tilecut.php`）產生的圖層目前仍存純字串（管理者手打的單行署名），`creditListHtml()` 相容這個舊格式，原樣沿用不轉換。各層的 attribution 由 `buildCredit()` 去重串接，再接上固定的引擎（Leaflet／MapLibre）＋自家連結。
+`attribution` 也一樣跟著來源走——OpenFreeMap 的圖磚是 OSM 資料，國土測繪中心的不是，寫死在檢視器裡一定會錯。格式是一個物件陣列，每則署名 `{text, url, copyright, suffix}`：`url` 有值才會包成連結，`copyright` 是 `true` 時前面加 `&copy;`，`suffix` 接在連結後面（例 `{osm_contributors}`，跟 `text` 一樣可以用 `{key}` 引用翻譯字串，不必為每種語言各寫一份）。標籤怎麼組（要不要連結、要不要 `&copy;`）固定由 `assets/js/engine/map-engine.js` 的 `buildCredit()`/`creditHtml()` 決定，manifest 只描述資料，不寫 HTML——這樣同一份框架換圖磚來源只是換這幾個欄位的值，不會因為換供應商就要在別的地方另刻一份標註邏輯。透過「建立圖層」／去背裁切工具（`api/manager.php`／`region3d.php`／`tilecut.php`）產生的圖層目前仍存純字串（管理者手打的單行署名），`creditListHtml()` 相容這個舊格式，原樣沿用不轉換。各層的 attribution 由 `buildCredit()` 去重串接，再接上固定的引擎署名＋自家連結。
 
-`pane` 決定疊放層級。Leaflet 預設只有 `tilePane`(200)／`overlayPane`(400)／`markerPane`(600)，圖層之間沒有可指定的層級，所以檢視器替四種角色各開一個 pane：
+`pane` 決定疊放角色：`base`（底圖）、`road`（道路）、`art`（插畫疊圖，認不得的值一律歸這裡）。底圖永遠墊在最下面，其餘依陣列由下往上疊；路徑線與點位標記照舊蓋在所有圖層上面。
 
-| `pane` | z-index | 角色 |
-|---|---|---|
-| `base` | 200 | 底圖 |
-| `paper` | 220 | 紙張底色 |
-| `road` | 240 | 道路 |
-| `art` | 260 | 插畫疊圖（認不得的值一律歸這裡） |
+### 8.4 前端：引擎抽象與圖層掛載
 
-全部落在 400 以下，所以路徑線與點位標記照舊蓋在所有圖層上面。
+檢視器只有一個引擎實作 `MapLibreEngine`，隔在 `MapEngine` 抽象基底（`assets/js/engine/map-engine.js`）後面：marker、路線、面板、篩選等通用邏輯都經由同一組方法（`setMarkerLayer()`／`drawPolyline()`／`createMiniPicker()`…），呼叫端（`viewer.core.js`、各 plugin）一律只認 `MapApp.getEngine()` 給的這組介面。
 
-### 8.4 前端：兩個引擎各自的圖層掛載
+#### 8.4.1 `MapLibreEngine`（`assets/js/engine/maplibre-engine.js`）
 
-檢視器現在是「引擎抽象層＋兩個可替換的引擎實作」，圖層系統不再是核心共用的一份程式碼，而是每個引擎各自負責——`LeafletEngine` 跟 `MapLibreEngine` 之間**不共用類別繼承**，`MapLayer` 這個類別族只活在 `LeafletEngine` 裡，`MapLibreEngine` 完全是另一套掛法。哪個引擎接手，由 `pages/view.php` 依這張地圖生效的 layers 裡有沒有 `type:"vector"` 決定（見下方 8.4.2），跟主引擎無關的那些「真正通用」的邏輯（marker、路線、面板、篩選）則收斂在 `assets/js/engine/map-engine.js` 的 `MapEngine` 抽象基底裡，兩個引擎都要實作同一組方法（`setMarkerLayer()`／`drawPolyline()`／`createMiniPicker()`…），呼叫端（`viewer.core.js`、各 plugin）一律只認 `MapApp.getEngine()` 給的這組介面，不分辨底下是哪個引擎。
-
-#### 8.4.1 `LeafletEngine`（`assets/js/engine/leaflet-engine.js`）
-
-`MapLayer` 是抽象基底，子類只需要回答「怎麼變成一個 `L.Layer`」（`build(dark, opts)`），其餘（pane、換主題重建、掛上／移除）都在基底；`MapLayer.from(manifest)` 依 `type` 挑子類（`RasterLayer`／`ImageLayer`）。`LayerStack` 持有一整疊圖層與它們共同的版權標註，`LeafletEngine` 只跟它打交道（`addTo(map, dark)` / `applyTheme(dark)`）。版權整組掛在最底層那一個 `L.Layer` 上，上層換主題重建時版權列才不會閃一下。8.3 的 `pane` 分層（`base`／`paper`／`road`／`art`）就是這裡的機制，只在 `LeafletEngine` 內有意義。
-
-新增一種**光柵或單張疊圖**的圖層型別＝多一個 `MapLayer` 子類，`LeafletEngine` 其餘部分不用動。
-
-#### 8.4.2 `MapLibreEngine`（`assets/js/engine/maplibre-engine.js`）
-
-MapLibre 沒有 Leaflet 的「pane／可疊多張獨立底圖」概念，向量 style 本身就是一張完整、自成一體的地圖（道路、建物、標籤全包在裡面）。掛載演算法因此跟 `LeafletEngine` 完全不同形狀：在 `manifests` 陣列裡找 `pane==='base'` 且 `type==='vector'` 的最後一筆，它的 `url`/`urlDark` 直接當整顆地圖的 `style:`；陣列裡其餘每一筆（不論哪個 pane）在 style 載入完成後依序 `addSource()`+`addLayer()` 疊上去，一律疊在整個 style 最上層（沒有 `beforeId`）——這是刻意的取捨，跟 8.3 `art` pane（260）一律蓋在最上面的既有語意一致，只是延伸到向量 style 內部圖層；代價是向量底圖自己的路名標籤會被蓋在疊圖層下面。`applyTheme(dark)` 有 `urlDark` 時整個 `setStyle()` 重換一份 style 並在 `style.load` 重跑一次疊圖（`setStyle()` 會清空所有動態加的 source/layer，這是 MapLibre 本身的限制）；沒有 `urlDark` 就整個跳過。
+向量 style 本身就是一張完整、自成一體的地圖（道路、建物、標籤全包在裡面），沒辦法疊好幾張獨立底圖。掛載演算法因此是：在 `manifests` 陣列裡找 `pane==='base'` 且 `type==='vector'` 的最後一筆，它的 `url`/`urlDark` 直接當整顆地圖的 `style:`；陣列裡其餘每一筆（不論哪個 pane）在 style 載入完成後依序 `addSource()`+`addLayer()` 疊上去，一律疊在整個 style 最上層（沒有 `beforeId`）——這是刻意的取捨，與 8.3 `art` 一律蓋在最上面的語意一致；代價是向量底圖自己的路名標籤會被蓋在疊圖層下面。`applyTheme(dark)` 有 `urlDark` 時整個 `setStyle()` 重換一份 style 並在 `style.load` 重跑一次疊圖（`setStyle()` 會清空所有動態加的 source/layer，這是 MapLibre 本身的限制）；沒有 `urlDark` 就整個跳過。
 
 新增一種向量底圖來源＝新增一個 `layers/<id>/layer.json`（`type:"vector"`，見 8.2 的 `openfreemap-liberty`），不用動任何程式碼；新增一種**要疊在向量底圖上**的圖層型別，才需要在 `MapLibreEngine` 裡多一段轉換邏輯（現在只認 `raster`→`{type:'raster', tiles:[...]}` 與 `image`→`{type:'image', url, coordinates}` 兩種）。
 
@@ -383,7 +368,7 @@ MapLibre 沒有 Leaflet 的「pane／可疊多張獨立底圖」概念，向量 
 - **SVG 回應加 `Content-Security-Policy: default-src 'none'; sandbox`**：SVG 可以內嵌 `<script>`，放在 `<img>` 裡不會執行，但有人直接開這個網址就會——同源之下那等於「能放圖層檔的人＝能在本站執行腳本」。在回應層面關掉，不倚賴呼叫端怎麼用。
 - **快取分兩種**：樣式 json（有 `version` 與 `layers` 的 `.json`）是 `no-cache` 加 `ETag`，每次重新驗證、沒變回 304；其餘（sprite、圖磚、單張圖、字型）是 `max-age=31536000, immutable`。樣式 json 不能 immutable，因為它會被編輯，也會在輸出時被改寫。
 - **樣式 json 的 sprite 改寫**：MapLibre 要求 `sprite` 是絕對網址。樣式裡的相對 `sprite`（如 `"sprite-light"`）在輸出時改寫成同資料夾的 `Route::abs(Route::layerFile(...))`；已是絕對網址、路徑不合法或不是樣式的 json 原樣輸出。路徑字元集含 `@`，`sprite@2x.png` 才取得到。
-- **找不到檔案時分兩種**：稀疏疊圖的常態是「這一格根本沒畫」，所以圖磚形狀（`…/<z>/<x>/<y>.<ext>`）的請求回一張 68 bytes 的全透明 PNG（帶 `X-Souliong-Tile: miss`，分得出「空白」與「真的有一張全透明的磚」），Leaflet 就不會為每個空格印一行紅字；其餘（單張疊圖路徑打錯）照實回 404。
+- **找不到檔案時分兩種**：稀疏疊圖的常態是「這一格根本沒畫」，所以圖磚形狀（`…/<z>/<x>/<y>.<ext>`）的請求回一張 68 bytes 的全透明 PNG（帶 `X-Souliong-Tile: miss`，分得出「空白」與「真的有一張全透明的磚」），瀏覽器就不會為每個空格印一行紅字；其餘（單張疊圖路徑打錯）照實回 404。
 
 `layers/demo-overlay/` 是可以照抄的參考範例：一張透明 SVG 蓋在底圖上，沒畫到的地方完全透出底圖。要用在自己的地圖上，複製整個資料夾、換掉 `overlay.svg`、把 `bounds` 改成插畫實際對應的西南／東北兩角，再把 id 加進 `meta.json` 的 `layers`。
 
@@ -425,9 +410,9 @@ MapLibre 沒有 Leaflet 的「pane／可疊多張獨立底圖」概念，向量 
 
 幾個刻意的取捨：
 
-- `maxNativeZoom` **不開放編輯**。那是「圖磚實際切到第幾級」，由切圖工具寫入；改它只會讓 Leaflet 去要不存在的磚。
+- `maxNativeZoom` **不開放編輯**。那是「圖磚實際切到第幾級」，由切圖工具寫入；改它只會讓地圖去要不存在的磚。
 - 邊界四格**要嘛全填、要嘛全空**，只填一兩格當成錯誤。全空＝移除 `bounds`（外部圖磚服務本來就沒有範圍），不是「保持原樣」。
-- 不透明度設回 `1` 就把整個 key 拿掉——1 是 Leaflet 的預設，寫進去只是雜訊。
+- 不透明度設回 `1` 就把整個 key 拿掉——1 是預設值，寫進去只是雜訊。
 - 版權標註上限 500 字：帶連結的 `attribution` 動輒 200 字以上（兩個帶 `target`／`rel` 的 `<a>`），砍在 200 會把使用者從沒碰過的欄位默默截斷。
 
 留著原稿的圖層（見 8.7）會在「設定」旁邊多一顆**「重新編輯」**，連到 `tilecut` 的 `?load=<id>`。沒留原稿的就沒有這顆按鈕——按鈕在不在，本身就是「這一層還能不能改」的答案，不必按下去才知道。
@@ -465,7 +450,7 @@ MapLibre 沒有 Leaflet 的「pane／可疊多張獨立底圖」概念，向量 
 
 **一批 16 張**：PHP 的 `max_file_uploads` 常見上限是 20，留些餘裕。上傳沿用 `admin` 限流 bucket（120 次／分），撞到 429 就照 `Retry-After` 等待續傳，不放棄整批。
 
-**幾何**：影像四角在 **Web Mercator 投影空間**線性對應，與 Leaflet 的 `L.imageOverlay` 一致。這是刻意的——同一張圖「切磚前用 ImageOverlay 預覽」與「切磚後用 tileLayer 顯示」必須長得一模一樣，否則對位工具就白做了。對位介面的「鎖定長寬比」因此也算在投影空間裡：用經緯度算，同一張圖在台灣的緯度會被壓扁約 8%。
+**幾何**：影像四角在 **Web Mercator 投影空間**線性對應，與 MapLibre 的 image source 一致。這是刻意的——同一張圖「切磚前用 ImageOverlay 預覽」與「切磚後用 tileLayer 顯示」必須長得一模一樣，否則對位工具就白做了。對位介面的「鎖定長寬比」因此也算在投影空間裡：用經緯度算，同一張圖在台灣的緯度會被壓扁約 8%。
 
 **多張圖壓平成一層**。清單一列一張來源圖，由上而下＝由頂層到底層（同 8.6 的圖層挑選器）。每一張各自對位、各自有可見與不透明度，切磚時整疊在同一塊 canvas 上壓平：上層蓋住下層、上層透明的地方透出下層、全都沒畫到的地方透出底圖。
 
@@ -479,9 +464,9 @@ MapLibre 沒有 Leaflet 的「pane／可疊多張獨立底圖」概念，向量 
 
 新加入的圖片若尺寸跟清單裡某一張完全相同，直接沿用那張的位置：十之八九是同一塊畫布匯出的不同圖層，省下重對一次。尺寸不同才退回「鋪滿目前視野」。
 
-**全透明的磚根本不上傳**。缺磚由圖檔端點回 68 bytes 的透明 PNG（見 8.5），`layer.json` 再寫入 `bounds`，Leaflet 連範圍外的請求都不發。一張只畫了幾條街廓的插畫，實際落地的檔案往往只有理論張數的一小部分。
+**全透明的磚根本不上傳**。缺磚由圖檔端點回 68 bytes 的透明 PNG（見 8.5），`layer.json` 再寫入 `bounds`，地圖連範圍外的請求都不發。一張只畫了幾條街廓的插畫，實際落地的檔案往往只有理論張數的一小部分。
 
-產生的 `layer.json` 把 `maxNativeZoom` 設在切到的最後一級、`maxZoom` 再放寬四級：再放大時 Leaflet 會拉伸最後一級，總比整層消失好（手繪稿放大本來就是糊的，使用者預期得到）。`generated.pieces` 記下壓平了幾張，日後只剩圖磚時還看得出這一層的來歷。
+產生的 `layer.json` 把 `maxNativeZoom` 設在切到的最後一級、`maxZoom` 再放寬四級：再放大時地圖會拉伸最後一級，總比整層消失好（手繪稿放大本來就是糊的，使用者預期得到）。`generated.pieces` 記下壓平了幾張，日後只剩圖磚時還看得出這一層的來歷。
 
 切完**還要回「編輯專案描述」把這一層勾起來**——工具只負責產生圖層，不會自作主張改動任何一張地圖的疊法。
 
@@ -503,7 +488,7 @@ MapLibre 沒有 Leaflet 的「pane／可疊多張獨立底圖」概念，向量 
 
 ### 8.8 尚未完成（原「向量圖層」規劃已被取代）
 
-這一節原本規劃向量圖磚（`.pbf`/`.mvt` 那種、樣式在瀏覽器端即時渲染的真正向量圖磚——**注意這跟 8.10 的「保持向量」不是同一件事**，8.10 是單張 SVG 原封不動當 `type:"image"` 疊圖用，本質還是點陣模型裡的一張圖）走 `protomaps-leaflet`（`L.GridLayer`，留在 `LeafletEngine` 內接一個新子類）。這個規劃已經放棄——實際做法是引進整套 `MapLibreEngine`（見 8.4.2）當**替代主引擎**，而不是在 Leaflet 裡另開一種圖層。`type:"vector"` 的 `layer.json`＋`MapLibreEngine` 現在就是向量底圖的正式機制，逐專案透過「編輯專案描述」勾選即可 opt-in（見 `layers/openfreemap-liberty/layer.json` 這個現成範例）；`protomaps-leaflet`／`L.GridLayer` 那條路不會再做。
+向量圖磚（`.pbf`/`.mvt` 那種、樣式在瀏覽器端即時渲染的真正向量圖磚——**注意這跟 8.10 的「保持向量」不是同一件事**，8.10 是單張 SVG 原封不動當 `type:"image"` 疊圖用）由 `MapLibreEngine`（見 8.4.1）處理：`type:"vector"` 的 `layer.json` 就是向量底圖的正式機制（見 `layers/openfreemap-liberty/layer.json` 這個現成範例）。
 
 道路／水域線寬這類「向量底圖細部樣式想再調」的需求目前刻意擱置，不在這次範圍內。
 

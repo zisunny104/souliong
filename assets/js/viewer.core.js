@@ -1,7 +1,7 @@
 /* 通用地圖檢視器 —— 由 ?p=<project> 載入 projects/<project>/meta.json 與點位資料。
    後端：api/list.php、api/upload.php（純 PHP，append-only）。
    地圖繪製透過 assets/js/engine/ 底下的 MapEngine 抽象層（見 map-engine.js）：這個檔案跟所有
-   plugin 一律只呼叫 engine.* / MapApp.getEngine().*，不直接認得 Leaflet 或 MapLibre 的 API。 */
+   plugin 一律只呼叫 engine.* / MapApp.getEngine().*，不直接認得 MapLibre 的 API。 */
 window.MapApp = (() => {
   const APP = window.APP || { base: './', project: 'chairs' };
   const I18N = window.I18N || {};
@@ -696,7 +696,7 @@ window.MapApp = (() => {
   /* ---------- map ---------- */
   // badgeColor 有給值時（篩選單一投稿者時）覆蓋角標底色，跟該投稿者的路徑同色
   // 回傳的是引擎無關的 marker spec（見 assets/js/engine/map-engine.js 的 setMarkerLayer()），
-  // 不是某個引擎的原生 icon 物件——LeafletEngine／MapLibreEngine 各自決定怎麼把它畫出來。
+  // 不是某個引擎的原生 icon 物件——由引擎決定怎麼把它畫出來。
   // 幾何圖形固定由 num 算出（num 是點位建立時分配、之後永不改變的識別碼），
   // 不需要另存欄位：同一個點每次算出來的圖形永遠一樣，效果等同「建立時隨機、之後固定」。
   const PIN_SHAPES = [
@@ -1044,7 +1044,7 @@ window.MapApp = (() => {
       btn.setAttribute('aria-label', btn.title);
       btn.innerHTML = '<i class="fa-solid ' + (wide ? 'fa-down-left-and-up-right-to-center' : 'fa-up-right-and-down-left-from-center') + '" aria-hidden="true"></i>';
     }
-    // 寬度動畫結束後觸發 resize，讓卡片內的迷你地圖（Leaflet trackResize）重算尺寸
+    // 寬度動畫結束後觸發 resize，讓卡片內的迷你地圖重算尺寸
     setTimeout(() => window.dispatchEvent(new Event('resize')), 320);
   }
   function resetSpotEditor() {
@@ -1709,17 +1709,15 @@ window.MapApp = (() => {
 
     rebuildCats();   // 此時 CONTRIB 還是空的，結果就是 SPOTS 的分類；投稿載入後會再算一次
 
-    // 主引擎依 APP.engine（view.php 依 layers 裡有沒有 type:vector 算出來的）選擇。
     // MapLibre 沒有 <script src> 吃得下去的全域版本（v6 只出 ESM），前面 <head> 那段
     // type="module" shim 只保證晚於文件解析完才執行、服務不了這裡同步的 boot()——
-    // 所以主引擎是 maplibre 時自己 import() 動態載入，跟 map3d.js 對 three.js 的
+    // 所以自己 import() 動態載入，跟 map3d.js 對 three.js 的
     // lazy-load 手法一致（見該檔 maybeLoadThree()）；跟 map3d 開關同時開時載入同一個
     // 網址，瀏覽器 module 快取本來就會共用，不會重複下載。
-    if (APP.engine === 'maplibre' && !window.maplibregl) {
+    if (!window.maplibregl) {
       window.maplibregl = await import('https://unpkg.com/maplibre-gl@6.6.0/dist/maplibre-gl.mjs');
     }
-    const EngineClass = APP.engine === 'maplibre' ? window.MapLibreEngine : window.LeafletEngine;
-    engine = new EngineClass({
+    engine = new window.MapLibreEngine({
       container: 'map', center: META.center || [23.9, 120.7], zoom: META.zoom || 14,
       dark: isDark(), manifests: layerManifests(),
     });
@@ -1733,7 +1731,7 @@ window.MapApp = (() => {
     emitHook('engineReady', engine);
 
     // 封面快照要等圖磚真的畫完才擷圖，不然存到的是半載入的畫面；只有 MapLibre 引擎有 'idle' 事件
-    // 可等（見 engine.supportsSnapshot），Leaflet 專案這裡什麼都不會發生。
+    // 可等（見 engine.supportsSnapshot）。
     if (engine.supportsSnapshot && !BARE) {
       const forceSnap = new URLSearchParams(location.search).get('snapcover') === 'force';
       engine.getRawMap().once('idle', () => trySnapshotCover(forceSnap));
@@ -1904,7 +1902,7 @@ window.MapApp = (() => {
     engine.onBackgroundClick(() => closePanel());
     setupTitleMarquee();
 
-    // 鍵盤快速鍵（無障礙）：方向鍵/＋－由 Leaflet 平移縮放；此處補全域鍵
+    // 鍵盤快速鍵（無障礙）：方向鍵/＋－由地圖本身平移縮放；此處補全域鍵
     if (!BARE) document.addEventListener('keydown', e => {
       const tag = (e.target && e.target.tagName) || '';
       if (/^(INPUT|TEXTAREA|SELECT)$/.test(tag) || e.metaKey || e.ctrlKey || e.altKey) return;

@@ -51,7 +51,7 @@ $ok = $real !== false && $root !== false
 
 if (!$ok) {
     // 稀疏疊圖的常態是「這一格根本沒畫」。圖磚形狀（…/<z>/<x>/<y>.<ext>）的請求回一張
-    // 透明圖，Leaflet 就不會為每個空格印一行紅字；其餘（單張疊圖路徑打錯）照實回 404。
+    // 透明圖，瀏覽器就不會為每個空格印一行紅字；其餘（單張疊圖路徑打錯）照實回 404。
     if (preg_match('#(^|/)\d+/\d+/\d+\.[A-Za-z0-9]+$#', $rel)) {
         header('Content-Type: image/png');
         header('X-Souliong-Tile: miss');     // 除錯用：分得出「空白」與「真的有一張全透明的磚」

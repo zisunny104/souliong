@@ -1,5 +1,6 @@
-/* 訪客端圖層切換（只有 meta.json 的 layerSwitch 有內容、且主引擎是 MapLibre 時，view.php 才載入這個檔案）
-   底圖擇一（單選）、疊圖可多選疊加；預設狀態就是後台勾選的圖層，訪客的選擇只存在自己的瀏覽器。
+/* 訪客端圖層切換（後台勾選的圖層合計至少兩張時，view.php 才載入這個檔案）
+   勾選的圖層就是可挑的範圍：多張底圖擇一（單選）、多張疊圖各自開關；一張就沒得挑。
+   預設是後台指定的底圖加全部疊圖，訪客的選擇只存在自己的瀏覽器。
    外觀只用核心的主題變數，深淺色與響應式都跟著核心走。 */
 (() => {
   const APP = window.APP || {};
@@ -12,13 +13,12 @@
     constructor() { super('layerSwitch'); }
 
     mount() {
-      const ids = new Set(APP.layerSwitch || []);
       this.all = [].concat(APP.layers || [], APP.layerExtra || []);
-      this.pool = this.all.filter(m => ids.has(m.id));
-      this.bases = this.pool.filter(isBase);
-      this.overlays = this.pool.filter(m => !isBase(m));
-      // 只有一張可選底圖等於沒得選
+      this.bases = this.all.filter(isBase);
+      this.overlays = this.all.filter(m => !isBase(m));
+      // 只有一張就沒得挑
       if (this.bases.length < 2) this.bases = [];
+      if (this.overlays.length < 2) this.overlays = [];
       if (!this.bases.length && !this.overlays.length) return;
       this.key = 'souliong:layers:' + (APP.project || '');
       this.state = this.defaults();
@@ -36,9 +36,9 @@
     }
 
     defaults() {
-      const on = new Set((APP.layers || []).map(m => m.id));
-      const base = this.bases.filter(m => on.has(m.id)).pop();
-      return { base: base ? base.id : (this.bases[0] ? this.bases[0].id : null), on: new Set(this.overlays.filter(m => on.has(m.id)).map(m => m.id)) };
+      // 預設底圖就是伺服器端挑出、放在 APP.layers 裡的那一張；疊圖預設全開
+      const cur = (APP.layers || []).filter(isBase).pop();
+      return { base: cur ? cur.id : null, on: new Set(this.overlays.map(m => m.id)) };
     }
 
     differsFromDefault() {
@@ -63,12 +63,12 @@
       } catch (e) { }
     }
 
-    // 目前生效的圖層：沒進切換清單的圖層固定保留；底圖由單選決定，疊圖看勾選
+    // 目前生效的圖層：底圖由單選決定，疊圖看勾選；只有一張的那類不可切換、固定保留
     resolve() {
-      const inPool = new Set(this.pool.map(m => m.id));
+      const tog = new Set(this.overlays.map(m => m.id));
       const out = this.all.filter(m => {
         if (isBase(m)) return this.bases.length ? m.id === this.state.base : true;
-        return !inPool.has(m.id) || this.state.on.has(m.id);
+        return !tog.has(m.id) || this.state.on.has(m.id);
       });
       // 底圖一律墊在最下面，其餘維持原本由下往上的順序
       return out.filter(isBase).concat(out.filter(m => !isBase(m)));

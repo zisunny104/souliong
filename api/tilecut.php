@@ -12,10 +12,10 @@
 //
 // ── 稀疏 ──
 // 全透明的磚根本不上傳。缺磚由 layerfile.php 回 68 bytes 的透明 PNG（見該檔），所以「沒畫到的
-// 地方」既不佔硬碟也不會在主控台印錯誤。layer.json 再寫入 bounds，Leaflet 連範圍外的請求都不發。
+// 地方」既不佔硬碟也不會在主控台印錯誤。layer.json 再寫入 bounds，地圖連範圍外的請求都不發。
 //
 // ── 幾何 ──
-// 影像四角在 Web Mercator 投影空間線性對應，與 Leaflet 的 L.imageOverlay 一致——這是刻意的：
+// 影像四角在 Web Mercator 投影空間線性對應，與 MapLibre 的 image source 一致——這是刻意的：
 // 同一張圖「切磚前用 ImageOverlay 預覽」與「切磚後用 tileLayer 顯示」必須長得一模一樣，
 // 否則對位工具就白做了。
 require_once __DIR__ . '/store.php';
@@ -329,7 +329,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'finis
             'url'   => 'tiles/{z}/{x}/{y}.' . $ext,
             'bounds' => [[$s, $w], [$n, $e]],
             'minZoom' => $z0,
-            // 切到哪一級就 maxNativeZoom 到哪一級，maxZoom 再放寬：再放大時 Leaflet 會把最後一級
+            // 切到哪一級就 maxNativeZoom 到哪一級，maxZoom 再放寬：再放大時地圖會把最後一級
             // 拉伸上去，總比整層消失好（手繪稿放大本來就是糊的，使用者預期得到）。
             'maxNativeZoom' => $z1,
             'maxZoom' => min(24, $z1 + 4),
@@ -611,7 +611,6 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
   <meta name="robots" content="noindex">
   <title><?= $t('tilecut_title') ?></title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.6.0/dist/maplibre-gl.css">
   <style>
     :root {
@@ -1207,14 +1206,10 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
     <p class="backlink"><a href="<?= $adminUrl ?>"><i class="fa-solid fa-arrow-left"></i> <?= $t("back_to_admin") ?></a></p>
   </div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <!-- MapLibre v6 只出 ESM 版，比照 pages/view.php 的作法：匯入後手動掛回 window.maplibregl，
-       讓底下的傳統 script 仍能用全域變數呼叫它（用於「目前底圖截圖」離屏擷圖，見 exportBasemapSnapshot）。 -->
+  <!-- MapLibre v6 只出 ESM 版：主程式本身就是 module，匯入後也掛回 window.maplibregl 給後面的離屏擷圖用 -->
   <script type="module">
     import * as maplibregl from 'https://unpkg.com/maplibre-gl@6.6.0/dist/maplibre-gl.mjs';
     window.maplibregl = maplibregl;
-  </script>
-  <script>
     // 未套變數的原始字串（含 {var} 佔位符），前端用 fmt() 自行代換——進度與計數只有 JS 迴圈裡才知道
     const I18N = <?= json_encode([
       'need_image'   => i18n_t($DICT, 'tilecut_need_image_msg'),
@@ -1270,12 +1265,12 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
     // 原稿分塊多大，由伺服器的 upload_max_filesize／post_max_size 算出來
     const SRCCHUNK = <?= (int)$srcChunk ?>;
 
-    const TILE = 256;         // 標準圖磚邊長；Leaflet 預設也是 256
+    const TILE = 256;         // 標準圖磚邊長
     const BATCH = 16;         // 一次 POST 幾張。PHP 的 max_file_uploads 常見上限是 20，留些餘裕
     const MAX_TILES = 20000;  // 超過就不讓開始：再多就該考慮降一級 zoom，而不是讓人等半小時
 
     // ── Web Mercator：經緯度 ↔ 單位世界座標 [0,1] ──
-    // 圖磚系統與 Leaflet 的 ImageOverlay 都在這個空間裡線性運作，所以整支工具只需要這四個函式。
+    // 圖磚系統與地圖的影像疊圖都在這個空間裡線性運作，所以整支工具只需要這四個函式。
     const wx = lng => (lng + 180) / 360;
     const wy = lat => { const s = Math.sin(lat * Math.PI / 180); return 0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI); };
     const lngOf = x => x * 360 - 180;
@@ -1288,9 +1283,30 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
     let running = false, aborted = false;
 
     // ── 地圖 ──
-    const map = L.map('map', { center: [23.95, 120.69], zoom: 14 });
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-      { maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors' }).addTo(map);
+    const map = new maplibregl.Map({
+      container: 'map', center: [120.69, 23.95], zoom: 13, dragRotate: false, pitchWithRotate: false, touchPitch: false, maxPitch: 0,
+      attributionControl: { compact: true },
+      style: {
+        version: 8,
+        sources: {
+          osm: {
+            type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256, maxzoom: 19,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors'
+          }
+        },
+        layers: [{ id: 'osm', type: 'raster', source: 'osm' }]
+      }
+    });
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+    // 圖片疊圖與外框要等樣式載入才能加；載入完成後整個重畫一次
+    let mapLoaded = false;
+    map.on('load', () => {
+      map.addSource('selrect', { type: 'geojson', data: exRectFeature({ n: 1, s: 0, w: 0, e: 1 }) });
+      map.addLayer({ id: 'selrect', type: 'line', source: 'selrect', layout: { visibility: 'none' },
+        paint: { 'line-color': '#b5482e', 'line-width': 1, 'line-dasharray': [4, 3] } });
+      mapLoaded = true;
+      refresh();
+    });
 
     /** 四個邊界值合不合理。與後端的 souliong_layer_bounds_valid() 同一套判準。 */
     function validBounds(b) {
@@ -1335,7 +1351,8 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
         this.baseBounds = null;                  // img 目前這批像素「原始未拉伸」對應的 bounds，供擴增選區當比例尺基準
         this.opacity = 1;
         this.on = true;
-        this.overlay = null;
+        this.layerId = 'pc' + (Piece.seq = (Piece.seq || 0) + 1);
+        this.drawn = false;
         this.fromFilename = false;               // true = bounds 是從檔名讀出來的，不是預設帶入的
       }
 
@@ -1344,31 +1361,33 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
         return { x0: wx(this.bounds.w), x1: wx(this.bounds.e), y0: wy(this.bounds.n), y1: wy(this.bounds.s) };
       }
 
-      latLngBounds() {
-        return L.latLngBounds([[this.bounds.s, this.bounds.w], [this.bounds.n, this.bounds.e]]);
+      /** 影像四角，順時針從左上開始（MapLibre image source 的格式）。 */
+      corners() {
+        const b = this.bounds;
+        return [[b.w, b.n], [b.e, b.n], [b.e, b.s], [b.w, b.s]];
       }
 
       /** 地圖上的預覽。ghost 是「預覽半透明」那顆開關，只影響畫面，不影響切出來的磚。 */
       draw(ghost) {
-        if (!validBounds(this.bounds)) return;
-        const ll = this.latLngBounds();
-        if (!this.overlay) {
-          this.overlay = L.imageOverlay(this.url, ll, { interactive: false });
+        if (!mapLoaded || !validBounds(this.bounds)) return;
+        const id = this.layerId;
+        if (!this.drawn) {
+          map.addSource(id, { type: 'image', url: this.url, coordinates: this.corners() });
+          map.addLayer({ id, type: 'raster', source: id, paint: { 'raster-fade-duration': 0 } }, 'selrect');
+          this._overlayUrl = this.url;
+          this.drawn = true;
+        } else if (this._overlayUrl !== this.url) {
+          map.getSource(id).updateImage({ url: this.url, coordinates: this.corners() });
           this._overlayUrl = this.url;
         } else {
-          this.overlay.setBounds(ll);
-          if (this._overlayUrl !== this.url) {
-            this.overlay.setUrl(this.url);
-            this._overlayUrl = this.url;
-          }
+          map.getSource(id).setCoordinates(this.corners());
         }
-        this.overlay.setOpacity(this.opacity * (ghost ? 0.7 : 1));
-        if (this.on) this.overlay.addTo(map);
-        else map.removeLayer(this.overlay);
+        map.setPaintProperty(id, 'raster-opacity', this.opacity * (ghost ? 0.7 : 1));
+        map.setLayoutProperty(id, 'visibility', this.on ? 'visible' : 'none');
       }
 
       destroy() {
-        if (this.overlay) map.removeLayer(this.overlay);
+        if (this.drawn) { map.removeLayer(this.layerId); map.removeSource(this.layerId); }
         URL.revokeObjectURL(this.url);
       }
     }
@@ -1380,26 +1399,20 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
     // ── 對位把手 ──
     // 三顆：兩個角落縮放、中央一顆整張平移。只服務「目前選取的那一張」——
     // 每張圖都長出一組把手的話，五張圖就有十五顆，誰也拖不準。
-    let swM = null, neM = null, mvM = null, selRect = null;
+    let swM = null, neM = null, mvM = null;
 
     function ensureHandles() {
       if (swM) return;
-      const sq = () => L.divIcon({ className: 'pchandle', iconSize: [14, 14], iconAnchor: [7, 7] });
-      swM = L.marker([0, 0], { draggable: true, keyboard: false, icon: sq() });
-      neM = L.marker([0, 0], { draggable: true, keyboard: false, icon: sq() });
-      mvM = L.marker([0, 0], {
-        draggable: true, keyboard: false, icon: L.divIcon({
-          className: 'pchandle pcmove', iconSize: [26, 26], iconAnchor: [13, 13],
-          html: '<i class="fa-solid fa-arrows-up-down-left-right"></i>'
-        })
-      });
-      selRect = L.rectangle([[0, 0], [0, 0]], { color: '#b5482e', weight: 1, fill: false, dashArray: '4 3' });
+      const mk = (cls, html) => new maplibregl.Marker({ element: exHandleEl(cls, html), draggable: true, anchor: 'center' }).setLngLat([0, 0]);
+      swM = mk('pchandle');
+      neM = mk('pchandle');
+      mvM = mk('pchandle pcmove', '<i class="fa-solid fa-arrows-up-down-left-right"></i>');
 
       // 拖曳中只跟著畫，放開才套長寬比並把把手校正回去（live=true 就是拖曳中那一段）
       const corner = (m, anchor, live) => () => {
         const p = pieces[sel];
         if (!p) return;
-        const a = swM.getLatLng(), b = neM.getLatLng();
+        const a = swM.getLngLat(), b = neM.getLngLat();
         let nb = { s: Math.min(a.lat, b.lat), n: Math.max(a.lat, b.lat), w: Math.min(a.lng, b.lng), e: Math.max(a.lng, b.lng) };
         if (!live) nb = applyAspect(nb, anchor, p);
         commit(p, nb, { skip: live ? m : null });
@@ -1415,7 +1428,7 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
         const pr = p.proj();
         const dx = pr.x1 - pr.x0, dy = pr.y1 - pr.y0;
         if (!(dx > 0 && dx <= 1 && dy > 0 && dy <= 1)) return;   // 比整個世界還大的圖沒有「平移」可言
-        const ll = mvM.getLatLng();
+        const ll = mvM.getLngLat();
         const cx = Math.min(1 - dx / 2, Math.max(dx / 2, wx(ll.lng)));
         const cy = Math.min(1 - dy / 2, Math.max(dy / 2, wy(ll.lat)));
         commit(p, {
@@ -1427,23 +1440,32 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
     }
 
     /** 把手歸位。skip 是正在被拖的那一顆——重設它的位置會跟滑鼠搶。 */
-    function placeHandles(ll, skip) {
-      if (skip !== swM) swM.setLatLng(ll.getSouthWest());
-      if (skip !== neM) neM.setLatLng(ll.getNorthEast());
+    function placeHandles(b, skip) {
+      if (skip !== swM) swM.setLngLat([b.w, b.s]);
+      if (skip !== neM) neM.setLngLat([b.e, b.n]);
       // 中央把手放在投影中心，不是經緯度中心——後者在南北向會偏，拖起來手感不對
-      if (skip !== mvM) mvM.setLatLng([latOf((wy(ll.getNorth()) + wy(ll.getSouth())) / 2), ll.getCenter().lng]);
+      if (skip !== mvM) mvM.setLngLat([(b.w + b.e) / 2, latOf((wy(b.n) + wy(b.s)) / 2)]);
     }
 
-    function showHandles(ll) {
+    function showHandles(b) {
       ensureHandles();
-      selRect.setBounds(ll);
-      placeHandles(ll);
-      [selRect, swM, neM, mvM].forEach(l => l.addTo(map));
+      drawSelRect(b, true);
+      placeHandles(b);
+      [swM, neM, mvM].forEach(m => m.addTo(map));
+    }
+
+    /** 選取外框；地圖樣式還沒載入時什麼都不做，載入後 refresh() 會補畫。 */
+    function drawSelRect(b, visible) {
+      if (!mapLoaded) return;
+      if (b) map.getSource('selrect').setData(exRectFeature(b));
+      map.setLayoutProperty('selrect', 'visibility', visible ? 'visible' : 'none');
+      if (visible) map.moveLayer('selrect');
     }
 
     function hideHandles() {
       if (!swM) return;
-      [selRect, swM, neM, mvM].forEach(l => map.removeLayer(l));
+      drawSelRect(null, false);
+      [swM, neM, mvM].forEach(m => m.remove());
     }
 
     // ── 數字框 ──
@@ -1472,10 +1494,9 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
       p.bounds = nb;
       if (opt.fields !== false) writeFields(nb);
       p.draw($('ghost').checked);
-      const ll = p.latLngBounds();
       ensureHandles();
-      selRect.setBounds(ll);
-      placeHandles(ll, opt.skip);
+      drawSelRect(p.bounds, true);
+      placeHandles(p.bounds, opt.skip);
       estimate();
       updateExpandBtn();
     }
@@ -1753,15 +1774,16 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
       const ghost = $('ghost').checked;
       pieces.forEach((p, i) => {
         p.draw(ghost);
-        // 陣列前端是最上層，z-index 就得反過來給：Leaflet 的疊放順序看的是 z-index，
-        // 不是 addTo 的先後，所以每次重畫都重新指定一遍才不會被加入順序決定。
-        if (p.overlay) p.overlay.setZIndex(pieces.length - i);
       });
+      // 陣列前端是最上層：由最後一張開始依序搬到最上面，順序就不受加入先後影響
+      if (mapLoaded) {
+        for (let i = pieces.length - 1; i >= 0; i--) if (pieces[i].drawn) map.moveLayer(pieces[i].layerId, 'selrect');
+      }
       renderList();
       const p = pieces[sel];
       $('placeui').classList.toggle('pcdisabled', !p);
       $('placemsg').style.display = p ? 'none' : '';
-      if (p && validBounds(p.bounds)) showHandles(p.latLngBounds());
+      if (p && validBounds(p.bounds)) showHandles(p.bounds);
       else hideHandles();
       applyVectorUI();
       estimate();
@@ -1859,7 +1881,7 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
     });
     $('fitov').addEventListener('click', () => {
       const u = unionBounds() || (pieces[sel] ? pieces[sel].bounds : null);
-      if (validBounds(u)) map.fitBounds([[u.s, u.w], [u.n, u.e]]);
+      if (validBounds(u)) map.fitBounds([[u.w, u.s], [u.e, u.n]]);
     });
     $('lockar').addEventListener('change', () => {
       const p = pieces[sel];
@@ -1867,7 +1889,7 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
     });
 
     // ── 匯出範圍底稿 ──
-    // 這裡選的是「要匯出的範圍」本身，不是任何一張 Piece，跟對位把手（selRect／swM／neM／mvM）
+    // 這裡選的是「要匯出的範圍」本身，不是任何一張 Piece，跟對位把手（swM／neM／mvM）
     // 完全分開；地圖也不共用主地圖（那張是光柵圖磚，高 zoom 會糊/馬賽克，不適合拿來當
     // 「畫面上看到的就是匯出結果」的依據）——另開一張向量圖磚地圖，見下方 exMap。
     const exmsgEl = $('exmsg');
@@ -2361,7 +2383,7 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
       if (!('ext' in L) && pieces.length === 1 && isSvgPiece(pieces[0])) $('vecmode').checked = true;
       select(0);
       const u = unionBounds();
-      if (validBounds(u)) map.fitBounds([[u.s, u.w], [u.n, u.e]]);
+      if (validBounds(u)) map.fitBounds([[u.w, u.s], [u.e, u.n]]);
     }
 
     /**
@@ -2419,7 +2441,7 @@ if ($EDIT === null && $loadId !== '' && $reqProject !== '') {
         pieces.unshift(p);
         applyNativeZoom();
         select(0);
-        map.fitBounds([[bounds.s, bounds.w], [bounds.n, bounds.e]]);
+        map.fitBounds([[bounds.w, bounds.s], [bounds.e, bounds.n]]);
         statusEl.textContent = I18N.recon_done;
         barEl.style.width = '0%';
       } catch (e) {

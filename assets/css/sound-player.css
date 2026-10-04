@@ -39,31 +39,25 @@
      蓋住（迷你列高度隨標題／副標換行而變，位移量由 sound-player.js 的 updateMiniGap()
      即時量測寫進 --sl-mini-gap，這裡只負責套用）。*/
   .maplibregl-ctrl-bottom-left,
-  .leaflet-bottom.leaflet-left,
-  .cr-bar,
-  .leaflet-bottom.leaflet-right {
+  .cr-bar {
     transition: transform .18s ease-out
   }
 
-  body.sl-mini-open .maplibregl-ctrl-bottom-left,
-  body.sl-mini-open .leaflet-bottom.leaflet-left {
+  body.sl-mini-open .maplibregl-ctrl-bottom-left {
     transform: translateY(calc(-1 * var(--sl-mini-gap, 0px)))
   }
 
-  /* .cr-bar／.leaflet-bottom.leaflet-right 本來就靠 translateX(-50%) 做水平置中（見
+  /* .cr-bar 本來就靠 translateX(-50%) 做水平置中（見
      map-controls.css），這裡要整個 transform 一起疊寫，不能只加 translateY，
      否則會蓋掉原本的置中效果 */
-  body.sl-mini-open .cr-bar,
-  body.sl-mini-open .leaflet-bottom.leaflet-right {
+  body.sl-mini-open .cr-bar {
     transform: translateX(-50%) translateY(calc(-1 * var(--sl-mini-gap, 0px)))
   }
 }
 
 @media (prefers-reduced-motion:reduce) {
   .maplibregl-ctrl-bottom-left,
-  .leaflet-bottom.leaflet-left,
-  .cr-bar,
-  .leaflet-bottom.leaflet-right {
+  .cr-bar {
     transition: none
   }
 }

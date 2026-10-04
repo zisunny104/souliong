@@ -13,15 +13,12 @@ body.embed-bare .dialog,
 body.embed-bare .toast,
 body.embed-bare .maplibregl-ctrl-top-left,
 body.embed-bare .maplibregl-ctrl-top-right,
-body.embed-bare .maplibregl-ctrl-bottom-left,
-body.embed-bare .leaflet-control-zoom,
-body.embed-bare .leaflet-top {
+body.embed-bare .maplibregl-ctrl-bottom-left {
   display: none !important
 }
 
 /* ---------- 圖資版權：縮小到右下角，不可移除 ---------- */
-body.embed-bare .cr-bar,
-body.embed-bare .leaflet-control-attribution {
+body.embed-bare .cr-bar {
   position: fixed;
   left: auto;
   right: 0;
@@ -40,12 +37,6 @@ body.embed-bare .leaflet-control-attribution {
   opacity: .85
 }
 
-body.embed-bare .leaflet-bottom.leaflet-right {
-  left: auto;
-  right: 0;
-  transform: none
-}
-
 body.embed-bare .cr-ext {
   max-width: none;
   display: inline
@@ -62,8 +53,7 @@ body.embed-static #map {
   pointer-events: none
 }
 
-body.embed-static .cr-bar,
-body.embed-static .leaflet-control-attribution {
+body.embed-static .cr-bar {
   pointer-events: auto
 }
 
@@ -71,8 +61,7 @@ body.embed-static .leaflet-control-attribution {
 html:has(body.embed-bg-transparent),
 body.embed-bg-transparent,
 body.embed-bg-transparent #map,
-body.embed-bg-transparent .maplibregl-canvas-container,
-body.embed-bg-transparent .leaflet-container {
+body.embed-bg-transparent .maplibregl-canvas-container {
   background: transparent !important
 }
 

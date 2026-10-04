@@ -79,7 +79,7 @@ Licensed under the MIT license: http://www.opensource.org/licenses/mit-license.p
 
 | 元件 Component        | 用途 Purpose            | 授權 License |
 |-----------------------|-------------------------|--------------|
-| Leaflet               | 地圖顯示 Map rendering  | BSD-2-Clause |
+| MapLibre GL JS        | 地圖顯示 Map rendering  | BSD-3-Clause |
 | exifr                 | 讀取 EXIF/GPS           | MIT |
 | heic2any              | HEIC → WebP             | MIT |
 | jsQR                  | 掃描投稿代碼 QR scanning  | Apache-2.0 |

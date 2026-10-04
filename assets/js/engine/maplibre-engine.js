@@ -1,8 +1,7 @@
 /* MapLibreEngine —— MapEngine（assets/js/engine/map-engine.js）的 MapLibre GL 實作。
-   一律用獨立的 new maplibregl.Map(...)，絕不透過 @maplibre/maplibre-gl-leaflet 橋接套件
-   （v6.6.0 上會跟 MapLibre 內部非同步投影初始化搶時間、丟一串 TypeError，見規劃文件）。
+   一律用獨立的 new maplibregl.Map(...)。
 
-   MapLibre 沒有 Leaflet 的「pane」分層概念，向量 style 本身就是一張完整的圖（道路／建物／
+   向量 style 本身就是一張完整的圖（道路／建物／
    標籤都內建在同一份 style 裡），沒辦法像光柵圖層一樣疊好幾張互相獨立的底圖。這裡的處理方式：
    manifests 陣列裡「pane 是 base 且 type 是 vector」的最後一筆整個當作地圖的 style；其餘每一筆
    （不論哪個 pane）在 style 載入完成後依序疊成 source+layer，疊在最上層、依陣列順序疊放。 */
@@ -14,16 +13,15 @@ window.MapLibreEngine = (() => {
   const MAX_PITCH_3D = 70;
   const paneKey = (m) => (m && m.pane) || 'art';
 
-  // 同一條規則跟 LeafletEngine 的 baseManifests() 精神一致（同 pane 後面蓋前面，取最後一筆）；
-  // 差別是這裡限定 type 也要是 vector，因為向量 style 才能整顆當地圖的 style。
+  // 同 pane 後面蓋前面，取最後一筆；限定 type 是 vector，因為向量 style 才能整顆當地圖的 style。
   function baseVectorManifest(manifests) {
     const cand = manifests.filter(m => paneKey(m) === 'base' && m.type === 'vector');
     return cand.length ? cand[cand.length - 1] : null;
   }
 
-  // Leaflet 圖磚網址樣板裡的 {s}/{r} 這裡的引擎不吃：{r} 直接拿掉（不處理視網膜倍率圖），
+  // 圖磚網址樣板裡的 {s}/{r} 要先處理：{r} 直接拿掉（不處理視網膜倍率圖），
   // {s} 展開成每個子網域各一個 URL——MapLibre 的 raster source 本來就支援多個 tiles URL
-  // 做平行連線輪詢，跟 Leaflet subdomains 選項的用意相同，不是遺漏。
+  // 做平行連線輪詢。
   function rasterTileUrls(m, dark) {
     const raw = (dark && m.urlDark) ? m.urlDark : m.url;
     if (!raw) return [];
@@ -34,7 +32,7 @@ window.MapLibreEngine = (() => {
     return [noRetina];
   }
 
-  // 對應 Leaflet 的 minZoom／maxNativeZoom／tms／bounds：超出原生縮放範圍時由 MapLibre 放大既有圖磚，
+  // 處理 minZoom／maxNativeZoom／tms／bounds：超出原生縮放範圍時由 MapLibre 放大既有圖磚，
   // 不設 maxzoom 的話它會一直去要不存在的高層級圖磚而整片消失。
   function rasterSource(m, dark) {
     const src = { type: 'raster', tiles: rasterTileUrls(m, dark), tileSize: 256 };
@@ -54,7 +52,7 @@ window.MapLibreEngine = (() => {
   }
 
   function cornersFromBounds(bounds) {
-    // Leaflet 的 bounds 是 [[南,西],[北,東]]；MapLibre image source 的 coordinates
+    // layer.json 的 bounds 是 [[南,西],[北,東]]；MapLibre image source 的 coordinates
     // 是四角順時針從左上開始：[[西北],[東北],[東南],[西南]]
     const [[s, w], [n, e]] = bounds;
     return [[w, n], [e, n], [e, s], [w, s]];
@@ -88,8 +86,7 @@ window.MapLibreEngine = (() => {
 
   // 把一個現成的 DOM 元素（不是重新刻一顆，例如 pages/view.php 的 #resetBtn）包成 MapLibre
   // 認得的 control，讓它掛進跟縮放鈕（含羅盤，見下面 mountControls()）同一個角落的堆疊，用
-  // MapLibre 自己的排版機制自動疊好，不用寫死高度數字去對齊——縮放鈕比 Leaflet 多一顆羅盤鈕、
-  // 高度不同，寫死數字對不齊就是這樣來的。不限於重置鈕，任何要掛角落的既有元素都能用這個包。
+  // MapLibre 自己的排版機制自動疊好，不用寫死高度數字去對齊。不限於重置鈕，任何要掛角落的既有元素都能用這個包。
   class DomControl {
     constructor(el) { this._el = el; }
     onAdd() { this._el.classList.add('maplibregl-ctrl'); return this._el; }
@@ -228,6 +225,8 @@ window.MapLibreEngine = (() => {
     get type() { return 'maplibre'; }
     get supports3D() { return true; }
     get supportsLayerSwitch() { return true; }
+    // 底圖是向量樣式（有建物等向量圖層可做 3D）；光柵底圖為 false
+    get hasVectorBase() { return !!this._baseManifest; }
     getRawMap() { return this.map; }
 
     get supportsSnapshot() { return true; }
@@ -323,8 +322,7 @@ window.MapLibreEngine = (() => {
       if (!latlonPairs || !latlonPairs.length) return;
       const lons = latlonPairs.map(p => p[1]), lats = latlonPairs.map(p => p[0]);
       let w = Math.min(...lons), e = Math.max(...lons), s = Math.min(...lats), n = Math.max(...lats);
-      // 比照 Leaflet 的 L.latLngBounds.pad()：依 bounds 自身寬高的比例往外擴，而不是
-      // MapLibre fitBounds() 原生的像素 padding——兩者語意不同，這裡刻意換算成前者的行為。
+      // 依 bounds 自身寬高的比例往外擴，而不是 MapLibre fitBounds() 原生的像素 padding。
       const pad = (opts && opts.pad != null) ? opts.pad : 0;
       if (pad) { const dw = (e - w) * pad, dh = (n - s) * pad; w -= dw; e += dw; s -= dh; n += dh; }
       this.map.fitBounds([[w, s], [e, n]], { padding: 0, linear: true });
@@ -355,7 +353,7 @@ window.MapLibreEngine = (() => {
         el.style.height = spec.size[1] + 'px';
         el.innerHTML = spec.html;
         // maplibregl.Marker 的 DOM 元素是 map 容器的子節點，click 事件預設會冒泡到
-        // onBackgroundClick 的 map.on('click', ...)；Leaflet marker 不會，這個差異在這裡吸收掉。
+        // onBackgroundClick 的 map.on('click', ...)，這裡先擋掉。
         if (spec.onClick) el.addEventListener('click', (e) => { e.stopPropagation(); spec.onClick(); });
         const marker = new maplibregl.Marker({ element: el, anchor: 'top-left', offset: [-spec.anchor[0], -spec.anchor[1]] })
           .setLngLat([spec.lon, spec.lat]).addTo(this.map);

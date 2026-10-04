@@ -392,7 +392,7 @@
       state.picker = picker;
       const updLoc = (pos) => {
         state.loc = { lat: pos.lat, lon: pos.lon };
-        // 用外框顏色標示定位來源（不覆蓋 Leaflet 自身 class）
+        // 用外框顏色標示定位來源
         miniDiv.classList.remove('src-ok', 'src-warn', 'src-info', 'src-muted');
         miniDiv.classList.add('src-' + this.mapApp.srcTone(state.source));
         card.querySelector('.loc').innerHTML = this.mapApp.locNote(state.source) + ' <span class="loc-hint">' + esc(t('drag_to_fix_hint')) + '</span>';

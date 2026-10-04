@@ -1,6 +1,4 @@
-/* ---------- 縮放／羅盤控制項（Leaflet 的 leaflet-bar／MapLibre 的 NavigationControl，
-   同一套玻璃感視覺，共同的宣告合併寫在同一個規則裡，只有各自才有的屬性才分開寫）---------- */
-.leaflet-control-zoom.leaflet-bar,
+/* ---------- 縮放／羅盤控制項（MapLibre 的 NavigationControl，玻璃感視覺）---------- */
 .maplibregl-ctrl-group {
   border: 1px solid var(--line);
   border-radius: var(--r-md);
@@ -15,8 +13,6 @@
   background: none
 }
 
-.leaflet-bar a,
-.leaflet-bar a:hover,
 .maplibregl-ctrl-group button {
   width: 36px;
   height: 36px;
@@ -27,17 +23,10 @@
   border-bottom: 1px solid var(--line)
 }
 
-.leaflet-bar a {
-  font-size: 1.125rem;
-  color: var(--fg)
-}
-
-.leaflet-bar a:hover,
 .maplibregl-ctrl-group button:hover {
   background: var(--hover)
 }
 
-.leaflet-bar a:last-child,
 .maplibregl-ctrl-group button:last-child {
   border-bottom: none
 }
@@ -47,10 +36,6 @@
    蓋掉內建那條，分隔線只留我們自己這條 */
 .maplibregl-ctrl-group button + button {
   border-top: none
-}
-
-.leaflet-bar a.leaflet-disabled {
-  opacity: .4
 }
 
 .maplibregl-ctrl-group button:disabled .maplibregl-ctrl-icon {
@@ -68,16 +53,7 @@
   }
 }
 
-.leaflet-touch .leaflet-bar a {
-  width: 36px;
-  height: 36px;
-  line-height: 36px
-}
-
-/* ---------- 版權標註（Leaflet 原生的 AttributionControl／MapLibre 的 CreditControl，見
-   maplibre-engine.js——兩邊內容都來自 map-engine.js 的 buildCredit()，樣式也共用同一組宣告，
-   不因為引擎不同各刻一份）---------- */
-.leaflet-control-attribution,
+/* ---------- 版權標註（MapLibre 的 CreditControl，見 maplibre-engine.js；內容來自 map-engine.js 的 buildCredit()）---------- */
 .cr-bar {
   background: var(--glass) !important;
   -webkit-backdrop-filter: blur(10px);
@@ -100,12 +76,10 @@
   flex-wrap: wrap
 }
 
-.leaflet-control-attribution i,
 .cr-bar i {
   margin: 0 1px
 }
 
-.leaflet-control-attribution a,
 .cr-bar a {
   color: var(--muted) !important;
   text-decoration: none
@@ -124,7 +98,6 @@
 }
 
 @media (max-width: 560px) {
-  .leaflet-control-attribution,
   .cr-bar {
     flex-direction: column
   }
@@ -146,31 +119,12 @@
   }
 }
 
-/* 版權置中於下方（縮放留在左下）。Leaflet 是把整個 bottom-right 角搬去置中——那個角本來就只擺
-   版權控制項，搬整角安全。MapLibre 的 bottom-right 角除了版權還可能有其他控制項（如插件加的），
-   搬整角會連它們一起搬走，改成只讓 .cr-bar 自己用 fixed 定位置中，跳出 MapLibre 控制項容器的排版，
-   兩邊視覺效果一致，只是各自用適合自己容器結構的手法。 */
-.leaflet-bottom.leaflet-right {
-  left: 50%;
-  right: auto;
-  transform: translateX(-50%)
-}
-
+/* 版權置中於下方（縮放留在左下）：只讓 .cr-bar 自己用 fixed 定位置中，不搬整個 bottom-right 角，
+   以免連同角落裡其他控制項（如插件加的）一起被搬走。 */
 .cr-bar {
   position: fixed;
   left: 50%;
   bottom: 14px;
   transform: translateX(-50%);
   margin: 0 !important
-}
-
-/* 深色底圖提亮，讓圖面與地物更清楚（不影響標記，標記在另一個 pane） */
-:root[data-theme="dark"] .leaflet-tile-pane {
-  filter: brightness(1.45) contrast(.9)
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .leaflet-tile-pane {
-    filter: brightness(1.45) contrast(.9)
-  }
 }

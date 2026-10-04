@@ -143,7 +143,7 @@ $ccur = souliong_contrib_cfg(null);
   <meta name="robots" content="noindex">
   <title><?= $t('newproject_title') ?></title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.6.0/dist/maplibre-gl.css">
   <style>
     :root {
       --bg: #f6f5f2;
@@ -538,7 +538,6 @@ $ccur = souliong_contrib_cfg(null);
     <div class="backlink"><a href="<?= $adminUrl ?>"><i class="fa-solid fa-arrow-left"></i> <?= $t('back_to_admin') ?></a></div>
   </div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
     const csrf = <?= json_encode($csrf) ?>;
     const SELF_URL = <?= json_encode($selfUrl) ?>;
@@ -573,22 +572,37 @@ $ccur = souliong_contrib_cfg(null);
       }, 350);
     });
 
-    // ── 地圖：單一可拖曳標記決定 center，地圖縮放決定 zoom ──
-    const map = L.map('map', { center: [23.9, 120.7], zoom: 14 });
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-      { maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors' }).addTo(map);
-    const marker = L.marker(map.getCenter(), { draggable: true }).addTo(map);
+    // ── 地圖：單一可拖曳標記決定 center，地圖縮放決定 zoom（MapLibre 是 ESM，載入完成後才初始化）──
     const latInput = document.getElementById('latInput'), lonInput = document.getElementById('lonInput'), zoomInput = document.getElementById('zoomInput');
-    function syncFromMarker() {
-      const ll = marker.getLatLng();
-      latInput.value = ll.lat.toFixed(6);
-      lonInput.value = ll.lng.toFixed(6);
-    }
-    marker.on('drag', syncFromMarker).on('dragend', syncFromMarker);
-    map.on('click', e => { marker.setLatLng(e.latlng); syncFromMarker(); });
-    map.on('zoomend', () => { zoomInput.value = map.getZoom(); });
-    syncFromMarker();
-    zoomInput.value = map.getZoom();
+    import('https://unpkg.com/maplibre-gl@6.6.0/dist/maplibre-gl.mjs').then(maplibregl => {
+      const map = new maplibregl.Map({
+        container: 'map', center: [120.7, 23.9], zoom: 14, attributionControl: { compact: true },
+        dragRotate: false, pitchWithRotate: false, touchPitch: false, maxPitch: 0,
+        style: {
+          version: 8,
+          sources: {
+            osm: {
+              type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256, maxzoom: 19,
+              attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors'
+            }
+          },
+          layers: [{ id: 'osm', type: 'raster', source: 'osm' }]
+        }
+      });
+      map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+      const marker = new maplibregl.Marker({ draggable: true }).setLngLat(map.getCenter()).addTo(map);
+      function syncFromMarker() {
+        const ll = marker.getLngLat();
+        latInput.value = ll.lat.toFixed(6);
+        lonInput.value = ll.lng.toFixed(6);
+      }
+      marker.on('drag', syncFromMarker).on('dragend', syncFromMarker);
+      map.on('click', e => { marker.setLngLat(e.lngLat); syncFromMarker(); });
+      const syncZoom = () => { zoomInput.value = map.getZoom().toFixed(2); };
+      map.on('zoomend', syncZoom);
+      syncFromMarker();
+      syncZoom();
+    });
 
     // ── 收折區塊：記住「曾展開過」，還原預設不動這個旗標（見 api/newproject.php 的寫入規則說明）──
     const modsec = document.getElementById('modsec'), contribsec = document.getElementById('contribsec');

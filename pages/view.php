@@ -67,12 +67,8 @@ $pack = souliong_pack_for($apiCfg, $meta, $proj);
 // 這張地圖由下往上要疊哪幾層圖磚／插畫。跟 $pack 同樣是「用哪一包」而非布林開關，差別只在
 // 圖層是有序陣列。相對路徑的圖檔在這裡就被改寫成 <base>/layer/... 絕對網址，前端不必分辨。
 $layers = souliong_layers_public($apiCfg, $meta, $proj, $base);
-$layerExtra = souliong_layers_switchable($apiCfg, $meta, $proj, $base);
-// 訪客可切換的圖層 id（含預設啟用的）；至少要有可操作的選項，前端才會出現圖層按鈕
-$layerSwitchIds = array_values(array_filter((array)($meta['layerSwitch'] ?? []), 'is_string'));
-// 這張地圖的主引擎：一律 MapLibreEngine（光柵與疊圖也由它處理）。meta.json 明確寫
-// "engine": "leaflet" 的舊專案才沿用 Leaflet，作為過渡期的退路，不在後台提供選項。
-$primaryEngine = (is_array($meta) && ($meta['engine'] ?? '') === 'leaflet') ? 'leaflet' : 'maplibre';
+// 勾選的圖層就是訪客可挑的範圍：多張底圖擇一、多張疊圖各自開關；只有一張就沒得挑
+$layerExtra = souliong_layers_alternates($apiCfg, $meta, $proj, $base);
 // 這張地圖開放哪些投稿型別、對話框預設開哪一頁、誰能建立點位（meta.json 的 contrib 區塊）。
 // 跟 $moduleState 同樣的原則：PHP 端解析一次，前端直接讀 APP.contrib，不在兩邊各自算預設值。
 $contribCfg = souliong_contrib_cfg($meta);
@@ -131,8 +127,6 @@ $APP = [
     'pack'        => $pack,
     'layers'      => $layers,
     'layerExtra'  => $layerExtra,
-    'layerSwitch' => $layerSwitchIds,
-    'engine'      => $primaryEngine,
     // 向量底圖標註語言：mapLabelLang 是 'auto'（跟隨 LANG）或 labelFields 的鍵；labelFields 是各語言的名稱欄位優先序
     'mapLabelLang' => souliong_label_lang($meta),
     'labelFields' => souliong_label_fields(),
@@ -191,13 +185,8 @@ if ($entryId !== '' && ($entry = souliong_og_resolve_entry($apiCfg, $proj, $entr
 <meta property="og:url" content="<?= $esc($ogUrl) ?>">
 <?php if ($ogImage): ?><meta property="og:image" content="<?= $esc($ogImage) ?>"><?php endif; ?>
 <meta name="twitter:card" content="<?= $ogImage ? 'summary_large_image' : 'summary' ?>">
-<?php if ($primaryEngine === 'leaflet'): ?>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<?php endif; ?>
-<?php if ($mod('map3d') || $primaryEngine === 'maplibre'): /* 大型第三方函式庫走真的 <link>/<script src>,不用 readfile() 內嵌,才吃得到瀏覽器快取(理由同下方 leaflet.js)；
-     向量主引擎的專案就算沒開 3D 開關也要拿到 MapLibre 本體，見下方 script 段落同款條件 */ ?>
+<?php /* 大型第三方函式庫走真的 <link>/<script src>，不用 readfile() 內嵌，才吃得到瀏覽器快取 */ ?>
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.6.0/dist/maplibre-gl.css">
-<?php endif; ?>
 <?php if ($mod('map3d')): /* three.js importmap 只服務 3D 切換鈕，跟主引擎是不是 MapLibre 無關——
      向量底圖本身不需要 three.js */ ?>
 <script type="importmap">
@@ -408,14 +397,11 @@ if ($pack) {
 </div>
 
 <script>window.APP = <?= json_encode($APP, $jsonFlags) ?>; window.I18N = <?= json_encode($DICT, $jsonFlags) ?>; window.LANG = <?= json_encode($LANG, $jsonFlags) ?>;</script>
-<?php if ($primaryEngine === 'leaflet'): ?>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<?php endif; ?>
 <?php if ($mod('map3d')): /* MapLibre v6 只出 ESM 版(dist/maplibre-gl.mjs),沒有 <script src> 吃得下去的全域
      版本了——用內嵌 type="module" 匯入後手動掛回 window.maplibregl,讓 map3d.js 仍以傳統全域變數方式
      使用它。map3d.js 也要標成 type="module",確保它排進「文件解析完才依序執行」這一批,晚於這段 shim
      ——3D 模式一律要使用者先按下切換鈕才會用到 maplibregl,不會跟這段非同步載入搶時間。
-     主引擎是 MapLibre（$primaryEngine==='maplibre'）時不吃這段 shim：MapLibreEngine 掛載發生在
+     主引擎不吃這段 shim：MapLibreEngine 掛載發生在
      頁面一開始同步的 boot() 裡，等不了這段要等文件解析完才執行的 ESM 全域變數，所以 viewer.core.js
      的 boot() 自己用 import() 動態載入同一份 MapLibre 並掛回 window.maplibregl，做法比照
      maplibre-engine.js 對 three.js 的 lazy-load（見該檔 _maybeLoadThree()）；兩邊載入同一個網址時
@@ -434,16 +420,11 @@ window.maplibregl = maplibregl;
 <script src="<?= $assetUrl('assets/js/pin-input.js') ?>"></script>
 <?php endif; ?>
 <script src="<?= $assetUrl('assets/js/engine/map-engine.js') ?>"></script>
-<?php if ($primaryEngine === 'leaflet'): ?>
-<script src="<?= $assetUrl('assets/js/engine/leaflet-engine.js') ?>"></script>
-<?php endif; ?>
-<?php if ($primaryEngine === 'maplibre' || $mod('map3d')): ?>
 <script src="<?= $assetUrl('assets/js/engine/maplibre-engine.js') ?>"></script>
-<?php endif; ?>
 <script src="<?= $assetUrl('assets/js/marker-colors.js') ?>"></script>
 <script src="<?= $assetUrl('assets/js/contribution-client.js') ?>"></script>
 <script src="<?= $assetUrl('assets/js/viewer.core.js') ?>"></script>
-<?php if (!$bare && $primaryEngine === 'maplibre' && $layerSwitchIds): ?>
+<?php if (!$bare && count($layers) + count($layerExtra) >= 2): ?>
 <script src="<?= $assetUrl('assets/js/layer-switch.js') ?>"></script>
 <?php endif; ?>
 <?php if ($bare): ?>

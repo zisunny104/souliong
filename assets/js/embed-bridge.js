@@ -1,6 +1,6 @@
 /* 嵌入橋接（?embed=1&ui=bare 才載入）：父頁以 postMessage 控制鏡頭與標記，地圖頁回報事件。
    協定 { v:1, ns:'souliong', id, type, ... }；只接受 APP.embedOrigins 內來源的訊息（空清單＝全部拒絕），
-   回覆一律指定來源，不用 "*"。鏡頭指令只支援 MapLibre 引擎，Leaflet 回 error:unsupported。
+   回覆一律指定來源，不用 "*"。鏡頭指令只支援支援它的引擎，其餘回 error:unsupported。
    viewer.core.js 只提供掛勾：engineReady／bootDone／spotClick 與 MapApp.embedOpts／applyTheme。 */
 (function () {
   'use strict';
@@ -618,7 +618,7 @@
 
     /* ---------- 版權連結一律開新分頁（沒有離站確認框） ---------- */
     markCreditLinks() {
-      document.querySelectorAll('.cr-bar a, .leaflet-control-attribution a').forEach((a) => { a.target = '_blank'; a.rel = 'noopener'; });
+      document.querySelectorAll('.cr-bar a').forEach((a) => { a.target = '_blank'; a.rel = 'noopener'; });
     }
   }
 

@@ -198,6 +198,20 @@ function souliong_default_layers(array $cfg): array
  */
 function souliong_layers_for(array $cfg, ?array $meta, string $proj = ''): array
 {
+    $sel = souliong_layers_selected($cfg, $meta, $proj);
+    $bases = array_values(array_filter($sel, fn(array $m): bool => ($m['pane'] ?? 'art') === 'base'));
+    if (count($bases) < 2) return $sel;
+    // 勾了多張底圖：同時只會畫一張，預設用 meta.layerDefaultBase，沒指定或已不在勾選內就用疊在最上面的那張
+    $def = (string)($meta['layerDefaultBase'] ?? '');
+    $keep = null;
+    foreach ($bases as $b) if (($b['id'] ?? '') === $def) $keep = $b;
+    $keep ??= end($bases);
+    return array_values(array_filter($sel, fn(array $m): bool => ($m['pane'] ?? 'art') !== 'base' || $m === $keep));
+}
+
+/** 勾選的全部圖層（含沒被選為預設的底圖），由下往上；訪客圖層面板的選項範圍。解析規則同 souliong_layers_for()。 */
+function souliong_layers_selected(array $cfg, ?array $meta, string $proj = ''): array
+{
     $all = souliong_layer_list($cfg, $proj);
     $want = (is_array($meta) && isset($meta['layers']) && is_array($meta['layers']) && $meta['layers'])
         ? $meta['layers']
@@ -269,20 +283,13 @@ function souliong_layer_public_preview(array $cfg, array $manifest, string $base
     return $pub;
 }
 
-/**
- * 訪客可自行切換、但不在預設啟用清單內的圖層（meta.layerSwitch，由下往上）。已封存與不存在的略過。
- * 前端把它跟預設啟用的圖層合成一份清單，底圖擇一、疊圖可多選。
- */
-function souliong_layers_switchable(array $cfg, ?array $meta, string $proj, string $base): array
+/** 勾選了、但因同時只畫一張底圖而沒被選為預設的底圖；前端把它跟生效圖層合成訪客可挑的清單。 */
+function souliong_layers_alternates(array $cfg, ?array $meta, string $proj, string $base): array
 {
-    $want = (is_array($meta) && is_array($meta['layerSwitch'] ?? null)) ? $meta['layerSwitch'] : [];
-    if (!$want) return [];
-    $all = souliong_layer_list($cfg, $proj);
     $active = array_column(souliong_layers_for($cfg, $meta, $proj), 'id');
     $out = [];
-    foreach ($want as $id) {
-        if (!is_string($id) || !isset($all[$id]) || in_array($id, $active, true) || souliong_layer_deprecated($all[$id])) continue;
-        $out[] = souliong_layer_public_preview($cfg, $all[$id], $base, $proj);
+    foreach (souliong_layers_selected($cfg, $meta, $proj) as $m) {
+        if (!in_array($m['id'] ?? '', $active, true)) $out[] = souliong_layer_public_preview($cfg, $m, $base, $proj);
     }
     return $out;
 }
@@ -366,7 +373,7 @@ function souliong_layer_panes(): array
 }
 
 /**
- * 疊圖的四角邊界合不合理。±85.0511 是 Web Mercator 的實際上下限（Leaflet 用的也是這個數），
+ * 疊圖的四角邊界合不合理。±85.0511 是 Web Mercator 的實際上下限（Web Mercator 的標準上下限），
  * 超過去不是「畫錯位置」而是「這個投影根本畫不出來」，所以擋在這裡而不是留給前端去發散。
  */
 function souliong_layer_bounds_valid(float $s, float $w, float $n, float $e): bool
@@ -456,9 +463,8 @@ function souliong_credit_html(?array $part, array $DICT): string
     return (!empty($part['copyright']) ? '&copy;&nbsp;' : '') . $body . $suffix;
 }
 
-/** 主引擎署名；判斷方式跟 view.php 的 $primaryEngine 一致（預設 MapLibre，只有 meta.engine 明講 leaflet 才例外）。 */
-function souliong_engine_credit(array $meta): array
+/** 地圖引擎署名。 */
+function souliong_engine_credit(): array
 {
-    if (($meta['engine'] ?? '') === 'leaflet') return ['text' => 'Leaflet', 'url' => 'https://leafletjs.com'];
     return ['text' => 'MapLibre', 'url' => 'https://maplibre.org'];
 }

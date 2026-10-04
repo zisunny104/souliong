@@ -1,10 +1,9 @@
 /* 地圖引擎抽象層 —— 見 souliong/docs/EXTENDING.md。
-   MapEngine 是所有具體引擎（LeafletEngine／MapLibreEngine）的共同介面：viewer.core.js 與所有
-   plugin 一律只透過 MapApp.getEngine() 拿到的這個介面操作地圖，不直接認得 Leaflet 或 MapLibre
-   的 API。方法預設丟錯，逼具體引擎覆寫；3D 兩個方法預設 no-op，因為並非每個引擎都支援 3D
-   （目前只有 MapLibreEngine 會覆寫，LeafletEngine 維持 no-op）。
+   MapEngine 是具體引擎（目前只有 MapLibreEngine）的共同介面：viewer.core.js 與所有
+   plugin 一律只透過 MapApp.getEngine() 拿到的這個介面操作地圖，不直接認得 MapLibre
+   的 API。方法預設丟錯，逼具體引擎覆寫；3D 兩個方法預設 no-op。
 
-   這裡也擺了幾個「兩個引擎都要用、但沒有第三個更適合的家」的共用小工具（版權標註組字、
+   這裡也擺了幾個「引擎與 viewer.core.js 都要用、但沒有更適合的家」的共用小工具（版權標註組字、
    沒有 layers 設定時的保命底圖），放在這裡而不是各引擎重複一份，也不是塞進 viewer.core.js
    讓引擎檔反過來依賴它。 */
 window.MapEngine = (() => {
@@ -35,7 +34,7 @@ window.MapEngine = (() => {
     '</span>';
 
   // 版權小工具：一則署名一律是 {text, url, copyright, suffix} 這個固定形狀——manifest 的
-  // attribution、引擎自己的署名連結（Leaflet／MapLibre）都套同一份渲染邏輯，圖磚來源或引擎不同
+  // attribution、引擎自己的署名連結都套同一份渲染邏輯，圖磚來源或引擎不同
   // 只是換這幾個欄位的值，標籤(<a>)怎麼組、要不要加 &copy;、要不要接 i18n 字尾（如
   // {osm_contributors}）永遠由這裡決定，不會因為換平台就在別的地方另刻一份 HTML。
   function creditHtml(part) {
@@ -55,8 +54,7 @@ window.MapEngine = (() => {
     return esc(i18nSub(attribution));
   }
 
-  // engineCredit：這份 manifests 實際掛在哪個引擎上的署名連結（Leaflet／MapLibre），由呼叫端
-  // 傳入——同一份 manifests 理論上可能被不同引擎掛載，署名連結不該寫死在這個共用函式裡。
+  // engineCredit：這份 manifests 掛載的引擎署名連結，由呼叫端傳入。
   function buildCredit(manifests, engineCredit) {
     const src = [];
     (manifests || []).forEach(m => {
@@ -69,10 +67,9 @@ window.MapEngine = (() => {
   }
 
   // APP.layers 缺席時的保命底圖（獨立部署，或 view.php 還沒更新到有 layers 的版本）。寧可在這裡放一份
-  // 設定，也不要因為少一個設定就整張地圖開天窗；因為此時主引擎一定是 Leaflet（畫不了向量），
-  // 只能用不會蓋浮水印的 OSM 標準光柵圖磚，沒有深色版。
+  // 設定，也不要因為少一個設定就整張地圖開天窗；這裡用不會蓋浮水印的 OSM 標準光柵圖磚，沒有深色版。
   // 放在這裡（而非某個引擎檔或 viewer.core.js）是因為兩邊都要用同一份：viewer.core.js 的
-  // layerManifests() 解析 APP.layers 時要用它兜底，各引擎自己的圖層系統做第二層防禦時也要用它。
+  // layerManifests() 解析 APP.layers 時要用它兜底，引擎的圖層系統做第二層防禦時也要用它。
   const FALLBACK_LAYER = {
     id: 'osm-standard', type: 'raster', pane: 'base',
     url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -144,9 +141,8 @@ window.MapEngine = (() => {
     exit3D() {}
 
     // ---- 快照擷圖（供封面圖片自動產生用，見 api/cover.php）----
-    // 並非每個引擎都能擷出單張畫面：Leaflet 是多張 <img> 拼貼的 DOM/圖磚渲染，沒有單一 canvas
-    // 可讀；MapLibre 是 WebGL 單一 canvas，才覆寫成真的能擷圖。不支援的引擎回傳 null，呼叫端
-    // （viewer.core.js）據此完全跳過自動快照，該專案改為僅能由管理者自訂上傳封面。
+    // 並非每個引擎都能擷出單張畫面；不支援的引擎回傳 null，呼叫端（viewer.core.js）
+    // 據此跳過自動快照，改由管理者自訂上傳封面。
     get supportsSnapshot() { return false; }
     getCanvasDataURL() { return null; }
   }

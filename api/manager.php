@@ -816,13 +816,13 @@ if (!$authed) {
             } else {
               unset($meta['layers']);
             }
-            // 訪客可自行開關的圖層（同樣由下往上存）；沒勾任何一項就移除欄位
-            $vis = [];
-            foreach ((array)($_POST['layers_visitor'] ?? []) as $lid) {
-              $lid = (string)$lid;
-              if (isset($avail[$lid]) && !in_array($lid, $vis, true)) $vis[] = $lid;
+            // 勾了多張底圖時的預設底圖；只收有被勾選的底圖
+            $defBase = (string)($_POST['layer_default_base'] ?? '');
+            if ($defBase !== '' && in_array($defBase, $picked, true) && ($avail[$defBase]['pane'] ?? 'art') === 'base') {
+              $meta['layerDefaultBase'] = $defBase;
+            } else {
+              unset($meta['layerDefaultBase']);
             }
-            if ($vis) $meta['layerSwitch'] = array_reverse($vis); else unset($meta['layerSwitch']);
           }
           // 允許嵌入的網域（專案層）：只有這一欄格式不合法時不動它，其餘設定照常儲存，
           // 存完再說明哪幾項有問題；空白＝移除欄位
@@ -1629,7 +1629,7 @@ if (!$authed) {
           $pane = (string)($_POST['pane'] ?? '');
           $manifest['pane'] = in_array($pane, souliong_layer_panes(), true) ? $pane : (string)($manifest['pane'] ?? 'art');
 
-          // 1 是 Leaflet 的預設值，寫進去只是雜訊；設回 1 就把這個 key 拿掉。
+          // 1 是預設值，寫進去只是雜訊；設回 1 就把這個 key 拿掉。
           $op = round(max(0.0, min(1.0, (float)($_POST['opacity'] ?? 1))), 3);
           if ($op >= 1.0) { unset($manifest['opacity']); } else { $manifest['opacity'] = $op; }
 
@@ -1656,8 +1656,8 @@ if (!$authed) {
             unset($manifest['bounds']);
           }
 
-          // 縮放範圍：空白＝不寫，交給 Leaflet 的預設。maxNativeZoom 不開放編輯——那是「圖磚
-          // 實際切到第幾級」，由切圖工具寫入，改它只會讓 Leaflet 去要不存在的磚。
+          // 縮放範圍：空白＝不寫，使用預設。maxNativeZoom 不開放編輯——那是「圖磚
+          // 實際切到第幾級」，由切圖工具寫入，改它只會讓地圖去要不存在的磚。
           $zs = [];
           foreach (['minZoom', 'maxZoom'] as $zk) {
             $zv = trim((string)($_POST[$zk] ?? ''));
@@ -2302,7 +2302,12 @@ if (!$authed) {
       cursor: pointer
     }
 
-    .lyvis input[type="checkbox"] {
+    .lyrow:has(.lypick input:not(:checked)) .lyvis {
+      opacity: .4;
+      pointer-events: none
+    }
+
+    .lyvis input[type="radio"] {
       width: 1rem;
       height: 1rem
     }
@@ -3782,7 +3787,8 @@ if (!$authed) {
                   array_values(array_filter($layTail, fn($l) => souliong_layer_deprecated($layAll[$l])))
                 );
                 $layRows = array_merge($layCur, $layTail);
-                $layVis = array_values(array_filter((array)($meta['layerSwitch'] ?? []), 'is_string'));
+                $layBasesOn = array_values(array_filter($layCur, fn($l) => ($layAll[$l]['pane'] ?? 'art') === 'base'));
+                $layDefBase = in_array($meta['layerDefaultBase'] ?? '', $layBasesOn, true) ? $meta['layerDefaultBase'] : ($layBasesOn[0] ?? '');
                 $layDefault = implode('、', souliong_default_layers($cfg));
               ?>
               <details class="metasec">
@@ -3827,10 +3833,12 @@ if (!$authed) {
                           <span><b><?= $esc($li['label'] ?? $lid) ?></b><?= souliong_layer_deprecated($li) ? ' <span class="tag">' . $t('layer_deprecated_tag') . '</span>' : '' ?>
                             <span class="hint mono"><?= $esc($lid) ?> · <?= $esc($li['pane'] ?? 'art') ?><?= ($li['scope'] ?? '') === 'project' ? ' · ' . $t('layer_scope_project') : '' ?></span></span>
                         </label>
-                        <label class="lyvis" title="<?= $t('layer_visitor_hint') ?>">
-                          <input type="checkbox" name="layers_visitor[]" value="<?= $esc($lid) ?>" <?= in_array($lid, $layVis, true) ? 'checked' : '' ?>>
-                          <i class="fa-solid fa-eye" aria-hidden="true"></i> <?= $t('layer_visitor_label') ?>
+                        <?php if (($li['pane'] ?? 'art') === 'base'): ?>
+                        <label class="lyvis" title="<?= $t('layer_default_base_hint') ?>">
+                          <input type="radio" name="layer_default_base" value="<?= $esc($lid) ?>" <?= $lid === $layDefBase ? 'checked' : '' ?>>
+                          <?= $t('layer_default_base_label') ?>
                         </label>
+                        <?php endif; ?>
                         <span class="lymove">
                           <button type="button" class="lybtn" data-lymove="-1" aria-label="<?= $t('layer_move_up_aria') ?>" title="<?= $t('layer_move_up_aria') ?>"><i class="fa-solid fa-chevron-up"></i></button>
                           <button type="button" class="lybtn" data-lymove="1" aria-label="<?= $t('layer_move_down_aria') ?>" title="<?= $t('layer_move_down_aria') ?>"><i class="fa-solid fa-chevron-down"></i></button>
@@ -4029,10 +4037,6 @@ if (!$authed) {
               </div>
             </div>
           </dialog>
-          <?php
-            // 主引擎判斷同 pages/view.php；只有 MapLibre 能在前台擷圖，其餘專案不給「強制刷新」入口。
-            $pEngine = (($meta['engine'] ?? '') === 'leaflet') ? 'leaflet' : 'maplibre';
-          ?>
           <button type="button" class="btn" onclick="document.getElementById('covdlg-<?= $esc($p) ?>').showModal()"><i class="fa-solid fa-image"></i> <?= $t('cover_heading') ?></button>
           <dialog id="covdlg-<?= $esc($p) ?>" class="metadlg" onclick="if(event.target===this)this.close()">
             <div class="metaform">
@@ -4049,12 +4053,8 @@ if (!$authed) {
                 <button class="btn"><i class="fa-solid fa-upload"></i> <?= $t('cover_upload_btn') ?></button>
               </form>
               <div class="row" style="margin:10px 0;gap:10px;flex-wrap:wrap;align-items:center">
-                <?php if ($pEngine === 'maplibre'): ?>
                 <a class="btn" href="<?= $esc(Route::map($p) . '?snapcover=force') ?>" target="_blank" rel="noopener"><i class="fa-solid fa-camera-rotate"></i> <?= $t('cover_force_refresh_btn') ?></a>
                 <span class="hint"><?= $t('cover_force_refresh_hint') ?></span>
-                <?php else: ?>
-                <span class="hint"><i class="fa-solid fa-circle-info"></i> <?= $t('cover_no_snapshot_msg') ?></span>
-                <?php endif; ?>
               </div>
               <form method="post" onsubmit="return confirm(<?= $esc(json_encode($tr('cover_reset_confirm'), JSON_UNESCAPED_UNICODE)) ?>)">
                 <input type="hidden" name="csrf" value="<?= $esc_csrf ?>"><input type="hidden" name="action" value="coverreset"><input type="hidden" name="project" value="<?= $esc($p) ?>">
