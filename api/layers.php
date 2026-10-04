@@ -252,9 +252,39 @@ function souliong_layer_public(array $manifest, string $base, string $proj): arr
 function souliong_layers_public(array $cfg, ?array $meta, string $proj, string $base): array
 {
     return array_map(
-        fn(array $m): array => souliong_layer_public($m, $base, $proj),
+        fn(array $m): array => souliong_layer_public_preview($cfg, $m, $base, $proj),
         souliong_layers_for($cfg, $meta, $proj)
     );
+}
+
+/** souliong_layer_public() 再補上預覽圖網址（資料夾裡有 preview.jpg 才有），供訪客端圖層面板顯示縮圖。 */
+function souliong_layer_public_preview(array $cfg, array $manifest, string $base, string $proj): array
+{
+    $pub = souliong_layer_public($manifest, $base, $proj);
+    $id = (string)($manifest['id'] ?? '');
+    $dir = souliong_layer_dir($cfg, $id, $proj);
+    if ($dir !== null && is_file($dir . '/preview.jpg')) {
+        $pub['preview'] = $base . 'layer/' . rawurlencode($proj) . '/' . rawurlencode($id) . '/preview.jpg';
+    }
+    return $pub;
+}
+
+/**
+ * 訪客可自行切換、但不在預設啟用清單內的圖層（meta.layerSwitch，由下往上）。已封存與不存在的略過。
+ * 前端把它跟預設啟用的圖層合成一份清單，底圖擇一、疊圖可多選。
+ */
+function souliong_layers_switchable(array $cfg, ?array $meta, string $proj, string $base): array
+{
+    $want = (is_array($meta) && is_array($meta['layerSwitch'] ?? null)) ? $meta['layerSwitch'] : [];
+    if (!$want) return [];
+    $all = souliong_layer_list($cfg, $proj);
+    $active = array_column(souliong_layers_for($cfg, $meta, $proj), 'id');
+    $out = [];
+    foreach ($want as $id) {
+        if (!is_string($id) || !isset($all[$id]) || in_array($id, $active, true) || souliong_layer_deprecated($all[$id])) continue;
+        $out[] = souliong_layer_public_preview($cfg, $all[$id], $base, $proj);
+    }
+    return $out;
 }
 
 /**

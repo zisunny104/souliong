@@ -73,6 +73,7 @@ window.MapLibreEngine = (() => {
   // 不假手 MapLibre 自己掃出來的原始樣式。
   class CreditControl {
     constructor(html) { this._html = html; }
+    setHtml(html) { this._html = html; if (this._container) this._container.innerHTML = html; }
     onAdd() {
       this._container = document.createElement('div');
       this._container.className = 'maplibregl-ctrl cr-bar';
@@ -186,7 +187,7 @@ window.MapLibreEngine = (() => {
       super(opts);
       const o = opts || {};
       this.manifests = (o.manifests && o.manifests.length) ? o.manifests : [MapEngine.FALLBACK_LAYER];
-      this._baseManifest = baseVectorManifest(this.manifests);
+      this._resolveBase();
       this.credit = MapEngine.buildCredit(this.manifests, MAPLIBRE_CREDIT);
       this._dark = !!o.dark;
       this._overlayIds = [];
@@ -226,6 +227,7 @@ window.MapLibreEngine = (() => {
 
     get type() { return 'maplibre'; }
     get supports3D() { return true; }
+    get supportsLayerSwitch() { return true; }
     getRawMap() { return this.map; }
 
     get supportsSnapshot() { return true; }
@@ -265,11 +267,27 @@ window.MapLibreEngine = (() => {
 
     _styleFor(dark) {
       return this._baseManifest ? ((dark && this._baseManifest.urlDark) || this._baseManifest.url)
-        : syntheticRasterStyle(this.manifests[0], dark);
+        : syntheticRasterStyle(this._rasterBase, dark);
+    }
+
+    // 底圖：有向量底圖就用它；否則第一張圖層當光柵底圖（疊圖不含這張）
+    _resolveBase() {
+      this._baseManifest = baseVectorManifest(this.manifests);
+      this._rasterBase = this._baseManifest ? null : this.manifests[0];
     }
 
     _overlayManifests() {
-      return this.manifests.filter(m => m !== this._baseManifest);
+      return this.manifests.filter(m => m !== this._baseManifest && m !== this._rasterBase);
+    }
+
+    // 訪客切換圖層：整組換掉（底圖＋疊圖＋版權列）。標記是獨立的 DOM 覆蓋層，不受 setStyle 影響。
+    setLayers(manifests) {
+      this.manifests = (manifests && manifests.length) ? manifests : [MapEngine.FALLBACK_LAYER];
+      this._resolveBase();
+      this.credit = MapEngine.buildCredit(this.manifests, MAPLIBRE_CREDIT);
+      if (this._creditCtl) this._creditCtl.setHtml(this.credit);
+      this.map.once('style.load', () => this._mountOverlays());
+      this.map.setStyle(this._styleFor(this._dark));
     }
 
     _mountOverlays() {
@@ -318,7 +336,8 @@ window.MapLibreEngine = (() => {
       const zoomPos = mapPos(o.zoomPosition, 'bottom-left');
       this.map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), zoomPos);
       this.mountOpButtons(o.opButtons, zoomPos);
-      this.map.addControl(new CreditControl(this.credit), mapPos(o.attributionPosition, 'bottom-right'));
+      this._creditCtl = new CreditControl(this.credit);
+      this.map.addControl(this._creditCtl, mapPos(o.attributionPosition, 'bottom-right'));
     }
     _addCornerControl(el, position) {
       this.map.addControl(new DomControl(el), position);

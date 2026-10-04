@@ -816,6 +816,13 @@ if (!$authed) {
             } else {
               unset($meta['layers']);
             }
+            // 訪客可自行開關的圖層（同樣由下往上存）；沒勾任何一項就移除欄位
+            $vis = [];
+            foreach ((array)($_POST['layers_visitor'] ?? []) as $lid) {
+              $lid = (string)$lid;
+              if (isset($avail[$lid]) && !in_array($lid, $vis, true)) $vis[] = $lid;
+            }
+            if ($vis) $meta['layerSwitch'] = array_reverse($vis); else unset($meta['layerSwitch']);
           }
           // 允許嵌入的網域（專案層）：只有這一欄格式不合法時不動它，其餘設定照常儲存，
           // 存完再說明哪幾項有問題；空白＝移除欄位
@@ -2254,6 +2261,7 @@ if (!$authed) {
 
     .lyrow {
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
       gap: var(--sp-2);
       padding: var(--sp-2)
@@ -2282,6 +2290,21 @@ if (!$authed) {
       border: 1px solid var(--line);
       border-radius: var(--r-sm);
       background: var(--bg)
+    }
+
+    .metaform label.lyvis {
+      flex: none;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--sp-1);
+      font-size: 0.75rem;
+      color: var(--muted);
+      cursor: pointer
+    }
+
+    .lyvis input[type="checkbox"] {
+      width: 1rem;
+      height: 1rem
     }
 
     .lythumb-none {
@@ -3759,6 +3782,7 @@ if (!$authed) {
                   array_values(array_filter($layTail, fn($l) => souliong_layer_deprecated($layAll[$l])))
                 );
                 $layRows = array_merge($layCur, $layTail);
+                $layVis = array_values(array_filter((array)($meta['layerSwitch'] ?? []), 'is_string'));
                 $layDefault = implode('、', souliong_default_layers($cfg));
               ?>
               <details class="metasec">
@@ -3789,6 +3813,7 @@ if (!$authed) {
                   <div class="modfields lyfields">
                     <div class="modfields-head"><?= $t('layers_heading') ?></div>
                     <div class="hint"><?= $t('layers_pick_hint', ['default' => $layDefault]) ?></div>
+                    <div class="hint"><?= $t('layers_visitor_hint') ?></div>
                     <?php if ($layRows): ?>
                     <div class="lylist lysort">
                       <?php foreach ($layRows as $lid): $li = $layAll[$lid];
@@ -3801,6 +3826,10 @@ if (!$authed) {
                           <?php if ($lyHasPrev): ?><img class="lythumb" loading="lazy" alt="" src="<?= $esc(Route::layerFile($p, $lid, 'preview.jpg')) ?>"><?php else: ?><span class="lythumb lythumb-none"><i class="fa-solid fa-layer-group"></i></span><?php endif; ?>
                           <span><b><?= $esc($li['label'] ?? $lid) ?></b><?= souliong_layer_deprecated($li) ? ' <span class="tag">' . $t('layer_deprecated_tag') . '</span>' : '' ?>
                             <span class="hint mono"><?= $esc($lid) ?> · <?= $esc($li['pane'] ?? 'art') ?><?= ($li['scope'] ?? '') === 'project' ? ' · ' . $t('layer_scope_project') : '' ?></span></span>
+                        </label>
+                        <label class="lyvis" title="<?= $t('layer_visitor_hint') ?>">
+                          <input type="checkbox" name="layers_visitor[]" value="<?= $esc($lid) ?>" <?= in_array($lid, $layVis, true) ? 'checked' : '' ?>>
+                          <i class="fa-solid fa-eye" aria-hidden="true"></i> <?= $t('layer_visitor_label') ?>
                         </label>
                         <span class="lymove">
                           <button type="button" class="lybtn" data-lymove="-1" aria-label="<?= $t('layer_move_up_aria') ?>" title="<?= $t('layer_move_up_aria') ?>"><i class="fa-solid fa-chevron-up"></i></button>

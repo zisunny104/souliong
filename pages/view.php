@@ -67,6 +67,9 @@ $pack = souliong_pack_for($apiCfg, $meta, $proj);
 // 這張地圖由下往上要疊哪幾層圖磚／插畫。跟 $pack 同樣是「用哪一包」而非布林開關，差別只在
 // 圖層是有序陣列。相對路徑的圖檔在這裡就被改寫成 <base>/layer/... 絕對網址，前端不必分辨。
 $layers = souliong_layers_public($apiCfg, $meta, $proj, $base);
+$layerExtra = souliong_layers_switchable($apiCfg, $meta, $proj, $base);
+// 訪客可切換的圖層 id（含預設啟用的）；至少要有可操作的選項，前端才會出現圖層按鈕
+$layerSwitchIds = array_values(array_filter((array)($meta['layerSwitch'] ?? []), 'is_string'));
 // 這張地圖的主引擎：一律 MapLibreEngine（光柵與疊圖也由它處理）。meta.json 明確寫
 // "engine": "leaflet" 的舊專案才沿用 Leaflet，作為過渡期的退路，不在後台提供選項。
 $primaryEngine = (is_array($meta) && ($meta['engine'] ?? '') === 'leaflet') ? 'leaflet' : 'maplibre';
@@ -127,6 +130,8 @@ $APP = [
     'upload'      => uploadlib_limits($apiCfg),
     'pack'        => $pack,
     'layers'      => $layers,
+    'layerExtra'  => $layerExtra,
+    'layerSwitch' => $layerSwitchIds,
     'engine'      => $primaryEngine,
     // 向量底圖標註語言：mapLabelLang 是 'auto'（跟隨 LANG）或 labelFields 的鍵；labelFields 是各語言的名稱欄位優先序
     'mapLabelLang' => souliong_label_lang($meta),
@@ -438,6 +443,9 @@ window.maplibregl = maplibregl;
 <script src="<?= $assetUrl('assets/js/marker-colors.js') ?>"></script>
 <script src="<?= $assetUrl('assets/js/contribution-client.js') ?>"></script>
 <script src="<?= $assetUrl('assets/js/viewer.core.js') ?>"></script>
+<?php if (!$bare && $primaryEngine === 'maplibre' && $layerSwitchIds): ?>
+<script src="<?= $assetUrl('assets/js/layer-switch.js') ?>"></script>
+<?php endif; ?>
 <?php if ($bare): ?>
 <script src="<?= $assetUrl('assets/js/embed-bridge.js') ?>"></script>
 <?php endif; ?>

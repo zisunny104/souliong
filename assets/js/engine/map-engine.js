@@ -126,6 +126,9 @@ window.MapEngine = (() => {
 
     // ---- 圖層堆疊 ----
     applyTheme(dark) {}
+    // 訪客切換圖層（整組換掉）；不支援的引擎不做事，圖層面板也不會出現（見 supportsLayerSwitch）
+    get supportsLayerSwitch() { return false; }
+    setLayers(manifests) {}
     styleUrl() { return ''; }
     // 底圖是否真的有深色版樣式（供封面擷圖判斷要不要暫時切成淺色，見 viewer.core.js 的 trySnapshotCover）
     get hasDarkStyle() { return false; }
