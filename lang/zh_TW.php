@@ -454,6 +454,8 @@ return [
     'contrib_kinds_heading'      => '投稿型別',
     'contrib_kinds_hint'         => '訪客可投稿的型別。是否開放投稿由上方「上傳投稿」模組決定。',
     'contrib_default_tab_label'  => '預設分頁',
+    'contrib_caption_hint'       => '訪客投稿媒體時，是否可以附上一段說明。關閉後該型別不顯示說明欄，後端也不會收。',
+    'contrib_caption_allow'      => '{kind}可附說明',
     'contrib_default_tab_hint'   => '對話框預設停留的分頁。該型別未開放時，自動改用第一個可用分頁。',
     'contrib_newspot_label'      => '建立點位',
     'contrib_newspot_off'        => '不開放',

@@ -444,6 +444,8 @@ return [
     'contrib_kinds_heading'      => 'Submission types',
     'contrib_kinds_hint'         => 'What visitors may submit. Whether the map accepts submissions is the Uploads module above.',
     'contrib_default_tab_label'  => 'Default tab',
+    'contrib_caption_hint'       => 'Whether visitors may attach a caption when submitting media. When off, that type shows no caption field and the server ignores one.',
+    'contrib_caption_allow'      => 'Allow captions on {kind}',
     'contrib_default_tab_hint'   => 'Which tab the dialog opens on. Falls back to the first available tab if that type is off.',
     'contrib_newspot_label'      => 'Create spots',
     'contrib_newspot_off'        => 'Not allowed',

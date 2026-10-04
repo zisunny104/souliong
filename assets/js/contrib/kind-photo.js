@@ -92,7 +92,7 @@
 
     // 照片是唯一「只留一段話、沒有檔案」也成立的型別（既有行為，upload.php 那邊也是這樣判的）
     validate(state, card) {
-      if (!state.blob && !card.querySelector('.c-cmt').value.trim()) return t('need_photo_or_comment');
+      if (!state.blob && !(card.querySelector('.c-cmt') || { value: '' }).value.trim()) return t('need_photo_or_comment');
       return null;
     }
 

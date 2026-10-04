@@ -119,7 +119,12 @@ function souliong_contrib_cfg(?array $meta): array
     $newSpot = (string)($meta['contrib']['newSpot'] ?? $meta['contrib']['newPoint'] ?? 'off');   // newPoint 為舊鍵名，唯讀相容
     if (!in_array($newSpot, ['off', 'admin', 'contributor'], true)) $newSpot = 'off';
 
-    return ['kinds' => $kinds, 'tabs' => $tabs, 'default' => $default, 'newSpot' => $newSpot];
+    // 哪些媒體型別允許訪客附說明；沒設定＝全部允許（舊地圖行為不變）。文字投稿本身就是說明，不在此列。
+    $media = array_values(array_filter($kinds, fn($k) => in_array($k, ['photo', 'video', 'audio'], true)));
+    $off = is_array($meta['contrib']['noCaption'] ?? null) ? $meta['contrib']['noCaption'] : [];
+    $captions = array_values(array_filter($media, fn($k) => !in_array($k, $off, true)));
+
+    return ['kinds' => $kinds, 'tabs' => $tabs, 'default' => $default, 'newSpot' => $newSpot, 'captions' => $captions];
 }
 
 // 功能使用統計：key => 後台「數字說明」區塊要顯示的中文說明

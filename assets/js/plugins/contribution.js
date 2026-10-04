@@ -305,6 +305,13 @@
       return { lat: c.lat, lon: c.lon, source: 'default' };
     }
 
+    // 媒體型別（照片／影片／聲音）可由後台關閉說明欄；文字與建立點位本身就是文字，一律保留
+    captionAllowed(kind) {
+      if (!['photo', 'video', 'audio'].includes(kind.key)) return true;
+      const caps = (this.mapApp.contribCfg() || {}).captions;
+      return !Array.isArray(caps) || caps.includes(kind.key);
+    }
+
     cardHtml(kind) {
       const anon = esc(this.mapApp.anonName());
       return '<button class="btn small c-cancel" type="button" title="' + esc(t('cancel_remove_from_queue')) + '"><i class="fa-solid fa-xmark"></i></button>' +
@@ -313,7 +320,7 @@
           (kind.needsFile() ? '<div class="time">' + esc(t('loading')) + '</div>' : '') +
           '<input type="text" class="c-name" placeholder="' + anon + '">' +
           kind.extraTopHtml() +
-          '<textarea class="c-cmt" placeholder="' + esc(t(kind.key === 'newspot' ? 'newspot_story_placeholder' : 'write_something_placeholder')) + '"></textarea>' +
+          (this.captionAllowed(kind) ? '<textarea class="c-cmt" placeholder="' + esc(t(kind.key === 'newspot' ? 'newspot_story_placeholder' : 'write_something_placeholder')) + '"></textarea>' : '') +
           kind.extraBottomHtml() +
           (kind.needsSpot()
             ? '<label class="c-lab">' + esc(t('related_spot_label_multi')) + '</label>' +
@@ -434,7 +441,7 @@
           kind: kind.key,
           item_num: isNaN(spotNum) ? undefined : spotNum,
           name: card.querySelector('.c-name').value.trim() || this.mapApp.displayName(),
-          comment: card.querySelector('.c-cmt').value.trim(),
+          comment: (card.querySelector('.c-cmt') || { value: '' }).value.trim(),
           lat: state.loc ? state.loc.lat : undefined,
           lon: state.loc ? state.loc.lon : undefined,
           loc_source: state.loc ? state.source : undefined,

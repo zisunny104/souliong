@@ -756,13 +756,17 @@ if (!$authed) {
             $want = is_array($_POST['contrib_kinds'] ?? null) ? array_keys($_POST['contrib_kinds']) : [];
             // 依註冊表順序過濾，順便擋掉表單送來的任何非法 key（spot 不在 souliong_contrib_kinds() 裡）
             $kinds = array_values(array_intersect(souliong_contrib_kinds(), $want));
+            $capWant = is_array($_POST['contrib_caption'] ?? null) ? array_keys($_POST['contrib_caption']) : [];
+            $noCaption = array_values(array_diff(['photo', 'video', 'audio'], $capWant));
             if (!$kinds) $kinds = ['photo'];   // 一種都不留＝這張地圖不能投稿，那是「上傳投稿」模組的職責，不是這裡
             // 用合併而非整包覆寫，避免日後這裡再加簽表單沒涵蓋到的 contrib 子欄位時被整包洗掉
             $meta['contrib'] = array_merge($meta['contrib'] ?? [], [
               'kinds' => $kinds,
               'default' => (string)($_POST['contrib_default'] ?? ''),
               'newSpot' => (string)($_POST['contrib_newspot'] ?? 'off'),
+              'noCaption' => $noCaption,
             ]);
+            if (!$noCaption) unset($meta['contrib']['noCaption']);
             // 存檔前先讓 souliong_contrib_cfg() 收斂一次：預設分頁若不在啟用型別的分頁裡會被換掉、
             // 權限值不在白名單裡會退回 off。寫進 meta.json 的就是前端實際拿到的東西，不留對不上的設定。
             $ccfg = souliong_contrib_cfg($meta);
@@ -3867,6 +3871,13 @@ if (!$authed) {
                     <span><?= $esc($ckinds[$ck]['label']) ?></span>
                   </label>
                   <?php endforeach; ?>
+                  <div class="hint"><?= $t('contrib_caption_hint') ?></div>
+                  <?php foreach (['photo', 'video', 'audio'] as $mk): if (!isset($ckinds[$mk])) continue; ?>
+                  <label class="modrow">
+                    <input type="checkbox" data-cap="<?= $esc($mk) ?>" name="contrib_caption[<?= $esc($mk) ?>]" <?= in_array($mk, $ccur['captions'], true) ? 'checked' : '' ?>>
+                    <span><?= $t('contrib_caption_allow', ['kind' => $ckinds[$mk]['label']]) ?></span>
+                  </label>
+                  <?php endforeach; ?>
                   <label><?= $t('contrib_default_tab_label') ?>
                     <select name="contrib_default">
                       <?php foreach ($ctabs as $tb): ?>
@@ -4888,6 +4899,7 @@ if (!$authed) {
         body.querySelectorAll('[data-kind]').forEach(function(cb) {
           cb.checked = d.kinds.indexOf(cb.dataset.kind) !== -1;
         });
+        body.querySelectorAll('[data-cap]').forEach(function(cb) { cb.checked = true; });
         var tabSel = body.querySelector('select[name="contrib_default"]');
         if (tabSel) tabSel.value = d.default;
         var npSel = body.querySelector('select[name="contrib_newspot"]');

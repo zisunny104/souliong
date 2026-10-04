@@ -56,6 +56,8 @@ if (in_array($kind, souliong_contrib_kinds(), true) && !in_array($kind, $contrib
 }
 $name       = clean_str($_POST['name'] ?? null, $cfg['name_max']) ?? '匿名';
 $comment    = clean_str($_POST['comment'] ?? null, $cfg['comment_max']);
+// 這個媒體型別若被後台設為不開放附說明，直接忽略說明欄，不信任前端有沒有隱藏
+if (in_array($kind, ['photo', 'video', 'audio'], true) && !in_array($kind, $contribCfg['captions'], true)) $comment = null;
 // 資料來源連結（如引用音源的原始頁面）：只收 http(s) 網址，格式不對就當沒填，不擋整筆投稿。
 $source_url = clean_str($_POST['source_url'] ?? null, 500);
 if ($source_url !== null && (!preg_match('#^https?://#i', $source_url) || filter_var($source_url, FILTER_VALIDATE_URL) === false)) {
