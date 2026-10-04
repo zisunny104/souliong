@@ -231,6 +231,7 @@ return [
     'source_links_summary'   => 'Source links ({n})',
     'source_label'           => 'Source: {src}',
     'contrib_public_notice'  => 'Submissions are shared publicly by their contributors.',
+    'admin_link_text'        => 'Admin',
     'privacy_link_text'      => 'Privacy & data notes',
     'ext_link_title'         => 'Leaving this site',
     'ext_link_hint'          => 'This link goes to an external site: ',

@@ -240,6 +240,7 @@ return [
     'source_label'           => '資料來源：{src}',
     'contrib_public_notice'  => '投稿內容由投稿者公開分享。',
     'privacy_link_text'      => '隱私與資料說明',
+    'admin_link_text'        => '管理',
     'ext_link_title'         => '即將離開本站',
     'ext_link_hint'          => '這個連結會前往外部網站：',
     'ext_link_cancel_btn'    => '取消',

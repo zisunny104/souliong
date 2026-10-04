@@ -149,7 +149,7 @@ footer a{color:inherit}
       ・ <a href="https://toka.dev" target="_blank" rel="noopener">prjToka</a>
     </span>
   </div>
-  <?= $t('platform_tagline_footer') ?> ・ <a href="<?= $b ?>privacy"><?= $t('privacy_link_text') ?></a>
+  <?= $t('platform_tagline_footer') ?> ・ <a href="<?= $b ?>privacy"><?= $t('privacy_link_text') ?></a> ・ <a href="<?= $esc(Route::manager()) ?>"><?= $t('admin_link_text') ?></a>
 </footer>
 </div>
 <script type="module">
