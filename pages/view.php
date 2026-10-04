@@ -80,6 +80,8 @@ $contribCfg = souliong_contrib_cfg($meta);
 $contribFiles = $mod('upload') ? $contribCfg['kinds'] : [];
 if ($contribFiles && ($contribCfg['newSpot'] === 'contributor' || ($contribCfg['newSpot'] === 'admin' && $canEditSpots))) {
     $contribFiles[] = 'newspot';
+} elseif (!$contribFiles && !$bare && $contribCfg['newSpot'] === 'admin' && $canEditSpots) {
+    $contribFiles = ['newspot'];   // 唯讀地圖：管理者仍能建立點位
 }
 // 點位內容編輯器（content-editor.js）：只給具 edit_spots 的身分載入（純顯示判斷）。它借用 kind-audio.js 的
 // 錄音／選檔，型別檔的載入獨立於 upload 模組——唯讀地圖的管理者一樣要能錄音，所以投稿型別沒載到 audio 時另外補載。
@@ -283,6 +285,7 @@ if ($pack) {
 <div id="topright" class="tr-group">
   <button class="icon-btn tr-toggle" id="trToggle" title="<?= $t('more_options') ?>" aria-label="<?= $t('expand_options_aria') ?>" aria-expanded="false" aria-controls="trItems"><i class="fa-solid fa-bars" aria-hidden="true"></i></button>
   <div class="tr-items" id="trItems">
+    <?php if ($isManager && !$bare): ?><a class="icon-btn hide-in-embed" id="adminBtn" href="<?= $esc($APP['manager']) ?>" title="<?= $t('admin_settings_btn') ?>" aria-label="<?= $t('admin_settings_btn') ?>"><i class="fa-solid fa-gear" aria-hidden="true"></i></a><?php endif; ?>
     <?php if ($mod('homeLink')): ?><a class="icon-btn hide-in-embed" id="homeBtn" href="<?= $b ?>" title="<?= $t('back_to_list') ?>" aria-label="<?= $t('back_to_list') ?>"><i class="fa-solid fa-house" aria-hidden="true"></i></a><?php endif; ?>
     <button id="themeBtn" class="icon-btn" title="<?= $t('toggle_theme') ?>" aria-label="<?= $t('toggle_theme_aria') ?>"><i class="fa-solid fa-circle-half-stroke" aria-hidden="true"></i></button>
     <button id="shortcutsBtn" class="icon-btn shortcuts-btn" title="<?= $t('shortcuts_btn') ?>" aria-label="<?= $t('shortcuts_btn') ?>"><i class="fa-solid fa-keyboard" aria-hidden="true"></i></button>

@@ -38,6 +38,8 @@ return [
     'shortcut_upload'        => '開啟投稿',
     'shortcut_share'         => '分享這張地圖',
 
+    'contrib_fab_create'     => '建立',
+    'admin_settings_btn'     => '前往後台設定',
     'contrib_fab'            => '投稿',
     'unlock_contrib'         => '解鎖投稿',
     'close'                   => '關閉',

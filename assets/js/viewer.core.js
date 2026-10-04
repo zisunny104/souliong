@@ -260,7 +260,9 @@ window.MapApp = (() => {
   let codeStillValid = true;
   function storedCode() { try { return localStorage.getItem('uploadCode_' + PROJECT) || ''; } catch (e) { return ''; } }
   function isUnlocked() { return can('bypass_code') || !!(APP.contributionAccess && APP.contributionAccess.open) || (!!APP.gated && !!storedCode() && codeStillValid); }
-  function canPost() { return !EMBED && MOD('upload') && isUnlocked(); }
+  // 管理者可建立點位時，即使地圖唯讀（關閉上傳投稿）也要有建立入口
+  function canCreateSpot() { return !EMBED && CONTRIB_CFG.newSpot === 'admin' && can('edit_spots'); }
+  function canPost() { return !EMBED && ((MOD('upload') && isUnlocked()) || canCreateSpot()); }
   function applyPostState() {
     document.body.classList.toggle('noupload', !canPost());
     const fab = document.getElementById('unlockFab');

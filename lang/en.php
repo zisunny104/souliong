@@ -37,6 +37,8 @@ return [
     'shortcut_upload'        => 'Open contribution form',
     'shortcut_share'         => 'Share this map',
 
+    'contrib_fab_create'   => 'Create',
+    'admin_settings_btn'   => 'Open admin settings',
     'contrib_fab'          => 'Contribute',
     'unlock_contrib'       => 'Unlock submissions',
     'close'                => 'Close',

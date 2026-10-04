@@ -84,8 +84,10 @@
       if (resetBtn) {
         // 沒有分頁可投時（見 initTabs()）這顆鈕沒有東西可開，先天隱藏
         const hideUpload = this.tabs.length ? '' : ' style="display:none"';
+        // 只剩「建立點位」一個分頁時，這顆鈕的意思是建立而不是投稿
+        const createOnly = this.tabs.length === 1 && this.tabs[0] === 'newspot';
         resetBtn.insertAdjacentHTML('afterend',
-          '<button class="fabtn upload-only" id="uploadBtn"' + hideUpload + '><i class="fa-solid fa-plus"></i> ' + esc(t('contrib_fab')) + '</button>' +
+          '<button class="fabtn upload-only" id="uploadBtn"' + hideUpload + '><i class="fa-solid ' + (createOnly ? 'fa-map-pin' : 'fa-plus') + '"></i> ' + esc(t(createOnly ? 'contrib_fab_create' : 'contrib_fab')) + '</button>' +
           '<button class="fabtn fab-unlock" id="unlockFab" style="display:none"><i class="fa-solid fa-lock"></i> ' + esc(t('unlock_contrib')) + '</button>' +
           '<input type="file" id="pickImages" multiple hidden>');
       }
@@ -186,7 +188,7 @@
     // 沒有任何分頁可投（例如地圖 meta.json 的 contrib.kinds 只設了 spot 以外零種型別，理論上不會發生）
     // 時，通用投稿對話框沒有東西好顯示，不出現這顆鈕。
     entriesUploadButton(spot) {
-      if (!this.tabs.length) return null;
+      if (!this.tabs.length || (this.tabs.length === 1 && this.tabs[0] === 'newspot')) return null;
       const upBtn = document.createElement('button');
       upBtn.className = 'btn primary upload-only'; upBtn.style.width = '100%';
       upBtn.innerHTML = '<i class="fa-solid fa-plus"></i> ' + esc(t('upload_to_spot'));
