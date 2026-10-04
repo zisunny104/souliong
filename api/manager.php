@@ -2127,6 +2127,13 @@ if (!$authed) {
       resize: vertical
     }
 
+    .metaform input[type="color"] {
+      width: 2.5rem;
+      height: 2.5rem;
+      padding: 2px;
+      cursor: pointer
+    }
+
     .modfields {
       display: flex;
       flex-direction: column;
