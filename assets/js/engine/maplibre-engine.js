@@ -51,6 +51,30 @@ window.MapLibreEngine = (() => {
     };
   }
 
+  const BLANK_PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+  const svgPngCache = new Map();
+
+  // SVG 畫到 canvas 轉成 PNG（最長邊放大到 2048，放大地圖時才不糊）；同一個網址只轉一次
+  function rasterizeSvg(url) {
+    if (!svgPngCache.has(url)) {
+      svgPngCache.set(url, new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+          const w0 = img.naturalWidth || 1024, h0 = img.naturalHeight || 1024;
+          const k = 2048 / Math.max(w0, h0);
+          const c = document.createElement('canvas');
+          c.width = Math.max(1, Math.round(w0 * k));
+          c.height = Math.max(1, Math.round(h0 * k));
+          c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+          resolve(c.toDataURL('image/png'));
+        };
+        img.onerror = () => { svgPngCache.delete(url); reject(new Error('svg')); };
+        img.src = url;
+      }));
+    }
+    return svgPngCache.get(url);
+  }
+
   function cornersFromBounds(bounds) {
     // layer.json 的 bounds 是 [[南,西],[北,東]]；MapLibre image source 的 coordinates
     // 是四角順時針從左上開始：[[西北],[東北],[東南],[西南]]
@@ -297,7 +321,17 @@ window.MapLibreEngine = (() => {
           if (!m.bounds) return;
           const url = (this._dark && m.urlDark) || m.url;
           if (!url) return;
-          this.map.addSource(id, { type: 'image', url, coordinates: cornersFromBounds(m.bounds) });
+          const coords = cornersFromBounds(m.bounds);
+          if (/\.svg(\?|$)/i.test(url)) {
+            // MapLibre 以 createImageBitmap 解碼圖檔，吃不下 SVG：先給透明占位，轉成 PNG 後再換上
+            this.map.addSource(id, { type: 'image', url: BLANK_PNG, coordinates: coords });
+            rasterizeSvg(url).then(png => {
+              const src = this.map && this.map.getSource(id);
+              if (src && src.updateImage) src.updateImage({ url: png, coordinates: coords });
+            }).catch(() => { });
+          } else {
+            this.map.addSource(id, { type: 'image', url, coordinates: coords });
+          }
           this.map.addLayer({ id, type: 'raster', source: id, paint: m.opacity != null ? { 'raster-opacity': m.opacity } : {} });
         } else {
           const src = rasterSource(m, this._dark);
