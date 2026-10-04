@@ -61,6 +61,10 @@ function primary_clear_cookie(): void {
     foreach ($_COOKIE as $k => $v) { if (strpos($k, 'souliong_pin_') === 0 || strpos($k, 'souliong_padm_') === 0) setcookie($k, '', ['expires' => time() - 3600, 'path' => '/']); }
 }
 
+/** 新設定的 PIN 最短長度；既有較短的 PIN 仍可登入。 */
+const PIN_MIN_LEN = 6;
+function pin_length_ok(string $pin): bool { return strlen($pin) >= PIN_MIN_LEN && strlen($pin) <= 64; }
+
 // ── PIN 清單（state/pins.json，舊檔名 admin_pins.json 首次讀取時自動搬遷） ──
 function pins_file(array $cfg): string {
     $dir = rtrim($cfg['state_dir'], '/\\');
@@ -211,7 +215,7 @@ function invite_find(array $cfg, string $project, string $token): ?array {
  * 回傳 ['ok'=>true,'id'=>...,'label'=>...] 或 ['ok'=>false,'error'=>'pin_len'|'invalid'|'expired_or_used_up'|'pin_taken']。
  */
 function pins_redeem(array $cfg, string $project, string $token, string $pin, ?string $label): array {
-    if (strlen($pin) < 4 || strlen($pin) > 64) return ['ok' => false, 'error' => 'pin_len'];
+    if (!pin_length_ok($pin)) return ['ok' => false, 'error' => 'pin_len'];
     $invite = invite_find($cfg, $project, $token);
     if ($invite === null) return ['ok' => false, 'error' => 'invalid'];
     if (!pins_check_and_bump($cfg, $project, (string)$invite['id'])) return ['ok' => false, 'error' => 'expired_or_used_up'];

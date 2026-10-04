@@ -56,7 +56,7 @@ function account_find_by_id(array $cfg, string $id): ?array {
     return null;
 }
 function account_userid_normalize(string $s): string {
-    return substr(preg_replace('/[^a-z0-9_-]/', '', strtolower(trim($s))), 0, 40);
+    return substr(preg_replace('/[^a-z0-9_.@+-]/', '', strtolower(trim($s))), 0, 80);
 }
 /** 撞名自動加後綴（xiaoming、xiaoming-2、xiaoming-3…），供轉換流程預填時使用。 */
 function account_userid_dedupe(array $cfg, string $base): string {

@@ -43,8 +43,10 @@ if (empty($cfg['ip_salt']) || str_starts_with((string)$cfg['ip_salt'], 'CHANGE-M
 if (!is_dir($cfg['state_dir'])) { fwrite(STDERR, "找不到 state/\n"); exit(1); }
 
 if ($cmd === 'pin') {
-    $pin = as_secret_twice('新的主要 PIN（建議 6 碼以上）');
+    $pin = as_secret_twice('新的主要 PIN（至少 6 碼）');
     $label = as_ask('暱稱（可留空）');
+    if (!pin_length_ok($pin)) { fwrite(STDERR, 'PIN 至少 ' . PIN_MIN_LEN . " 碼
+"); exit(1); }
     $d = pins_load($cfg);
     if (_pin_in($cfg, $d['primary'], $pin)) { fwrite(STDERR, "這組 PIN 已存在\n"); exit(1); }
     $d['primary'][] = ['pin_hash' => pin_hash_of($cfg, $pin), 'label' => substr($label, 0, 80), 'id' => bin2hex(random_bytes(4))];
@@ -53,7 +55,7 @@ if ($cmd === 'pin') {
     exit(0);
 }
 if ($cmd === 'account') {
-    $userid = account_userid_normalize(as_ask('帳號'));
+    $userid = account_userid_normalize(as_ask('帳號（英數字與 _ - . @ +，可用電子郵件）'));
     if ($userid === '') { fwrite(STDERR, "帳號格式不符\n"); exit(1); }
     if (account_find_by_userid($cfg, $userid) !== null) { fwrite(STDERR, "帳號已存在\n"); exit(1); }
     $pw = as_secret_twice('密碼（至少 8 字元）');

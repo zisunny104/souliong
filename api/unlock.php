@@ -21,7 +21,7 @@ if (!code_check($cfg, $project, $given, false)) {
 // 可選：以投稿者 PIN 建立跨裝置身分（cpin），並可帶暱稱（cname）。匿名則不帶。
 $cpin = trim((string)($_POST['cpin'] ?? ''));
 if ($cpin !== '') {
-    if (strlen($cpin) < 4 || strlen($cpin) > 64) { json_out(['error' => '身分 PIN 至少 4 位'], 400); }
+    if (!pin_length_ok($cpin)) { json_out(['error' => '身分 PIN 至少 ' . PIN_MIN_LEN . ' 位'], 400); }
     $token = contrib_token($cfg, $project, $cpin);
     [$cid, $label] = contrib_register($cfg, $project, $token, $_POST['cname'] ?? null);
     json_out(['ok' => true, 'contrib' => ['token' => $token, 'id' => $cid, 'label' => $label]]);

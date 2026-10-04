@@ -863,6 +863,9 @@ if (!$authed) {
           if (($_POST['action']) === 'addpin') {
             $np = trim((string)($_POST['pin_new'] ?? ''));
             $label = substr(trim((string)($_POST['label'] ?? '')), 0, 80);
+            if ($np !== '' && !pin_length_ok($np)) {
+              error_page(400, $t('admin_set_pin'), $t('pin_too_short_msg', ['min' => PIN_MIN_LEN]), Route::manager($tp, $scope === 'primary' ? '' : 'access'), $t('back_to_admin'));
+            }
             if ($np !== '') {
               $entry = ['pin_hash' => pin_hash_of($cfg, $np), 'label' => $label, 'id' => bin2hex(random_bytes(4))];
               if ($scope === 'primary') {
