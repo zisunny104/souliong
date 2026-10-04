@@ -3,6 +3,7 @@
 //   php tools/admin_setup.php status
 //   php tools/admin_setup.php pin
 //   php tools/admin_setup.php account
+//   php tools/admin_setup.php strip-pin   已有雜湊登入時，自動移除 config.php 裡的明文 primary_pin
 if (PHP_SAPI !== 'cli') { fwrite(STDERR, "CLI only\n"); exit(1); }
 require_once __DIR__ . '/../api/security.php';
 require_once __DIR__ . '/../api/accounts.php';
@@ -35,6 +36,28 @@ function as_has_login(array $cfg): bool {
 }
 
 if ($cmd === 'status') exit(as_has_login($cfg) ? 0 : 3);
+
+if ($cmd === 'strip-pin') {
+    if (_cfg_primary_pin($cfg) === '') exit(0);
+    $probe = $cfg;
+    unset($probe['primary_pin']);
+    if (!as_has_login($probe)) { fwrite(STDERR, "尚無雜湊登入，不移除 primary_pin\n"); exit(3); }
+    $new = preg_replace('/^[ \t]*[\'"]primary_pin[\'"][ \t]*=>[^\n]*\n/m', '', (string)file_get_contents($cfgFile), -1, $n);
+    $tmp = $cfgFile . '.tmp' . getmypid();
+    if ($n !== 1 || $new === null || file_put_contents($tmp, $new) === false) {
+        @unlink($tmp);
+        fwrite(STDERR, "無法自動移除，請手動刪除 primary_pin 那一行\n");
+        exit(1);
+    }
+    $chk = (function () use ($tmp) { try { return require $tmp; } catch (Throwable $e) { return null; } })();
+    if (!is_array($chk) || isset($chk['primary_pin']) || !@rename($tmp, $cfgFile)) {
+        @unlink($tmp);
+        fwrite(STDERR, "移除失敗，api/config.php 未變更\n");
+        exit(1);
+    }
+    echo "已移除 api/config.php 的明文 primary_pin\n";
+    exit(0);
+}
 
 if (empty($cfg['ip_salt']) || str_starts_with((string)$cfg['ip_salt'], 'CHANGE-ME')) {
     fwrite(STDERR, "請先在 api/config.php 設定 ip_salt，PIN 的雜湊會用到它\n");

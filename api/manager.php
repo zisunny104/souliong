@@ -832,8 +832,7 @@ if (!$authed) {
             if ($embOnly) $meta['layersEmbedOnly'] = $embOnly;
             else unset($meta['layersEmbedOnly']);
           }
-          // 依目前點位重算預設視角（meta.center／zoom，嵌入 view=meta 與首次進入用）：
-          // 以約 800x560 的視窗估算，留 8% 邊距；沒有有效點位就不動
+          // 依目前點位重算預設視角（假設視窗約 800x560、邊距 8%）；沒有有效點位就不動
           if (!empty($_POST['refit_view'])) {
             $la = [];
             $lo = [];

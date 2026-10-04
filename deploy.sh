@@ -301,6 +301,7 @@ run_selfcheck() {
   else
     ok "api/config.php 存在"
     if [ "$HAS_PHP" -eq 1 ]; then
+      php tools/admin_setup.php strip-pin 2>/dev/null | while IFS= read -r l; do ok "$l"; done
       CFG_WARN="$(php -r '
         $c = require "api/config.php";
         $w = [];
