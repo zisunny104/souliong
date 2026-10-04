@@ -31,7 +31,7 @@
     $('photo-submit').disabled = busy || submitted || !allowed || !blob;
     ['pick-photo', 'take-photo', 'photo-comment', 'photo-consent'].forEach(id => { $(id).disabled = busy || submitted || !allowed; });
     const messages = { disabled: '目前未開放照片投稿。', scheduled: '照片投稿將於 ' + localTime(status.starts_at) + ' 開放。',
-      ended: '本次照片投稿時段已結束。', open: '現在開放免碼投稿，可拍攝或選擇照片。' };
+      ended: '本次照片投稿時段已結束。', open: '現在開放投稿，可拍攝或選擇照片。' };
     $('availability').textContent = status.blocked ? '此身分已被停權，無法投稿。' : !status.kinds || !status.kinds.includes('photo') ? '這個專案未開放照片投稿。' : !status.open && status.codesAvailable ? '請輸入投稿碼後送出照片。' : messages[status.state] || messages.disabled;
     clearTimeout(boundaryTimer);
     const boundary = submitted ? null : status.next_change_at;

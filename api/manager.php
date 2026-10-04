@@ -681,7 +681,7 @@ if (!$authed) {
           $end = $endRaw === '' ? null : contrib_local_time($endRaw);
           if (($startRaw !== '' && $start === null) || ($endRaw !== '' && $end === null)
               || ($start !== null && $end !== null && strtotime($end) <= strtotime($start))) {
-            error_page(400, '無法儲存免碼投稿設定', '請設定有效的開始與結束時間（台北時間）；留空表示不限制。', Route::manager($scopeProject, 'access'));
+            error_page(400, '無法儲存開放投稿設定', '請設定有效的開始與結束時間（台北時間）；留空表示不限制。', Route::manager($scopeProject, 'access'));
           }
           $meta['contributionAccess'] = ['enabled' => $enabled, 'starts_at' => $start, 'expires_at' => $end];
           if (file_put_contents($mf, json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) . "\n", LOCK_EX) === false) {
@@ -4111,16 +4111,16 @@ if (!$authed) {
           <input type="hidden" name="action" value="contribaccess">
           <input type="hidden" name="project" value="<?= $esc($p) ?>">
           <input type="hidden" name="csrf" value="<?= $esc_csrf ?>">
-          <h3>免碼投稿</h3>
+          <h3>開放投稿</h3>
           <?php $accessState = contrib_free_state($meta); $accessLabels = ['disabled' => '已關閉', 'scheduled' => '尚未開始', 'ended' => '已到期', 'open' => $accessState['expires_at'] ? '限時開放中' : '長期開放中']; ?>
           <p class="hint">目前狀態：<?= $esc($accessLabels[$accessState['state']]) ?><?= !souliong_module_on($meta, 'upload') ? '（專案上傳功能已關閉）' : '' ?></p>
-          <p class="hint">可投稿的內容依專案設定。時間留空為長期開放，取消啟用即可關閉免碼；既有投稿碼仍可獨立使用。</p>
+          <p class="hint">可投稿的內容依專案設定。時間留空為長期開放，取消啟用即可關閉開放投稿；任何人都能投稿，不需投稿碼。既有投稿碼仍可獨立使用。</p>
           <label><input type="checkbox" name="contrib_free_enabled" <?= !empty($accessPolicy['enabled']) ? 'checked' : '' ?>> 啟用</label>
           <div class="contrib-access-dates">
           <label>開始（台北時間，可留空）<input type="datetime-local" name="contrib_free_start" value="<?= $esc($accessTime($accessPolicy['starts_at'] ?? null)) ?>"></label>
           <label>結束（台北時間，可留空）<input type="datetime-local" name="contrib_free_end" value="<?= $esc($accessTime($accessPolicy['expires_at'] ?? null)) ?>"></label>
           </div>
-          <div class="contrib-access-actions"><button class="btn" type="submit">儲存免碼設定</button>
+          <div class="contrib-access-actions"><button class="btn" type="submit">儲存開放投稿設定</button>
           <a class="btn" target="_blank" rel="noopener" href="<?= $esc(Route::api('photosubmit', ['project' => $p])) ?>">開啟照片投稿頁</a></div>
         </form>
         <?php endif; ?>
