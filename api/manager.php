@@ -2270,6 +2270,23 @@ if (!$authed) {
       cursor: pointer
     }
 
+    .lythumb {
+      width: 96px;
+      aspect-ratio: 8 / 5;
+      flex: none;
+      object-fit: cover;
+      border: 1px solid var(--line);
+      border-radius: var(--r-sm);
+      background: var(--bg)
+    }
+
+    .lythumb-none {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted)
+    }
+
     .lypick input[type="checkbox"] {
       width: 1rem;
       height: 1rem;
@@ -3770,10 +3787,14 @@ if (!$authed) {
                     <div class="hint"><?= $t('layers_pick_hint', ['default' => $layDefault]) ?></div>
                     <?php if ($layRows): ?>
                     <div class="lylist lysort">
-                      <?php foreach ($layRows as $lid): $li = $layAll[$lid]; ?>
+                      <?php foreach ($layRows as $lid): $li = $layAll[$lid];
+                        $lyDir = souliong_layer_dir($cfg, $lid, $p);
+                        $lyHasPrev = $lyDir !== null && is_file($lyDir . '/preview.jpg');
+                      ?>
                       <div class="lyrow">
                         <label class="lypick">
                           <input type="checkbox" name="layers[]" value="<?= $esc($lid) ?>" <?= in_array($lid, $layCur, true) ? 'checked' : '' ?>>
+                          <?php if ($lyHasPrev): ?><img class="lythumb" loading="lazy" alt="" src="<?= $esc(Route::layerFile($p, $lid, 'preview.jpg')) ?>"><?php else: ?><span class="lythumb lythumb-none"><i class="fa-solid fa-layer-group"></i></span><?php endif; ?>
                           <span><b><?= $esc($li['label'] ?? $lid) ?></b><?= souliong_layer_deprecated($li) ? ' <span class="tag">' . $t('layer_deprecated_tag') . '</span>' : '' ?>
                             <span class="hint mono"><?= $esc($lid) ?> · <?= $esc($li['pane'] ?? 'art') ?><?= ($li['scope'] ?? '') === 'project' ? ' · ' . $t('layer_scope_project') : '' ?></span></span>
                         </label>
