@@ -1,0 +1,9 @@
+# Apache：執行期資料與版控目錄不可直接下載（nginx 版本見 deploy.sh 自檢輸出）。
+<IfModule mod_alias.c>
+    RedirectMatch 403 (?i)/(state|projects|\.git)(/|$)
+</IfModule>
+<IfModule mod_authz_core.c>
+    <FilesMatch "(?i)\.(jsonl|log|bak|backup|tmp)$">
+        Require all denied
+    </FilesMatch>
+</IfModule>

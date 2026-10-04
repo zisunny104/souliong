@@ -408,10 +408,14 @@ function code_set_enabled(array $cfg, string $project, string $code, bool $enabl
 /** 驗證附加投稿代碼；$bump=true（實際上傳）時計一次使用。到期／用罄／不存在回 false。 */
 function code_check(array $cfg, string $project, string $given, bool $bump): bool {
     if ($given === '') return false;
+    // 猜錯另計一個較嚴的額度，所有驗碼入口共用，避免任一入口成為枚舉捷徑。
+    $cfg['rate_limits']['codefail'] ??= ['max' => 20, 'window' => 600];
+    rate_limit($cfg, 'codefail', false);
     // 舊碼遷移後，在同一鎖內檢查與累加。
     codes_load($cfg, $project);
     $fp = @fopen(codes_file($cfg, $project), 'c+');
     if (!$fp) return false;
+    $miss = false;
     try {
         if (!flock($fp, $bump ? LOCK_EX : LOCK_SH)) return false;
         $d = json_decode((string)stream_get_contents($fp), true);
@@ -427,10 +431,12 @@ function code_check(array $cfg, string $project, string $given, bool $bump): boo
             }
             return true;
         }
+        $miss = true;
         return false;
     } finally {
         flock($fp, LOCK_UN);
         fclose($fp);
+        if ($miss) rate_limit($cfg, 'codefail');
     }
 }
 
@@ -521,8 +527,8 @@ function block_remove(array $cfg, string $project, ?string $ownerHash, ?string $
     blocked_save($cfg, $project, $d);
 }
 
-/** 超過限制時直接以 429 結束請求。個別 bucket 可在 config['rate_limits'][$bucket] 覆寫 max/window（例如批次投稿量遠高於刪除/換鎖等低頻動作）。 */
-function rate_limit(array $cfg, string $bucket = 'default'): void {
+/** 超過限制時直接以 429 結束請求；$consume=false 只檢查、不計次。個別 bucket 可在 config['rate_limits'][$bucket] 覆寫 max/window（例如批次投稿量遠高於刪除/換鎖等低頻動作）。 */
+function rate_limit(array $cfg, string $bucket = 'default', bool $consume = true): void {
     $override = $cfg['rate_limits'][$bucket] ?? [];
     $max = $override['max']    ?? $cfg['rate_max']    ?? 40;
     $win = $override['window'] ?? $cfg['rate_window'] ?? 60;
@@ -548,6 +554,7 @@ function rate_limit(array $cfg, string $bucket = 'default'): void {
         header('Retry-After: ' . $win);
         json_out(['error' => '請求過於頻繁，請稍後再試'], 429);
     }
+    if (!$consume) { flock($fp, LOCK_UN); fclose($fp); return; }
     $hits[] = $now;
     ftruncate($fp, 0); rewind($fp); fwrite($fp, implode(',', $hits));
     flock($fp, LOCK_UN); fclose($fp);

@@ -11,6 +11,12 @@
 // 這裡補上一個不依賴環境設定的底線。
 ini_set('display_errors', '0');
 error_reporting(E_ALL);
+// 預設防點擊劫持與 MIME 嗅探；上游已送 X-Frame-Options 就不蓋掉。
+// 允許嵌入的頁面由 embed_send_frame_headers() 在 ?embed=1 時改送 frame-ancestors。
+if (!headers_sent()) {
+    header('X-Content-Type-Options: nosniff');
+    if (!preg_grep('/^X-Frame-Options:/i', headers_list())) header('X-Frame-Options: SAMEORIGIN');
+}
 $config = include __DIR__ . '/config.php';
 require_once __DIR__ . '/api/routes.php';   // 網址表：路徑段怎麼拆、網址怎麼組，全站只有這一份定義
 

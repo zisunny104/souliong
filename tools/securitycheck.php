@@ -5,8 +5,13 @@ require_once __DIR__ . '/../api/layers.php';
 require_once __DIR__ . '/../api/i18n.php';
 require_once __DIR__ . '/../api/security.php';
 if (($argv[1] ?? '') === '--consume') {
-    $cfg = ['projects_dir' => $argv[2]];
+    $cfg = ['projects_dir' => $argv[2], 'state_dir' => $argv[2] . '/state'];
     echo code_check($cfg, 'test', '123456', true) ? '1' : '0';
+    exit;
+}
+if (($argv[1] ?? '') === '--guess') {
+    $cfg = ['projects_dir' => $argv[2], 'state_dir' => $argv[2] . '/state', 'rate_limits' => ['codefail' => ['max' => 3, 'window' => 60]]];
+    echo code_check($cfg, 'test', $argv[3], false) ? 'ok' : 'no';
     exit;
 }
 function security_ck(bool $ok, string $label): void {
@@ -37,7 +42,17 @@ try {
     }
     $rows = json_decode(file_get_contents($tmp . '/test/codes.json'), true);
     security_ck($accepted === 1 && $rows[0]['used_count'] === 1, '24 個並行請求只允許 1 次');
-    echo "securitycheck：署名安全與 24 個並行限次碼請求通過\n";
+    $guess = function (string $c) use ($tmp): string {
+        return (string)shell_exec(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg(__FILE__) . ' --guess ' . escapeshellarg($tmp) . ' ' . escapeshellarg($c) . ' 2>&1');
+    };
+    file_put_contents($tmp . '/test/codes.json', json_encode([['code' => '111111']]));
+    security_ck($guess('111111') === 'ok', '額度內正確碼通過');
+    for ($i = 0; $i < 3; $i++) security_ck($guess('000000') === 'no', '猜錯回 no');
+    $after = $guess('111111');
+    security_ck(str_contains($after, '請求過於頻繁') && !str_contains($after, 'ok'), '猜錯額度用完後正確碼也被擋');
+    echo "securitycheck：署名安全、24 個並行限次碼與猜碼額度通過\n";
 } finally {
+    foreach (glob($tmp . '/state/.rate/*') ?: [] as $f) unlink($f);
+    @rmdir($tmp . '/state/.rate'); @rmdir($tmp . '/state');
     unlink($tmp . '/test/codes.json'); rmdir($tmp . '/test'); rmdir($tmp);
 }

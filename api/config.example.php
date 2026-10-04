@@ -48,6 +48,7 @@ return [
         'upload' => ['max' => 300, 'window' => 60],
         'admin'  => ['max' => 120, 'window' => 60],   // 後台頁面＋臨時工具共用同一個 bucket，管理者密集操作/測試時預設 40 太容易誤擋自己
         'unlock' => ['max' => 12, 'window' => 60],    // 投稿代碼為 6 位純數字，比照登入收緊以減緩暴力枚舉
+        'codefail' => ['max' => 20, 'window' => 600], // 投稿代碼猜錯的額度（每 IP），所有驗碼入口共用
         'dataapi' => ['max' => 120, 'window' => 60],  // 對外唯讀資料 API（?api=project／spots）；沒設時就是這個預設
     ],
     // 允許嵌入與跨來源讀取資料 API 的來源（全站層；各專案另可在後台設定，兩者取聯集）。
@@ -56,7 +57,7 @@ return [
     'embed_allowed_origins' => [],
 
     'trust_forwarded' => false,   // ★ 位於 Nginx 反代後請設 true
-    'debug'           => true,    // ★ 上線穩定後設 false
+    'debug'           => false,   // ★ 開發時可設 true；true 會在錯誤回應帶出內部細節
 
     // 冒名鑑識：加鹽 IP 雜湊（僅管理端可見）
     'log_src'         => true,
