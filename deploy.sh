@@ -17,6 +17,36 @@ warn() { echo "  ${YELLOW}!${RESET} $1"; }
 fail() { echo "  ${RED}✗${RESET} $1"; }
 
 
+show_help() {
+  cat <<EOF
+${BOLD}用法${RESET}
+  ./deploy.sh [選項]
+
+${BOLD}不加選項${RESET}
+  更新程式碼並檢查：抓最新版、跑自動測試、快轉合併、修復權限、自我檢查。
+
+${BOLD}選項${RESET}
+  --check-only           不更新程式碼，只跑設定與網站自我檢查
+  --setup-admin          設定主要 PIN 或主要帳號，只存雜湊
+  --set-check-url URL    儲存網站對外網址，自我檢查會用它連線測試
+  --fix-perms            更新時一併修復 projects/、state/、config 的權限
+  --fix-perms-only       只修復權限，不更新程式碼
+  --no-fix-perms         更新時略過權限修復
+  --dry-run              搭配權限修復，只列出會做的事
+  -h, --help, help       顯示這份說明
+
+${BOLD}環境變數${RESET}
+  DEPLOY_BRANCH          要更新的分支，預設 main
+  DEPLOY_WEB_USER        PHP 執行身分，未指定時自動偵測
+  DEPLOY_RELOAD_CMD      程式碼有更新時要執行的重載指令
+  DEPLOY_CHECK_URL       網站對外網址，優先於已儲存的設定
+
+${DIM}範例：./deploy.sh --set-check-url https://example.com/project${RESET}
+EOF
+}
+
+for a in "$@"; do case "$a" in -h|--help|help) show_help; exit 0 ;; esac; done
+
 # ── 選用：修復路徑權限（./deploy.sh --fix-perms[-only] [--dry-run]）──────────────────
 # 預設只檢查不代勞；明確加旗標才動檔案。只動 projects/、state/、api/config.php：
 # 資料夾 2775（setgid，新檔繼承群組）、檔案 664、擁有者＝php-fpm 使用者；config.php 640（含機密，不給 other 讀）。
@@ -49,15 +79,8 @@ for arg in "$@"; do
     --fix-perms-only) FIX_PERMS=1; FIX_ONLY=1; AUTO=0 ;;
     --dry-run)        DRY_RUN=1 ;;
     --check-only)     CHECK_ONLY=1; FIX_PERMS=0 ;;
-    -h|--help)
-      echo "用法：./deploy.sh [--fix-perms-only] [--no-fix-perms] [--check-only] [--dry-run]"
-      echo "  --check-only  不更新程式碼，只跑「設定與網站自我檢查」"
-      echo "  --setup-admin  設定主要 PIN 或主要帳號，只存雜湊"
-      echo "  --set-check-url URL  儲存網站對外網址，之後自我檢查自動使用"
-      echo "環境變數：DEPLOY_BRANCH、DEPLOY_WEB_USER、DEPLOY_RELOAD_CMD、DEPLOY_CHECK_URL"
-      echo "  ${DIM}DEPLOY_CHECK_URL 是網站對外網址，例如 https://example.com/project${RESET}"
-      exit 0 ;;
-    *) fail "未知參數：$arg"; exit 2 ;;
+    -h|--help|help) show_help; exit 0 ;;
+    *) fail "未知參數：$arg，用 ./deploy.sh --help 查看說明"; exit 2 ;;
   esac
 done
 
