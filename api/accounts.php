@@ -281,7 +281,7 @@ function account_migrate_find(array $cfg, string $token): ?array {
 /** 核對 pending 指向的舊 PIN 是否等於使用者輸入；同時回傳原本的 perms（僅 project 來源有意義）。 */
 function _account_migrate_check_legacy_pin(array $cfg, array $pending, string $pin): ?array {
     if ($pending['source'] === 'bootstrap') {
-        return (_cfg_primary_pin($cfg) !== '' && hash_equals(_cfg_primary_pin($cfg), $pin)) ? [] : null;
+        return _cfg_primary_pin_match($cfg, $pin) ? [] : null;
     }
     // 相容改名前（source 存 'master'）尚未過期的邀請連結，一併視為 primary 來源
     $list = in_array($pending['source'], ['master', 'primary'], true) ? pins_load($cfg)['primary'] : (pins_load($cfg)['projects'][$pending['project']] ?? []);

@@ -31,6 +31,16 @@ if [ "${1:-}" = "--set-check-url" ]; then
   exit 0
 fi
 
+if [ "${1:-}" = "--setup-admin" ]; then
+  command -v php >/dev/null 2>&1 || { fail "需要 php"; exit 1; }
+  echo "設定管理者登入：1) 主要 PIN  2) 主要帳號"
+  printf '選擇 [1/2]: '; read -r pick
+  case "$pick" in 1) php tools/admin_setup.php pin ;; 2) php tools/admin_setup.php account ;; *) fail "請輸入 1 或 2"; exit 2 ;; esac
+  rc=$?
+  [ "$rc" -eq 0 ] && { ./deploy.sh --fix-perms-only >/dev/null 2>&1 || true; }
+  exit "$rc"
+fi
+
 FIX_PERMS=1; FIX_ONLY=0; DRY_RUN=0; AUTO=1; CHECK_ONLY=0
 for arg in "$@"; do
   case "$arg" in
@@ -42,6 +52,7 @@ for arg in "$@"; do
     -h|--help)
       echo "用法：./deploy.sh [--fix-perms-only] [--no-fix-perms] [--check-only] [--dry-run]"
       echo "  --check-only  不更新程式碼，只跑「設定與網站自我檢查」"
+      echo "  --setup-admin  設定主要 PIN 或主要帳號，只存雜湊"
       echo "  --set-check-url URL  儲存網站對外網址，之後自我檢查自動使用"
       echo "環境變數：DEPLOY_BRANCH、DEPLOY_WEB_USER、DEPLOY_RELOAD_CMD、DEPLOY_CHECK_URL"
       echo "  ${DIM}DEPLOY_CHECK_URL 是網站對外網址，例如 https://example.com/project${RESET}"
@@ -245,12 +256,24 @@ selfcheck_php_ini() {
   fi
 }
 
+check_admin_login() {
+  [ "$HAS_PHP" -eq 1 ] || return 0
+  php tools/admin_setup.php status >/dev/null 2>&1 && { ok "已有管理者登入方式"; return 0; }
+  warn "尚未設定任何主要 PIN 或主要帳號，後台無法登入"
+  if [ -t 0 ] && [ "$CHECK_ONLY" -eq 0 ]; then
+    printf '  現在設定嗎？[Y/n] '; read -r yn
+    case "${yn:-Y}" in [Nn]*) echo "  ${DIM}之後執行 ./deploy.sh --setup-admin${RESET}" ;; *) ./deploy.sh --setup-admin || true ;; esac
+  else
+    echo "  ${DIM}請執行 ./deploy.sh --setup-admin${RESET}"
+  fi
+}
+
 run_selfcheck() {
   step "設定與網站自我檢查"
   echo "  ${DIM}密鑰與權限需要人判斷，腳本只檢查、不代勞${RESET}"
   if [ ! -f api/config.php ]; then
     fail "api/config.php 不存在——幾乎每一支 api/*.php 都會 require 它，整站目前無法運作"
-    echo "  ${DIM}手動執行：cp api/config.example.php api/config.php，再編輯填入 primary_pin／ip_salt，並把 trust_forwarded 設 true（Nginx 反代後）、debug 設 false${RESET}"
+    echo "  ${DIM}手動執行：cp api/config.example.php api/config.php，再編輯填入 primary_pin_hash／ip_salt，並把 trust_forwarded 設 true（Nginx 反代後）、debug 設 false${RESET}"
     echo "  ${DIM}這一步刻意不自動做——自動產生等於用範本裡的預設密鑰上線，不安全${RESET}"
   else
     ok "api/config.php 存在"
@@ -258,7 +281,7 @@ run_selfcheck() {
       CFG_WARN="$(php -r '
         $c = require "api/config.php";
         $w = [];
-        if (($c["primary_pin"] ?? "") === "CHANGE-ME") $w[] = "primary_pin 仍是範本預設值 CHANGE-ME，請改成不易猜的 PIN";
+        if (($c["primary_pin"] ?? "") !== "") $w[] = "primary_pin 是明文，請用 ./deploy.sh --setup-admin 改設雜湊登入，再移除這個鍵";
         if (($c["ip_salt"] ?? "") === "CHANGE-ME-隨機鹽值") $w[] = "ip_salt 仍是範本預設值，請改成隨機字串";
         if (($c["debug"] ?? false) === true) $w[] = "debug 是 true：錯誤會回傳內部細節，上線穩定後請設 false";
         if (($c["trust_forwarded"] ?? false) === false) $w[] = "trust_forwarded 是 false：若前面有 Nginx 反代請設 true，否則所有訪客共用一個 IP，限流與統計會失準（直接對外、沒有反代則維持 false）";
@@ -270,7 +293,7 @@ run_selfcheck() {
       if [ -n "$CFG_WARN" ]; then
         while IFS= read -r line; do warn "$line"; done <<< "$CFG_WARN"
       else
-        ok "primary_pin／ip_salt／debug／trust_forwarded／default_layers 都已調整"
+        ok "primary_pin_hash／ip_salt／debug／trust_forwarded／default_layers 都已調整"
       fi
     fi
   fi
@@ -283,6 +306,7 @@ run_selfcheck() {
     fi
   done
   selfcheck_php_ini
+  check_admin_login
   selfcheck_web
 }
 

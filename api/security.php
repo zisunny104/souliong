@@ -132,9 +132,17 @@ function _pin_in(array $cfg, array $list, string $pin): bool {
 // 設定檔鍵名 primary_pin／primary_pin_label；沿用舊鍵名 admin_pin／admin_pin_label 的部署不用改 config.php 也能繼續動。
 function _cfg_primary_pin(array $cfg): string { return (string)($cfg['primary_pin'] ?? $cfg['admin_pin'] ?? ''); }
 function _cfg_primary_pin_label(array $cfg): string { return (string)($cfg['primary_pin_label'] ?? $cfg['admin_pin_label'] ?? ''); }
+/** 設定檔主 PIN 比對：優先用 primary_pin_hash（password_hash 產物），明文 primary_pin 僅向下相容。 */
+function _cfg_primary_pin_match(array $cfg, string $pin): bool {
+    if ($pin === '') return false;
+    $h = (string)($cfg['primary_pin_hash'] ?? '');
+    if ($h !== '') return password_verify($pin, $h);
+    $plain = _cfg_primary_pin($cfg);
+    return $plain !== '' && $plain !== 'CHANGE-ME' && hash_equals($plain, $pin);
+}
 function check_primary_pin(array $cfg, string $pin): bool {
     if ($pin === '') return false;
-    if (_cfg_primary_pin($cfg) !== '' && hash_equals(_cfg_primary_pin($cfg), $pin)) return true;
+    if (_cfg_primary_pin_match($cfg, $pin)) return true;
     return _pin_in($cfg, pins_load($cfg)['primary'], $pin);
 }
 /** 找出符合此 PIN 的專案 PIN 紀錄（含 id/perms），供登入時決定 cookie 要記哪把；不符合回傳 null。 */
@@ -234,7 +242,7 @@ function _label_in(array $cfg, array $list, string $pin): string {
 }
 /** 登入用的這把 PIN 若有設定暱稱，回傳暱稱；bootstrap 主 PIN 對應 config['primary_pin_label']。供登入後帶入投稿身分。 */
 function primary_pin_label(array $cfg, string $pin): string {
-    if (_cfg_primary_pin($cfg) !== '' && hash_equals(_cfg_primary_pin($cfg), $pin)) {
+    if (_cfg_primary_pin_match($cfg, $pin)) {
         return trim(_cfg_primary_pin_label($cfg));
     }
     return _label_in($cfg, pins_load($cfg)['primary'], $pin);
