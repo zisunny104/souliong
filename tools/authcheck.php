@@ -49,22 +49,28 @@ function fx_data(string $A, string $B): array {
 function fx_scenarios(array $cfg, string $A, string $B): array {
     $ALL = auth_perm_keys('project');
     $ks = fn(array $on) => array_values(array_filter($ALL, fn($k) => in_array($k, $on, true)));
-    $prim = [PRIMARY_COOKIE => primary_derived($cfg)];
+    // 子行程會重建情境，父行程發的 token 要沿用，所以落在沙盒裡
+    $tokFile = $cfg['state_dir'] . '/.ac_primtoken';
+    if (!is_file($tokFile)) file_put_contents($tokFile, primary_session_issue($cfg, 'cfg'));
+    $primToken = trim((string)file_get_contents($tokFile));
+    $prim = [PRIMARY_COOKIE => $primToken];
     $acct = fn(string $id, ?string $sig = null) => [ACCOUNT_COOKIE => $id . '.' . ($sig ?? account_derived($cfg, $id))];
     $pin  = fn(string $p, string $id, ?string $sig = null) => [pin_cookie_name($p) => $id . '.' . ($sig ?? pin_derived($cfg, $p, $id))];
     $anon    = ['kind' => 'anon', 'audit' => 'anon', 'perms' => [], 'member' => false, 'csrf' => null];
-    $primary = ['kind' => 'primary', 'audit' => 'primary', 'perms' => $ALL, 'member' => true, 'csrf' => primary_derived($cfg)];
+    $primary = ['kind' => 'primary', 'audit' => 'primary', 'perms' => $ALL, 'member' => true, 'csrf' => primary_csrf_for_token($cfg, $primToken)];
+    $primaryA = ['kind' => 'primary', 'audit' => 'primary', 'perms' => $ALL, 'member' => true, 'csrf' => account_derived($cfg, 'a_prim')];
     $account = fn(string $id, array $on) => ['kind' => 'account', 'audit' => 'acct:' . $id, 'perms' => $ks($on), 'member' => true, 'csrf' => account_derived($cfg, $id)];
     $pinE    = fn(string $p, string $id, array $on) => ['kind' => 'pin', 'audit' => 'pin:' . $id, 'perms' => $ks($on), 'member' => true, 'csrf' => pin_derived($cfg, $p, $id)];
     $siteAnon = ['kind' => 'anon', 'csrf' => null];
-    $sitePrim = ['kind' => 'primary', 'csrf' => primary_derived($cfg)];
+    $sitePrim = ['kind' => 'primary', 'csrf' => primary_csrf_for_token($cfg, $primToken)];
+    $sitePrimA = ['kind' => 'primary', 'csrf' => account_derived($cfg, 'a_prim')];
     $siteAcct = fn(string $id) => ['kind' => 'account', 'csrf' => account_derived($cfg, $id)];
     $legacyOn = ['edit_spots', 'edit_meta', 'edit_layers', 'manage_contrib', 'export_backup', 'bypass_code'];   // 舊鍵搬遷 + 回填後的樣子
     $sc = fn(array $cookies, array $a, array $b, array $site) => ['cookies' => $cookies, 'A' => $a, 'B' => $b, 'site' => $site];
     return [
         'anon'              => $sc([], $anon, $anon, $siteAnon),
         'primary_cookie'    => $sc($prim, $primary, $primary, $sitePrim),
-        'primary_account'   => $sc($acct('a_prim'), $primary, $primary, $sitePrim),
+        'primary_account'   => $sc($acct('a_prim'), $primaryA, $primaryA, $sitePrimA),
         'primary_and_pin'   => $sc($prim + $pin($A, 'p_spot'), $primary, $primary, $sitePrim),
         'acct_member'       => $sc($acct('a_mem'), $account('a_mem', ['edit_spots', 'export_backup']), $anon, $siteAcct('a_mem')),
         'acct_outsider'     => $sc($acct('a_out'), $anon, $account('a_out', ['edit_meta']), $siteAcct('a_out')),

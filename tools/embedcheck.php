@@ -66,8 +66,9 @@ file_put_contents("$sb/index.php", preg_replace('/^<\?php/', "<?php\nheader('X-F
 
 require_once $root . '/api/security.php';
 require_once $root . '/api/embedorigins.php';
-$cookie = PRIMARY_COOKIE . '=' . primary_derived($cfg);
-$csrf = primary_derived($cfg);
+$primaryToken = primary_session_issue($cfg, 'cfg');
+$cookie = PRIMARY_COOKIE . '=' . $primaryToken;
+$csrf = primary_csrf_for_token($cfg, $primaryToken);
 
 // 專案 E 有允許清單、專案 N 沒有。起點紀錄刻意帶上各種不可外流的欄位，驗證白名單。
 const EC_ORIGIN = 'https://embed.example.org';

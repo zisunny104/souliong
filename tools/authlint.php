@@ -8,7 +8,7 @@
  *
  * 規則：
  *   R1 不得直接呼叫身分／簽章函式（primary_authed、pin_current_id、
- *      account_current、primary_derived、pin_derived、account_derived）——一律用 Auth::require／can／actor。
+ *      account_current、primary_csrf、pin_derived、account_derived）——一律用 Auth::require／can／actor。
  *   R2 不得自己 hash_equals csrf——CSRF 只在 Auth::require() 比對。
  *   R3 不得直接讀身分 cookie（souliong_primary／souliong_acct／souliong_pin_*）。
  *   R4 模組旗標（souliong_module_on、$mod()）不得出現在同一個敘述的 Auth 權限判斷裡。
@@ -16,7 +16,7 @@
 $root = dirname(__DIR__);
 const AUTHLINT_EXEMPT = ['api/auth.php', 'api/security.php', 'api/accounts.php'];
 const AUTHLINT_FORBIDDEN_CALLS = ['primary_authed', 'pin_current_id',
-    'account_current', 'primary_derived', 'pin_derived', 'account_derived'];
+    'account_current', 'primary_csrf', 'pin_derived', 'account_derived'];
 const AUTHLINT_COOKIE_WORDS = ['souliong_primary', 'souliong_acct', 'souliong_pin_', 'PRIMARY_COOKIE', 'ACCOUNT_COOKIE'];
 
 $files = [];

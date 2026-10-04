@@ -62,8 +62,9 @@ cc_write("$sb/api/config.php", "<?php\nreturn json_decode(file_get_contents(__DI
 cc_write("$sb/cfg.json", $cfg);
 
 require_once $root . '/api/security.php';
-$cookie = PRIMARY_COOKIE . '=' . primary_derived($cfg);
-$csrf = primary_derived($cfg);
+$primaryToken = primary_session_issue($cfg, 'cfg');
+$cookie = PRIMARY_COOKIE . '=' . $primaryToken;
+$csrf = primary_csrf_for_token($cfg, $primaryToken);
 
 $P = 'cc';
 $now = gmdate('c');

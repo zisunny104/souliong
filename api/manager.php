@@ -61,8 +61,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'login
     } else {
       $loginErrMsg = i18n_t($DICT, $r['error'] === 'locked' ? 'account_locked_msg' : 'account_login_failed_msg');
     }
-  } elseif (check_primary_pin($cfg, $pin)) {
-    primary_set_cookie($cfg);
+  } elseif (($primaryRef = primary_pin_ref($cfg, $pin)) !== null) {
+    primary_set_cookie($cfg, $primaryRef);
     $ok = true;
     $label = primary_pin_label($cfg, $pin);
     if ($proj !== '' && is_dir($cfg['projects_dir'] . '/' . $proj)) $go = Route::manager($proj);
@@ -96,7 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'login
   $loginErr = $loginErrMsg ?? i18n_t($DICT, 'admin_pin_incorrect');
 }
 if (isset($_GET['logout'])) {
-  primary_clear_cookie();
+  primary_clear_cookie($cfg);
   account_clear_cookie();
   header('Location: ' . Route::manager());
   exit;
@@ -4261,11 +4261,9 @@ if (!$authed) {
             <?php if ($primary && $invites): ?>
               <div class="sechead"><i class="fa-solid fa-envelope-open-text"></i> <?= $t('pending_invites_heading') ?></div>
               <div class="pinlist">
-                <?php foreach ($invites as $e): $inviteId = (string)($e['id'] ?? ''); $inviteUrl = $mapUrl($p) . '#redeem=' . rawurlencode((string)($e['token'] ?? '')) . '&rmode=grant'; ?>
+                <?php foreach ($invites as $e): $inviteId = (string)($e['id'] ?? ''); ?>
                   <div class="pinchip pinchip-block">
                     <div class="idline"><span><?= $t('pending_invite_label') ?></span><span class="idacts">
-                      <button type="button" class="chipbtn qr-trigger" data-url="<?= $esc($inviteUrl) ?>" data-title="<?= $esc($meta['title'] ?? $p) ?>" title="<?= $t('show_qr_title') ?>"><i class="fa-solid fa-qrcode"></i></button>
-                      <button type="button" class="chipbtn" data-copy="<?= $esc($inviteUrl) ?>" title="<?= $t('copy_invite_link_title') ?>"><i class="fa-solid fa-link"></i></button>
                       <form method="post" style="display:inline"><input type="hidden" name="csrf" value="<?= $esc_csrf ?>"><input type="hidden" name="action" value="delinvite"><input type="hidden" name="project" value="<?= $esc($p) ?>"><input type="hidden" name="invite_id" value="<?= $esc($inviteId) ?>"><button class="x" title="<?= $t('revoke_invite_title') ?>">×</button></form>
                     </span></div>
                     <div class="badge">

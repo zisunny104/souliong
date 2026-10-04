@@ -140,7 +140,7 @@ final class Actor {
 
     /** 全站唯一的 CSRF 衍生點：這個身分在 $project 該送出的值；anon 為 null。 */
     public function csrf(?string $project): ?string {
-        if ($this->kind === 'primary') return primary_derived($this->cfg);
+        if ($this->kind === 'primary') return primary_csrf($this->cfg);
         if ($project !== $this->bound) return Auth::actor($this->cfg, $project)->csrf($project);
         return match ($this->kind) {
             'account' => account_derived($this->cfg, (string)$this->id),

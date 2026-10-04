@@ -30,8 +30,12 @@ function accounts_load(array $cfg): array {
     if (!is_array($d)) $d = [];
     $d['accounts'] = $d['accounts'] ?? [];
     $d['pending']  = $d['pending']  ?? [];
-    // 舊資料 role master → primary 改名搬遷（一次性、自我修復）
+    // 舊資料 role master → primary 改名搬遷、明文 token → token_hash（一次性、自我修復）
     $dirty = false;
+    foreach ($d['pending'] as &$pp) {
+        if (isset($pp['token'])) { $pp['token_hash'] = hash('sha256', (string)$pp['token']); unset($pp['token']); $dirty = true; }
+    }
+    unset($pp);
     foreach ($d['accounts'] as &$a) {
         if (($a['role'] ?? '') === 'master') { $a['role'] = 'primary'; $dirty = true; }
     }
@@ -277,7 +281,7 @@ function account_migrate_create(array $cfg, string $source, ?string $project, ?s
     $d = accounts_load($cfg);
     $token = bin2hex(random_bytes(16));
     $pending = [
-        'token' => $token,
+        'token_hash' => hash('sha256', $token),
         'source' => $source,               // 'bootstrap'｜'primary'｜'project'
         'project' => $project,
         'legacy_id' => $legacyId,          // pins.json 該筆的 id（bootstrap 沒有 id，為 null）
@@ -289,11 +293,11 @@ function account_migrate_create(array $cfg, string $source, ?string $project, ?s
     ];
     $d['pending'][] = $pending;
     accounts_save($cfg, $d);
-    return $pending;
+    return $pending + ['token' => $token];
 }
 function account_migrate_find(array $cfg, string $token): ?array {
     foreach (accounts_load($cfg)['pending'] as $p) {
-        if (!hash_equals((string)$p['token'], $token)) continue;
+        if (!hash_equals((string)($p['token_hash'] ?? ''), hash('sha256', $token))) continue;
         if (!empty($p['used']) || gmdate('c') > (string)$p['expires_at']) return null;
         return $p;
     }
@@ -335,7 +339,7 @@ function account_migrate_activate(array $cfg, string $token, string $legacyPin, 
         'locked_until' => null,
     ];
     $d['accounts'][] = $acc;
-    foreach ($d['pending'] as &$p) { if ($p['token'] === $pending['token']) { $p['used'] = true; break; } }
+    foreach ($d['pending'] as &$p) { if (($p['token_hash'] ?? '') === $pending['token_hash']) { $p['used'] = true; break; } }
     unset($p);
     accounts_save($cfg, $d);
 

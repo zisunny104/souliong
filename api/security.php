@@ -27,7 +27,62 @@ function client_ip(array $cfg): string {
  *   移除後下一次請求就失效，不必更換 ip_salt。
  */
 define('PRIMARY_COOKIE', 'souliong_primary');
-function primary_derived(array $cfg): string { return hash_hmac('sha256', 'souliong-primary', (string)($cfg['ip_salt'] ?? '')); }
+const PRIMARY_SESSION_TTL = 7 * 86400;
+function sessions_file(array $cfg): string { return rtrim($cfg['state_dir'], '/\\') . '/sessions.json'; }
+/** 設定檔主 PIN 的指紋：換掉設定檔的 PIN 就讓用它登入的工作階段全部失效。 */
+function _cfg_pin_fingerprint(array $cfg): string { return hash('sha256', (string)($cfg['primary_pin_hash'] ?? '') . '|' . _cfg_primary_pin($cfg)); }
+/** 在鎖內讀改寫 sessions.json，順便清掉過期的列。 */
+function _sessions_update(array $cfg, callable $fn): void {
+    $fp = @fopen(sessions_file($cfg), 'c+');
+    if (!$fp) { error_log('souliong: sessions 開檔失敗'); return; }
+    if (flock($fp, LOCK_EX)) {
+        $d = json_decode((string)stream_get_contents($fp), true);
+        $now = time();
+        $rows = array_values(array_filter(is_array($d['sessions'] ?? null) ? $d['sessions'] : [], fn($r) => is_array($r) && (int)($r['exp'] ?? 0) > $now));
+        $rows = $fn($rows);
+        ftruncate($fp, 0);
+        rewind($fp);
+        fwrite($fp, json_encode(['sessions' => $rows]));
+        fflush($fp);
+        flock($fp, LOCK_UN);
+    }
+    fclose($fp);
+}
+/** 建立主要管理者工作階段，回傳要放進 cookie 的隨機 token；只存它的雜湊。via＝登入用的憑證（cfg｜pin:<id>）。 */
+function primary_session_issue(array $cfg, string $via): string {
+    $token = bin2hex(random_bytes(32));
+    _sessions_update($cfg, function (array $rows) use ($cfg, $token, $via) {
+        $rows[] = ['h' => hash('sha256', $token), 'via' => $via, 'fp' => $via === 'cfg' ? _cfg_pin_fingerprint($cfg) : null, 'exp' => time() + PRIMARY_SESSION_TTL];
+        return $rows;
+    });
+    return $token;
+}
+/** 目前 cookie 對應的有效工作階段；憑證已被移除或設定檔 PIN 已更換則視為失效。 */
+function _primary_session(array $cfg): ?string {
+    $token = (string)($_COOKIE[PRIMARY_COOKIE] ?? '');
+    if ($token === '' || !is_file(sessions_file($cfg))) return null;
+    $d = json_decode((string)@file_get_contents(sessions_file($cfg)), true);
+    $h = hash('sha256', $token);
+    foreach (is_array($d['sessions'] ?? null) ? $d['sessions'] : [] as $r) {
+        if (!is_array($r) || !hash_equals((string)($r['h'] ?? ''), $h) || (int)($r['exp'] ?? 0) <= time()) continue;
+        $via = (string)($r['via'] ?? '');
+        if ($via === 'cfg' && !hash_equals((string)($r['fp'] ?? ''), _cfg_pin_fingerprint($cfg))) return null;
+        if (str_starts_with($via, 'pin:')) {
+            $id = substr($via, 4);
+            if (!array_filter(pins_load($cfg)['primary'], fn($e) => (string)($e['id'] ?? '') === $id)) return null;
+        }
+        return $token;
+    }
+    return null;
+}
+function primary_csrf_for_token(array $cfg, string $token): string { return hash_hmac('sha256', 'souliong-csrf|' . $token, (string)($cfg['ip_salt'] ?? '')); }
+/** 主要管理者的 CSRF 值：綁登入 token；以主要帳號通過時沿用該帳號的衍生值；未登入為 null。 */
+function primary_csrf(array $cfg): ?string {
+    $token = _primary_session($cfg);
+    if ($token !== null) return primary_csrf_for_token($cfg, $token);
+    $acc = account_current($cfg);
+    return ($acc !== null && ($acc['role'] ?? '') === 'primary') ? account_derived($cfg, (string)$acc['id']) : null;
+}
 function pin_cookie_name(string $project): string { return 'souliong_pin_' . preg_replace('/[^a-z0-9_-]/', '', $project); }
 // cookie 值＝"<pinId>.<簽章>"：簽章綁定 project+pinId，讓 cookie 記得「用哪一把專案 PIN 登入」，
 // 才能做到權限旗標可個別下放到特定專案 PIN（而非只要有登入任一把就視為同權）。
@@ -36,7 +91,7 @@ function pin_derived(array $cfg, string $project, string $pinId): string { retur
 // PIN 登入與帳號登入（見檔尾「帳號系統」）並存：只要任一種通過就算通過，帳號是 PIN 之上疊加的
 // 一層，不取代——舊 PIN 在完成「轉換為帳號」前持續有效，不會有人被迫中斷登入。
 function primary_authed(array $cfg): bool {
-    if (hash_equals(primary_derived($cfg), (string)($_COOKIE[PRIMARY_COOKIE] ?? ''))) return true;
+    if (_primary_session($cfg) !== null) return true;
     $acc = account_current($cfg);
     return $acc !== null && ($acc['role'] ?? '') === 'primary';
 }
@@ -54,9 +109,14 @@ function pin_current_id(array $cfg, string $project): ?string {
 /** primary 的權限表；鍵由 api/auth.php 的註冊表產生。 */
 function primary_perms(): array { return auth_perms_primary(); }
 function _cookie_opts(): array { return ['expires' => time() + 7 * 86400, 'path' => '/', 'httponly' => true, 'secure' => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'), 'samesite' => 'Lax']; }
-function primary_set_cookie(array $cfg): void { setcookie(PRIMARY_COOKIE, primary_derived($cfg), _cookie_opts()); }
+function primary_set_cookie(array $cfg, string $via): void { setcookie(PRIMARY_COOKIE, primary_session_issue($cfg, $via), _cookie_opts()); }
 function pin_set_cookie(array $cfg, string $project, string $pinId): void { setcookie(pin_cookie_name($project), $pinId . '.' . pin_derived($cfg, $project, $pinId), _cookie_opts()); }
-function primary_clear_cookie(): void {
+function primary_clear_cookie(array $cfg): void {
+    $token = (string)($_COOKIE[PRIMARY_COOKIE] ?? '');
+    if ($token !== '' && is_file(sessions_file($cfg))) {
+        $h = hash('sha256', $token);
+        _sessions_update($cfg, fn(array $rows) => array_values(array_filter($rows, fn($r) => !hash_equals((string)($r['h'] ?? ''), $h))));
+    }
     setcookie(PRIMARY_COOKIE, '', ['expires' => time() - 3600, 'path' => '/']);
     foreach ($_COOKIE as $k => $v) { if (strpos($k, 'souliong_pin_') === 0 || strpos($k, 'souliong_padm_') === 0) setcookie($k, '', ['expires' => time() - 3600, 'path' => '/']); }
 }
@@ -110,6 +170,7 @@ function pins_load(array $cfg): array {
             // 舊鍵名搬遷與缺鍵回填的規則都在註冊表（見 auth_perms_migrate()）
             if (auth_perms_migrate($e['perms'])) $dirty = true;
             if (isset($e['pin'])) { $e['pin_hash'] = pin_hash_of($cfg, (string)$e['pin']); unset($e['pin']); $dirty = true; }
+            if (isset($e['token'])) { $e['token_hash'] = hash('sha256', (string)$e['token']); unset($e['token']); $dirty = true; }
         }
         unset($e);
     }
@@ -144,11 +205,17 @@ function _cfg_primary_pin_match(array $cfg, string $pin): bool {
     $plain = _cfg_primary_pin($cfg);
     return $plain !== '' && $plain !== 'CHANGE-ME' && hash_equals($plain, $pin);
 }
-function check_primary_pin(array $cfg, string $pin): bool {
-    if ($pin === '') return false;
-    if (_cfg_primary_pin_match($cfg, $pin)) return true;
-    return _pin_in($cfg, pins_load($cfg)['primary'], $pin);
+/** 這組 PIN 對應的主要憑證：cfg｜pin:<id>；不符合回傳 null。 */
+function primary_pin_ref(array $cfg, string $pin): ?string {
+    if ($pin === '') return null;
+    if (_cfg_primary_pin_match($cfg, $pin)) return 'cfg';
+    $h = pin_hash_of($cfg, $pin);
+    foreach (pins_load($cfg)['primary'] as $e) {
+        if (isset($e['pin_hash']) && hash_equals((string)$e['pin_hash'], $h)) return 'pin:' . (string)($e['id'] ?? '');
+    }
+    return null;
 }
+function check_primary_pin(array $cfg, string $pin): bool { return primary_pin_ref($cfg, $pin) !== null; }
 /** 找出符合此 PIN 的專案 PIN 紀錄（含 id/perms），供登入時決定 cookie 要記哪把；不符合回傳 null。 */
 function project_pin_match(array $cfg, string $project, string $pin): ?array {
     if ($pin === '') return null;
@@ -190,7 +257,7 @@ function pins_invite_create(array $cfg, string $project, ?string $expiresAt, ?in
     $entry = [
         'kind'       => 'invite',
         'id'         => bin2hex(random_bytes(4)),
-        'token'      => $token,
+        'token_hash' => hash('sha256', $token),
         'expires_at' => $expiresAt,
         'max_uses'   => $maxUses,
         'used_count' => 0,
@@ -205,7 +272,7 @@ function pins_invite_create(array $cfg, string $project, ?string $expiresAt, ?in
 function invite_find(array $cfg, string $project, string $token): ?array {
     if ($token === '') return null;
     foreach (pins_load($cfg)['projects'][$project] ?? [] as $e) {
-        if (($e['kind'] ?? '') === 'invite' && hash_equals((string)$e['token'], $token)) return $e;
+        if (($e['kind'] ?? '') === 'invite' && hash_equals((string)($e['token_hash'] ?? ''), hash('sha256', $token))) return $e;
     }
     return null;
 }
