@@ -416,7 +416,7 @@ if (!$authed) {
         display: grid;
         grid-template-columns: repeat(3, 1fr);
         gap: var(--sp-1);
-        margin-top: var(--sp-2)
+        margin: var(--sp-2) 0
       }
 
       .pin-key {
