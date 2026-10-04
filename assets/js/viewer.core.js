@@ -17,7 +17,7 @@ window.MapApp = (() => {
   // 嵌入參數（僅 embed=1 有效）。bare＝純地圖，控制由 assets/js/embed-bridge.js 負責，核心只讀這份旗標。
   const pick = (v, allowed, fallback) => (allowed.includes(v) ? v : fallback);
   const BARE = EMBED && params.get('ui') === 'bare';
-  const SUBMIT = EMBED && params.get('ui') === 'submit';   // 嵌入的投稿對話框：嵌入裡唯一可以投稿的模式
+  const SUBMIT = EMBED && params.get('ui') === 'submit';   // 嵌入投稿對話框，嵌入中唯一可投稿的模式
   const EMBED_UI = EMBED ? {
     bare: BARE,
     interactive: BARE && params.get('interactive') === '1',

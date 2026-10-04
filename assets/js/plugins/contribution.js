@@ -216,8 +216,7 @@
 
     submitEmbed() { return this.scope === 'contrib' && !!this.mapApp.isSubmitEmbed && this.mapApp.isSubmitEmbed(); }
 
-    // 嵌入的投稿對話框（?embed=1&ui=submit）：需要投稿碼就先跳解鎖視窗，開放狀態直接開對話框；
-    // 都不成立就顯示未開放。解鎖後 identityChanged 會再觸發一次，所以每次狀態變動都重判。
+    // 嵌入投稿：需碼先開解鎖視窗，開放直接開對話框，否則顯示未開放；身分變動時重判
     mountSubmitEmbed() {
       const note = document.createElement('p');
       note.id = 'submitClosed';

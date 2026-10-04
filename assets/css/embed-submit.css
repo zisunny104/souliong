@@ -1,5 +1,4 @@
-/* 嵌入投稿對話框（?embed=1&ui=submit）。只在 body.embed-submit 下生效：
-   地圖與所有浮層都藏起來，投稿對話框鋪滿整個 iframe，不提供關閉。 */
+/* 嵌入投稿（?embed=1&ui=submit）：只留投稿對話框，鋪滿 iframe */
 body.embed-submit #skeleton,
 body.embed-submit #controls,
 body.embed-submit #topright,

@@ -12,7 +12,7 @@ $embed   = (($_GET['embed'] ?? '') === '1');
 // 嵌入參數（僅 embed=1 有效）。bare＝純地圖：不輸出任何 UI 與選用模組，只留地圖、標記與版權標示，
 // 由 assets/js/embed-bridge.js 以 postMessage 接受父頁控制。
 $bare    = $embed && (($_GET['ui'] ?? '') === 'bare');
-$submit  = $embed && (($_GET['ui'] ?? '') === 'submit');   // 只放投稿對話框的嵌入模式
+$submit  = $embed && (($_GET['ui'] ?? '') === 'submit');
 $bodyCls = trim(($embed ? 'embed' : '') . ($bare ? ' embed-bare' : '') . ($submit ? ' embed-submit' : '')
     . ($bare && ($_GET['interactive'] ?? '') !== '1' ? ' embed-static' : '')
     . ($embed && ($_GET['bg'] ?? '') === 'transparent' ? ' embed-bg-transparent' : ''));
@@ -75,7 +75,7 @@ $layerExtra = souliong_layers_alternates($apiCfg, $meta, $proj, $base, $embedLay
 // 這張地圖開放哪些投稿型別、對話框預設開哪一頁、誰能建立點位（meta.json 的 contrib 區塊）。
 // 跟 $moduleState 同樣的原則：PHP 端解析一次，前端直接讀 APP.contrib，不在兩邊各自算預設值。
 $contribCfg = souliong_contrib_cfg($meta);
-// 嵌入投稿（ui=submit）可用 type=photo,text 限縮型別；只能收窄專案已開放的型別，且不含建立點位
+// 嵌入投稿：type 只能收窄專案已開放的型別，不含建立點位
 if ($submit) {
     $want = array_filter(array_map('trim', explode(',', (string)($_GET['type'] ?? ''))));
     if ($want) $contribCfg['kinds'] = array_values(array_intersect($contribCfg['kinds'], $want));
