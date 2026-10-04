@@ -165,7 +165,7 @@ function souliong_modules(): array
         'identity' => ['label' => '投稿者身分', 'desc' => '右上角身分小標籤（暱稱／管理者／匿名預覽名）與建立身分（PIN）欄位。關閉後依序探索也會一併隱藏。', 'default' => true, 'dependsOn' => 'upload'],
         'personExplore' => ['label' => '依序探索', 'desc' => '選了投稿者後，可依序探索他的點位／零散照片時間軸。', 'default' => false, 'dependsOn' => 'identity'],
         'delegation' => ['label' => '管理者邀請登入', 'desc' => '地圖頁上的管理者登入／邀請兌換彈窗。關閉後這張地圖不再產生新的專案 PIN 或邀請連結，只能用主 PIN 從後台網址（/manager）登入管理，適合純檢視、僅超級管理者更新內容的部署。', 'default' => true],
-        'map3d'  => ['label' => '3D 地圖模式', 'desc' => '訪客可切換到 MapLibre 3D 檢視（公用建物擠出＋自訂模型）。關閉後只有既有 Leaflet 2D 地圖，不載入 MapLibre。', 'default' => false],
+        'map3d'  => ['label' => '3D 地圖模式', 'desc' => '訪客可切換到 MapLibre 3D 檢視（公用建物擠出＋自訂模型）。關閉後只有 2D 地圖，不載入 3D 相關程式。', 'default' => false],
     ];
 }
 

@@ -46,7 +46,7 @@ foreach (scandir($projectsDir) ?: [] as $entry) {
         $attr = $l['attribution'] ?? null;
         if (is_array($attr)) { foreach ($attr as $part) { if (is_array($part)) $addCredit($part); } }
     }
-    if ($layers) $addCredit(souliong_engine_credit($layers));
+    if ($layers) $addCredit(souliong_engine_credit(is_array($m) ? $m : []));
 }
 $b = htmlspecialchars($base, ENT_QUOTES);
 $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');

@@ -426,13 +426,9 @@ function souliong_credit_html(?array $part, array $DICT): string
     return (!empty($part['copyright']) ? '&copy;&nbsp;' : '') . $body . $suffix;
 }
 
-/** 這組圖層裡只要有向量圖層，主引擎署名就換成 MapLibre；判斷方式跟 view.php 的 $primaryEngine 一致。 */
-function souliong_engine_credit(array $layers): array
+/** 主引擎署名；判斷方式跟 view.php 的 $primaryEngine 一致（預設 MapLibre，只有 meta.engine 明講 leaflet 才例外）。 */
+function souliong_engine_credit(array $meta): array
 {
-    foreach ($layers as $l) {
-        if (($l['type'] ?? '') === 'vector') {
-            return ['text' => 'MapLibre', 'url' => 'https://maplibre.org'];
-        }
-    }
-    return ['text' => 'Leaflet', 'url' => 'https://leafletjs.com'];
+    if (($meta['engine'] ?? '') === 'leaflet') return ['text' => 'Leaflet', 'url' => 'https://leafletjs.com'];
+    return ['text' => 'MapLibre', 'url' => 'https://maplibre.org'];
 }

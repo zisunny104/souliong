@@ -4001,14 +4001,8 @@ if (!$authed) {
             </div>
           </dialog>
           <?php
-            // 這張地圖的主引擎：直接呼叫跟 pages/view.php 相同的 souliong_layers_for()，
-            // 而不是用上面圖層挑選器的 $layCur——$layCur 只放 meta.json 明講的那幾筆，沒明講
-            // （跟全站預設圖層）的專案會是空陣列，就看不出其實在吃向量底圖。只有 MapLibre 才能
-            // 在前台擷圖，Leaflet 專案這裡不給「強制刷新」入口，只能靠管理者自訂上傳。
-            $pEngine = 'leaflet';
-            foreach (souliong_layers_for($cfg, $meta, $p) as $lm) {
-              if (($lm['type'] ?? '') === 'vector') { $pEngine = 'maplibre'; break; }
-            }
+            // 主引擎判斷同 pages/view.php；只有 MapLibre 能在前台擷圖，其餘專案不給「強制刷新」入口。
+            $pEngine = (($meta['engine'] ?? '') === 'leaflet') ? 'leaflet' : 'maplibre';
           ?>
           <button type="button" class="btn" onclick="document.getElementById('covdlg-<?= $esc($p) ?>').showModal()"><i class="fa-solid fa-image"></i> <?= $t('cover_heading') ?></button>
           <dialog id="covdlg-<?= $esc($p) ?>" class="metadlg" onclick="if(event.target===this)this.close()">

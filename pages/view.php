@@ -67,13 +67,9 @@ $pack = souliong_pack_for($apiCfg, $meta, $proj);
 // 這張地圖由下往上要疊哪幾層圖磚／插畫。跟 $pack 同樣是「用哪一包」而非布林開關，差別只在
 // 圖層是有序陣列。相對路徑的圖檔在這裡就被改寫成 <base>/layer/... 絕對網址，前端不必分辨。
 $layers = souliong_layers_public($apiCfg, $meta, $proj, $base);
-// 這張地圖的主引擎：只要 layers 裡有任何一筆 type 是 vector，整顆地圖就改用 MapLibreEngine
-// （向量 style 本身就是完整一張圖，沒辦法像光柵圖層一樣只疊局部——見 maplibre-engine.js 開頭註解）。
-// 逐專案 opt-in：沒特別選向量底圖的專案這個值一律是 leaflet，行為與拆分之前完全一樣。
-$primaryEngine = 'leaflet';
-foreach ($layers as $l) {
-    if (($l['type'] ?? '') === 'vector') { $primaryEngine = 'maplibre'; break; }
-}
+// 這張地圖的主引擎：一律 MapLibreEngine（光柵與疊圖也由它處理）。meta.json 明確寫
+// "engine": "leaflet" 的舊專案才沿用 Leaflet，作為過渡期的退路，不在後台提供選項。
+$primaryEngine = (is_array($meta) && ($meta['engine'] ?? '') === 'leaflet') ? 'leaflet' : 'maplibre';
 // 這張地圖開放哪些投稿型別、對話框預設開哪一頁、誰能建立點位（meta.json 的 contrib 區塊）。
 // 跟 $moduleState 同樣的原則：PHP 端解析一次，前端直接讀 APP.contrib，不在兩邊各自算預設值。
 $contribCfg = souliong_contrib_cfg($meta);
