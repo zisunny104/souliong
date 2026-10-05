@@ -208,7 +208,7 @@ CSS 全部前綴 `.stat-card .col`，因為要蓋過同層的 `.stat-card .col o
 
 `delegation`（管理者邀請登入）跟上面那些有專屬插件檔的模組不一樣（`homeLink` 也是，它只是核心模板裡的一顆連結），不是插件檔案，而是核心裡兩段既有 UI 的開關：地圖頁品牌區塊的彩蛋入口（連點六下開啟 `#pinDialog`，見 `setupBrandEgg()`）與邀請連結兌換彈窗 `#adminRedeemDialog`（見 `handleRedeemFragment()`）。關閉後這張地圖不會再讓人透過網址 fragment 兌換出新的專案 PIN，地圖頁上也不再有快速登入入口——但完全不影響 `config['primary_pin']`／`state/pins.json` 的主 PIN：主 PIN 是全域權限，一律能從 `/manager` 直接登入任何專案，這條路由不經過 `view.php`，不受這個旗標影響（見 `api/security.php` 的「主 PIN／專案 PIN」兩層設計）。適合「僅檢視、只有超級管理者能更新內容，不需要專案 PIN 或邀請代理」的部署。**已知缺口**：目前只有 `view.php`／`viewer.core.js`／`api/features.php` 接上這個旗標；`manager.php` 後台的邀請連結建立介面、與 `security.php` 的 `pins_redeem()` 對「這個專案要不要接受專案 PIN」的判斷，尚未跟著收斂，待補。
 
-`personExplore`（依序探索）沿用原本的扁平旗標寫法（`meta.json` 直接存 `personExplore: true/false`），`souliong_module_on()` 對這個 key 特殊處理，行為與既有插件機制（見下一節）相容。
+`personExplore`（依序探索）使用扁平旗標寫法（`meta.json` 直接存 `personExplore: true/false`），`souliong_module_on()` 對這個 key 特殊處理，行為與既有插件機制（見下一節）相容。
 
 「隨機探索」是首頁層級功能（從所有地圖裡挑一個跳轉，不屬於單一地圖），所以不走 `meta.json`，而是存在跨地圖的 `state/settings.json`（`api/settings.php` 的 `souliong_settings_load()`／`souliong_random_explore_on()`），在後台「工具」分頁（僅主 PIN 可見）開關。
 
@@ -235,7 +235,7 @@ CSS 全部前綴 `.stat-card .col`，因為要蓋過同層的 `.stat-card .col o
 參考實作：
 - `assets/js/plugins/embed-code.js`（`embed` 旗標——產生 `<iframe>` 嵌入代碼；`class EmbedCodePlugin extends MapApp.Plugin` 寫法，是目前符合完整標準的範例）。
 - `assets/js/plugins/share-link.js`（`share` 旗標——全螢幕分享卡片＋QR code；`class ShareLinkPlugin extends MapApp.Plugin` 寫法。連帶的 vendor 函式庫 `qrcode-generator.js` 也一併只在 `share` 開啟時由 `view.php` 條件載入，避免關閉時仍多載一支用不到的腳本）。
-- `assets/js/plugins/route-tour.js`（`route` 旗標——多投稿者路徑／單人路徑／連點彩蛋動畫；`class RouteTourPlugin extends MapApp.Plugin` 寫法。這個模組原本跟核心主渲染流程（新增／刪除／編輯／篩選）交纏最深，改法是把核心那些散落各處的 `drawRoute()`/`drawPersonRoute()` 呼叫全部收斂成統一的 `'stateChange'` 事件——資料或篩選狀態一變就發送一次，插件訂閱這個事件自己決定要不要重繪，核心不用再認得「路徑」這個概念。`#routeBtn` 也已改為插件自己在 `mount()` 建立並插入 `#ctlBody` 第一個 `.ctl-row`，`view.php` 不再輸出這顆按鈕）。
+- `assets/js/plugins/route-tour.js`（`route` 旗標——多投稿者路徑／單人路徑／連點彩蛋動畫；`class RouteTourPlugin extends MapApp.Plugin` 寫法。資料或篩選狀態一變，核心就發送 `'stateChange'`，插件訂閱它自己決定要不要重繪，核心不認得「路徑」這個概念。`#routeBtn` 由插件在 `mount()` 建立並插入 `#ctlBody` 第一個 `.ctl-row`）。
 - `assets/js/plugins/content-editor.js`（`contentEdit` 旗標——點位內容區塊的編輯：新增／修改／刪除／排序 text、audio、photo 區塊，整體送 `spotcontent.php` 的 `op=save`；寫入權限看 `edit_spots`，旗標只決定前端顯不顯示入口）。
 - `assets/js/plugins/contribution.js`（`upload` 旗標——目前最大的一個插件，同一個類別依範圍開兩個實例：投稿視窗（`#contribModal`）與建立點位視窗（`#spotModal`），各有自己的右下角入口鈕。投稿按鈕、分頁式批次投稿視窗、每張卡片的小地圖／定位來源／點位下拉、送出（含 429 限流自動重試）。型別專屬的知識（EXIF、WebP 轉檔、抽影格、錄音、建立點位表單）全都不在這個檔案裡，而在 `assets/js/contrib/kind-*.js`，見第三節。`#uploadBtn`/`#unlockFab`/`#pickImages`（插在 `#resetBtn` 之後）與批次投稿彈窗 `#contribModal`（插在 `#panel` 之後）都已改為插件自己在 `mount()` 的 `injectDom()` 建立並插入固定位置，`view.php` 不再輸出這幾段 HTML。解鎖對話框（掃碼／投稿代碼／PIN）與 `?code=` 網址參數自動解鎖仍留在核心，完全不受此旗標影響——「能不能寫入」是核心原生功能，「怎麼上傳」才是這個模組的範圍，見上面第 5 點規則。嵌入投稿（`?embed=1&ui=submit`，見 EMBED-API.md）時只顯示投稿對話框，由 `submitEmbed()`／`mountSubmitEmbed()` 處理。身分小標籤點擊快速開啟批次視窗改用 `'identityUploadShortcut'` 事件（核心不再直接呼叫插件內部函式），`u` 鍵快速鍵與點位卡片裡的「投稿到這個點」按鈕都用 `MapApp.getCurrentSpot()`／`MapApp.isUnlocked()` 等核心原生功能拿到需要的狀態，不假設自己知道核心內部變數）。
 - `assets/js/plugins/contributor-identity.js`（`identity` 旗標——右上角身分小標籤的渲染（暱稱／管理者／匿名預覽名、解鎖狀態圖示）、點擊與長按換名的事件綁定、解鎖對話框裡「建立身分」PIN／暱稱欄位的展開收合按鈕。`#identity` 小標籤已改為插件自己在 `mount()` 建立並插入 `#trItems` 的最前面，`view.php` 不再輸出這段 HTML；旗標關閉時整個檔案不會被載入，`#identity` 自然不存在。`#idToggleBtn`/`#idFields` 仍是 `view.php` 在 `#unlockDialog` 裡輸出的既有 HTML（原因見下段），解鎖對話框其餘部分（投稿代碼輸入、QR 掃描）不受影響，純代碼解鎖照常可用。PIN／暱稱欄位本身的讀取（送出解鎖時）與重置（對話框重開時）仍留在核心——它們跟純代碼解鎖共用同一個對話框與送出按鈕，沒有乾淨的切點，且已對 DOM 是否存在做防呆（`if (el)`），旗標關閉時安全略過；`contribToken`/`contribInfo`/`myContribId` 這些「有無設定過 PIN」的實際存取也留在核心，因為 `submitContribution`／刪除／照片編輯等核心自身送出流程都要用到，且沒設 PIN 時它們本來就是無害的空字串，不受這個模組開關影響。`personExplore` 透過 `dependsOn` 相依這個模組，見下一節）。
@@ -468,7 +468,7 @@ CSS 全部前綴 `.stat-card .col`，因為要蓋過同層的 `.stat-card .col o
 
 ### 8.9 主題包的兩層作用域
 
-主題包（`api/packs.php`）原本只有全站一層；現在跟圖層共用同一套模型：
+主題包（`api/packs.php`）跟圖層共用同一套兩層作用域模型：
 
 | 作用域 | 位置 | 進版控？ | 用途 |
 |---|---|---|---|
@@ -510,7 +510,7 @@ CSS 全部前綴 `.stat-card .col`，因為要蓋過同層的 `.stat-card .col o
 
 ### 8.11 從圖磚重建（沒留原稿的降級路徑）
 
-`?load=<id>` 原本只看 `layersrc/<id>/edit.json` 在不在——不在就當全新圖層處理，`#lid` 退回預設值 `artwork`，使用者完全看不出來這個 id 其實已經有東西。現在多一層退而求其次的偵測：`edit.json` 不在時，改讀 `tilecut_dir($cfg, $project, $id)`（8.1 提過的專案作用域限定版路徑解析，不是 8.1 通用的 `souliong_layer_dir()`）底下的 `layer.json`——如果 `type` 是 `raster` 且欄位齊全（`bounds`／`maxNativeZoom`／`url` 副檔名都在），代表圖磚金字塔還落在磁碟上，只是沒有可回填編輯狀態的原稿，於是組出一個 `$RECON` 陣列（`id`／`ext`／`z`／`bounds`／`label`／`pane`／`opacity`／`attribution`）交給前端。`type:"image"`（8.10 的保持向量輸出）刻意不進這條路——本體是單一 SVG，沒有圖磚金字塔可拼，也不需要。
+`?load=<id>` 先看 `layersrc/<id>/edit.json` 在不在；不在時再偵測：改讀 `tilecut_dir($cfg, $project, $id)`（8.1 提過的專案作用域限定版路徑解析，不是 8.1 通用的 `souliong_layer_dir()`）底下的 `layer.json`——如果 `type` 是 `raster` 且欄位齊全（`bounds`／`maxNativeZoom`／`url` 副檔名都在），代表圖磚金字塔還落在磁碟上，只是沒有可回填編輯狀態的原稿，於是組出一個 `$RECON` 陣列（`id`／`ext`／`z`／`bounds`／`label`／`pane`／`opacity`／`attribution`）交給前端。`type:"image"`（8.10 的保持向量輸出）刻意不進這條路——本體是單一 SVG，沒有圖磚金字塔可拼，也不需要。
 
 **前端**：`$RECON !== null` 時，「已載入」banner 的位置換成一個帶按鈕的提示（`tilecut_recon_hint` + `#reconbtn`），是否要花時間重建交給使用者按下去才做，不像 `$EDIT !== null` 那樣自動載入——重建要逐張抓圖磚，比讀一份 JSON 重得多。按下去之後 `reconstructFromTiles()`：
 
@@ -541,7 +541,7 @@ CSS 全部前綴 `.stat-card .col`，因為要蓋過同層的 `.stat-card .col o
 
 這個設計的代價：**OpenFreeMap 的 building 圖層 `feature.id`（top-level id，不是 `properties` 裡的欄位）若不穩定（例如上游資料更新後同一棟建物換了 id），已存的排除清單會悄悄失效**，公用建物會重新冒出來穿模。`rescan` 動作是這個情境的復原路徑：多邊形與模型**都不變**，只重新對照目前畫面上的多邊形查一次 `queryRenderedFeatures`、覆寫 `excludedBuildingIds` 這一個欄位（並記一筆 `rescannedAt`）。限制是：`rescan` 必須有人手動在瀏覽器裡打開編輯器、對著地圖按一次按鈕才會觸發——沒有排程或自動偵測失效的機制；而且它跟存檔用的是同一套 `queryRenderedFeatures` 查詢，如果失效原因是「這批建物在目前的圖磚裡完全找不到對應物」（而不只是 id 換了），`rescan` 也救不回來，只能回到步驟二重新畫多邊形。
 
-**刪除**：`regions3d/<id>/` 資料夾（`region.json` + `model.glb`）原本沒有任何刪除路徑，誤建或測試用的區域只能用同一個 id 覆蓋，永遠無法真正消失。`action=delete` 補上這個缺口：權限與 CSRF 檢查比照同檔其他動作（`$requireProj()`，`edit_3d_regions`），路徑解析用 `souliong_region3d_dir()`／`souliong_regions3d_root()`，實際刪除借用 8.6 已有的 `souliong_layer_rmtree($dir, $root)`——同一套 `realpath()` 攤平與「目標落在 root 之內、且不等於 root 本身」檢查，不必另外寫一份。成功後記一筆 `region3d_delete` audit log，效果是自動生效的：`souliong_region3d_excluded_ids()` 每次都重新掃描 `regions3d/` 底下現存的資料夾算聯集，資料夾不在了，它排除的建物自然重新出現在 3D 建物擠出上，不需要另外清理任何索引。
+**刪除**：`regions3d/<id>/` 資料夾（`region.json` + `model.glb`）可用 `action=delete` 刪除（誤建或測試用的區域）：權限與 CSRF 檢查比照同檔其他動作（`$requireProj()`，`edit_3d_regions`），路徑解析用 `souliong_region3d_dir()`／`souliong_regions3d_root()`，實際刪除借用 8.6 已有的 `souliong_layer_rmtree($dir, $root)`——同一套 `realpath()` 攤平與「目標落在 root 之內、且不等於 root 本身」檢查，不必另外寫一份。成功後記一筆 `region3d_delete` audit log，效果是自動生效的：`souliong_region3d_excluded_ids()` 每次都重新掃描 `regions3d/` 底下現存的資料夾算聯集，資料夾不在了，它排除的建物自然重新出現在 3D 建物擠出上，不需要另外清理任何索引。
 
 前端只在帶 `?load=<id>` 進來（即編輯既有區域）時才顯示「刪除這個區域」按鈕，位置在存檔按鈕旁、用 `--danger` 配色跟存檔／重新掃描區隔；送出前有 `confirm()`，文字明講排除清單會失效、建物會重新畫出來。刪除成功後導回後台「工具」分頁，不留在一個已經不存在的 `?load=` 網址上。
 
@@ -579,7 +579,7 @@ CSS 全部前綴 `.stat-card .col`，因為要蓋過同層的 `.stat-card .col o
 
 要產生網址就呼叫 `Route::manager()`／`Route::logout()`／`Route::backupAll()`／`Route::backupProject()`／`Route::backupPack()`／`Route::backupLayer()`／`Route::backupRegion3d()`／`Route::tool()`／`Route::map()`／`Route::api()`／`Route::layerFile()`，**不要自己黏字串**。前端也一樣：`view.php` 把 `Route::manager($proj)` 放進 `APP.manager`，`viewer.core.js` 讀 `MANAGER_URL` 就好。
 
-之所以要這一層，是因為原本沒有：`?api=admin` 光一支 `manager.php` 就出現 47 次，「還原掛載根路徑」那段計算被複製了七份（其中兩份的邊界情況還算得不一樣）。改一次網址形狀就得全域搜尋改一輪，漏改的地方不會報錯，只會在某些部署下靜靜連到錯的地方。
+網址集中在這一份，是因為分散寫死時，改一次網址形狀就得全域搜尋，漏改的地方不會報錯，只會在某些部署下連到錯的地方。
 
 幾個刻意的決定：
 
@@ -625,7 +625,7 @@ CSS 全部前綴 `.stat-card .col`，因為要蓋過同層的 `.stat-card .col o
 
 ### 13.1 身分：`Actor`
 
-`Auth::actor($cfg, $project)` 回傳這個請求在某個專案（`$project = null` 為全站層級）的身分，每請求每專案只解析一次並快取（不可變）。解析順序（權限與 CSRF 共用同一順序，是刻意的修正——舊版 `perm_check()` 權限與 CSRF 衍生用了不同順序，瀏覽器同時帶帳號與專案 PIN cookie 時兩邊會對不上）：`primary`（主 PIN cookie，或角色為 primary 的帳號）→ `account`（此專案有成員資格的帳號）→ `pin`（此專案仍有效的專案 PIN）→ `anon`，取到第一個就定案。
+`Auth::actor($cfg, $project)` 回傳這個請求在某個專案（`$project = null` 為全站層級）的身分，每請求每專案只解析一次並快取（不可變）。解析順序（權限與 CSRF 共用同一順序，瀏覽器同時帶帳號與專案 PIN cookie 時兩邊才對得上）：`primary`（主 PIN cookie，或角色為 primary 的帳號）→ `account`（此專案有成員資格的帳號）→ `pin`（此專案仍有效的專案 PIN）→ `anon`，取到第一個就定案。
 
 `Actor` 公開：
 

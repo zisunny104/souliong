@@ -17,7 +17,7 @@
 
   class ContribKind {
     // ---- 身分 ----
-    get key() { return ''; }              // data.jsonl 的 kind 值
+    get key() { return ''; }              // 紀錄的 kind 值
     get tab() { return null; }            // 對話框分頁代號（要跟 features.php 的 souliong_kinds() 對上）
     get icon() { return 'fa-file'; }
 
