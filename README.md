@@ -2,7 +2,7 @@
 
 > 循著地方留下的痕跡，用地圖探索、記錄一座城市。
 
-地方探索地圖平台，是 [KoiLiSu 開利手](https://github.com/zisunny104/koilisu-framework) 框架下的一個 app。一個站台可放多張地圖，每張地圖各自設定圖層、投稿與權限。
+讓大家在地圖上留下照片、聲音與文字，一起記錄身邊的地方。建立在 [KoiLiSu 開利手](https://github.com/zisunny104/koilisu-framework) 框架上。
 
 本 repo 只含平台程式碼，不含各地圖內容與使用者資料。
 
