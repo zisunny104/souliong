@@ -4,13 +4,6 @@
  * 每個專案兩個 JSON-Lines 檔：projects/<project>/spots.jsonl（kind:'spot'，點位本身）與
  * projects/<project>/entries.jsonl（其餘所有投稿），一行一筆紀錄，依 kind 分流見 store_file()。
  * 寫入用 LOCK_EX 附加、讀取用 LOCK_SH，append-only。
- *
- * 舊專案資料夾下可能還留著遷移前的 data.jsonl：那是遷移腳本讀完之後刻意留下的唯讀存底，
- * 從這裡開始的所有函式都不會再讀寫它。
- *
- * 已淘汰、只留給舊資料相容用的舊機制：data.jsonl 本身、kind 值 point／newpoint（已併入 spot，
- * 見 store_file()）、primaryKind（已由 spot 紀錄的 content 欄位取代）。退場判準與流程見
- * docs/EXTENDING.md「舊機制淘汰與退場」一節，判準腳本見 tools/retirecheck.php。
  */
 
 function project_dir(array $cfg, string $project): string {

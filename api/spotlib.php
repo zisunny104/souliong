@@ -27,12 +27,6 @@ function spot_id_valid(string $s): bool
     return preg_match('/^[0-9a-f]{16}$/', $s) === 1;
 }
 
-/** 舊資料的 kind 值 point／newpoint 一律視為 spot（防禦性正規化，不改儲存資料）。 */
-function spot_kind_normalize(?string $kind): string
-{
-    return in_array($kind, ['point', 'newpoint'], true) ? 'spot' : (string)$kind;
-}
-
 /** 把一條 edit_of 鏈逐欄疊到起點上，回傳有效狀態（含 content_rev）。 */
 function _spot_overlay(array $origin, array $chain): array
 {
@@ -61,7 +55,7 @@ function spot_effective_all(array $cfg, string $project): array
     $origins = [];
     $edits = [];
     foreach (store_all($cfg, $project) as $r) {
-        if (spot_kind_normalize($r['kind'] ?? '') !== 'spot') continue;
+        if (($r['kind'] ?? '') !== 'spot') continue;
         if (empty($r['edit_of']) && isset($r['num'])) {
             $origins[] = $r;
         } elseif (!empty($r['edit_of'])) {

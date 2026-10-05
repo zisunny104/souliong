@@ -90,11 +90,11 @@ ec_write("$sb/projects/$E/meta.json", [
     'id' => $E, 'title' => '嵌入測試', 'subtitle' => '副標', 'center' => [24.05, 120.69], 'zoom' => 15,
     'embedOrigins' => [EC_ORIGIN, 'http://localhost:5173'],
 ]);
-// 舊資料的 kind 值 point／newpoint 也要被正規化為 spot；第三筆是 newpoint 並帶一筆編輯版本
+// 第二點帶一筆編輯版本
 ec_jsonl("$sb/projects/$E/spots.jsonl", [
     $mk($ID1, 1, '第一點', 24.051, 120.691),
-    $mk($ID2, 2, '第二點', 24.052, 120.692, ['kind' => 'point']),
-    $mk($ID3, 3, 'Name With Space & 符號', 24.053, 120.693, ['kind' => 'newpoint']),
+    $mk($ID2, 2, '第二點', 24.052, 120.692),
+    $mk($ID3, 3, 'Name With Space & 符號', 24.053, 120.693),
     ['id' => 'e5e5e5e5e5e5e5e5', 'project' => $E, 'kind' => 'spot', 'item_num' => 2, 'edit_of' => $ID2, 'lat' => 24.0525, 'lon' => 120.6925,
      'contrib_hash' => $secrets[0], 'created_at' => gmdate('c', time() + 5)],
 ]);
@@ -205,7 +205,7 @@ $sp = json_decode($b, true);
 ck($c === 200 && is_array($sp), 'api=spots 200 且為 JSON', [$c, substr($b, 0, 200)]);
 ck($keysOf($sp) === ['etag', 'project', 'spots', 'v'] && ($sp['v'] ?? null) === 1 && ($sp['project'] ?? '') === $E, 'spots 頂層欄位白名單', $keysOf($sp));
 $list = $sp['spots'] ?? [];
-ck(count($list) === 3, '三個點位（point／newpoint 舊 kind 已正規化）', count($list));
+ck(count($list) === 3, '三個點位', count($list));
 foreach ($list as $s) {
     ck($keysOf($s) === ['area', 'cat', 'lat', 'lon', 'nav', 'num', 'spotId', 'title'], 'spot 欄位白名單', $keysOf($s));
     ck(preg_match('/^[0-9a-f]{16}$/', $s['spotId']) === 1 && is_int($s['num']) && is_float($s['lat']) && is_float($s['lon']), 'spot 欄位型別', $s);

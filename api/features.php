@@ -116,7 +116,7 @@ function souliong_contrib_cfg(?array $meta): array
     $default = (string)($meta['contrib']['default'] ?? '');
     if (!in_array($default, $tabs, true)) $default = $tabs[0];
 
-    $newSpot = (string)($meta['contrib']['newSpot'] ?? $meta['contrib']['newPoint'] ?? 'off');   // newPoint 為舊鍵名，唯讀相容
+    $newSpot = (string)($meta['contrib']['newSpot'] ?? 'off');
     if (!in_array($newSpot, ['off', 'admin', 'contributor'], true)) $newSpot = 'off';
 
     // 哪些媒體型別允許訪客附說明；沒設定＝全部允許（舊地圖行為不變）。文字投稿本身就是說明，不在此列。

@@ -125,13 +125,10 @@ function primary_clear_cookie(array $cfg): void {
 const PIN_MIN_LEN = 6;
 function pin_length_ok(string $pin): bool { return strlen($pin) >= PIN_MIN_LEN && strlen($pin) <= 64; }
 
-// ── PIN 清單（state/pins.json，舊檔名 admin_pins.json 首次讀取時自動搬遷） ──
+// ── PIN 清單（state/pins.json） ──
 function pins_file(array $cfg): string {
     $dir = rtrim($cfg['state_dir'], '/\\');
-    $new = $dir . '/pins.json';
-    $legacy = $dir . '/admin_pins.json';
-    if (!is_file($new) && is_file($legacy)) @rename($legacy, $new);
-    return $new;
+    return $dir . '/pins.json';
 }
 /** 新專案 PIN 的預設權限：專案層級鍵一律從全關開始，需主 PIN 逐項開啟下放（鍵由註冊表產生）。 */
 function pin_default_perms(): array { return auth_perms_default(); }
@@ -341,27 +338,6 @@ function codes_load(array $cfg, string $project): array {
     $f = codes_file($cfg, $project);
     $d = is_file($f) ? json_decode((string)@file_get_contents($f), true) : null;
     $d = is_array($d) ? $d : [];
-    // 一次性遷移：舊版常駐碼存在 code.txt，併入清單成一筆不限期不限次數的碼，避免已發出去的碼失效。
-    // 讀取／併入／刪舊檔三步用同一把鎖包住，避免併發請求重複併入或其中一邊看到半完成狀態。
-    $legacy = project_dir($cfg, $project) . '/code.txt';
-    if (is_file($legacy)) {
-        $lockFp = @fopen($legacy, 'r+');
-        if ($lockFp && flock($lockFp, LOCK_EX)) {
-            clearstatcache(true, $legacy);
-            if (is_file($legacy)) {
-                $c = trim((string)@file_get_contents($legacy));
-                $d = is_file($f) ? json_decode((string)@file_get_contents($f), true) : null;
-                $d = is_array($d) ? $d : [];
-                if ($c !== '' && !array_filter($d, fn($e) => hash_equals((string)($e['code'] ?? ''), $c))) {
-                    $d[] = ['code' => $c, 'label' => '', 'created' => gmdate('c'), 'expires_at' => null, 'max_uses' => null, 'used_count' => 0];
-                    @file_put_contents($f, json_encode($d, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX);
-                }
-                @unlink($legacy);
-            }
-            flock($lockFp, LOCK_UN);
-        }
-        if ($lockFp) fclose($lockFp);
-    }
     return $d;
 }
 function codes_save(array $cfg, string $project, array $d): void {

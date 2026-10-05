@@ -176,13 +176,10 @@ function account_register(array $cfg, string $userid, string $pw, string $label)
     return ['ok' => true, 'account' => $acc];
 }
 
-// ── 各專案授權：projects/<project>/perms.json（只含 account_id + perms，無機密；舊檔名 admins.json 首次讀取時自動搬遷）──
+// ── 各專案授權：projects/<project>/perms.json（只含 account_id + perms，無機密）──
 function project_perms_file(array $cfg, string $project): string {
     $dir = project_dir($cfg, $project);
-    $new = $dir . '/perms.json';
-    $legacy = $dir . '/admins.json';
-    if (!is_file($new) && is_file($legacy)) @rename($legacy, $new);
-    return $new;
+    return $dir . '/perms.json';
 }
 // 權限檢查對同一專案在單次請求內常被呼叫多次（例如 manager.php 逐一渲染多項權限旗標），
 // 依專案 id 分開快取，避免重複讀檔／解碼同一份 perms.json；project_perms_save() 寫入後同步更新。

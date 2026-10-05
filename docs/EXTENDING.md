@@ -163,12 +163,6 @@ license, owner_hash, src_hash, contrib_id, contrib_hash, edit_of, created_at
 > 主機端提醒：影片上傳會先撞到 PHP 自己的 `upload_max_filesize`／`post_max_size`（常見預設 2M／8M），
 > 那是 php.ini 的事，程式改不掉。要開放影片投稿前得先確認部署主機放行到多大。
 
-### 3.7 舊資料相容
-
-- `data.jsonl`（遷移前的存底）不再讀寫；確認 `spots.jsonl`＋`entries.jsonl` 完整涵蓋它之後，可用 `php tools/retirecheck.php <project_dir>`（唯讀）檢查，報告 PASS 再手動刪除。
-- 舊 `kind` 值 `point`／`newpoint` 對外一律視為 `spot`。
-- `meta.json` 的 `contrib.newPoint` 讀取時仍相容，下次後台存檔會寫成 `contrib.newSpot`。
-
 ## 四、多地圖「重疊」呈現（尚未實作）
 
 - 現在檢視器一次載入一張地圖（一個 project）。
@@ -645,10 +639,10 @@ CSS 全部前綴 `.stat-card .col`，因為要蓋過同層的 `.stat-card .col o
 ### 13.3 `auth_registry()`：權限鍵的唯一來源
 
 ```php
-'key' => ['scope' => 'project'|'site', 'label' => 後台開關的 lang 鍵或 null, 'backfill' => bool, 'was' => 舊鍵名（可省略）]
+'key' => ['scope' => 'project'|'site', 'label' => 後台開關的 lang 鍵或 null, 'backfill' => bool]
 ```
 
-`scope` 決定下放範圍：`project` 可逐專案授權給 PIN／帳號；`site` 永遠只有 `primary` 為真——`can()` 對非 primary 直接拒絕 `scope!=='project'` 的鍵，而且 `auth_perms_default()`（新建 PIN／帳號的預設表）只填 `project` 鍵，`site` 鍵從不會被寫進任何人的 perms 表，後台也不會出現下放開關（`label` 為 `null`）。`backfill` 只影響上線前就存在的 PIN／帳號：缺這個鍵時是否回填 `true`（保留既有能力）；新建身分一律從 `auth_perms_default()` 全關起跑。`was` 是舊鍵名，`auth_perms_migrate()` 讀取時自動搬遷成新鍵名（`pins_load()`／`project_perms_load()` 共用這支函式，不各寫一份遷移迴圈）。**新增一個權限鍵只需要在這個表加一行**，不必動別處。
+`scope` 決定下放範圍：`project` 可逐專案授權給 PIN／帳號；`site` 永遠只有 `primary` 為真——`can()` 對非 primary 直接拒絕 `scope!=='project'` 的鍵，而且 `auth_perms_default()`（新建 PIN／帳號的預設表）只填 `project` 鍵，`site` 鍵從不會被寫進任何人的 perms 表，後台也不會出現下放開關（`label` 為 `null`）。`backfill` 只影響上線前就存在的 PIN／帳號：缺這個鍵時是否回填 `true`（保留既有能力）；新建身分一律從 `auth_perms_default()` 全關起跑。`pins_load()`／`project_perms_load()` 讀取時共用 `auth_perms_migrate()` 做回填。**新增一個權限鍵只需要在這個表加一行**，不必動別處。
 
 目前完整清單（見 `api/auth.php` 的 `auth_registry()`，呼叫端見下方 13.4）：
 
@@ -656,8 +650,8 @@ CSS 全部前綴 `.stat-card .col`，因為要蓋過同層的 `.stat-card .col o
 |---|---|---|
 | `delete_others` | project | 刪除別人的投稿（`manager.php` 的 `action=delete`；刪點位本身另需 `edit_spots`） |
 | `edit_others` | project | 編輯別人的投稿／照片 |
-| `edit_spots` | project | 改點位位置／內容區塊（`editspot.php`／`spotcontent.php`；舊鍵名 `edit_points`，見 3.6、3.7 節） |
-| `grant_access` | project | 可建立「管理 PIN」型邀請連結（舊鍵名 `delegate_admin`） |
+| `edit_spots` | project | 改點位位置／內容區塊（`editspot.php`／`spotcontent.php`，見 3.6 節） |
+| `grant_access` | project | 可建立「管理 PIN」型邀請連結 |
 | `edit_3d_regions` | project | 編輯 3D 模型排除區域 |
 | `edit_meta` | project | 編輯專案描述（`action=meta`） |
 | `edit_layers` | project | 管理該專案自己的圖層／主題包：匯出／匯入／刪除（見 8.6、8.9） |

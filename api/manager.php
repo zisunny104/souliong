@@ -10,7 +10,7 @@ require_once __DIR__ . '/layers.php';     // 地圖圖層註冊表（底圖／�
 require_once __DIR__ . '/labellang.php';
 require_once __DIR__ . '/markercolors.php';
 require_once __DIR__ . '/contribaccess.php';
-require_once __DIR__ . '/spotlib.php';     // spot_kind_normalize()／spotId 判斷
+require_once __DIR__ . '/spotlib.php';     // spotId 判斷
 require_once __DIR__ . '/embedorigins.php';   // 允許嵌入的來源清單解析與驗證（CORS／frame-ancestors／postMessage 共用）
 require_once __DIR__ . '/regions3d.php';  // 3D 自訂模型區域註冊表，形狀同上，見 api/region3d.php
 require_once __DIR__ . '/coverlib.php';   // 封面／地圖快照的存檔邏輯，與 api/cover.php 共用
@@ -1290,9 +1290,9 @@ if (!$authed) {
           $imported = 0;
           if (isset($_FILES['backup']) && $_FILES['backup']['error'] === UPLOAD_ERR_OK) {
             $mode = ($_POST['mode'] ?? 'merge') === 'replace' ? 'replace' : 'merge';
-            // 只接受 projects/、data/pins.json 底下、無 .. 的安全路徑（data/admin_pins.json 是改名前的舊備份，相容）
+            // 只接受 projects/、data/pins.json 底下、無 .. 的安全路徑
             $accept = fn($nm) => strpos(str_replace('\\', '/', (string)$nm), '..') === false
-              && preg_match('#^(projects/[A-Za-z0-9_./-]+|data/(?:admin_)?pins\.json)$#', str_replace('\\', '/', (string)$nm));
+              && preg_match('#^(projects/[A-Za-z0-9_./-]+|data/pins\.json)$#', str_replace('\\', '/', (string)$nm));
             $entries = zip_unpack($_FILES['backup']['tmp_name'], $accept);
             // 1) 資料（jsonl）：spots.jsonl／entries.jsonl 各自獨立比對、各自寫回對應路徑
             // （見 store.php 的 store_file()——備份的匯出本來就是整資料夾打包，兩個檔名都會在 zip 裡）。
@@ -1323,7 +1323,7 @@ if (!$authed) {
             if ($mode === 'replace') {
               foreach ($entries as $nm => $content) {
                 if (preg_match('#^projects/([a-z0-9_-]+)/(stats\.json|code\.txt|codes\.json|contrib\.json)$#', str_replace('\\', '/', $nm), $mm)) @file_put_contents(project_dir($cfg, $mm[1]) . '/' . $mm[2], $content, LOCK_EX);
-                elseif ($nm === 'data/pins.json' || $nm === 'data/admin_pins.json') {
+                elseif ($nm === 'data/pins.json') {
                   @file_put_contents(pins_file($cfg), $content, LOCK_EX);
                 }
               }
@@ -1761,7 +1761,7 @@ if (!$authed) {
         // spotId（點位起點紀錄的 id）：投稿列用 item_num 反查，供後台複製給外部系統當穩定識別
         $spotIdByNum = [];
         foreach ($rows as $r) {
-            if (spot_kind_normalize($r['kind'] ?? '') === 'spot' && empty($r['edit_of']) && isset($r['num'], $r['id'])) {
+            if (($r['kind'] ?? '') === 'spot' && empty($r['edit_of']) && isset($r['num'], $r['id'])) {
                 $spotIdByNum[$r['project'] . '/' . (int)$r['num']] = (string)$r['id'];
             }
         }
@@ -4699,7 +4699,7 @@ if (!$authed) {
             <td class="mono"><?= $idx-- ?></td>
             <td><?= $esc($r['project']) ?></td>
             <?php
-              $rowSpotId = spot_kind_normalize($r['kind'] ?? '') === 'spot'
+              $rowSpotId = ($r['kind'] ?? '') === 'spot'
                 ? (string)(!empty($r['edit_of']) ? $r['edit_of'] : ($r['id'] ?? ''))
                 : ($spotIdByNum[$r['project'] . '/' . (int)($r['item_num'] ?? 0)] ?? '');
             ?>

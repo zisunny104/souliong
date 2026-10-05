@@ -35,8 +35,8 @@ function auth_registry(): array {
     static $r = [
         'delete_others'   => ['scope' => 'project', 'label' => 'perm_delete_others',   'backfill' => false],
         'edit_others'     => ['scope' => 'project', 'label' => 'perm_edit_others',     'backfill' => false],
-        'edit_spots'      => ['scope' => 'project', 'label' => 'perm_edit_spots',      'backfill' => false, 'was' => 'edit_points'],
-        'grant_access'    => ['scope' => 'project', 'label' => 'perm_grant_access',    'backfill' => false, 'was' => 'delegate_admin'],
+        'edit_spots'      => ['scope' => 'project', 'label' => 'perm_edit_spots',      'backfill' => false],
+        'grant_access'    => ['scope' => 'project', 'label' => 'perm_grant_access',    'backfill' => false],
         'edit_3d_regions' => ['scope' => 'project', 'label' => 'perm_edit_3d_regions', 'backfill' => false],
         'edit_meta'       => ['scope' => 'project', 'label' => 'perm_edit_meta',       'backfill' => true],
         'edit_layers'     => ['scope' => 'project', 'label' => 'perm_edit_layers',     'backfill' => true],
@@ -67,18 +67,12 @@ function auth_perms_primary(): array {
     return array_fill_keys(auth_perm_keys(), true);
 }
 /**
- * 既有身分的 perms 自我修復：舊鍵名搬遷成新鍵名、backfill 鍵缺席時回填 true。有改動回傳 true（呼叫端負責存檔）。
+ * 既有身分的 perms 自我修復：backfill 鍵缺席時回填 true。有改動回傳 true（呼叫端負責存檔）。
  * pins_load() 與 project_perms_load() 共用，兩邊不再各寫一份迴圈。
  */
 function auth_perms_migrate(array &$perms): bool {
     $dirty = false;
     foreach (auth_registry() as $key => $def) {
-        $was = $def['was'] ?? null;
-        if ($was !== null && array_key_exists($was, $perms)) {
-            if (!array_key_exists($key, $perms)) $perms[$key] = $perms[$was];
-            unset($perms[$was]);
-            $dirty = true;
-        }
         if ($def['scope'] === 'project' && !empty($def['backfill']) && !array_key_exists($key, $perms)) {
             $perms[$key] = true;
             $dirty = true;

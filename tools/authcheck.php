@@ -29,7 +29,7 @@ function fx_data(string $A, string $B): array {
                 ['id' => 'p_spot',   'kind' => 'pin',    'perms' => $on(['edit_spots', 'bypass_code'])],
                 ['id' => 'p_none',   'kind' => 'pin',    'perms' => $none],
                 ['id' => 'p_inv',    'kind' => 'invite', 'perms' => $on(['edit_spots', 'bypass_code'])],
-                ['id' => 'p_legacy', 'kind' => 'pin',    'perms' => ['edit_points' => true, 'delegate_admin' => false, 'delete_others' => false]],
+                ['id' => 'p_legacy', 'kind' => 'pin',    'perms' => ['edit_spots' => true, 'grant_access' => false, 'delete_others' => false]],
             ],
             $B => [['id' => 'p_beta', 'kind' => 'pin', 'perms' => $on(['edit_spots'])]],
         ],
@@ -38,7 +38,7 @@ function fx_data(string $A, string $B): array {
                 ['account_id' => 'a_mem',  'perms' => $on(['edit_spots', 'export_backup'])],
                 ['account_id' => 'a_off',  'perms' => $on(['edit_spots'])],
                 ['account_id' => 'a_both', 'perms' => $on(['edit_meta'])],
-                ['account_id' => 'a_leg',  'perms' => ['edit_points' => true]],
+                ['account_id' => 'a_leg',  'perms' => ['edit_spots' => true]],
             ],
             $B => [['account_id' => 'a_out', 'perms' => $on(['edit_meta'])]],
         ],
@@ -65,7 +65,7 @@ function fx_scenarios(array $cfg, string $A, string $B): array {
     $sitePrim = ['kind' => 'primary', 'csrf' => primary_csrf_for_token($cfg, $primToken)];
     $sitePrimA = ['kind' => 'primary', 'csrf' => account_derived($cfg, 'a_prim')];
     $siteAcct = fn(string $id) => ['kind' => 'account', 'csrf' => account_derived($cfg, $id)];
-    $legacyOn = ['edit_spots', 'edit_meta', 'edit_layers', 'manage_contrib', 'export_backup', 'bypass_code'];   // 舊鍵搬遷 + 回填後的樣子
+    $legacyOn = ['edit_spots', 'edit_meta', 'edit_layers', 'manage_contrib', 'export_backup', 'bypass_code'];   // 缺席的 backfill 鍵回填後的樣子
     $sc = fn(array $cookies, array $a, array $b, array $site) => ['cookies' => $cookies, 'A' => $a, 'B' => $b, 'site' => $site];
     return [
         'anon'              => $sc([], $anon, $anon, $siteAnon),
@@ -297,7 +297,7 @@ function ac_classify(string $out): string {
 
 $S = fx_scenarios($cfg, 'alpha', 'beta');
 $regKeys = array_keys(auth_registry());
-$probeKeys = array_merge($regKeys, ['nope', 'edit_points', 'delegate_admin']);
+$probeKeys = array_merge($regKeys, ['nope']);
 $projKeys = auth_perm_keys('project');
 
 // 1. 註冊表
@@ -309,7 +309,7 @@ ac_guard('registry', function () use ($root, $regKeys, $projKeys) {
     ck('registry', array_keys($pp) === $regKeys && !in_array(false, $pp, true), 'primary 權限表＝註冊表全鍵全開（含全站鍵）');
     ck('registry', pin_default_perms() === $def && _account_default_perms() === $def && primary_perms() === $pp, '舊函式只是註冊表的薄封裝');
     foreach (auth_registry() as $k => $d) {
-        ck('registry', in_array($d['scope'], ['project', 'site'], true) && !isset(auth_registry()[$d['was'] ?? '']), "鍵 $k 的定義形狀");
+        ck('registry', in_array($d['scope'], ['project', 'site'], true), "鍵 $k 的定義形狀");
     }
     $zh = require $root . '/lang/zh_TW.php';
     $en = require $root . '/lang/en.php';
@@ -317,17 +317,14 @@ ac_guard('registry', function () use ($root, $regKeys, $projKeys) {
         if ($d['scope'] !== 'project') { ck('registry', $d['label'] === null, "全站鍵 $k 沒有後台開關"); continue; }
         ck('registry', isset($zh[$d['label']]) && isset($en[$d['label']]), "鍵 $k 的 lang 標籤 {$d['label']} 在 zh_TW／en 都有");
     }
-    $legacy = ['edit_points' => true, 'delegate_admin' => false, 'delete_others' => true, 'edit_meta' => false];
+    $legacy = ['edit_spots' => true, 'grant_access' => false, 'delete_others' => true, 'edit_meta' => false];
     $dirty = auth_perms_migrate($legacy);
-    ck('registry', $dirty && !isset($legacy['edit_points']) && !isset($legacy['delegate_admin']) && $legacy['edit_spots'] === true && $legacy['grant_access'] === false, '舊鍵名搬遷成新鍵名並保留原值');
+    ck('registry', $dirty && $legacy['edit_spots'] === true && $legacy['grant_access'] === false, '已有的鍵保留原值');
     ck('registry', $legacy['edit_meta'] === false && $legacy['delete_others'] === true, '已存在的鍵不被回填覆蓋');
     ck('registry', $legacy['edit_layers'] === true && $legacy['manage_contrib'] === true && $legacy['export_backup'] === true && $legacy['bypass_code'] === true, '缺席的 backfill 鍵回填 true（含 bypass_code）');
     ck('registry', !isset($legacy['edit_3d_regions']) && !isset($legacy['delete_others']) === false, '非 backfill 鍵不回填');
     $again = $legacy;
     ck('registry', auth_perms_migrate($again) === false && $again === $legacy, '搬遷可重複執行（冪等）');
-    $both = ['edit_points' => true, 'edit_spots' => false];
-    auth_perms_migrate($both);
-    ck('registry', $both['edit_spots'] === false && !isset($both['edit_points']), '新舊鍵並存時以新鍵為準並移除舊鍵');
 });
 
 // 2. 身分解析（行程內）：kind／audit／csrf／isMember／can 全表
@@ -358,11 +355,9 @@ foreach ($S as $name => $sc) {
         }
     });
 }
-// 舊資料自我修復已落地到沙盒磁碟
+// 缺席的 backfill 鍵已寫回沙盒磁碟
 $pinsRaw = (string)file_get_contents("$sb/state/pins.json");
 $permsRaw = (string)file_get_contents("$sb/projects/alpha/perms.json");
-ck('migrate', !str_contains($pinsRaw, 'edit_points') && !str_contains($pinsRaw, 'delegate_admin'), 'pins.json 載入後舊鍵名已被寫回新鍵名');
-ck('migrate', !str_contains($permsRaw, 'edit_points'), 'perms.json 載入後舊鍵名已被寫回新鍵名');
 ck('migrate', str_contains($pinsRaw, 'bypass_code') && str_contains($permsRaw, 'bypass_code'), '既有 PIN／帳號授權已回填 bypass_code');
 ac_guard('projects', function () use ($cfg, $S) {
     $_COOKIE = $S['primary_cookie']['cookies']; Auth::reset();
@@ -414,7 +409,7 @@ foreach ($S as $name => $sc) {
     $add("req|$name|alpha|bypass_code|right", ['mode' => 'require', 'p' => ['sb' => $sb, 'scenario' => $name, 'project' => 'alpha', 'key' => 'bypass_code', 'csrf' => 'right']], $reqExp($sc, 'alpha', 'bypass_code', 'right'));
     $add("req|$name|site|manage_layers|right", ['mode' => 'require', 'p' => ['sb' => $sb, 'scenario' => $name, 'project' => null, 'key' => 'manage_layers', 'csrf' => 'right']], $reqExp($sc, null, 'manage_layers', 'right'));
 }
-foreach ([['primary_cookie', 'nope'], ['primary_cookie', 'edit_points'], ['pin', 'edit_points']] as [$n, $k]) {
+foreach ([['primary_cookie', 'nope'], ['pin', 'nope']] as [$n, $k]) {
     $add("req|$n|alpha|$k|right", ['mode' => 'require', 'p' => ['sb' => $sb, 'scenario' => $n, 'project' => 'alpha', 'key' => $k, 'csrf' => 'right']], 'deny_perm');
 }
 $reqRes = ac_jobs_run($jobs);

@@ -6,8 +6,6 @@
 
 建立在 [KoiLiSu 開利手](https://github.com/zisunny104/koilisu-framework) 框架上。
 
-本 repo 只含平台程式碼，不含各地圖內容與使用者資料。
-
 ## 功能
 
 - 分類彩色標記地圖，深淺主題自動切換
