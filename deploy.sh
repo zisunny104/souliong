@@ -348,7 +348,7 @@ fi
 
 BRANCH="${DEPLOY_BRANCH:-main}"
 
-# souliong 是純 PHP＋檔案儲存，沒有資料庫、沒有編譯步驟。
+# souliong 以檔案儲存，沒有資料庫、沒有編譯步驟。
 # 流程：fetch → 用獨立 worktree 跑過新版本的 tools/checkall.php → fast-forward 合併 → 選用重載 PHP。
 
 step "檢查 working tree"
