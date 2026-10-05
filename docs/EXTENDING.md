@@ -18,7 +18,7 @@ license, owner_hash, src_hash, contrib_id, contrib_hash, edit_of, created_at
 完整定義在 `api/features.php` 的 `souliong_kinds()`，見第三節。
 `edit_of` 指向被編輯的原始投稿 id（版本化：不覆寫，新增一筆版本紀錄，前端取最新版本蓋過原始值）。
 `contrib_id`/`contrib_hash` 是可選的投稿者身分（自選 PIN 才有）：前者對外可見（分組顯示用），後者僅供伺服器驗證「本人編輯/刪除」，不外流。
-`license` 是投稿時決定的授權：預設 `cc0`，已建立身分的投稿者可在投稿視窗勾選改成 `cc-by`（`api/upload.php` 會再驗一次有沒有 `ctoken`——沒有穩定身分就沒有名字可標示，一律回落 `cc0`）。目前只入庫、還沒有顯示端。
+`license` 是投稿時決定的授權：預設 `cc0`，已建立身分的投稿者可在投稿視窗勾選改成 `cc-by`（`api/upload.php` 會再驗一次有沒有 `ctoken`——沒有穩定身分就沒有名字可標示，一律回落 `cc0`）。
 
 ## 二、新增一張地圖（完全不用改程式）
 
@@ -31,13 +31,11 @@ license, owner_hash, src_hash, contrib_id, contrib_hash, edit_of, created_at
 
 ## 三、投稿型別（kind）：一個殼 ＋ 一組型別檔
 
-這一節原本是「之後要加聲音」的預測清單。實際做的時候一次做完照片／影片／音訊／文字四種投稿加上「建立點位」，
-預測大致命中（儲存 schemaless、渲染依 `kind` 分流，所以全是新增），但有幾件事是動手才想清楚的，記在這裡。
+投稿型別（照片／影片／音訊／文字）加上「建立點位」共用同一套機制：儲存是 schemaless、渲染依 `kind` 分流，新增型別都是加分支，不必遷移舊資料。
 
 ### 3.1 中央註冊表：`api/features.php` 的 `souliong_kinds()`
 
-這份表原本只有 `label` 跟一個全專案沒人讀的 `has_photo` 旗標——`kind` 只是「記錄下來的標籤」。
-現在它是真正被消費的定義，每個 kind 帶：
+這份表是 kind 的定義，每個 kind 帶：
 
 | 欄位 | 意義 |
 |---|---|
@@ -46,7 +44,7 @@ license, owner_hash, src_hash, contrib_id, contrib_hash, edit_of, created_at
 | `postable` | `upload.php` 是否接受前端直接 POST 這個 kind |
 | `file` | 要收的 `$_FILES` 欄位名；`null` ＝純文字投稿 |
 | `thumb` | 是否伴隨一張顯示用縮圖 |
-| `mimes` | 允許的 MIME ⇒ 副檔名（取代原本只服務照片的 `allowed_mime`） |
+| `mimes` | 允許的 MIME ⇒ 副檔名 |
 | `max_bytes` | 該型別的大小上限（沒寫就用 config 的預設） |
 
 **`postable` 是安全邊界，不是分類。** `spot` 是 `false`：它一旦可以直接 POST 到
@@ -129,8 +127,7 @@ license, owner_hash, src_hash, contrib_id, contrib_hash, edit_of, created_at
 
 點位識別（這是哪個點、在哪裡、帶什麼原生內容）跟投稿內容（掛在點位底下的一則則投稿）是兩回事，
 物理上也分開存放：`spot` 紀錄只進 `spots.jsonl`，其餘所有 kind 都進 `entries.jsonl`
-（`store_file()` 依 `kind` 分流，見 `api/store.php`）。原本各專案的 `data.jsonl` 是遷移前的唯讀存底，
-之後不會再被任何程式碼讀寫。
+（`store_file()` 依 `kind` 分流，見 `api/store.php`）。遷移前的 `data.jsonl` 是唯讀存底，不再被任何程式碼讀寫。
 
 `spot` 套用跟內容型別完全相同的 `edit_of` 鏈狀版本化，不是另開一套機制：
 
@@ -141,7 +138,7 @@ license, owner_hash, src_hash, contrib_id, contrib_hash, edit_of, created_at
   `spot_append_version()` 寫一筆稀疏版本紀錄：只帶這次改的欄位，沒提到的欄位不寫、也不會被蓋掉。
   寫入前會掃 `spots.jsonl` 找同 `item_num` 的起點紀錄來解析 `edit_of`；找不到起點紀錄就把 `edit_of` 留空，
   退回用 `item_num` 取最新一筆覆蓋——這是唯一沒辦法納入 `edit_of` 鏈的情況。
-- **`effectiveSpots()`**（`viewer.core.js`，即原本的 `effectivePoints()`）比照 `effectiveEntries()`
+- **`effectiveSpots()`**（`viewer.core.js`）比照 `effectiveEntries()`
   的 origins/edits 分組演算法：有 `title` 的是起點，`edit_of` 指向它的是版本鏈，取最新一筆疊加顯示；
   沒有起點可循的（`item_num` 覆蓋那批）疊到對應 `num` 的起點上。
 
@@ -166,34 +163,13 @@ license, owner_hash, src_hash, contrib_id, contrib_hash, edit_of, created_at
 > 主機端提醒：影片上傳會先撞到 PHP 自己的 `upload_max_filesize`／`post_max_size`（常見預設 2M／8M），
 > 那是 php.ini 的事，程式改不掉。要開放影片投稿前得先確認部署主機放行到多大。
 
-### 3.7 舊機制淘汰與退場
+### 3.7 舊資料相容
 
-`spot`／`entries.jsonl` 這次重構留下三個已淘汰、只為相容舊資料而存在的機制，不會再有新資料寫入：
+- `data.jsonl`（遷移前的存底）不再讀寫；確認 `spots.jsonl`＋`entries.jsonl` 完整涵蓋它之後，可用 `php tools/retirecheck.php <project_dir>`（唯讀）檢查，報告 PASS 再手動刪除。
+- 舊 `kind` 值 `point`／`newpoint` 對外一律視為 `spot`。
+- `meta.json` 的 `contrib.newPoint` 讀取時仍相容，下次後台存檔會寫成 `contrib.newSpot`。
 
-- **`data.jsonl`**：各專案資料夾下遷移前的唯讀存底，見 3.6 節。`store.php` 從這次重構開始所有函式都不讀寫它。
-- **`kind` 值 `point`／`newpoint`**：已併入 `spot`，見 3.6 節。舊資料裡不會再新增這兩個值。
-- **`primaryKind`**：已由 `spot` 紀錄的 `content` 欄位取代，見 3.6 節。
-
-**退場判準**：一個專案的 `data.jsonl` 可以安全刪除，若且唯若 `spots.jsonl`＋`entries.jsonl`
-完整涵蓋 `data.jsonl` 的每一筆紀錄（同一個 `id` 都找得到），且除了下列刻意改動之外，其餘欄位逐一相符：
-`kind`（`point`／`newpoint` 改寫為 `spot`）、`edit_of`（遷移時對這些紀錄新增的欄位，原本沒有）、
-`feature`（舊版部分專案遷移時對 `spot` 起點紀錄回填的欄位，系統已不再讀寫它，比對時忽略）。
-
-**步驟**：執行 `php tools/retirecheck.php <project_dir>`（唯讀、CLI only，不寫入也不刪除任何東西）。
-報告 PASS 才手動刪除該專案的 `data.jsonl`——刪除動作永遠由人工執行，這支工具不會替你刪。
-
-**範圍**：這裡列的三項只涵蓋這次 `spot`／`entries` 重構本身淘汰的機制。專案裡其他既有的相容／
-遷移代碼（例如帳號系統的 PIN→帳號遷移、管理 PIN 檔案首次使用時改名、投稿代碼檔案格式一次性遷移）
-是各自獨立的既有設計，不在這個退場判準的範圍內。
-
-**後續的「Point → Spot 全面改名」計畫已完成**：檔名（`api/newspot.php`／`api/editspot.php`／
-`assets/css/spot-panel.css`／`assets/js/contrib/kind-newspot.js`）、投稿 kind registry 的
-`newspot` key、`?spot=` URL 參數（不留 `?point=` 相容別名）、`edit_points`→`edit_spots` 權限 key、
-JS 函式（`spotTitle()`／`nearestSpot()`／`getCurrentSpot()`／`submitNewSpot()` 等）與對應的 CSS
-class/i18n key 都已統一改成 `spot`。`meta.json` 的 `contrib.newPoint` 也已改名為 `contrib.newSpot`（`CONTRIB_CFG.newSpot`）；
-`souliong_contrib_cfg()` 讀取時仍相容舊鍵 `newPoint`，下次後台存檔會寫成新鍵。
-
-## 四、多地圖「重疊」呈現（未來）
+## 四、多地圖「重疊」呈現（尚未實作）
 
 - 現在檢視器一次載入一張地圖（一個 project）。
 - 要「疊圖」＝同時載入多個 project 的點位與投稿、用圖層開關切換。
@@ -224,7 +200,7 @@ CSS 全部前綴 `.stat-card .col`，因為要蓋過同層的 `.stat-card .col o
 
 ## 六、功能模組開關（後台可關，每張地圖各自設定）
 
-地圖核心只保留「顯示點位」這個基本功能；路線導覽、點位故事編輯、上傳投稿、嵌入代碼、分享、回平台首頁、投稿者身分、依序探索、管理者邀請登入這九樣都是可關的模組，管理者在後台「編輯專案描述」對話框裡逐一勾選，存在該地圖 `meta.json` 的 `features` 物件（`{"route":true,"upload":false,...}`）。單一事實來源在 `api/features.php` 的 `souliong_modules()`（key／中文說明／預設值）與 `souliong_module_on($meta, $key)`（沒設定就用預設值，舊地圖不受影響）：
+地圖核心只保留「顯示點位」這個基本功能；路線導覽、點位內容編輯、上傳投稿、嵌入代碼、分享、投稿者身分等都是可關的模組（完整清單見 `souliong_modules()`），管理者在後台「編輯專案描述」對話框裡逐一勾選，存在該地圖 `meta.json` 的 `features` 物件（`{"route":true,"upload":false,...}`）。單一事實來源在 `api/features.php` 的 `souliong_modules()`（key／中文說明／預設值）與 `souliong_module_on($meta, $key)`（沒設定就用預設值，舊地圖不受影響）：
 
 - **後台**（`manager.php`）：`souliong_modules()` 逐一畫勾選框，送出後寫回 `meta.json`。
 - **樣板**（`view.php`）：`$mod = fn($key) => souliong_module_on($meta, $key);`，模組關閉時直接不輸出對應的按鈕／彈窗 HTML（不是用 CSS 藏起來）。
@@ -261,7 +237,7 @@ CSS 全部前綴 `.stat-card .col`，因為要蓋過同層的 `.stat-card .col o
 - `assets/js/plugins/share-link.js`（`share` 旗標——全螢幕分享卡片＋QR code；`class ShareLinkPlugin extends MapApp.Plugin` 寫法。連帶的 vendor 函式庫 `qrcode-generator.js` 也一併只在 `share` 開啟時由 `view.php` 條件載入，避免關閉時仍多載一支用不到的腳本）。
 - `assets/js/plugins/route-tour.js`（`route` 旗標——多投稿者路徑／單人路徑／連點彩蛋動畫；`class RouteTourPlugin extends MapApp.Plugin` 寫法。這個模組原本跟核心主渲染流程（新增／刪除／編輯／篩選）交纏最深，改法是把核心那些散落各處的 `drawRoute()`/`drawPersonRoute()` 呼叫全部收斂成統一的 `'stateChange'` 事件——資料或篩選狀態一變就發送一次，插件訂閱這個事件自己決定要不要重繪，核心不用再認得「路徑」這個概念。`#routeBtn` 也已改為插件自己在 `mount()` 建立並插入 `#ctlBody` 第一個 `.ctl-row`，`view.php` 不再輸出這顆按鈕）。
 - `assets/js/plugins/content-editor.js`（`contentEdit` 旗標——點位內容區塊的編輯：新增／修改／刪除／排序 text、audio、photo 區塊，整體送 `spotcontent.php` 的 `op=save`；寫入權限看 `edit_spots`，旗標只決定前端顯不顯示入口）。
-- `assets/js/plugins/contribution.js`（`upload` 旗標——目前最大的一個插件，同一個類別依範圍開兩個實例：投稿視窗（`#contribModal`）與建立點位視窗（`#spotModal`），各有自己的右下角入口鈕。投稿按鈕、分頁式批次投稿視窗、每張卡片的小地圖／定位來源／點位下拉、送出（含 429 限流自動重試）。型別專屬的知識（EXIF、WebP 轉檔、抽影格、錄音、建立點位表單）全都不在這個檔案裡，而在 `assets/js/contrib/kind-*.js`，見第三節。`#uploadBtn`/`#unlockFab`/`#pickImages`（插在 `#resetBtn` 之後）與批次投稿彈窗 `#contribModal`（插在 `#panel` 之後）都已改為插件自己在 `mount()` 的 `injectDom()` 建立並插入固定位置，`view.php` 不再輸出這幾段 HTML。解鎖對話框（掃碼／投稿代碼／PIN）與 `?code=` 網址參數自動解鎖仍留在核心，完全不受此旗標影響——「能不能寫入」是核心原生功能，「怎麼上傳」才是這個模組的範圍，見上面第 5 點規則。身分小標籤點擊快速開啟批次視窗改用 `'identityUploadShortcut'` 事件（核心不再直接呼叫插件內部函式），`u` 鍵快速鍵與點位卡片裡的「投稿到這個點」按鈕都用 `MapApp.getCurrentSpot()`／`MapApp.isUnlocked()` 等核心原生功能拿到需要的狀態，不假設自己知道核心內部變數）。
+- `assets/js/plugins/contribution.js`（`upload` 旗標——目前最大的一個插件，同一個類別依範圍開兩個實例：投稿視窗（`#contribModal`）與建立點位視窗（`#spotModal`），各有自己的右下角入口鈕。投稿按鈕、分頁式批次投稿視窗、每張卡片的小地圖／定位來源／點位下拉、送出（含 429 限流自動重試）。型別專屬的知識（EXIF、WebP 轉檔、抽影格、錄音、建立點位表單）全都不在這個檔案裡，而在 `assets/js/contrib/kind-*.js`，見第三節。`#uploadBtn`/`#unlockFab`/`#pickImages`（插在 `#resetBtn` 之後）與批次投稿彈窗 `#contribModal`（插在 `#panel` 之後）都已改為插件自己在 `mount()` 的 `injectDom()` 建立並插入固定位置，`view.php` 不再輸出這幾段 HTML。解鎖對話框（掃碼／投稿代碼／PIN）與 `?code=` 網址參數自動解鎖仍留在核心，完全不受此旗標影響——「能不能寫入」是核心原生功能，「怎麼上傳」才是這個模組的範圍，見上面第 5 點規則。嵌入投稿（`?embed=1&ui=submit`，見 EMBED-API.md）時只顯示投稿對話框，由 `submitEmbed()`／`mountSubmitEmbed()` 處理。身分小標籤點擊快速開啟批次視窗改用 `'identityUploadShortcut'` 事件（核心不再直接呼叫插件內部函式），`u` 鍵快速鍵與點位卡片裡的「投稿到這個點」按鈕都用 `MapApp.getCurrentSpot()`／`MapApp.isUnlocked()` 等核心原生功能拿到需要的狀態，不假設自己知道核心內部變數）。
 - `assets/js/plugins/contributor-identity.js`（`identity` 旗標——右上角身分小標籤的渲染（暱稱／管理者／匿名預覽名、解鎖狀態圖示）、點擊與長按換名的事件綁定、解鎖對話框裡「建立身分」PIN／暱稱欄位的展開收合按鈕。`#identity` 小標籤已改為插件自己在 `mount()` 建立並插入 `#trItems` 的最前面，`view.php` 不再輸出這段 HTML；旗標關閉時整個檔案不會被載入，`#identity` 自然不存在。`#idToggleBtn`/`#idFields` 仍是 `view.php` 在 `#unlockDialog` 裡輸出的既有 HTML（原因見下段），解鎖對話框其餘部分（投稿代碼輸入、QR 掃描）不受影響，純代碼解鎖照常可用。PIN／暱稱欄位本身的讀取（送出解鎖時）與重置（對話框重開時）仍留在核心——它們跟純代碼解鎖共用同一個對話框與送出按鈕，沒有乾淨的切點，且已對 DOM 是否存在做防呆（`if (el)`），旗標關閉時安全略過；`contribToken`/`contribInfo`/`myContribId` 這些「有無設定過 PIN」的實際存取也留在核心，因為 `submitContribution`／刪除／照片編輯等核心自身送出流程都要用到，且沒設 PIN 時它們本來就是無害的空字串，不受這個模組開關影響。`personExplore` 透過 `dependsOn` 相依這個模組，見下一節）。
 - `assets/js/plugins/person-explore.js`（`personExplore` 旗標——選了投稿者後可依序探索他的點位／零散照片時間軸；這個檔案早於 `MapApp.Plugin` 基底類別存在，尚未改寫成 `extends` 寫法，但其餘規則——旗標自我檢查、`<style>` 自己注入、DOM 自己插入 `#ctlBody`——仍是有效範例）。
 
@@ -328,7 +304,7 @@ CSS 全部前綴 `.stat-card .col`，因為要蓋過同層的 `.stat-card .col o
 }
 ```
 
-`type` 目前兩種：`raster`（`L.tileLayer`，吃 `subdomains`／`detectRetina`／`maxZoom`／`maxNativeZoom`／`minZoom`／`tms`／`bounds`）與 `image`（`L.imageOverlay`，`bounds` 是必要的，可用透明 PNG 或 SVG）。`urlDark` 有值的圖層會在深淺色切換時重建，沒有的原地不動。
+`type` 有：`vector`（向量底圖，見 8.4.1）、`raster`（吃 `subdomains`／`detectRetina`／`maxZoom`／`maxNativeZoom`／`minZoom`／`tms`／`bounds`）與 `image`（`bounds` 是必要的，可用透明 PNG 或 SVG）。`urlDark` 有值的圖層會在深淺色切換時重建，沒有的原地不動。
 
 **這些欄位必須整組跟著 manifest，不能只抽 URL**：`subdomains`／`detectRetina`／`maxNativeZoom` 都是跟著來源走的屬性，少一個就破圖。
 
@@ -486,11 +462,9 @@ CSS 全部前綴 `.stat-card .col`，因為要蓋過同層的 `.stat-card .col o
 
 **重切時沒勾「保留原稿」，等於把上一次留的原稿刪掉**：`begin` 一律先清 `layersrc/<id>/`。理由跟清舊磚一樣——留著跟這一版對不起來的原稿，比沒有更危險。
 
-### 8.8 尚未完成（原「向量圖層」規劃已被取代）
+### 8.8 向量圖磚
 
-向量圖磚（`.pbf`/`.mvt` 那種、樣式在瀏覽器端即時渲染的真正向量圖磚——**注意這跟 8.10 的「保持向量」不是同一件事**，8.10 是單張 SVG 原封不動當 `type:"image"` 疊圖用）由 `MapLibreEngine`（見 8.4.1）處理：`type:"vector"` 的 `layer.json` 就是向量底圖的正式機制（見 `layers/openfreemap-liberty/layer.json` 這個現成範例）。
-
-道路／水域線寬這類「向量底圖細部樣式想再調」的需求目前刻意擱置，不在這次範圍內。
+`.pbf`／`.mvt` 向量圖磚由 `MapLibreEngine`（見 8.4.1）處理：`type:"vector"` 的 `layer.json` 就是向量底圖的機制（範例 `layers/openfreemap-liberty/layer.json`）。這跟 8.10 的「保持向量」不同：後者是把單張 SVG 當 `type:"image"` 疊圖。
 
 ### 8.9 主題包的兩層作用域
 
@@ -520,7 +494,7 @@ CSS 全部前綴 `.stat-card .col`，因為要蓋過同層的 `.stat-card .col o
 
 ### 8.10 保持向量輸出
 
-`layer.json` 的 `type:"image"`（`imageOverlay`）從一開始就跟 `type:"raster"`（`tileLayer`）一樣是一等公民（見 8.3）——`layerfile.php`、`manager.php`、前端 viewer 全都同時支援兩種。8.7 一直沒有的，只是**產生**一份 `type:"image"` manifest 的路：`tilecut.php` 原本永遠切磚、永遠輸出 `type:"raster"`。這裡補的是產生端，不是消費端。
+`layer.json` 的 `type:"image"` 跟 `type:"raster"` 一樣是一等公民（見 8.3），`layerfile.php`、`manager.php`、前端都同時支援。`tilecut.php` 預設切磚輸出 `type:"raster"`；「保持向量」是另一條產生 `type:"image"` manifest 的路。
 
 **適用條件**：清單裡剛好一張、而且是 SVG。前端 `vectorEligible()`／`vectorActive()`（`api/tilecut.php` 內嵌 script）判斷是否顯示「保持向量」核取方塊；伺服器端在 `finish` 動作裡獨立再驗一次——`$_POST['vector']` 非空時要求 `edit.pieces` 剛好一筆、且檔名符合 `/^p\d{1,2}\.svg$/`，兩者有一個不成立就回 `tilecut_vector_bad_source_msg`（400）。前端的判斷只是省一次來回，真正擋壞資料的是後者。
 
@@ -641,9 +615,9 @@ CSS 全部前綴 `.stat-card .col`，因為要蓋過同層的 `.stat-card .col o
 
 ## 十二、檢查工具
 
-`php tools/checkall.php` 依序跑 `php -l`（全專案 php，不含 `vendor`／`projects`／`state`）、`authlint`、`authcheck`、`contentcheck`、`embedcheck`、`securitycheck`、`sessioncheck`；環境有 `node` 時再對 `assets/js` 跑 `node --check`。全過結束碼 0，任一項失敗結束碼 1，最後列出每項結果與失敗摘要。`authcheck` 與 `contentcheck` 在臨時沙盒跑，不碰真實的 `projects/` 與 `state/`。改動端點、權限或前端腳本後跑一次。
+`php tools/checkall.php` 依序跑 `php -l`（全專案 php，不含 `vendor`／`projects`／`state`）、`authlint`、`authcheck`、`contentcheck`、`embedcheck`、`securitycheck`、`contributioncheck`、`sessioncheck`；環境有 `node` 時再對 `assets/js` 跑 `node --check`、`securitycheck.js`、`markercolorcheck.js`。全過結束碼 0，任一項失敗結束碼 1，最後列出每項結果與失敗摘要。`authcheck` 與 `contentcheck` 在臨時沙盒跑，不碰真實的 `projects/` 與 `state/`。改動端點、權限或前端腳本後跑一次。
 
-部署用 `./deploy.sh`，其中 `--check-only` 只做設定與網站自我檢查：用金絲雀檔確認 `state/`、`projects/` 沒被網頁直接下載，也確認 `.git/` 沒外洩。檢查網址用 `./deploy.sh --set-check-url https://example.com/project` 設定一次，或設環境變數 `DEPLOY_CHECK_URL`。檢查邏輯用 `bash tools/deploycheck.sh` 驗證。
+部署用 `./deploy.sh`，其中 `--check-only` 只做設定與網站自我檢查：用金絲雀檔確認 `state/`、`projects/` 沒被網頁直接下載，也確認 `.git/` 沒外洩。檢查網址用 `./deploy.sh --set-check-url https://example.com/project` 設定一次，或設環境變數 `DEPLOY_CHECK_URL`。檢查邏輯用 `bash tools/deploycheck.sh` 驗證。Apache 部署可用根目錄的 `.htaccess` 拒絕 `state/`、`projects/`；Nginx 規則見 `deploy.sh` 自檢輸出。投稿代碼猜錯另有獨立限流（`rate_limits.codefail`）。
 
 ## 十三、權限系統：`Auth` / `Actor` / `auth_registry()`
 
