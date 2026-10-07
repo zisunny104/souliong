@@ -56,7 +56,7 @@
           <div class="hint" id="shareSub"></div>
           <div class="hint share-url" id="shareUrl"></div>
           <div class="dialog-actions" style="justify-content:center">
-            <button class="btn primary" id="shareCopyBtn"><i class="fa-solid fa-link"></i> ${esc(t('copy_link'))}</button>
+            <button class="btn primary" id="shareCopyBtn" title="${esc(t('copy_link'))}" aria-label="${esc(t('copy_link'))}"><i class="fa-solid fa-link" aria-hidden="true"></i></button>
             <span id="shareCopyMsg" class="hint"></span>
           </div>
         </div>

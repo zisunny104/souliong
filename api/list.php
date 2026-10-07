@@ -23,7 +23,7 @@ try {
             $r['content'] = spot_content_render($r['content']);
             $r['content_rev'] = $r['id'] ?? null;
         }
-        if (($r['kind'] ?? '') === 'text' && !empty($r['comment'])) $r['html'] = spot_markdown((string)$r['comment']);
+        if (in_array($r['kind'] ?? 'photo', ['text', 'photo'], true) && !empty($r['comment'])) $r['html'] = spot_markdown((string)$r['comment']);
     }
     unset($r);
     json_out(['project' => $project, 'items' => array_values($rows)]);

@@ -1334,8 +1334,8 @@ window.MapApp = (() => {
       const canEdit = canEditEntry(e);
       // 只有預覽區依型別換掉，底下的 meta／編輯／刪除／歷史四段所有型別完全共用
       d.innerHTML = entryPreviewHtml(e, alt) + '<div class="meta">' + entryBylineHtml(e) +
-        (e.comment ? (kindOf(e) === 'text' && e.html ? '<div class="txt sc-md">' + e.html + '</div>' : '<div class="txt">' + esc(e.comment) + '</div>') : '') +
-        '<div class="entry-actions">' +
+        (e.comment ? (['text', 'photo'].includes(kindOf(e)) && e.html ? '<div class="txt sc-md">' + e.html + '</div>' : '<div class="txt">' + esc(e.comment) + '</div>') : '') +
+        entryLicenseHtml(e) + '<div class="entry-actions">' +
         (canEdit ? '<button class="btn small edit-btn" type="button"><i class="fa-solid fa-pen"></i> ' + esc(t('edit')) + '</button>' : '') +
         (!EMBED && MOD('entryHistory') && e.editHistory && e.editHistory.length > 1 ? '<button class="btn small hist-btn" type="button">' + esc(t('history_versions', { n: e.editHistory.length })) + '</button>' : '') +
         (!EMBED && isMine(e) ? '<button class="del-btn" type="button"><i class="fa-solid fa-trash"></i> ' + esc(t('delete')) + '</button>' : '') + '</div>' +
@@ -1360,12 +1360,14 @@ window.MapApp = (() => {
   function blockLinkButton(num, blockId) {
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'btn small sc-block-link';
-    b.innerHTML = '<i class="fa-solid fa-link"></i> ' + esc(t('copy_link'));
+    b.title = t('copy_link'); b.setAttribute('aria-label', t('copy_link'));
+    b.innerHTML = '<i class="fa-solid fa-link" aria-hidden="true"></i>';
     b.onclick = async () => {
       const url = location.origin + window.APP.base + PROJECT + '?spot=' + encodeURIComponent(num) + '&block=' + encodeURIComponent(blockId);
       try { await navigator.clipboard.writeText(url); } catch (e) { }
-      b.innerHTML = '<i class="fa-solid fa-check"></i> ' + esc(t('copied'));
-      setTimeout(() => { b.innerHTML = '<i class="fa-solid fa-link"></i> ' + esc(t('copy_link')); }, 2000);
+      b.innerHTML = '<i class="fa-solid fa-check" aria-hidden="true"></i>';
+      b.title = t('copied');
+      setTimeout(() => { b.innerHTML = '<i class="fa-solid fa-link" aria-hidden="true"></i>'; b.title = t('copy_link'); }, 2000);
     };
     return b;
   }
@@ -1584,6 +1586,10 @@ window.MapApp = (() => {
       b.onclick = () => window.SLContentEditor.restore(current, versions.slice().reverse()[+b.dataset.i].blocks);
     });
   }
+  function entryLicenseHtml(e) {
+    if (e.license !== 'cc-by') return '';
+    return '<div class="entry-license">CC BY' + (e.name ? ' · ' + esc(e.name) : '') + '</div>';
+  }
   /* ---------- lightbox ---------- */
   // 單張的「i」資訊內容：相機 EXIF（機身/鏡頭/光圈/快門/焦段/ISO）、拍攝時間、座標與定位來源
   function photoInfoHtml(e) {
@@ -1642,14 +1648,14 @@ window.MapApp = (() => {
     // 照片資訊改成「時間後面的 i 小圖示」，不佔一顆獨立按鈕
     const who = (MOD(e.spotBlock ? 'spotByline' : 'entryByline') ? esc(bylineText(e.spotBlock ? 'spot' : 'entry', e.name, e.photo_time || e.created_at)).replace(/\n/g, ' ・ ') : '') +
       ' <button class="lb-info-i" type="button" id="lbInfoBtn" title="' + esc(t('photo_info_title')) + '" aria-label="' + esc(t('photo_info_title')) + '"><i class="fa-solid fa-circle-info" aria-hidden="true"></i></button>';
-    const txt = e.comment ? '<div class="lb-txt">' + esc(e.comment) + '</div>' : '';
+    const txt = e.comment ? '<div class="lb-txt sc-md">' + (!e.spotBlock && ['text', 'photo'].includes(kindOf(e)) && e.html ? e.html : esc(e.comment)) + '</div>' : '';
     const canEdit = !e.spotBlock && canEditEntry(e);   // 說明區的照片區塊不是投稿，沒有可編輯的投稿紀錄
     const actions =
       (canEdit ? '<button class="btn small" type="button" id="lbEditBtn"><i class="fa-solid fa-pen"></i> ' + esc(t('edit')) + '</button>' : '') +
       (!EMBED && isMine(e) ? '<button class="btn small danger" type="button" id="lbDelBtn"><i class="fa-solid fa-trash"></i> ' + esc(t('delete')) + '</button>' : '');
     const cap = document.getElementById('lbCap');
     cap.style.display = '';
-    cap.innerHTML = '<div class="lb-who byline-text">' + who + '</div>' + txt + (actions ? '<div class="lb-actions">' + actions + '</div>' : '') +
+    cap.innerHTML = '<div class="lb-who byline-text">' + who + '</div>' + txt + (!e.spotBlock ? entryLicenseHtml(e) : '') + (actions ? '<div class="lb-actions">' + actions + '</div>' : '') +
       '<div class="lb-info" id="lbInfo" style="display:none"></div>';
     const ib = cap.querySelector('#lbInfoBtn');
     if (ib) ib.onclick = (ev) => {

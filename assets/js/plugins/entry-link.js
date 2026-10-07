@@ -36,7 +36,9 @@
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'btn small';
-        btn.innerHTML = '<i class="fa-solid fa-link"></i> ' + esc(t('copy_entry_link'));
+        btn.title = t('copy_entry_link');
+        btn.setAttribute('aria-label', t('copy_entry_link'));
+        btn.innerHTML = '<i class="fa-solid fa-link" aria-hidden="true"></i>';
         btn.onclick = async (ev) => {
           ev.stopPropagation();
           try {
