@@ -1128,7 +1128,7 @@ window.MapApp = (() => {
       a.innerHTML = '<i class="' + (icon === 'link' ? 'fa-solid fa-link' : 'fa-brands fa-' + icon) + '" aria-hidden="true"></i>';
       links.appendChild(a);
     });
-    box.row.appendChild(links);
+    box.row.insertBefore(links, document.getElementById('spotEditBtn'));
     box.row.style.display = (ok || editShown || links.childElementCount) ? '' : 'none';
   }
   // 貼著觸發鈕定位：預設左對齊，右緣放不下才翻右對齊；下方放不下就翻到上面，兩軸都夾在視窗內
@@ -1786,8 +1786,8 @@ window.MapApp = (() => {
       lbImg.src = nextUrl;
     }
     // 照片資訊改成「時間後面的 i 小圖示」，不佔一顆獨立按鈕
-    const who = (MOD(e.spotBlock ? 'spotByline' : 'entryByline') ? esc(bylineText(e.spotBlock ? 'spot' : 'entry', e.name, e.photo_time || e.created_at)).replace(/\n/g, ' ・ ') : '') +
-      ' <button class="lb-info-i" type="button" id="lbInfoBtn" title="' + esc(t('photo_info_title')) + '" aria-label="' + esc(t('photo_info_title')) + '"><i class="fa-solid fa-circle-info" aria-hidden="true"></i></button>';
+    const who = (MOD(e.spotBlock ? 'spotByline' : 'entryByline') ? esc(bylineText(e.spotBlock ? 'spot' : 'entry', e.name, e.photo_time || e.created_at)).replace(/\n/g, ' ・ ') : '');
+    const infoBtn = '<button class="lb-info-i" type="button" id="lbInfoBtn" title="' + esc(t('photo_info_title')) + '" aria-label="' + esc(t('photo_info_title')) + '"><i class="fa-solid fa-circle-info" aria-hidden="true"></i></button>';
     const markdown = !e.spotBlock && ['text', 'photo'].includes(kindOf(e)) && e.html;
     const txt = e.comment ? '<div class="lb-txt' + (markdown ? ' sc-md' : '') + '">' + (markdown || esc(e.comment)) + '</div>' : '';
     const canEdit = !e.spotBlock && canEditEntry(e);   // 說明區的照片區塊不是投稿，沒有可編輯的投稿紀錄
@@ -1796,7 +1796,7 @@ window.MapApp = (() => {
       (!EMBED && isMine(e) ? '<button class="btn small danger" type="button" id="lbDelBtn"><i class="fa-solid fa-trash"></i> ' + esc(t('delete')) + '</button>' : '');
     const cap = document.getElementById('lbCap');
     cap.style.display = '';
-    cap.innerHTML = '<div class="lb-who byline-text">' + who + '</div>' + txt + (!e.spotBlock ? '<div class="entry-footer"><span class="lb-link-actions"></span>' + (actions ? '<div class="lb-actions">' + actions + '</div>' : '') + entryLicenseHtml(e) + '</div>' : '') +
+    cap.innerHTML = infoBtn + (who ? '<div class="lb-who byline-text">' + who + '</div>' : '') + txt + (!e.spotBlock ? '<div class="entry-footer"><span class="lb-link-actions"></span>' + (actions ? '<div class="lb-actions">' + actions + '</div>' : '') + entryLicenseHtml(e) + '</div>' : '') +
       '<div class="lb-info" id="lbInfo" style="display:none"></div>';
     if (!e.spotBlock) entryActionFns.forEach(fn => { const el = fn(e); if (el?.dataset.entryLink) cap.querySelector('.lb-link-actions').appendChild(el); });
     if (!e.spotBlock) { const footer = cap.querySelector('.entry-footer'); footer.insertBefore(citationButton(e), footer.querySelector('.entry-license')); }

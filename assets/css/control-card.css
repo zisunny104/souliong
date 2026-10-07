@@ -169,6 +169,7 @@
 
 /* 這顆按鈕平常是完全透明的，直接坐在材質底圖上，hover 用一般的 --hover（5.5%／8%）
    幾乎看不出差別。改用加強版疊色，理由同 .idchip:hover（page-frame.css）。 */
+a.btn, a.btn:hover, a.icon-btn, a.icon-btn:hover { text-decoration: none; }
 .icon-btn:hover {
   background: var(--hover-strong);
   color: var(--fg)

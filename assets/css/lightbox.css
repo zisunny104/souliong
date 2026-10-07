@@ -96,18 +96,22 @@
   margin-bottom: 4px
 }
 
-/* 照片資訊：時間後面的 i 小圖示（不是獨立按鈕） */
+/* 照片資訊：說明卡右上角的 i 小圖示，不另佔一行；有姓名與時間時，那一行右邊留位置給它 */
 #lb .cap .lb-info-i {
+  position: absolute;
+  top: 6px;
+  right: 8px;
   border: none;
   background: none;
   color: #fff;
   opacity: .7;
   font-size: 0.875rem;
-  padding: 0 2px;
-  vertical-align: -1px;
+  line-height: 1;
+  padding: 4px;
   cursor: pointer;
   transition: opacity var(--t)
 }
+#lb .cap .lb-who { padding-right: 1.6rem }
 
 #lb .cap .lb-info-i:hover {
   opacity: 1
