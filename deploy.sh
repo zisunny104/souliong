@@ -336,7 +336,7 @@ fi
 BRANCH="${DEPLOY_BRANCH:-main}"
 
 # souliong 以檔案儲存，沒有資料庫、沒有編譯步驟。
-# 流程：fetch → 用獨立 worktree 跑過新版本的 tools/checkall.php → fast-forward 合併 → 選用重載服務。
+# 流程：fetch → fast-forward 更新 → 選用重載服務 → 部署與網站檢查。
 
 require_cmd git git
 
@@ -360,7 +360,7 @@ if command -v php >/dev/null 2>&1; then
     exit 1
   fi
 else
-  warn "缺少 PHP CLI，略過部署前檢查"
+  warn "缺少 PHP CLI，略過 PHP 執行環境檢查"
   install_hint php-cli
 fi
 
@@ -380,37 +380,6 @@ fi
 if [ "$BEFORE" = "$AFTER" ]; then
   ok "已是最新版本（${AFTER}）"
 else
-  step "檢查程式"
-  echo "  ${DIM}git worktree 跑 tools/checkall.php（php -l／authlint／authcheck／contentcheck）${RESET}"
-  # 在 merge「之前」就檢查：把 FETCH_HEAD 的內容放到旁邊一個獨立 worktree 去跑 checkall，
-  # 有錯就中止，線上的檔案完全沒動。merge 之後才發現，網站已經是壞的了。
-  # authcheck／contentcheck 會自己另開臨時沙盒跑，但啟動時仍需要讀到 api/config.php
-  # （機密設定，沒進版控），所以複製現有那份進 worktree，用完整個 worktree 一起丟棄，
-  # 不會留下任何痕跡、也不會動到正式的 api/config.php。
-  if [ "$HAS_PHP" -eq 1 ]; then
-    if [ ! -f api/config.php ]; then
-      fail "找不到 api/config.php，authcheck／contentcheck 無法啟動沙盒，部署已中止"
-      echo "  ${DIM}首次部署請先手動執行 cp api/config.example.php api/config.php 並填入密鑰，再重新執行${RESET}"
-      exit 1
-    fi
-    WT="$(mktemp -d)"
-    rmdir "$WT"
-    cleanup_wt() { git worktree remove --force "$WT" >/dev/null 2>&1 || true; }
-    trap cleanup_wt EXIT
-    git worktree add --quiet --detach "$WT" FETCH_HEAD
-    cp api/config.php "$WT/api/config.php"
-    if (cd "$WT" && php tools/checkall.php); then
-      ok "checkall 全部通過（新版本 ${AFTER}）"
-    else
-      fail "checkall 在新版本（${AFTER}）上失敗（細節見上方輸出），部署已中止，線上檔案沒有變動"
-      exit 1
-    fi
-    trap - EXIT
-    cleanup_wt
-  else
-    warn "略過（沒有 php 指令）"
-  fi
-
   step "更新程式"
   git merge --ff-only --quiet FETCH_HEAD
   ok "已更新：${DIM}${BEFORE}${RESET} → ${GREEN}${BOLD}${AFTER}${RESET}"

@@ -1085,6 +1085,8 @@
 .entry-footer { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .entry-footer .entry-license { margin-top: 0; }
 .entry-license a { color: inherit; }
+.entry-license a[rel~="license"] { text-decoration: none; }
+.entry-license-label { text-decoration: underline; }
 .entry-license .fa-brands { font-size: 1rem; }
 .entry-link-actions:empty, .lb-link-actions:empty { display: none; }
 

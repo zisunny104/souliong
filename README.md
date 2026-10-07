@@ -30,3 +30,6 @@
 程式碼採 MIT（見 [LICENSE](LICENSE)）。地圖圖資 © OpenStreetMap 貢獻者（ODbL）、向量圖磚 © OpenFreeMap；使用者投稿預設以 CC0 公開，已建立身分的投稿者可改選 CC BY。
 
 © 2026 prjToka
+
+部署腳本只負責更新、執行環境與網站檢查，不執行 `tools/checkall.php` 或
+建立測試 worktree；語法及完整測試請在提交前或 CI 執行。
