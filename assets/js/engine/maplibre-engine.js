@@ -386,6 +386,8 @@ window.MapLibreEngine = (() => {
         el.style.width = spec.size[0] + 'px';
         el.style.height = spec.size[1] + 'px';
         el.innerHTML = spec.html;
+        if (spec.className) el.className = spec.className;
+        el.dataset.mid = String(spec.id);
         // maplibregl.Marker 的 DOM 元素是 map 容器的子節點，click 事件預設會冒泡到
         // onBackgroundClick 的 map.on('click', ...)，這裡先擋掉。
         if (spec.onClick) el.addEventListener('click', (e) => { e.stopPropagation(); spec.onClick(); });
@@ -393,6 +395,12 @@ window.MapLibreEngine = (() => {
           .setLngLat([spec.lon, spec.lat]).addTo(this.map);
         arr.push(marker);
       });
+    }
+    // 某層目前的標記元素：id（字串）→ 元素，供只更新樣式、不重建標記時使用
+    markerElements(layerKey) {
+      const map = new Map();
+      (this._markerLayers[layerKey] || []).forEach(mk => { const el = mk.getElement(); if (el && el.dataset.mid != null) map.set(el.dataset.mid, el); });
+      return map;
     }
     clearMarkerLayer(layerKey) {
       const arr = this._markerLayers[layerKey];

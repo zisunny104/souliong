@@ -112,6 +112,7 @@ window.MapEngine = (() => {
     setMarkerLayer(layerKey, specs) { throw new Error('MapEngine.setMarkerLayer() not implemented'); }
     clearMarkerLayer(layerKey) { throw new Error('MapEngine.clearMarkerLayer() not implemented'); }
     onZoomThresholdCross(zoom, fn) { throw new Error('MapEngine.onZoomThresholdCross() not implemented'); }
+    markerElements(layerKey) { throw new Error('MapEngine.markerElements() not implemented'); }
     onZoomEnd(fn) { throw new Error('MapEngine.onZoomEnd() not implemented'); }
 
     // ---- 路線／動畫點 ----
