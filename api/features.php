@@ -157,6 +157,7 @@ function souliong_modules(): array
         'contribBrowse' => ['label' => '投稿瀏覽切換', 'desc' => '地圖控制卡上的「全部／投稿」切換鈕與投稿者篩選下拉。關閉後只保留單一檢視、點點位一樣看得到內容，適合每個點位內容是策展而非群眾投稿的地圖。', 'default' => true],
         'categoryLegend' => ['label' => '分類圖例', 'desc' => '地圖控制卡上的分類色塊清單（可點擊切換各分類顯示／隱藏）。分類只有一種、或不想讓訪客切換顯示範圍時可關閉，點位本身與點開的內容不受影響。', 'default' => true],
         'spotList' => ['label' => '點位列表', 'desc' => '地圖控制卡上直接列出可點擊的點位清單，取代「跳到點位」下拉選單。開啟後下拉選單只在投稿者篩選模式（見 contribBrowse）才會出現。', 'default' => false],
+        'spotListMarkers' => ['label' => '清單顯示地標', 'desc' => '點位下拉清單與點位列表顯示和地圖相同的地標標記。', 'default' => true],
         'spotHistory' => ['label' => '點位編輯紀錄', 'desc' => '顯示點位內容的版本紀錄。關閉只隱藏前台入口，保留原始資料。', 'default' => true],
         'entryHistory' => ['label' => '投稿編輯紀錄', 'desc' => '顯示投稿的版本紀錄。', 'default' => true],
         'spotByline' => ['label' => '點位署名', 'desc' => '顯示點位內容編輯者與時間。', 'default' => true],

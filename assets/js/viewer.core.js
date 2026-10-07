@@ -869,6 +869,9 @@ window.MapApp = (() => {
     const listBox = document.getElementById('spotList');
     const countPill = document.getElementById('spotFilterCount');
     if (countPill) countPill.hidden = true;
+    const menu = document.getElementById('spotFilterMenu');
+    if (menu) menu.hidden = true;
+    if (sel) sel.hidden = false;
     if (!sel && !listBox) return;
     if (photoLayerOn) {
       if (listBox) listBox.style.display = 'none';
@@ -893,6 +896,53 @@ window.MapApp = (() => {
           '<option value="' + p.num + '">' + spotNumLabel(p) + (p.area ? '（' + esc(p.area) + '）' : '') + '</option>'
         ).join('');
     }
+    syncFilterMenu();
+  }
+
+  function syncFilterMenu() {
+    const sel = document.getElementById('personFilter');
+    const menu = document.getElementById('spotFilterMenu');
+    if (!sel || !menu) return;
+    sel.hidden = true;
+    menu.hidden = false;
+    const trigger = document.getElementById('spotFilterTrigger');
+    const options = document.getElementById('spotFilterOptions');
+    document.getElementById('spotFilterLabel').textContent = sel.selectedOptions[0]?.textContent || '';
+    trigger.title = sel.title;
+    options.replaceChildren();
+    const close = () => { options.hidden = true; trigger.setAttribute('aria-expanded', 'false'); };
+    Array.from(sel.options).forEach(option => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      const point = !photoLayerOn && option.value ? effectiveSpots().find(p => String(p.num) === option.value) : null;
+      if (point && MOD('spotListMarkers')) {
+        const marker = document.createElement('span');
+        marker.className = 'sl-list-marker';
+        marker.setAttribute('aria-hidden', 'true');
+        marker.innerHTML = spotIcon(point, 0).html;
+        button.appendChild(marker);
+      }
+      const label = document.createElement('span');
+      label.textContent = option.textContent;
+      button.appendChild(label);
+      button.className = 'sl-filter-option';
+      button.setAttribute('aria-current', String(option.selected));
+      button.onclick = () => { sel.value = option.value; close(); sel.dispatchEvent(new Event('change')); syncFilterMenu(); trigger.focus(); };
+      options.appendChild(button);
+    });
+    trigger.onclick = () => { options.hidden = !options.hidden; trigger.setAttribute('aria-expanded', String(!options.hidden)); if (!options.hidden) (options.querySelector('[aria-current="true"]') || options.firstElementChild)?.focus(); };
+    menu.onkeydown = event => {
+      if (event.key === 'Escape') { close(); trigger.focus(); }
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        if (options.hidden) { trigger.click(); return; }
+        const buttons = Array.from(options.children);
+        const index = buttons.indexOf(document.activeElement);
+        buttons[(index + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length]?.focus();
+      }
+    };
+    menu.onfocusout = event => { if (!menu.contains(event.relatedTarget)) close(); };
+    if (!menu.dataset.bound) { document.addEventListener('click', event => { if (!menu.contains(event.target)) { options.hidden = true; trigger.setAttribute('aria-expanded', 'false'); } }); menu.dataset.bound = '1'; }
   }
   // spotList 模組：左上角卡片直接列出可點擊的點位，取代點位下拉選單下拉選單（見上方 rebuildPersonFilter()）
   function renderSpotList(box) {
@@ -901,7 +951,7 @@ window.MapApp = (() => {
     box.innerHTML = '<div class="sl-spot-list-heading">' + esc(t('spot_list_heading')) + ' <span class="sl-spot-count">' + pts.length + '</span></div>' +
       pts.map(p =>
         '<button type="button" class="sl-spot-list-item" data-num="' + p.num + '">' +
-          '<span class="sl-spot-list-dot" style="background:' + esc(p.color || '#888') + '"></span>' +
+          (MOD('spotListMarkers') ? '<span class="sl-list-marker" aria-hidden="true">' + spotIcon(p, 0).html + '</span>' : '') +
           '<span class="sl-spot-list-label">' + spotNumLabel(p) + '</span>' +
           (p.area ? '<span class="sl-spot-list-area">' + esc(p.area) + '</span>' : '') +
         '</button>'
@@ -1277,7 +1327,7 @@ window.MapApp = (() => {
     // 投稿牆：每一筆投稿一律出現在這裡
     const gwrap = document.createElement('div');
     gwrap.className = 'gallery';   // 大卡片模式時靠這個 class 排成多欄
-    if (!entries.length) gwrap.innerHTML = '<div class="sc-empty" style="margin-top:12px">' + esc(t('photos_empty')) + '</div>';
+    if (!entries.length && MOD('upload') && (APP.gated || APP.contributionAccess?.open)) gwrap.innerHTML = '<div class="sc-empty" style="margin-top:12px">' + esc(t('photos_empty')) + '</div>';
     entries.forEach(e => {
       const d = document.createElement('div'); d.className = 'entry sl-kind-' + kindOf(e); d.dataset.entryId = e.id;
       const alt = esc(e.comment || (current.chair || current.theme || t('contrib_photo_alt')));

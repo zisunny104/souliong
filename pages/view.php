@@ -283,7 +283,12 @@ if ($pack) {
     <?php endif; ?>
     <div class="ctl-row" id="personFilterRow">
       <select id="personFilter" title="<?= $t('filter_person') ?>"><option value=""><?= $t('all_contributors') ?></option></select>
-      <span class="sl-spot-count" id="spotFilterCount" hidden></span>
+      <div class="sl-filter-menu" id="spotFilterMenu" hidden>
+        <button type="button" class="sl-filter-trigger" id="spotFilterTrigger" aria-expanded="false" aria-controls="spotFilterOptions">
+          <span id="spotFilterLabel"></span><span class="sl-spot-count" id="spotFilterCount" hidden></span><i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+        </button>
+        <div class="sl-filter-options" id="spotFilterOptions" hidden></div>
+      </div>
     </div>
     <?php if ($mod('spotList')): ?>
     <div class="sl-spot-list" id="spotList"></div>
