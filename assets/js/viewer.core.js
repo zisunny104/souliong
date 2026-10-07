@@ -1653,7 +1653,7 @@ window.MapApp = (() => {
       if (['http:', 'https:'].includes(url.protocol)) author = '<a href="' + esc(url.href) + '" target="_blank" rel="noopener noreferrer">' + author + '</a>';
     } catch (err) {}
     const symbols = e.license === 'cc0' ? ['creative-commons', 'creative-commons-zero'] : ['creative-commons', 'creative-commons-by'].concat(e.license.includes('-nc') ? ['creative-commons-nc'] : [], e.license.endsWith('-nd') ? ['creative-commons-nd'] : [], e.license.endsWith('-sa') ? ['creative-commons-sa'] : []);
-    return '<span class="entry-license"><a href="' + esc(license.url) + '" target="_blank" rel="license noopener noreferrer" title="' + esc(license.label) + '">' + symbols.map(icon => '<i class="fa-brands fa-' + icon + '" aria-hidden="true"></i>').join(' ') + ' ' + esc(license.label) + '</a>' + (author && e.license !== 'cc0' ? ' · ' + author : '') + '</span>';
+    return '<span class="entry-license"><a href="' + esc(license.url) + '" target="_blank" rel="license noopener noreferrer" title="' + esc(license.label) + '">' + symbols.map(icon => '<i class="fa-brands fa-' + icon + '" aria-hidden="true"></i>').join(' ') + ' <span class="entry-license-label">' + esc(license.label) + '</span></a>' + (author && e.license !== 'cc0' ? ' · ' + author : '') + '</span>';
   }
   /* ---------- lightbox ---------- */
   // 單張的「i」資訊內容：相機 EXIF（機身/鏡頭/光圈/快門/焦段/ISO）、拍攝時間、座標與定位來源
