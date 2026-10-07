@@ -1,7 +1,7 @@
 # 未完成事項追蹤
 
 由統一 commit 的維護者彙整更新（唯一寫入者）。全部完成後刪除本檔。
-最後更新：2026-10-01（tilecut 擴增選區浮點誤差修正；導航選單改版完成；EXTENDING.md 補齊權限系統架構章節）
+最後更新：2026-10-08（恢復圖資版權條置中；補記驗證範圍與母專案整合）
 
 ## 已定案的設計原則
 
@@ -18,6 +18,15 @@
 舊版資料遷移前先備份，確認預覽結果後才套用。
 
 ## 已完成（近期）
+
+### 2026-10-08：圖資版權條置中修正
+
+- 修正提交：`d05e2d7`。先前 CSS 清理提交 `0d7cc8f` 刪除了 `.cr-bar` 的定位規則，導致版權條回到 MapLibre 預設右下角。
+- 將 `position: fixed`、`left: 50%`、`bottom: 14px`、`translateX(-50%)` 及零外距合併回原有 `.cr-bar` 規則，恢復一般地圖頁面的底部置中。純地圖嵌入模式仍由 `embed-bare.css` 覆寫為右下角。
+- Chromium／Playwright 以實際 CSS 與控制項 DOM 驗證：1280 與 390 像素寬度皆置中；手機音訊迷你列出現時仍置中並上移；兩種寬度的純地圖嵌入版權條皆位於右下角。此次未載入完整地圖或驗證 VPS 上的圖磚請求。
+- Souliong 已用 `https://github.com/zisunny104/souliong.git` 登記為開利手子模組；母專案 `3f62be8` 已記錄這次修正。一般部署由母專案同步記錄的提交；需單獨重跑部署時可用 `./deploy.sh --deploy-apps souliong`。
+
+### 先前完成事項
 
 伺服器端壓縮、Route:: 遷移、樣式 json 縮短快取、tools/checkall.php、點位導航（Google、Apple、geo、OSM 選單）、封面快照隱藏底圖地名並重拍三個專案、地名跟隨語言、路徑需先選投稿者、光柵底圖 minZoom／maxNativeZoom／tms／bounds、預設底圖對齊 paper-ink、3D 建物沿用原底圖（紙墨）、燈箱說明置中。
 導航選單改版：觸發鈕改 icon-only（圖示外露文字進 title/aria-label）、選單 portal 到 document.body 用 position:fixed 真浮動，視覺質感比照 Tocas UI dropdown（圓角、陰影、縮放淡入）但不引入該框架；#panel 的 overflow:clip 維持不動。過程中發現並修正一個定位 bug：選單原本右對齊觸發鈕右緣，但鈕實際貼在面板左側，疊加選單無 max-width 撐寬，導致蓋到左側圖層篩選面板；改為預設左對齊（視窗右緣放不下才翻右）＋ max-width: min(280px, 100vw-16px)。已用 Playwright 在桌面寬度、.wide 展開寬度、手機寬度、深色主題下截圖驗證，選單皆貼齊觸發鈕且不越界。
