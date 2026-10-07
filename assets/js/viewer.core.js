@@ -834,34 +834,30 @@ window.MapApp = (() => {
       const n = picked.get(spot.num).length;
       return { id: spot.num, lat: spot.lat, lon: spot.lon, slots: n ? Math.min(n, 3) + (n > 3 ? 1 : 0) : 0 };
     }), engine.getZoom(), { pinPx: pinPx, size: size });
-    // 連回點位的「煙」：沿著預覽到點位標記邊緣畫一條模糊的寬帶，靠點位那端淡出；顏色跟深淺主題走（見 map-markers.css）
-    let tieSeq = 0;
-    const withTie = (html, off) => {
-      const r = Math.hypot(off.x, off.y) || 1, ax = size / 2 - off.x, ay = size / 2 - off.y;
-      const sx = size / 2, sy = size / 2;
-      const ex = ax + off.x / r * (pinPx / 2 + 1), ey = ay + off.y / r * (pinPx / 2 + 1), gid = 'sl-tie-' + (++tieSeq);
-      return '<svg class="sl-featured-tie" width="' + size + '" height="' + size + '" aria-hidden="true">' +
-        '<defs><linearGradient id="' + gid + '" gradientUnits="userSpaceOnUse" x1="' + sx + '" y1="' + sy + '" x2="' + ex.toFixed(1) + '" y2="' + ey.toFixed(1) + '">' +
-        '<stop offset="0" stop-color="currentColor" stop-opacity=".55"/><stop offset="1" stop-color="currentColor" stop-opacity=".08"/></linearGradient></defs>' +
-        '<line x1="' + sx + '" y1="' + sy + '" x2="' + ex.toFixed(1) + '" y2="' + ey.toFixed(1) + '" stroke="url(#' + gid + ')"/></svg>' +
-        '<div class="sl-featured-body">' + html + '</div>';
-    };
-    const anchorOf = off => [size / 2 - off.x, size / 2 - off.y];
+    // 預覽的外框固定在點位中心，真正的位置由內層 .sl-move 的 transform 決定，所以縮放後換位置只改 transform，
+    // 瀏覽器用 CSS 緩動滑過去，不重建標記、不閃。煙是 .sl-tie：從點位邊緣依角度與長度伸向預覽，同樣只靠 transform。
+    const moveStyle = off => 'transform:translate(' + off.x.toFixed(1) + 'px,' + off.y.toFixed(1) + 'px)';
+    const angleOf = off => Math.atan2(off.y, off.x) * 180 / Math.PI;
+    const tieStyle = (off, angle) => 'transform:rotate(' + (angle != null ? angle : angleOf(off)).toFixed(1) + 'deg) translateX(' + (pinPx / 2 + 1) + 'px) scaleX(' + (Math.max(4, Math.hypot(off.x, off.y) - pinPx / 2 - 1) / 100).toFixed(3) + ')';
+    const withTie = (html, off) =>
+      '<div class="sl-tie" data-angle="' + angleOf(off).toFixed(1) + '" style="top:' + (size / 2 - 4.5) + 'px;left:' + size / 2 + 'px;' + tieStyle(off) + '"></div>' +
+      '<div class="sl-move" style="' + moveStyle(off) + '"><div class="sl-featured-body">' + html + '</div></div>';
+    const anchorOf = () => [size / 2, size / 2];
     shown.forEach(spot => {
       const selected = picked.get(spot.num), offs = layout.get(spot.num);
       if (!offs) return;
       selected.slice(0, 3).forEach((e, index) => {
         const icon = entryIcon(e, thumb), url = entryFullUrl(e);
         specs.push({
-          id: e.id, lat: spot.lat, lon: spot.lon, html: withTie(icon.html, offs[index]), size: icon.size,
-          anchor: anchorOf(offs[index]),
+          id: e.id, lat: spot.lat, lon: spot.lon, html: withTie(icon.html, offs[index]), size: icon.size, className: 'sl-featured-marker', off: offs[index], tieStyle: tieStyle, moveStyle: moveStyle, angleOf: angleOf,
+          anchor: anchorOf(),
           onClick: () => { if (url) openLightbox(e, url); else openSpot(spot); },
         });
       });
       if (selected.length > 3) specs.push({
         id: 'featured-more-' + spot.num, lat: spot.lat, lon: spot.lon,
         html: withTie('<button type="button" class="sl-featured-more" aria-label="' + esc(t('featured_entry')) + ' +' + (selected.length - 3) + '">+' + (selected.length - 3) + '</button>', offs[3]),
-        size: [size, size], anchor: anchorOf(offs[3]),
+        size: [size, size], anchor: anchorOf(), className: 'sl-featured-marker', off: offs[3], tieStyle: tieStyle, moveStyle: moveStyle, angleOf: angleOf,
         onClick: () => openSpot(spot),
       });
     });
@@ -888,6 +884,31 @@ window.MapApp = (() => {
       });
     });
     engine.setMarkerLayer('contrib', specs);
+    featuredKey = featuredKeyOf(specs, thumb);
+  }
+  // 縮放結束：精選預覽的集合沒變就只換位置（CSS 緩動滑過去），變了（例如縮圖與小方塊切換）才整層重建
+  let featuredKey = '';
+  const featuredKeyOf = (specs, thumb) => (thumb ? 't' : 's') + specs.filter(sp => sp.off).map(sp => sp.id).join('|');
+  function relayoutFeatured() {
+    if (!showContributions || !showSpots) return;
+    const thumb = engine.getZoom() >= THUMB_ZOOM;
+    const entries = effectiveEntries().filter(e => !filterPerson || e.name === filterPerson);
+    const specs = featuredMarkerSpecs(entries, effectiveSpots(), thumb);
+    if (featuredKeyOf(specs, thumb) !== featuredKey) { renderContribLayer(); return; }
+    const els = engine.markerElements('contrib');
+    specs.forEach(sp => {
+      const el = els.get(String(sp.id));
+      if (!el) return;
+      const move = el.querySelector('.sl-move'), tie = el.querySelector('.sl-tie');
+      if (move) move.style.cssText = sp.moveStyle(sp.off);
+      if (tie) {
+        // 角度取與上一次最接近的等價值，避免從 170° 轉到 -170° 時繞遠路轉一整圈
+        let angle = sp.angleOf(sp.off); const prev = parseFloat(tie.dataset.angle);
+        if (Number.isFinite(prev)) { while (angle - prev > 180) angle -= 360; while (angle - prev < -180) angle += 360; }
+        tie.dataset.angle = angle.toFixed(1);
+        tie.style.transform = sp.tieStyle(sp.off, angle).replace(/^transform:/, '');
+      }
+    });
   }
 
   // 某人的觀察路線（照片依時間串連）
@@ -1962,7 +1983,7 @@ window.MapApp = (() => {
     });
     engine.mountControls({ zoomPosition: 'bottomleft', attributionPosition: 'bottomright', opButtons: [{ el: document.getElementById('resetBtn') }] });
     engine.onZoomThresholdCross(THUMB_ZOOM, () => renderContribLayer());
-    engine.onZoomEnd(() => renderContribLayer()); // 預覽的位置依縮放重排，避開變近的點位
+    engine.onZoomEnd(() => relayoutFeatured()); // 預覽的位置依縮放重排，避開變近的點位；只換位置，緩動滑過去
 
     buildLegend();
     renderSpots();
