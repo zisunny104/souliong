@@ -132,16 +132,22 @@ const {chromium}=require(process.env.PLAYWRIGHT_PATH||'playwright');
   let previews=await page.evaluate(()=>window.testLayers.contrib.map(({id,lat,lon,anchor,size,html})=>({id,lat,lon,anchor,size,html})));
   assert.deepEqual(previews.map(p=>p.id),['photo0','photo1','photo2','featured-more-1']);
   assert.ok(previews.every(p=>p.lat===24&&p.lon===120));
-  assert.equal(new Set(previews.map(p=>p.anchor[0])).size,4);
-  assert.equal(new Set(previews.map(p=>p.anchor[1])).size,4);
-  assert.ok(previews[0].anchor[1]>previews[1].anchor[1]);
-  assert.ok(previews[2].anchor[1]>previews[1].anchor[1]);
-  for(let i=1;i<previews.length;i++) assert.ok(Math.abs(previews[i].anchor[0]-previews[i-1].anchor[0])>=previews[i-1].size[0]+5);
+  function checkSurrounding(markers) {
+    const centers=markers.map(p=>({x:p.size[0]/2-p.anchor[0],y:p.size[1]/2-p.anchor[1],half:p.size[0]/2}));
+    assert.deepEqual(centers.map(p=>[Math.sign(p.x),Math.sign(p.y)]),[[1,-1],[-1,1],[-1,-1],[1,1]]);
+    for(const p of centers) assert.ok(Math.abs(p.x)>12+p.half || Math.abs(p.y)>12+p.half,'中央地點不被遮住');
+    for(let i=0;i<centers.length;i++) for(let j=i+1;j<centers.length;j++) {
+      const a=centers[i],b=centers[j],distance=a.half+b.half+5;
+      assert.ok(Math.abs(a.x-b.x)>=distance || Math.abs(a.y-b.y)>=distance,'預覽彼此保留間距');
+    }
+  }
+  checkSurrounding(previews);
   assert.ok(previews[3].html.includes('+2'));
   assert.equal(await page.evaluate(()=>MapApp.effectiveEntries().find(e=>e.id==='photo0').lat),25);
   assert.equal(await page.evaluate(()=>MapApp.effectiveEntries().find(e=>e.id==='photo1').lat),null);
   await page.evaluate(()=>{window.testZoom=16;window.testZoomCross();});
   assert.ok(await page.evaluate(()=>window.testLayers.contrib.every(p=>p.size[0]===30)));
+  checkSurrounding(await page.evaluate(()=>window.testLayers.contrib.map(({size,anchor})=>({size,anchor}))));
   await page.evaluate(()=>window.testLayers.contrib[3].onClick());
   assert.ok((await page.locator('#pTitle').textContent()).startsWith('點位一'));
   await page.evaluate(()=>window.testLayers.contrib[0].onClick());

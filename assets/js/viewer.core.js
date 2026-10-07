@@ -828,10 +828,13 @@ window.MapApp = (() => {
     spots.forEach(spot => {
       if (active[spot.cat] === false || !Number.isFinite(spot.lat) || !Number.isFinite(spot.lon)) return;
       const selected = (grouped.get(spot.num) || []).slice().sort(byCreatedAt);
-      const start = (PIN_SIZE_PX[META.pinSize] || 24) / 2 + 8;
-      // 固定的高低錯落，重繪時不跳位；各欄仍保留完整縮圖間距。
-      const heights = [-0.7, 0.55, -0.35, 0.65];
-      const anchorAt = index => [-start - index * (size + gap), size / 2 - heights[index] * size];
+      // 固定分布在點位四周；半徑留出中央標記及縮圖外框的空間。
+      const radius = ((PIN_SIZE_PX[META.pinSize] || 24) / 2 + size / 2 + gap + 3) * Math.SQRT2;
+      const angles = [-35, 140, -140, 45];
+      const anchorAt = index => {
+        const angle = angles[index] * Math.PI / 180;
+        return [size / 2 - Math.cos(angle) * radius, size / 2 - Math.sin(angle) * radius];
+      };
       selected.slice(0, 3).forEach((e, index) => {
         const icon = entryIcon(e, thumb), url = entryFullUrl(e);
         specs.push({
