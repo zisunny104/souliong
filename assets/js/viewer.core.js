@@ -889,12 +889,44 @@ window.MapApp = (() => {
   // 縮放結束：精選預覽的集合沒變就只換位置（CSS 緩動滑過去），變了（例如縮圖與小方塊切換）才整層重建
   let featuredKey = '';
   const featuredKeyOf = (specs, thumb) => (thumb ? 't' : 's') + specs.filter(sp => sp.off).map(sp => sp.id).join('|');
+  // 縮圖與小方塊切換（跨過 THUMB_ZOOM）時整層重建，但新標記從舊的位置與大小（FLIP）以緩動滑到新位置，不是閃一下
+  function snapshotFeatured() {
+    const snap = new Map();
+    engine.markerElements('contrib').forEach((el, id) => {
+      const move = el.querySelector('.sl-move');
+      if (move) { const r = move.getBoundingClientRect(); if (r.width) snap.set(id, r); }
+    });
+    return snap;
+  }
+  function glideFeatured(snap) {
+    if (!snap.size || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const moves = [];
+    engine.markerElements('contrib').forEach((el, id) => {
+      const before = snap.get(id), move = el.querySelector('.sl-move');
+      if (!before || !move) return;
+      const now = move.getBoundingClientRect();
+      if (!now.width) return;
+      const dx = before.left + before.width / 2 - (now.left + now.width / 2), dy = before.top + before.height / 2 - (now.top + now.height / 2);
+      const final = move.style.transform;
+      move.style.transition = 'none';
+      move.style.transform = 'translate(' + dx.toFixed(1) + 'px,' + dy.toFixed(1) + 'px) ' + final + ' scale(' + (before.width / now.width).toFixed(3) + ')';
+      moves.push([move, final]);
+    });
+    if (!moves.length) return;
+    moves[0][0].getBoundingClientRect();   // 先讓起點生效，再恢復過渡與終點，瀏覽器才會補間
+    moves.forEach(([move, final]) => { move.style.transition = ''; move.style.transform = final; });
+  }
+  function renderContribGlide() {
+    const snap = snapshotFeatured();
+    renderContribLayer();
+    glideFeatured(snap);
+  }
   function relayoutFeatured() {
     if (!showContributions || !showSpots) return;
     const thumb = engine.getZoom() >= THUMB_ZOOM;
     const entries = effectiveEntries().filter(e => !filterPerson || e.name === filterPerson);
     const specs = featuredMarkerSpecs(entries, effectiveSpots(), thumb);
-    if (featuredKeyOf(specs, thumb) !== featuredKey) { renderContribLayer(); return; }
+    if (featuredKeyOf(specs, thumb) !== featuredKey) { renderContribGlide(); return; }
     const els = engine.markerElements('contrib');
     specs.forEach(sp => {
       const el = els.get(String(sp.id));
@@ -1982,7 +2014,7 @@ window.MapApp = (() => {
       dark: isDark(), manifests: layerManifests(),
     });
     engine.mountControls({ zoomPosition: 'bottomleft', attributionPosition: 'bottomright', opButtons: [{ el: document.getElementById('resetBtn') }] });
-    engine.onZoomThresholdCross(THUMB_ZOOM, () => renderContribLayer());
+    engine.onZoomThresholdCross(THUMB_ZOOM, () => renderContribGlide());
     engine.onZoomEnd(() => relayoutFeatured()); // 預覽的位置依縮放重排，避開變近的點位；只換位置，緩動滑過去
 
     buildLegend();
