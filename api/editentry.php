@@ -89,6 +89,7 @@ try {
 
     $out = $record;
     unset($out['src_hash'], $out['contrib_hash']);
+    if (in_array($origKind, ['text', 'photo'], true) && !empty($out['comment'])) $out['html'] = spot_markdown((string)$out['comment']);
     json_out(['ok' => true, 'item' => $out]);
 } catch (Throwable $e) {
     error_log('souliong editentry: ' . $e->getMessage());

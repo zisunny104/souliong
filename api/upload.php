@@ -14,6 +14,7 @@ require_once __DIR__ . '/stats.php';
 require_once __DIR__ . '/features.php';
 require_once __DIR__ . '/uploadlib.php';
 require_once __DIR__ . '/spotlib.php';
+require_once __DIR__ . '/licenses.php';
 $cfg = require __DIR__ . '/config.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -78,10 +79,13 @@ if ($duration !== null && ($duration <= 0 || $duration > 86400)) $duration = nul
 if ($lat !== null && ($lat < -90 || $lat > 90)) $lat = null;
 if ($lon !== null && ($lon < -180 || $lon > 180)) $lon = null;
 
-// 授權：CC BY（姓名標示）只對已建立身分（有 ctoken）的投稿者開放，沒有穩定身分就沒有名字可標示，
-// 一律以伺服器端這裡認定的身分為準，不採信前端畫面上勾選框當下是否可見。
+// 具名 CC 授權須有穩定投稿者身分；授權值由伺服器白名單驗證。
 $hasIdentity = $who->hasIdentity();
-$license     = ($hasIdentity && ($_POST['license'] ?? '') === 'cc-by') ? 'cc-by' : 'cc0';
+$requestedLicense = (string)($_POST['license'] ?? 'cc0');
+if (!isset(souliong_licenses()[$requestedLicense])) json_out(['error' => 'invalid license'], 400);
+if (!$hasIdentity &&$requestedLicense !== 'cc0') json_out(['error' => '具名授權需要先建立投稿者身分'], 400);
+$license =$requestedLicense;
+$authorUrl = souliong_author_url($_POST['author_url'] ?? null);
 $wikidataOk  = !empty($_POST['wikidata_ok']);
 
 // 照片沿用歷史的 photo/thumb 欄位與 photos/ 資料夾，影音走新的 media 欄位與 media/ 資料夾。
@@ -182,6 +186,7 @@ try {
         'lon'        => $lon,
         'loc_source' => $loc_source,
         'license'    => $license,
+        'author_url' => $authorUrl,
         'wikidata_ok'=> $wikidataOk,
         'exif'       => $exif,
         'owner_hash' => $ownerHash,                                       // 用於「只刪自己的」與同源追蹤

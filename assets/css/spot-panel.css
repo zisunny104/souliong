@@ -1080,3 +1080,12 @@
 .p-close i, .p-expand i { font-size: 18px; line-height: 1; }
 
 .entry-license { margin-top: 6px; font-size: .75rem; color: var(--muted); overflow-wrap: anywhere; }
+
+.entry-footer { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.entry-footer .entry-license { margin-top: 0; }
+.entry-license a { color: inherit; }
+.entry-license .fa-brands { font-size: 1rem; }
+.entry-link-actions:empty, .lb-link-actions:empty { display: none; }
+
+.entry-footer .entry-actions, .entry-footer .lb-actions { display: inline-flex; align-items: center; gap: 6px; margin: 0; padding: 0; }
+.entry-footer .entry-license { margin-left: auto; }

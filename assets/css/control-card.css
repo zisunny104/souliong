@@ -422,13 +422,14 @@ button i {
 
 .sl-filter-menu { width: 100%; min-width: 0; }
 .sl-filter-menu[hidden], #personFilter[hidden], .sl-filter-options[hidden] { display: none; }
-.sl-filter-trigger { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); font: inherit; cursor: pointer; text-align: left; }
+.sl-filter-trigger { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); font: inherit; font-size: .8125rem; cursor: pointer; text-align: left; }
 #spotFilterLabel { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sl-filter-trigger > i { font-size: 12px; }
-.sl-filter-options { margin-top: 6px; padding: 4px; max-height: 220px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
-.sl-filter-option { display: block; width: 100%; padding: 8px; border: 0; border-radius: 5px; background: transparent; color: var(--fg); font: inherit; text-align: left; cursor: pointer; overflow-wrap: anywhere; }
+.sl-filter-options { position: fixed; inset: auto; margin: 0; padding: 3px; max-height: 240px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); box-sizing: border-box; z-index: 1100; font-size: .8125rem; }
+.sl-filter-option { display: flex; align-items: center; gap: 6px; width: 100%; padding: 4px 6px; border: 0; border-radius: 0; background: transparent; color: var(--fg); font: inherit; text-align: left; cursor: pointer; overflow-wrap: anywhere; }
 .sl-filter-option:hover, .sl-filter-option:focus-visible, .sl-filter-option[aria-current="true"] { background: linear-gradient(var(--hover), var(--hover)), var(--bg); }
 
-.sl-filter-option { display: flex; align-items: center; gap: 10px; }
-.sl-list-marker { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 36px; min-height: 36px; }
-.sl-list-marker .dot-pin { box-sizing: border-box; flex: none; }
+.sl-list-marker { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 28px; min-height: 28px; }
+.sl-list-marker .dot-pin { box-sizing: border-box; flex: none; box-shadow: none; }
+
+.sl-filter-option + .sl-filter-option { border-top: 1px solid var(--line); }

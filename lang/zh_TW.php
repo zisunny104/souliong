@@ -1,6 +1,11 @@
 <?php
 // 主字典（繁體中文）。所有語言的翻譯 key 以此檔為準；其他語言檔缺的 key 會自動 fallback 回這裡。
 return [
+    'copy_citation' => '複製引用資訊',
+    'license_select_label' => '投稿授權',
+    'license_help' => '查看授權說明',
+    'author_url_label' => '作者連結（選填）',
+    'author_url_invalid' => '作者連結請使用 http 或 https 網址。',
     'pinmark_icon_option' => 'Font Awesome 圖示',
     'pinmark_icon_hint' => '使用內建的免費 Solid 圖示；同類別共用圖示，背景沿用類別顏色。未設定時使用預設地標圖示。',
     'pinmark_uncategorized' => '無分類',

@@ -662,6 +662,7 @@ window.MapApp = (() => {
       return {
         ...orig,
         comment: latest.comment,
+        html: latest.html,
         item_num: latest.item_num,
         lat: latest.lat,
         lon: latest.lon,
@@ -910,7 +911,9 @@ window.MapApp = (() => {
     document.getElementById('spotFilterLabel').textContent = sel.selectedOptions[0]?.textContent || '';
     trigger.title = sel.title;
     options.replaceChildren();
-    const close = () => { options.hidden = true; trigger.setAttribute('aria-expanded', 'false'); };
+    const close = () => { if (options.matches(':popover-open')) options.hidePopover(); options.hidden = true; trigger.setAttribute('aria-expanded', 'false'); };
+    options.setAttribute('popover', 'manual');
+    close();
     Array.from(sel.options).forEach(option => {
       const button = document.createElement('button');
       button.type = 'button';
@@ -930,7 +933,7 @@ window.MapApp = (() => {
       button.onclick = () => { sel.value = option.value; close(); sel.dispatchEvent(new Event('change')); syncFilterMenu(); trigger.focus(); };
       options.appendChild(button);
     });
-    trigger.onclick = () => { options.hidden = !options.hidden; trigger.setAttribute('aria-expanded', String(!options.hidden)); if (!options.hidden) (options.querySelector('[aria-current="true"]') || options.firstElementChild)?.focus(); };
+    trigger.onclick = () => { options.hidden = !options.hidden; trigger.setAttribute('aria-expanded', String(!options.hidden)); if (!options.hidden) { const rect = trigger.getBoundingClientRect(); options.style.left = rect.left + 'px'; options.style.top = rect.bottom + 6 + 'px'; options.style.width = rect.width + 'px'; options.style.maxHeight = Math.max(80, Math.min(240, innerHeight - rect.bottom - 20)) + 'px'; options.showPopover(); } else if (options.matches(':popover-open')) options.hidePopover(); if (!options.hidden) (options.querySelector('[aria-current="true"]') || options.firstElementChild)?.focus(); };
     menu.onkeydown = event => {
       if (event.key === 'Escape') { close(); trigger.focus(); }
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
@@ -942,7 +945,7 @@ window.MapApp = (() => {
       }
     };
     menu.onfocusout = event => { if (!menu.contains(event.relatedTarget)) close(); };
-    if (!menu.dataset.bound) { document.addEventListener('click', event => { if (!menu.contains(event.target)) { options.hidden = true; trigger.setAttribute('aria-expanded', 'false'); } }); menu.dataset.bound = '1'; }
+    if (!menu.dataset.bound) { document.addEventListener('click', event => { if (!menu.contains(event.target)) { if (options.matches(':popover-open')) options.hidePopover(); options.hidden = true; trigger.setAttribute('aria-expanded', 'false'); } }); menu.dataset.bound = '1'; }
   }
   // spotList 模組：左上角卡片直接列出可點擊的點位，取代點位下拉選單下拉選單（見上方 rebuildPersonFilter()）
   function renderSpotList(box) {
@@ -1335,10 +1338,10 @@ window.MapApp = (() => {
       // 只有預覽區依型別換掉，底下的 meta／編輯／刪除／歷史四段所有型別完全共用
       d.innerHTML = entryPreviewHtml(e, alt) + '<div class="meta">' + entryBylineHtml(e) +
         (e.comment ? (['text', 'photo'].includes(kindOf(e)) && e.html ? '<div class="txt sc-md">' + e.html + '</div>' : '<div class="txt">' + esc(e.comment) + '</div>') : '') +
-        entryLicenseHtml(e) + '<div class="entry-actions">' +
+        '<div class="entry-footer"><span class="entry-link-actions"></span><div class="entry-actions">' +
         (canEdit ? '<button class="btn small edit-btn" type="button"><i class="fa-solid fa-pen"></i> ' + esc(t('edit')) + '</button>' : '') +
         (!EMBED && MOD('entryHistory') && e.editHistory && e.editHistory.length > 1 ? '<button class="btn small hist-btn" type="button">' + esc(t('history_versions', { n: e.editHistory.length })) + '</button>' : '') +
-        (!EMBED && isMine(e) ? '<button class="del-btn" type="button"><i class="fa-solid fa-trash"></i> ' + esc(t('delete')) + '</button>' : '') + '</div>' +
+        (!EMBED && isMine(e) ? '<button class="del-btn" type="button"><i class="fa-solid fa-trash"></i> ' + esc(t('delete')) + '</button>' : '') + '</div>' + entryLicenseHtml(e) + '</div>' +
         '</div><div class="photo-editor" style="display:none"></div><div class="photo-history" style="display:none"></div>';
       const open = d.querySelector('.sl-open');   // 文字與音訊沒有這個元素：文字不開燈箱，音訊直接在卡片上聽
       if (open) {
@@ -1350,7 +1353,9 @@ window.MapApp = (() => {
       const edbtn = d.querySelector('.edit-btn'); if (edbtn) edbtn.onclick = () => togglePhotoEditor(e, d);
       const hbtn = d.querySelector('.hist-btn'); if (hbtn) hbtn.onclick = () => togglePhotoEditHistory(e, d);
       const actions = d.querySelector('.entry-actions');
-      if (actions) entryActionFns.forEach(fn => { const el = fn(e); if (el) actions.appendChild(el); });
+      if (actions) entryActionFns.forEach(fn => { const el = fn(e); if (el) (el.dataset.entryLink ? d.querySelector('.entry-link-actions') : actions).appendChild(el); });
+      const footer = d.querySelector('.entry-footer');
+      if (footer) footer.insertBefore(citationButton(e), footer.querySelector('.entry-license'));
       gwrap.appendChild(d);
     });
     box.appendChild(gwrap);
@@ -1586,9 +1591,30 @@ window.MapApp = (() => {
       b.onclick = () => window.SLContentEditor.restore(current, versions.slice().reverse()[+b.dataset.i].blocks);
     });
   }
+  function citationButton(e) {
+    const button = document.createElement('button');
+    button.type = 'button'; button.className = 'btn small';
+    button.title = t('copy_citation'); button.setAttribute('aria-label', t('copy_citation'));
+    button.innerHTML = '<i class="fa-solid fa-quote-right" aria-hidden="true"></i>';
+    button.onclick = async event => {
+      event.stopPropagation();
+      const license = APP.licenses?.[e.license];
+      const url = location.origin + APP.base + PROJECT + '?entry=' + encodeURIComponent(e.id);
+      const text = [e.name || '', license ? license.label + ' — ' + license.url : '', url].filter(Boolean).join('\n');
+      try { await navigator.clipboard.writeText(text); button.innerHTML = '<i class="fa-solid fa-check" aria-hidden="true"></i>'; setTimeout(() => { button.innerHTML = '<i class="fa-solid fa-quote-right" aria-hidden="true"></i>'; }, 2000); } catch (err) {}
+    };
+    return button;
+  }
   function entryLicenseHtml(e) {
-    if (e.license !== 'cc-by') return '';
-    return '<div class="entry-license">CC BY' + (e.name ? ' · ' + esc(e.name) : '') + '</div>';
+    const license = APP.licenses?.[e.license];
+    if (!license) return '';
+    let author = esc(e.name || '');
+    try {
+      const url = new URL(e.author_url);
+      if (['http:', 'https:'].includes(url.protocol)) author = '<a href="' + esc(url.href) + '" target="_blank" rel="noopener noreferrer">' + author + '</a>';
+    } catch (err) {}
+    const symbols = e.license === 'cc0' ? ['creative-commons', 'creative-commons-zero'] : ['creative-commons', 'creative-commons-by'].concat(e.license.includes('-nc') ? ['creative-commons-nc'] : [], e.license.endsWith('-nd') ? ['creative-commons-nd'] : [], e.license.endsWith('-sa') ? ['creative-commons-sa'] : []);
+    return '<span class="entry-license"><a href="' + esc(license.url) + '" target="_blank" rel="license noopener noreferrer" title="' + esc(license.label) + '">' + symbols.map(icon => '<i class="fa-brands fa-' + icon + '" aria-hidden="true"></i>').join(' ') + ' ' + esc(license.label) + '</a>' + (author && e.license !== 'cc0' ? ' · ' + author : '') + '</span>';
   }
   /* ---------- lightbox ---------- */
   // 單張的「i」資訊內容：相機 EXIF（機身/鏡頭/光圈/快門/焦段/ISO）、拍攝時間、座標與定位來源
@@ -1655,8 +1681,10 @@ window.MapApp = (() => {
       (!EMBED && isMine(e) ? '<button class="btn small danger" type="button" id="lbDelBtn"><i class="fa-solid fa-trash"></i> ' + esc(t('delete')) + '</button>' : '');
     const cap = document.getElementById('lbCap');
     cap.style.display = '';
-    cap.innerHTML = '<div class="lb-who byline-text">' + who + '</div>' + txt + (!e.spotBlock ? entryLicenseHtml(e) : '') + (actions ? '<div class="lb-actions">' + actions + '</div>' : '') +
+    cap.innerHTML = '<div class="lb-who byline-text">' + who + '</div>' + txt + (!e.spotBlock ? '<div class="entry-footer"><span class="lb-link-actions"></span>' + (actions ? '<div class="lb-actions">' + actions + '</div>' : '') + entryLicenseHtml(e) + '</div>' : '') +
       '<div class="lb-info" id="lbInfo" style="display:none"></div>';
+    if (!e.spotBlock) entryActionFns.forEach(fn => { const el = fn(e); if (el?.dataset.entryLink) cap.querySelector('.lb-link-actions').appendChild(el); });
+    if (!e.spotBlock) { const footer = cap.querySelector('.entry-footer'); footer.insertBefore(citationButton(e), footer.querySelector('.entry-license')); }
     const ib = cap.querySelector('#lbInfoBtn');
     if (ib) ib.onclick = (ev) => {
       ev.stopPropagation();

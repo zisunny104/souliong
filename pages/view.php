@@ -24,6 +24,7 @@ require_once __DIR__ . '/../api/security.php';   // 權限一律問 Auth（api/a
 require_once __DIR__ . '/../api/i18n.php';
 require_once __DIR__ . '/../api/features.php';
 require_once __DIR__ . '/../api/pinicons.php';
+require_once __DIR__ . '/../api/licenses.php';
 require_once __DIR__ . '/../api/packs.php';
 require_once __DIR__ . '/../api/layers.php';
 require_once __DIR__ . '/../api/navlinks.php';
@@ -109,6 +110,7 @@ $map3d = $mod('map3d') ? [
 ] : null;
 
 $APP = [
+    'licenses' => souliong_licenses(),
     'base'        => $base,
     // 這張地圖的後台網址。前端有三個地方要用到（登入 POST、邀請兌換 POST、登入後跳轉），
     // 由伺服器端算好給它，網址形狀就只寫在 api/routes.php 一處。

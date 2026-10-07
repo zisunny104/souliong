@@ -127,7 +127,7 @@
       const closeFn = spot ? 'closeSpotModal' : 'closeModal';
       const consent = spot ? '' :
         '<div class="modal-consent" id="modalConsent">' +
-          '<label id="ccByRow" style="display:none"><input type="checkbox" id="ccByChk"> ' + esc(t('license_ccby_label')) + '</label>' +
+          '<div id="ccByRow"><label for="ccByChk">' + esc(t('license_select_label')) + '</label><select id="ccByChk">' + Object.entries(APP.licenses).map(([key, value]) => '<option value="' + key + '">' + esc(value.label) + '</option>').join('') + '</select><a id="licenseHelp" target="_blank" rel="noopener noreferrer">' + esc(t('license_help')) + '</a><label>' + esc(t('author_url_label')) + '<input type="url" id="authorUrl" placeholder="https://"></label></div>' +
           '<label><input type="checkbox" id="wikidataChk"> ' + esc(t('wikidata_consent_label')) + '</label>' +
         '</div>';
       const anchor = document.getElementById('contribModal') || panel;
@@ -177,11 +177,11 @@
         });
       }
       // 授權／Wikidata 捐贈選擇：記住上次選擇（跟暱稱同一層，不分專案），但整個批次共用同一份、
-      // 每次開彈窗都可重新確認，不是寫死一次的設定。CC BY 只在已建立身分時才有意義，
+      // 每次開彈窗皆可確認授權；具名授權需要已建立投稿者身分。
       // 顯示與否在 openModal() 依當下身分狀態即時判斷。
       const ccByChk = document.getElementById('ccByChk');
       const wikidataChk = document.getElementById('wikidataChk');
-      if (ccByChk) ccByChk.onchange = () => localStorage.setItem('prefCcBy', ccByChk.checked ? '1' : '0');
+      if (ccByChk) ccByChk.onchange = () => { localStorage.setItem('prefLicense', ccByChk.value); document.getElementById('licenseHelp').href = APP.licenses[ccByChk.value].url; };
       if (wikidataChk) wikidataChk.onchange = () => localStorage.setItem('prefWikidata', wikidataChk.checked ? '1' : '0');
       // 供核心 view.php 內嵌的 onclick="MapApp.closeModal()" 呼叫（HTML 屬性只能呼叫掛在 MapApp 上的方法，無法用 hook）
       this.mapApp[this.scope === 'spot' ? 'closeSpotModal' : 'closeModal'] = () => this.closeModal();
@@ -266,13 +266,14 @@
       // 沒有分頁可投時整個對話框沒有內容（見 initTabs()），所有入口（FAB、快捷鍵 U、身分鈕）共用這道保險
       if (!this.tabs.length) return;
       this.$('name').value = document.getElementById('myName').value || localStorage.getItem('myName') || '';
-      // CC BY 只在已建立身分時才顯示（沒有穩定身分就沒有名字可標示）；每次開窗都重新判斷，
-      // 並從上次記憶的選擇還原勾選狀態，讓使用者能再次確認而不是被迫重選。
+      // 依當下身分限制具名授權，並還原上次選擇供投稿者確認。
       const ccByRow = document.getElementById('ccByRow');
       const ccByChk = document.getElementById('ccByChk');
       const wikidataChk = document.getElementById('wikidataChk');
-      if (ccByRow) ccByRow.style.display = this.mapApp.hasIdentity() ? '' : 'none';
-      if (ccByChk) ccByChk.checked = localStorage.getItem('prefCcBy') === '1';
+      if (ccByRow) ccByRow.style.display = '';
+      if (ccByChk) Array.from(ccByChk.options).forEach(o => { o.disabled = !this.mapApp.hasIdentity() && o.value !== 'cc0'; });
+      if (ccByChk) { const pref = localStorage.getItem('prefLicense') || (localStorage.getItem('prefCcBy') === '1' ? 'cc-by' : localStorage.getItem('prefCcBy') === '0' ? 'cc0' : 'cc-by-nc'); ccByChk.value = this.mapApp.hasIdentity() && APP.licenses[pref] ? pref : 'cc0'; document.getElementById('licenseHelp').href = APP.licenses[ccByChk.value].url; }
+      const authorUrl = document.getElementById('authorUrl'); if (authorUrl) authorUrl.value = '';
       if (wikidataChk) wikidataChk.checked = localStorage.getItem('prefWikidata') === '1';
       this.$('modal').classList.add('open');
       this.modalContext = contextSpot || null;
@@ -517,10 +518,12 @@
           loc_source: state.loc ? state.source : undefined,
         };
         // 授權／Wikidata 捐贈：從共用的頁尾勾選框即時讀取（單筆、批次共用同一份，送出當下才讀值）。
-        // CC BY 前端再判斷一次身分只是防呆，真正把關在伺服器端（沒有 ctoken 一律視為 cc0）。
+        // 授權由伺服器白名單及投稿者身分驗證。
         const ccByChk = document.getElementById('ccByChk');
         const wikidataChk = document.getElementById('wikidataChk');
-        common.license = (ccByChk && ccByChk.checked && this.mapApp.hasIdentity()) ? 'cc-by' : 'cc0';
+        common.license = ccByChk ? ccByChk.value : 'cc0';
+        common.author_url = document.getElementById('authorUrl')?.value.trim() || '';
+        if (common.author_url && !/^https?:\/\//i.test(common.author_url)) throw Error(t('author_url_invalid'));
         common.wikidata_ok = (wikidataChk && wikidataChk.checked) ? 1 : 0;
 
         await kind.submit(this.mapApp, kind.fields(state, card, common), {

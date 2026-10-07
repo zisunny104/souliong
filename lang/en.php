@@ -2,6 +2,11 @@
 // English dictionary. Any key missing here falls back to lang/zh_TW.php automatically,
 // so this file only needs to list keys that have actually been translated.
 return [
+    'copy_citation' => 'Copy attribution',
+    'license_select_label' => 'Submission licence',
+    'license_help' => 'Licence details',
+    'author_url_label' => 'Author URL (optional)',
+    'author_url_invalid' => 'Use an HTTP or HTTPS author URL.',
     'pinmark_icon_option' => 'Font Awesome icon',
     'pinmark_icon_hint' => 'Built-in free Solid icons, shared per category. Background uses category colors. Unset or invalid icons use the default marker.',
     'pinmark_uncategorized' => 'Uncategorized',
