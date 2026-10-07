@@ -25,7 +25,7 @@
      回傳 Map：id → [{x, y}]（預覽中心相對於點位中心的像素位移），長度等於 slots。 */
   function place(spots, zoom, opts) {
     const pinPx = (opts && opts.pinPx) || 24, size = (opts && opts.size) || 30;
-    const r0 = pinPx / 2 + size / 2 + 10;
+    const r0 = pinPx / 2 + size / 2 + 4;   // 預覽邊緣離點位標記約 4px，貼近
     const pinMin = pinPx / 2 + size / 2 + 5, prevMin = size + 5;
     const pts = spots.map(s => { const p = project(s.lat, s.lon, zoom); return { id: s.id, slots: s.slots || 0, x: p[0], y: p[1] }; });
     const placed = [];               // 已排好的預覽中心（絕對像素）
