@@ -1123,3 +1123,9 @@ button.entry-featured-star:focus-visible { outline: 2px solid var(--text); outli
 button.entry-featured-star:disabled { cursor: progress; }
 .sl-kind-text:has(.entry-featured-star) > .meta { padding-right: 54px; }
 @media (prefers-reduced-motion: reduce) { .entry-featured-star { transition: none; } }
+
+#entries > .entry-upload-button {
+  display: flex;
+  width: 100%;
+  margin: 12px 0 16px;
+}

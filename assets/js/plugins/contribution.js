@@ -256,7 +256,7 @@
     entriesUploadButton(spot) {
       if (!this.tabs.length) return null;
       const upBtn = document.createElement('button');
-      upBtn.className = 'btn primary upload-only'; upBtn.style.width = '100%';
+      upBtn.className = 'btn primary upload-only entry-upload-button';
       upBtn.innerHTML = '<i class="fa-solid fa-plus"></i> ' + esc(t('upload_to_spot'));
       upBtn.onclick = () => { this.resetQueue(); this.openModal(spot); };
       return upBtn;
