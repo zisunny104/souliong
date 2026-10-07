@@ -1713,7 +1713,8 @@ window.MapApp = (() => {
     // 照片資訊改成「時間後面的 i 小圖示」，不佔一顆獨立按鈕
     const who = (MOD(e.spotBlock ? 'spotByline' : 'entryByline') ? esc(bylineText(e.spotBlock ? 'spot' : 'entry', e.name, e.photo_time || e.created_at)).replace(/\n/g, ' ・ ') : '') +
       ' <button class="lb-info-i" type="button" id="lbInfoBtn" title="' + esc(t('photo_info_title')) + '" aria-label="' + esc(t('photo_info_title')) + '"><i class="fa-solid fa-circle-info" aria-hidden="true"></i></button>';
-    const txt = e.comment ? '<div class="lb-txt sc-md">' + (!e.spotBlock && ['text', 'photo'].includes(kindOf(e)) && e.html ? e.html : esc(e.comment)) + '</div>' : '';
+    const markdown = !e.spotBlock && ['text', 'photo'].includes(kindOf(e)) && e.html;
+    const txt = e.comment ? '<div class="lb-txt' + (markdown ? ' sc-md' : '') + '">' + (markdown || esc(e.comment)) + '</div>' : '';
     const canEdit = !e.spotBlock && canEditEntry(e);   // 說明區的照片區塊不是投稿，沒有可編輯的投稿紀錄
     const actions =
       (canEdit ? '<button class="btn small entry-icon-action" type="button" id="lbEditBtn" title="' + esc(t('edit')) + '" aria-label="' + esc(t('edit')) + '"><i class="fa-solid fa-pen" aria-hidden="true"></i></button>' : '') +

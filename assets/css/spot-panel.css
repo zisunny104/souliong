@@ -685,7 +685,8 @@
 }
 
 /* 伺服器把 Markdown 轉成的 html 帶有換行，不能沿用 .story-body 的 pre-wrap，否則每個換行都會多撐一行 */
-.sc-md {
+.sc-md,
+.entry .txt.sc-md {
   white-space: normal
 }
 
