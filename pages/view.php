@@ -23,6 +23,7 @@ $meta    = is_file($metaF) ? json_decode(file_get_contents($metaF), true) : null
 require_once __DIR__ . '/../api/security.php';   // 權限一律問 Auth（api/auth.php）：身分只解析一次，能力與 CSRF 從同一個 Actor 來
 require_once __DIR__ . '/../api/i18n.php';
 require_once __DIR__ . '/../api/features.php';
+require_once __DIR__ . '/../api/pinicons.php';
 require_once __DIR__ . '/../api/packs.php';
 require_once __DIR__ . '/../api/layers.php';
 require_once __DIR__ . '/../api/navlinks.php';
@@ -130,6 +131,8 @@ $APP = [
     // 點位版本紀錄裡可被覆寫的欄位（前端疊加點位版本時的欄位清單，跟 spot_effective() 同一份）
     'spotFields'  => spot_overridable_fields(),
     'moduleState' => $moduleState,
+    'bylineFormats' => souliong_byline_formats($meta),
+    'pinIcons' => ($meta['pinMark'] ?? '') === 'icon' ? souliong_marker_icons() : [],
     'contrib'     => $contribCfg,
     // 上傳大小上限（位元組，null＝不限制），前端送出前預檢用；欄位說明見 uploadlib_limits()
     'upload'      => uploadlib_limits($apiCfg),
@@ -280,6 +283,7 @@ if ($pack) {
     <?php endif; ?>
     <div class="ctl-row" id="personFilterRow">
       <select id="personFilter" title="<?= $t('filter_person') ?>"><option value=""><?= $t('all_contributors') ?></option></select>
+      <span class="sl-spot-count" id="spotFilterCount" hidden></span>
     </div>
     <?php if ($mod('spotList')): ?>
     <div class="sl-spot-list" id="spotList"></div>
@@ -433,6 +437,7 @@ window.maplibregl = maplibregl;
 <script src="<?= $assetUrl('assets/js/engine/map-engine.js') ?>"></script>
 <script src="<?= $assetUrl('assets/js/engine/maplibre-engine.js') ?>"></script>
 <script src="<?= $assetUrl('assets/js/marker-colors.js') ?>"></script>
+<?php if (($meta['pinMark'] ?? '') === 'icon'): ?><script src="<?= $assetUrl('assets/js/pin-icons.js') ?>"></script><?php endif; ?>
 <script src="<?= $assetUrl('assets/js/contribution-client.js') ?>"></script>
 <script src="<?= $assetUrl('assets/js/viewer.core.js') ?>"></script>
 <?php if (!$bare && count($layers) + count($layerExtra) >= 2): ?>

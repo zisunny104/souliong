@@ -9,6 +9,7 @@ require_once __DIR__ . '/packs.php';
 require_once __DIR__ . '/layers.php';     // 地圖圖層註冊表（底圖／疊圖），形狀同 packs.php
 require_once __DIR__ . '/labellang.php';
 require_once __DIR__ . '/markercolors.php';
+require_once __DIR__ . '/pinicons.php';
 require_once __DIR__ . '/contribaccess.php';
 require_once __DIR__ . '/spotlib.php';     // spotId 判斷
 require_once __DIR__ . '/embedorigins.php';   // 允許嵌入的來源清單解析與驗證（CORS／frame-ancestors／postMessage 共用）
@@ -723,12 +724,18 @@ if (!$authed) {
             if ($pm === 'image' && cover_file_of(project_dir($cfg, $p) . '/pinmark') === null) {
               $pm = 'number';
             }
-            $meta['pinMark'] = in_array($pm, ['blank', 'shape', 'image'], true) ? $pm : 'number';
+            $meta['pinMark'] = in_array($pm, ['blank', 'shape', 'image', 'icon'], true) ? $pm : 'number';
             // 標記尺寸／外框：跟 pinMark 同一個表單區塊一起送出，借用上面的 isset($_POST['pinMark']) 判斷這區有沒有送出——
             // pinBorder 是 checkbox，沒勾就不會出現在 $_POST，所以「沒出現」＝關閉（跟功能開關那組 checkbox 同邏輯）
             $psz = (string)($_POST['pinSize'] ?? '');
             $meta['pinSize'] = in_array($psz, ['sm', 'lg'], true) ? $psz : 'md';
             $meta['pinBorder'] = isset($_POST['pinBorder']);
+            if (isset($_POST['categoryIcons']) && is_array($_POST['categoryIcons'])) {
+              foreach ($_POST['categoryIcons'] as $catKey => $iconName) {
+                if (!is_string($catKey) || !preg_match('/^[a-z0-9_-]{1,64}$/D', $catKey)) continue;
+                $meta['categoryIcons'][$catKey] = souliong_marker_icon($iconName);
+              }
+            }
             if (isset($_POST['badgeColor'])) $meta['badgeColor'] = souliong_hex_color($_POST['badgeColor'], '#c0392b');
             if (isset($_POST['categoryColors']) && is_array($_POST['categoryColors'])) {
               foreach ($_POST['categoryColors'] as $catKey => $catColor) {
@@ -738,6 +745,9 @@ if (!$authed) {
                 $meta['categoryColors'][$catKey] = strtolower($catColor);
               }
             }
+          }
+          if (isset($_POST['bylineFormats']) && is_array($_POST['bylineFormats'])) {
+            $meta['bylineFormats'] = souliong_byline_formats(['bylineFormats' => $_POST['bylineFormats']]);
           }
           // 功能模組開關：checkbox 沒勾就不會出現在 $_POST，所以「沒出現」＝關閉（非「保留原值」）
           if (isset($_POST['features']) || isset($_POST['modules_submitted'])) {
@@ -2276,6 +2286,12 @@ if (!$authed) {
       color: var(--fg)
     }
 
+    [data-category-icons][hidden] { display: none; }
+    .pin-icon-picker { display: flex; align-items: center; gap: 12px; }
+    .pin-icon-picker select { flex: 1; min-width: 0; }
+    .pin-icon-preview { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; flex: none; color: var(--fg); background: var(--line); border-radius: 50%; }
+    .pin-icon-preview svg { width: 20px; height: 20px; }
+
     .modrow input[type="checkbox"] {
       width: 1rem;
       height: 1rem;
@@ -3735,7 +3751,7 @@ if (!$authed) {
               <?php
                 $numberingCur = in_array($meta['numbering'] ?? '', ['prefix', 'disable'], true) ? $meta['numbering'] : 'suffix';
                 $pinMarkHasImg = cover_file_of(project_dir($cfg, $p) . '/pinmark') !== null;
-                $pinMarkCur = in_array($meta['pinMark'] ?? '', ['blank', 'shape', 'image'], true) ? $meta['pinMark'] : 'number';
+                $pinMarkCur = in_array($meta['pinMark'] ?? '', ['blank', 'shape', 'image', 'icon'], true) ? $meta['pinMark'] : 'number';
                 $pinSizeCur = in_array($meta['pinSize'] ?? '', ['sm', 'lg'], true) ? $meta['pinSize'] : 'md';
                 $markerCategories = [];
                 foreach (spot_effective_all($cfg, $p) as $markerSpot) {
@@ -3758,6 +3774,7 @@ if (!$authed) {
                     <select name="pinMark">
                       <option value="number" <?= $pinMarkCur === 'number' ? 'selected' : '' ?>><?= $t('pinmark_number_option') ?></option>
                       <option value="blank" <?= $pinMarkCur === 'blank' ? 'selected' : '' ?>><?= $t('pinmark_blank_option') ?></option>
+                      <option value="icon" <?= $pinMarkCur === 'icon' ? 'selected' : '' ?>><?= $t('pinmark_icon_option') ?></option>
                       <option value="shape" <?= $pinMarkCur === 'shape' ? 'selected' : '' ?>><?= $t('pinmark_shape_option') ?></option>
                       <?php if ($pinMarkHasImg): ?>
                       <option value="image" <?= $pinMarkCur === 'image' ? 'selected' : '' ?>><?= $t('pinmark_image_option') ?></option>
@@ -3765,6 +3782,20 @@ if (!$authed) {
                     </select>
                   </label>
                   <div class="hint"><?= $t('pinmark_image_hint') ?></div>
+                  <div data-category-icons <?= $pinMarkCur !== 'icon' ? 'hidden' : '' ?>>
+                    <div class="hint"><?= $t('pinmark_icon_hint') ?></div>
+                    <?php $iconCategories = ['new' => ['catLabel' => i18n_t($DICT, 'pinmark_uncategorized')]] + $markerCategories;
+                      foreach ($iconCategories as $catKey => $markerSpot): $iconCur = souliong_marker_icon($meta['categoryIcons'][$catKey] ?? null); ?>
+                    <label><?= $esc($markerSpot['catLabel'] ?? $catKey) ?>
+                      <span class="pin-icon-picker"><span class="pin-icon-preview" aria-hidden="true"><?= souliong_marker_icon_svg($iconCur) ?></span>
+                        <select name="categoryIcons[<?= $esc($catKey) ?>]" data-pin-icon-select>
+                          <?php foreach (souliong_marker_icons() as $iconName => $iconData): ?><option value="<?= $esc($iconName) ?>" <?= $iconName === $iconCur ? 'selected' : '' ?>><?= $esc($iconName) ?></option><?php endforeach; ?>
+                        </select>
+                      </span>
+                    </label>
+                    <?php endforeach; ?>
+                  </div>
+
                   <label><?= $t('field_pinsize_label') ?>
                     <select name="pinSize">
                       <option value="sm" <?= $pinSizeCur === 'sm' ? 'selected' : '' ?>><?= $t('pinsize_sm_option') ?></option>
@@ -3899,6 +3930,18 @@ if (!$authed) {
                 // 也能一眼看出「現在跟預設不一樣」。
                 $modOffCount = count(array_filter(array_keys(souliong_modules()), fn($mk) => !souliong_module_on($meta, $mk)));
               ?>
+              <details class="metasec">
+                <summary><span class="metasec-title"><?= $t('content_display_heading') ?> <i class="fa-solid fa-chevron-down metasec-chevron" aria-hidden="true"></i></span></summary>
+                <div class="metasec-body">
+                  <?php foreach (['spotHistory', 'entryHistory', 'spotByline', 'entryByline'] as $mk): $minfo = souliong_modules()[$mk]; ?>
+                  <label class="modrow"><input type="checkbox" data-mod="<?= $esc($mk) ?>" name="features[<?= $esc($mk) ?>]" <?= souliong_module_on($meta, $mk) ? 'checked' : '' ?>><span><b><?= $esc($minfo['label']) ?></b><br><span class="hint"><?= $esc($minfo['desc']) ?></span></span></label>
+                  <?php endforeach; $bylineFormats = souliong_byline_formats($meta); ?>
+                  <?php foreach (['spot', 'entry'] as $scope): ?>
+                  <label><?= $t('byline_' . $scope . '_format') ?><textarea name="bylineFormats[<?= $esc($scope) ?>]" maxlength="500" rows="2"><?= $esc($bylineFormats[$scope]) ?></textarea></label>
+                  <?php endforeach; ?>
+                  <div class="hint"><?= $t('byline_format_hint') ?></div>
+                </div>
+              </details>
               <input type="hidden" name="modules_submitted" value="1">
               <details class="metasec">
                 <summary>
@@ -3909,7 +3952,7 @@ if (!$authed) {
                   <div class="hint"><?= $modOffCount > 0 ? $t('metasec_modules_summary', ['count' => $modOffCount]) : $t('metasec_modules_summary_all_on') ?></div>
                 </summary>
                 <div class="metasec-body">
-                  <?php foreach (souliong_modules() as $mk => $minfo): $mon = souliong_module_on($meta, $mk); ?>
+                  <?php foreach (souliong_modules() as $mk => $minfo): if (in_array($mk, ['spotHistory', 'entryHistory', 'spotByline', 'entryByline'], true)) continue; $mon = souliong_module_on($meta, $mk); ?>
                   <label class="modrow">
                     <input type="checkbox" data-mod="<?= $esc($mk) ?>" name="<?= $mk === 'personExplore' ? 'personExplore' : 'features[' . $esc($mk) . ']' ?>" <?= $mon ? 'checked' : '' ?>>
                     <span><b><?= $esc($minfo['label']) ?></b><br><span class="hint"><?= $esc($minfo['desc']) ?></span></span>
@@ -5053,6 +5096,18 @@ if (!$authed) {
 
     // ── 專案卡片列：展開鈕在「橫向捲動」跟「全部換行顯示」間切換，狀態不記憶——
     // 每次進頁面都先給最省空間的捲動列，要看全部再自己展開。──
+    const pinIconCatalog = <?= json_encode(souliong_marker_icons(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+    function updatePinIconPreview(select) {
+      const icon = pinIconCatalog[select.value] || pinIconCatalog['location-dot'];
+      const ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg');
+      svg.setAttribute('viewBox', '0 0 ' + icon.width + ' ' + icon.height); svg.setAttribute('fill', 'currentColor');
+      icon.paths.forEach(d => { const path = document.createElementNS(ns, 'path'); path.setAttribute('d', d); svg.appendChild(path); });
+      select.parentElement.querySelector('.pin-icon-preview').replaceChildren(svg);
+    }
+    document.querySelectorAll('[data-pin-icon-select]').forEach(select => select.addEventListener('change', () => updatePinIconPreview(select)));
+    document.querySelectorAll('select[name="pinMark"]').forEach(select => select.addEventListener('change', () => {
+      select.closest('form').querySelector('[data-category-icons]').hidden = select.value !== 'icon';
+    }));
     document.querySelectorAll('.pcards-toggle').forEach(function(btn) {
       var row = document.getElementById(btn.dataset.target);
       if (!row) return;

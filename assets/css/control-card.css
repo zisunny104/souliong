@@ -10,7 +10,9 @@
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
   box-shadow: var(--sh-2);
-  max-width: min(280px, calc(100vw - 28px));
+  width: 280px;
+  min-width: min(220px, calc(100vw - 28px));
+  max-width: calc(100vw - 28px);
   max-height: calc(100dvh - 28px);
   display: flex;
   flex-direction: column;
@@ -412,3 +414,8 @@ button i {
   pointer-events: none
 }
 
+
+.sl-spot-count { display: inline-flex; align-items: center; justify-content: center; min-width: 1.8em; padding: 2px 8px; border-radius: 999px; background: var(--line); color: var(--fg); font-size: .75rem; line-height: 1.5; flex: none; }
+.sl-spot-count[hidden] { display: none; }
+#personFilterRow { align-items: center; }
+.sl-spot-list-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }

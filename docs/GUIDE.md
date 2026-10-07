@@ -29,3 +29,23 @@
 - 進入：`<base>/manager`，或在地圖頁連點標題、首頁連點 logo 叫出 PIN 面板；登入狀態用 httpOnly cookie 保持。單張地圖在 `<base>/manager/<mapid>`。
 - 權限可逐專案、逐項授權，PIN 與帳號皆可使用；架構見 [EXTENDING.md](EXTENDING.md) 第十三章。
 - 功能：投稿代碼與身分管理、統計、審閱與刪除投稿、備份與還原（ZIP）、主題包與圖層管理、資料修復工具。
+
+## 內容顯示與署名
+
+在專案設定的「內容顯示」，點位與投稿的編輯紀錄、署名各有獨立開關，預設均開啟。開關控制前台顯示，既有版本紀錄仍保留，管理與寫入權限不變。
+
+署名格式支援 `{name}`、`{datetime}`、`{date}`、`{time}`，可換行，內容以純文字顯示。點位預設為 `— {name}・{datetime}`；投稿預設姓名與日期時間分兩行。留空恢復預設，最長 500 字元。格式存於 `meta.bylineFormats.spot`／`entry`，顯示開關沿用 `features.spotHistory`／`entryHistory`／`spotByline`／`entryByline`。
+
+左上控制面板預設寬 280px，最小寬 220px，窄螢幕會限制在畫面寬度扣除兩側 14px。點位清單數量使用膠囊顯示；點位介紹直接呈現內容，不再加上固定標題。
+
+驗證：`php tools/checkall.php`；`node tools/displaycheck.js`（需 Playwright／Chromium，使用隔離資料與模擬地圖引擎，驗證後台儲存與前台顯示）。
+
+## Font Awesome 地標圖示
+
+專案設定 → 地標外觀 → 地標顯示選擇「Font Awesome 圖示」。`pinMark` 的 `number`／`blank`／`shape`／`image`／`icon` 互斥，圖示模式只顯示圖示，標題編號仍由 `numbering` 獨立決定。
+
+同一類別共用 `meta.categoryIcons[類別代號]`，無分類使用 `new`。選單有即時 SVG 預覽，名稱只接受內建的 61 種免費 Solid 圖示（Font Awesome Free 6.5.1），未設定或非法名稱退回 `location-dot`。背景仍使用既有 `categoryColors`，尺寸、外框、投稿徽章及音訊播放光暈不變。切換其他模式會保留圖示設定供日後使用。
+
+圖示來自官方 `@fortawesome/free-solid-svg-icons@6.5.1`，固定 SVG 路徑存於 `assets/icons/fontawesome-solid.json`，授權附於同目錄的 `FONT-AWESOME-LICENSE.txt`。僅啟用 icon 模式的地圖載入圖示目錄與渲染工具，不依賴 Font Awesome 字型下載。
+
+導航按鈕的圖示放大至 20px，按鈕仍維持 32×32px；導航選單與點位面板的關閉／展開圖示也調整清晰度，按鈕尺寸不變。

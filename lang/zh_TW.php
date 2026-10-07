@@ -1,6 +1,14 @@
 <?php
 // 主字典（繁體中文）。所有語言的翻譯 key 以此檔為準；其他語言檔缺的 key 會自動 fallback 回這裡。
 return [
+    'pinmark_icon_option' => 'Font Awesome 圖示',
+    'pinmark_icon_hint' => '使用內建的免費 Solid 圖示；同類別共用圖示，背景沿用類別顏色。未設定時使用預設地標圖示。',
+    'pinmark_uncategorized' => '無分類',
+    'content_display_heading' => '內容顯示',
+    'byline_spot_format' => '點位署名格式',
+    'byline_entry_format' => '投稿署名格式',
+    'byline_format_hint' => '支援 {name} 姓名、{datetime} 日期與時間、{date} 日期、{time} 時間；可換行。留空使用預設格式。',
+
     'app_title'              => 'Souliong 循跡',
     'brand_hint'             => '點一下看完整名稱',
     'collapse'                => '收折',
@@ -150,9 +158,9 @@ return [
     'camera_open_failed'     => '無法開啟相機：{reason}',
     'spot_none_option'       => '（不指定，沒有對應點位）',
     'all_contributors_count' => '所有投稿者（{n} 人）',
-    'jump_to_spot'           => '跳到指定點位',
-    'jump_to_spot_option'    => '跳到點位…（共 {n} 個）',
-    'spot_list_heading'      => '點位列表（共 {n} 個）',
+    'jump_to_spot'           => '點位清單',
+    'jump_to_spot_option'    => '點位清單',
+    'spot_list_heading'      => '點位清單',
     'explore_start'          => '開始依序探索',
     'explore_prev'           => '上一站',
     'explore_next'           => '下一站',
@@ -170,7 +178,6 @@ return [
     'save_location_btn'      => '儲存定位',
     'saving'                 => '儲存中…',
     'save_failed'            => '失敗：{err}',
-    'location_story_title'   => '這個點位的故事',
     'story_empty'            => '這裡還沒有故事，等一位旅人來開場。',
     'history_versions'       => '歷史版本（{n}）',
     'upload_to_spot'         => '投稿到這個點位',

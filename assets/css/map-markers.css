@@ -150,3 +150,7 @@
   background-color: var(--accent)
 }
 
+
+.dot-pin .sl-pin-icon { display: flex; align-items: center; justify-content: center; font-size: 14px; }
+.dot-pin.sl-sz-sm .sl-pin-icon { font-size: 10px; }
+.dot-pin.sl-sz-lg .sl-pin-icon { font-size: 19px; }

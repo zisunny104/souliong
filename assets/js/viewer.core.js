@@ -559,6 +559,23 @@ window.MapApp = (() => {
     const p = n => String(n).padStart(2, '0');
     return d.getFullYear() + '/' + p(d.getMonth() + 1) + '/' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
   }
+  function bylineText(scope, name, stamp) {
+    const datetime = fmtTime(stamp);
+    const formats = APP.bylineFormats || {};
+    let format = formats[scope] || (scope === 'spot' ? '— {name}・{datetime}' : '{name}\n{datetime}');
+    if (!datetime && format === '— {name}・{datetime}') format = '— {name}';
+    const values = { name: name || t('anon_fallback'), datetime, date: datetime.split(' ')[0] || '', time: datetime.split(' ')[1] || '' };
+    return format.replace(/\{(name|datetime|date|time)\}/g, (_, key) => values[key]);
+  }
+  function entryBylineHtml(e) {
+    if (!MOD('entryByline')) return '';
+    const stamp = e.photo_time || e.created_at;
+    const edited = e.edited ? ' <span class="edited-tag">' + esc(t('edited_tag')) + '</span>' : '';
+    if (APP.bylineFormats?.entry === '{name}\n{datetime}') {
+      return '<div class="who">' + esc(e.name || t('anon_fallback')) + edited + '</div><div class="time">' + fmtTime(stamp) + '</div>';
+    }
+    return '<div class="who byline-text">' + esc(bylineText('entry', e.name, stamp)) + edited + '</div>';
+  }
   // 點位的顯示名稱。欄位名稱依資料來源而異（100chairs 是 theme／chair，一般地圖是 title，
   // 訪客建立的點位也是 title），下拉選單與標題都走這一個函式，加新來源時只要改這裡。
   const spotName = (p) => p.theme || p.title || p.chair || '';
@@ -732,7 +749,7 @@ window.MapApp = (() => {
     const cls = 'dot-pin' + sizeCls + borderCls + (count ? ' has-contrib' : '') + (audioSpots.has(c.num) ? ' has-audio' : '') + (playingSpots.has(c.num) ? ' is-playing' : '');
     // pinMark：地圖上圓點裡要放什麼——number（預設，顯示編號）／blank（留空）／shape（依 num 固定配一個幾何圖形）／image（自訂圖片取代整個標記）
     const isImage = META.pinMark === 'image';
-    const pinMark = isImage || META.pinMark === 'blank' ? '' : META.pinMark === 'shape' ? '<span>' + pinShapeSvg(c.num) + '</span>' : '<span>' + c.num + '</span>';
+    const pinMark = isImage || META.pinMark === 'blank' ? '' : META.pinMark === 'icon' ? '<span class="sl-pin-icon">' + SouliongPinIcons.svg(APP.pinIcons, (META.categoryIcons || {})[c.cat || 'new']) + '</span>' : META.pinMark === 'shape' ? '<span>' + pinShapeSvg(c.num) + '</span>' : '<span>' + c.num + '</span>';
     const bg = isImage ? 'url(' + PIN_MARK_IMAGE_URL + ') center/cover' : (c.color || '#888');
     const px = PIN_SIZE_PX[META.pinSize] || 24, half = px / 2;
     return {
@@ -850,6 +867,8 @@ window.MapApp = (() => {
     const sel = document.getElementById('personFilter');
     const selRow = document.getElementById('personFilterRow');
     const listBox = document.getElementById('spotList');
+    const countPill = document.getElementById('spotFilterCount');
+    if (countPill) countPill.hidden = true;
     if (!sel && !listBox) return;
     if (photoLayerOn) {
       if (listBox) listBox.style.display = 'none';
@@ -868,17 +887,18 @@ window.MapApp = (() => {
     } else {
       sel.title = t('jump_to_spot');
       const pts = effectiveSpots().sort((a, b) => a.num - b.num);
+      if (countPill) { countPill.textContent = String(pts.length); countPill.hidden = false; countPill.setAttribute('aria-label', t('jump_to_spot') + ' ' + pts.length); }
       sel.innerHTML = '<option value="">' + esc(t('jump_to_spot_option', { n: pts.length })) + '</option>' +
         pts.map(p =>
           '<option value="' + p.num + '">' + spotNumLabel(p) + (p.area ? '（' + esc(p.area) + '）' : '') + '</option>'
         ).join('');
     }
   }
-  // spotList 模組：左上角卡片直接列出可點擊的點位，取代「跳到點位」下拉選單（見上方 rebuildPersonFilter()）
+  // spotList 模組：左上角卡片直接列出可點擊的點位，取代點位下拉選單下拉選單（見上方 rebuildPersonFilter()）
   function renderSpotList(box) {
     const pts = effectiveSpots().sort((a, b) => a.num - b.num);
     box.style.display = '';
-    box.innerHTML = '<div class="sl-spot-list-heading">' + esc(t('spot_list_heading', { n: pts.length })) + '</div>' +
+    box.innerHTML = '<div class="sl-spot-list-heading">' + esc(t('spot_list_heading')) + ' <span class="sl-spot-count">' + pts.length + '</span></div>' +
       pts.map(p =>
         '<button type="button" class="sl-spot-list-item" data-num="' + p.num + '">' +
           '<span class="sl-spot-list-dot" style="background:' + esc(p.color || '#888') + '"></span>' +
@@ -1213,10 +1233,11 @@ window.MapApp = (() => {
   });
   // 說明區只署名一次：最新一個內容版本的編輯者與時間（內容是整體編輯，沒有各區塊各自的作者）
   function contentBylineHtml(spot) {
+    if (!MOD('spotByline')) return '';
     const vs = spot.contentVersions || [];
     const last = vs[vs.length - 1] || { name: spot.addedBy, created_at: spot.addedAt };
     if (!last.name) return '';
-    return '<div class="story-by">— ' + esc(last.name) + (last.created_at ? '・' + fmtTime(last.created_at) : '') + '</div>';
+    return '<div class="story-by byline-text">' + esc(bylineText('spot', last.name, last.created_at)) + '</div>';
   }
   function renderEntries() {
     if (!current) return;
@@ -1226,18 +1247,15 @@ window.MapApp = (() => {
     box.innerHTML = '';
     const entries = effectiveEntries().filter(e => e.item_num === current.num && photoFilters.every(f => f(e, current))).sort((a, b) => tv(a) - tv(b));
 
-    // 說明區：點位的 content 區塊依序渲染（見 registerSpotContent()）。只有一個獨立型區塊（例如單一音訊）
-    // 時維持該型別自己的樣貌、不畫標題；沒有任何可顯示區塊時顯示空狀態。
+    // 點位內容區塊依序渲染，沒有可顯示內容時顯示空狀態。
     const blocks = spotBlocks(current);
-    const sole = blocks.length === 1 && spotContentDef(blocks[0]).standalone;
     const versions = current.contentVersions || [];
     const story = document.createElement('div'); story.className = 'story';
     story.innerHTML =
-      (sole ? '' : '<div class="story-head">' + esc(t('location_story_title')) + '</div>') +
       '<div class="sc-list">' + (blocks.length ? '' : '<div class="story-body"><span class="sc-empty">' + esc(t('story_empty')) + '</span></div>') + '</div>' +
       (blocks.length ? contentBylineHtml(current) : '') +
       '<div class="story-actions" id="storyActions">' +
-      (!EMBED && versions.length > 1 ? '<button class="btn small" id="histBtn">' + esc(t('history_versions', { n: versions.length })) + '</button>' : '') +
+      (!EMBED && MOD('spotHistory') && versions.length > 1 ? '<button class="btn small" id="histBtn">' + esc(t('history_versions', { n: versions.length })) + '</button>' : '') +
       '</div><div id="descHistory" style="display:none"></div>';
     const list = story.querySelector('.sc-list');
     blocks.forEach(item => {
@@ -1265,13 +1283,11 @@ window.MapApp = (() => {
       const alt = esc(e.comment || (current.chair || current.theme || t('contrib_photo_alt')));
       const canEdit = canEditEntry(e);
       // 只有預覽區依型別換掉，底下的 meta／編輯／刪除／歷史四段所有型別完全共用
-      d.innerHTML = entryPreviewHtml(e, alt) + '<div class="meta"><div class="who">' + esc(e.name || t('anon_fallback')) +
-        (e.edited ? ' <span class="edited-tag">' + esc(t('edited_tag')) + '</span>' : '') + '</div>' +
-        '<div class="time">' + fmtTime(e.photo_time || e.created_at) + '</div>' +
+      d.innerHTML = entryPreviewHtml(e, alt) + '<div class="meta">' + entryBylineHtml(e) +
         (e.comment ? (kindOf(e) === 'text' && e.html ? '<div class="txt sc-md">' + e.html + '</div>' : '<div class="txt">' + esc(e.comment) + '</div>') : '') +
         '<div class="entry-actions">' +
         (canEdit ? '<button class="btn small edit-btn" type="button"><i class="fa-solid fa-pen"></i> ' + esc(t('edit')) + '</button>' : '') +
-        (!EMBED && e.editHistory && e.editHistory.length > 1 ? '<button class="btn small hist-btn" type="button">' + esc(t('history_versions', { n: e.editHistory.length })) + '</button>' : '') +
+        (!EMBED && MOD('entryHistory') && e.editHistory && e.editHistory.length > 1 ? '<button class="btn small hist-btn" type="button">' + esc(t('history_versions', { n: e.editHistory.length })) + '</button>' : '') +
         (!EMBED && isMine(e) ? '<button class="del-btn" type="button"><i class="fa-solid fa-trash"></i> ' + esc(t('delete')) + '</button>' : '') + '</div>' +
         '</div><div class="photo-editor" style="display:none"></div><div class="photo-history" style="display:none"></div>';
       const open = d.querySelector('.sl-open');   // 文字與音訊沒有這個元素：文字不開燈箱，音訊直接在卡片上聽
@@ -1474,6 +1490,7 @@ window.MapApp = (() => {
   }
   // 照片編輯歷史：原始投稿與之後每一次編輯都保留，新到舊列出
   function togglePhotoEditHistory(e, container) {
+    if (!MOD('entryHistory')) return;
     const panel = container.querySelector('.photo-history');
     if (panel.style.display !== 'none') { panel.style.display = 'none'; panel.innerHTML = ''; return; }
     const editor = container.querySelector('.photo-editor'); if (editor) { const p2 = editor._picker; if (p2) p2.destroy(); editor.style.display = 'none'; editor.innerHTML = ''; }
@@ -1483,7 +1500,7 @@ window.MapApp = (() => {
       list.map((v, i) => {
         const isOrig = !v.edit_of;
         return '<div class="hist-item"><div class="hist-meta">' + (i === 0 ? '<b>' + esc(t('latest_tag')) + '</b>・' : '') +
-          esc(v.name || t('anon_fallback')) + '・' + fmtTime(v.photo_time || v.created_at) +
+          (MOD('entryByline') ? esc(bylineText('entry', v.name, v.photo_time || v.created_at)) + '・' : '') +
           (isOrig ? esc(t('original_submission_tag')) : '') +
           (!EMBED && isMine(v) && !isOrig ? ' <button class="del-btn" type="button" data-id="' + esc(v.id) + '">' + esc(t('delete')) + '</button>' : '') + '</div>' +
           '<div class="hist-txt">' + (v.comment ? esc(v.comment) : '<span class="sc-empty">' + esc(t('no_comment')) + '</span>') + '</div></div>';
@@ -1494,6 +1511,7 @@ window.MapApp = (() => {
   // 說明區的內容版本歷史：versions 是 effectiveSpots() 算出的 contentVersions（舊到新），這裡新到舊列出
   // （時間、編輯者、區塊數、文字預覽）；有編輯器插件時每個舊版本多一個「還原此版本」，還原只是載入成草稿。
   function toggleHistory(versions) {
+    if (!MOD('spotHistory')) return;
     const el = document.getElementById('descHistory');
     if (el.style.display !== 'none') { el.style.display = 'none'; el.innerHTML = ''; return; }
     el.style.display = 'block';
@@ -1507,7 +1525,7 @@ window.MapApp = (() => {
     el.innerHTML = '<div class="hist-title">' + esc(t('desc_history_title')) + '</div>' +
       versions.slice().reverse().map((v, i) =>
         '<div class="hist-item"><div class="hist-meta">' + (i === 0 ? '<b>' + esc(t('latest_tag')) + '</b>・' : '') +
-        esc(v.name || t('anon_fallback')) + '・' + fmtTime(v.created_at) + '・' + esc(t('content_blocks_count', { n: v.blocks.length })) +
+        (MOD('spotByline') ? esc(bylineText('spot', v.name, v.created_at)) + '・' : '') + esc(t('content_blocks_count', { n: v.blocks.length })) +
         (v.baseline ? esc(t('original_submission_tag')) : '') + '</div>' +
         '<div class="hist-txt">' + preview(v.blocks) + '</div>' +
         (i > 0 && canRestore ? '<button class="btn small sc-restore" type="button" data-i="' + i + '">' + esc(t('content_history_restore_btn')) + '</button>' : '') +
@@ -1572,7 +1590,7 @@ window.MapApp = (() => {
       lbImg.src = nextUrl;
     }
     // 照片資訊改成「時間後面的 i 小圖示」，不佔一顆獨立按鈕
-    const who = esc(e.name || t('anon_fallback')) + ' ・ ' + fmtTime(e.photo_time || e.created_at) +
+    const who = (MOD(e.spotBlock ? 'spotByline' : 'entryByline') ? esc(bylineText(e.spotBlock ? 'spot' : 'entry', e.name, e.photo_time || e.created_at)).replace(/\n/g, ' ・ ') : '') +
       ' <button class="lb-info-i" type="button" id="lbInfoBtn" title="' + esc(t('photo_info_title')) + '" aria-label="' + esc(t('photo_info_title')) + '"><i class="fa-solid fa-circle-info" aria-hidden="true"></i></button>';
     const txt = e.comment ? '<div class="lb-txt">' + esc(e.comment) + '</div>' : '';
     const canEdit = !e.spotBlock && canEditEntry(e);   // 說明區的照片區塊不是投稿，沒有可編輯的投稿紀錄
@@ -1581,7 +1599,7 @@ window.MapApp = (() => {
       (!EMBED && isMine(e) ? '<button class="btn small danger" type="button" id="lbDelBtn"><i class="fa-solid fa-trash"></i> ' + esc(t('delete')) + '</button>' : '');
     const cap = document.getElementById('lbCap');
     cap.style.display = '';
-    cap.innerHTML = '<div class="lb-who">' + who + '</div>' + txt + (actions ? '<div class="lb-actions">' + actions + '</div>' : '') +
+    cap.innerHTML = '<div class="lb-who byline-text">' + who + '</div>' + txt + (actions ? '<div class="lb-actions">' + actions + '</div>' : '') +
       '<div class="lb-info" id="lbInfo" style="display:none"></div>';
     const ib = cap.querySelector('#lbInfoBtn');
     if (ib) ib.onclick = (ev) => {
@@ -1811,7 +1829,7 @@ window.MapApp = (() => {
 
     // 全部點位／投稿：互斥的顯示模式，預設「全部」；?contrib=1（嵌入用）或曾記住的投稿者篩選可預設改成「投稿」
     // apb/plb 不存在＝這張地圖關了 contribBrowse 模組（見 api/features.php），photoLayerOn 永遠留在
-    // 預設值 false，行為等同一直停在「全部」模式；#personFilter 仍會渲染，只是只剩「跳到點位」用途。
+    // 預設值 false，行為等同一直停在「全部」模式；#personFilter 仍會渲染，只是只剩點位清單用途。
     const apb = document.getElementById('allSpotsBtn'), plb = document.getElementById('photoLayerBtn');
     if (apb && plb) {
       function setContribMode(on, opts) {
@@ -1819,7 +1837,7 @@ window.MapApp = (() => {
         plb.classList.toggle('on', on);
         apb.classList.toggle('on', !on);
         document.body.classList.toggle('focus-contrib', on);
-        if (!on) filterPerson = '';   // 切回「全部」時，下拉選單改用途（跳到點位），投稿者篩選狀態一併清掉
+        if (!on) filterPerson = '';   // 切回「全部」時，下拉選單改為點位清單，投稿者篩選狀態一併清掉
         rebuildPersonFilter();
         renderContribLayer();
         if (on && !(opts && opts.silent)) feature('photos');
