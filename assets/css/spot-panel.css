@@ -1130,3 +1130,12 @@ button.entry-featured-star:disabled { cursor: progress; }
   width: 100%;
   margin: 12px 0 16px;
 }
+
+.spot-links { min-width: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.spot-link.btn { flex: 0 0 32px; width: 32px; height: 32px; padding: 0; justify-content: center; }
+.spot-link i { font-size: 20px; }
+.spot-links-editor { margin: 12px 18px; }
+.spot-link-row { display: grid; grid-template-columns: 100px minmax(0,1fr) 32px; gap: 6px; margin-bottom: 8px; }
+.spot-link-row input, .spot-link-row select { width: 100%; min-width: 0; }
+
+.spot-link-row .btn { width: 32px; min-height: 32px; padding: 0; justify-content: center; color: var(--danger, #b33); }

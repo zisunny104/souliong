@@ -1070,7 +1070,21 @@ window.MapApp = (() => {
     const ok = Number.isFinite(+c.lat) && Number.isFinite(+c.lon) && c.lat != null && c.lon != null && navApps().length > 0;
     box.wrap.style.display = ok ? '' : 'none';
     const editShown = document.getElementById('spotEditBtn').style.display !== 'none';
-    box.row.style.display = (ok || editShown) ? '' : 'none';
+    box.row.querySelector('.spot-links')?.remove();
+    const links = document.createElement('span'); links.className = 'spot-links';
+    (Array.isArray(c.links) ? c.links : []).forEach(link => {
+      let url; try { url = new URL(link.url); } catch { return; }
+      if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) return;
+      const types = ['link', 'facebook', 'instagram', 'line', 'threads'];
+      const icon = types.includes(link.icon) ? link.icon : 'link';
+      const a = document.createElement('a'); a.className = 'btn small spot-link';
+      a.href = url.href; a.target = '_blank'; a.rel = 'noopener noreferrer';
+      a.title = (icon === 'link' ? t('spot_link_label') : ({facebook:'Facebook',instagram:'Instagram',line:'LINE',threads:'Threads'})[icon]) + '：' + url.hostname; a.setAttribute('aria-label', a.title);
+      a.innerHTML = '<i class="' + (icon === 'link' ? 'fa-solid fa-link' : 'fa-brands fa-' + icon) + '" aria-hidden="true"></i>';
+      links.appendChild(a);
+    });
+    box.row.appendChild(links);
+    box.row.style.display = (ok || editShown || links.childElementCount) ? '' : 'none';
   }
   // 貼著觸發鈕定位：預設左對齊，右緣放不下才翻右對齊；下方放不下就翻到上面，兩軸都夾在視窗內
   function positionNavMenu() {
@@ -1143,12 +1157,23 @@ window.MapApp = (() => {
     const c = current;
     const lat0 = c.lat, lon0 = c.lon;
     el.innerHTML =
-      '<div class="mini pt-mini"></div>' +
+      '<div class="mini pt-mini"></div><div class="spot-links-editor"><div class="spot-link-rows"></div><button type="button" class="btn small add-spot-link">' + esc(t('spot_link_add')) + '</button></div>' +
       '<div class="row">' +
       '<button class="btn small pt-revert" type="button">' + esc(t('reset_location_btn')) + '</button>' +
       '<button class="btn small pt-cancel" type="button">' + esc(t('cancel')) + '</button>' +
-      '<button class="btn primary small pt-save" type="button">' + esc(t('save_location_btn')) + '</button>' +
+      '<button class="btn primary small pt-save" type="button">' + esc(t('save_spot_btn')) + '</button>' +
       '<span class="status pt-status"></span></div>';
+    const rows = el.querySelector('.spot-link-rows');
+    const addButton = el.querySelector('.add-spot-link');
+    function addLink(value = {}) {
+      value = value && typeof value === 'object' ? value : {};
+      const row = document.createElement('div'); row.className = 'spot-link-row';
+      row.innerHTML = '<select aria-label="' + esc(t('spot_link_icon')) + '"><option value="link">' + esc(t('spot_link_label')) + '</option><option value="facebook">Facebook</option><option value="instagram">Instagram</option><option value="line">LINE</option><option value="threads">Threads</option></select><input type="url" placeholder="https://" aria-label="' + esc(t('spot_link_url')) + '"><button type="button" class="btn small" aria-label="' + esc(t('spot_link_remove')) + '">×</button>';
+      row.querySelector('select').value = ['link','facebook','instagram','line','threads'].includes(value.icon) ? value.icon : 'link'; row.querySelector('input').value = value.url || '';
+      row.querySelector('button').onclick = () => { row.remove(); addButton.disabled = false; }; rows.appendChild(row); addButton.disabled = rows.children.length >= 30;
+    }
+    (Array.isArray(c.links) ? c.links : []).slice(0, 30).forEach(addLink);
+    addButton.onclick = () => { if (rows.children.length < 30) { addLink(); rows.lastElementChild.querySelector('input').focus(); } };
     const miniDiv = el.querySelector('.pt-mini');
     const picker = engine.createMiniPicker(miniDiv, { lat: lat0, lon: lon0, zoom: 17 });
     el._picker = picker;
@@ -1166,7 +1191,8 @@ window.MapApp = (() => {
     const btn = panel.querySelector('.pt-save'); const status = panel.querySelector('.pt-status');
     btn.disabled = true; status.textContent = t('saving');
     try {
-      await submitSpotEdit(orig.num, { lat: state.lat, lon: state.lon });
+      const links = [...panel.querySelectorAll('.spot-link-row')].map(row => ({ icon: row.querySelector('select').value, url: row.querySelector('input').value.trim() })).filter(link => link.url);
+      await submitSpotEdit(orig.num, { lat: state.lat, lon: state.lon, links });
       resetSpotEditor();
     } catch (err) {
       status.textContent = t('save_failed', { err: err.message });
@@ -1180,9 +1206,10 @@ window.MapApp = (() => {
     current = updated;
     document.getElementById('pTitle').textContent = spotTitle(updated);
     document.getElementById('pSub').innerHTML = spotSub(updated);
+    renderNav(updated);
     renderEntries();
   }
-  // 寫入點位的座標（editspot.php）：fields 可帶 lat、lon（至少一個）與選填的 name，
+  // 寫入點位版本（editspot.php）：座標、選填的 links 與 name，
   // 沒帶的欄位沿用目前有效值。身分靠 csrf，權限是 edit_spots，不是投稿的 owner/code/ctoken 那一套。
   async function submitSpotEdit(itemNum, fields) {
     const fd = new FormData();
@@ -1191,6 +1218,7 @@ window.MapApp = (() => {
     fd.append('name', fields.name || displayName());
     if (APP.csrf) fd.append('csrf', APP.csrf);
     ['lat', 'lon'].forEach(k => { if (fields[k] !== undefined && fields[k] !== null) fd.append(k, fields[k]); });
+    if (fields.links !== undefined) fd.append('links', JSON.stringify(fields.links));
     const res = await fetch(apiUrl('editspot'), { method: 'POST', body: fd });
     const j = await res.json().catch(() => ({ error: 'HTTP ' + res.status }));
     if (!res.ok || j.error) throw new Error(j.error || ('HTTP ' + res.status));
@@ -1639,7 +1667,8 @@ window.MapApp = (() => {
       event.stopPropagation();
       const license = APP.licenses?.[e.license];
       const url = location.origin + APP.base + PROJECT + '?entry=' + encodeURIComponent(e.id);
-      const text = [e.name || '', license ? license.label + ' — ' + license.url : '', url].filter(Boolean).join('\n');
+      const attribution = [e.name || '', license?.label || ''].filter(Boolean).join(' · ');
+      const text = [attribution, url].filter(Boolean).join('\n');
       try { await navigator.clipboard.writeText(text); button.innerHTML = '<i class="fa-solid fa-check" aria-hidden="true"></i>'; setTimeout(() => { button.innerHTML = '<i class="fa-solid fa-quote-right" aria-hidden="true"></i>'; }, 2000); } catch (err) {}
     };
     return button;

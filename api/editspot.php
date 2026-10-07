@@ -1,10 +1,10 @@
 <?php
-// 編輯點位本身的座標。權限是點位軸的 edit_spots（含 CSRF），預設僅限主要管理者，可個別授權給專案管理者。
+// 編輯點位本身的座標與連結。權限是點位軸的 edit_spots（含 CSRF），預設僅限主要管理者，可個別授權給專案管理者。
 // 點位不論是官方資料還是 newspot.php 建立的動態點位，此刻都是 spots.jsonl 裡同一種起點紀錄
 // （一定有 num），因此不比照 editentry.php 驗 owner/ctoken。
 // 不覆寫起點，而是新增一筆 kind:'spot' 版本紀錄（spot_append_version()），edit_of 指回起點紀錄 id；
-// 版本紀錄是稀疏的，這支只寫 lat、lon，content 不動（疊加規則見 spot_effective()）。
-// POST project, item_num（必填，起點的 num 或 spotId）, lat, lon, csrf, name（選填）。
+// 版本紀錄是稀疏的，這支寫 lat、lon 與選填 links，content 不動（疊加規則見 spot_effective()）。
+// POST project, item_num（必填，起點的 num 或 spotId）, lat, lon, csrf, links、name（選填）。
 require_once __DIR__ . '/store.php';
 require_once __DIR__ . '/security.php';
 require_once __DIR__ . '/spotlib.php';
@@ -34,8 +34,13 @@ try {
     if ($eff === null) {
         json_out(['error' => '找不到這個點位'], 404);
     }
+    $changes = ['lat' => $lat, 'lon' => $lon];
+    if (isset($_POST['links'])) {
+        try { $changes['links'] = spot_links_validate(json_decode($_POST['links'], true)); }
+        catch (Throwable $e) { json_out(['error' => '連結格式錯誤，請確認網址、圖示及筆數'], 400); }
+    }
     $name   = clean_str($_POST['name'] ?? null, $cfg['name_max']) ?? '管理者';
-    $record = spot_append_version($cfg, $project, $eff, ['lat' => $lat, 'lon' => $lon], $actor->audit(), $name);
+    $record = spot_append_version($cfg, $project, $eff, $changes, $actor->audit(), $name);
     json_out(['ok' => true, 'item' => $record]);
 } catch (Throwable $e) {
     error_log('souliong editspot: ' . $e->getMessage());

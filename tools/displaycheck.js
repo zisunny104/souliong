@@ -26,7 +26,7 @@ const {chromium}=require(process.env.PLAYWRIGHT_PATH||'playwright');
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await context.route('**/*',async route=>{
    const url=new URL(route.request().url());if(url.origin!==base)return route.abort();
-   if((url.searchParams.get('f')||url.pathname).endsWith('/maplibre-engine.js'))return route.fulfill({contentType:'application/javascript',body:'window.MapLibreEngine=class {constructor(){this.supportsSnapshot=false;} getZoom(){return 14;} mountControls(){} onZoomThresholdCross(){} fitBounds(){} setMarkerLayer(){} clearMarkerLayer(){} onBackgroundClick(){} panTo(){} applyTheme(){} setView(){}};'});
+   if((url.searchParams.get('f')||url.pathname).endsWith('/maplibre-engine.js'))return route.fulfill({contentType:'application/javascript',body:'window.MapLibreEngine=class {constructor(){this.supportsSnapshot=false;} getZoom(){return 14;} mountControls(){} onZoomThresholdCross(){} fitBounds(){} setMarkerLayer(){} clearMarkerLayer(){} onBackgroundClick(){} panTo(){} applyTheme(){} setView(){} createMiniPicker(){return {onChange(){},setPosition(){},destroy(){}}}};'});
    return route.continue();
   });
   async function open(){await page.goto(base+'/test');await page.waitForFunction(()=>window.MapApp?.effectiveSpots().length===1,null,{timeout:10000}).catch(e=>{console.error(errors);throw e;});await page.evaluate(()=>MapApp.openPanel(MapApp.effectiveSpots()[0]));}
@@ -46,10 +46,21 @@ const {chromium}=require(process.env.PLAYWRIGHT_PATH||'playwright');
   await page.evaluate(()=>Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async text=>{window.copiedCitation=text;}}}));
   await page.locator('.entry-footer button[aria-label="複製引用資訊"]').evaluate(el=>el.click());
   const citation=await page.evaluate(()=>window.copiedCitation);
-  assert.ok(citation.includes('投稿者') && citation.includes('CC BY-NC') && citation.includes('?entry=entry1'));
+  assert.equal(citation,'投稿者 · CC BY-NC\n'+base+'/test?entry=entry1');
   for(const width of [1280,240]){await page.setViewportSize({width,height:800});assert.ok(await page.locator('#controls').evaluate(el=>el.getBoundingClientRect().right<=innerWidth),'面板不溢出');}
   const auth=JSON.parse(execFileSync('php',['-r','require '+JSON.stringify(tmp+'/api/security.php')+'; $cfg=require '+JSON.stringify(tmp+'/api/config.php')+'; $token=primary_session_issue($cfg,"cfg"); echo json_encode(["name"=>PRIMARY_COOKIE,"token"=>$token]);'],{encoding:'utf8'}));
   await context.addCookies([{name:auth.name,value:auth.token,url:base}]);
+  await page.setViewportSize({width:390,height:844});
+  await open();await page.locator('#spotEditBtn').click();
+  for(const [icon,url] of [['link','https://example.com/a'],['instagram','https://instagram.com/one'],['instagram','https://instagram.com/two']]){
+   await page.locator('.add-spot-link').click();const row=page.locator('.spot-link-row').last();await row.locator('select').selectOption(icon);await row.locator('input').fill(url);
+  }
+  await page.locator('.pt-save').click();await page.waitForFunction(()=>document.querySelectorAll('.spot-links .spot-link').length===3);
+  await open();assert.equal(await page.locator('.spot-links .spot-link').count(),3);assert.equal(await page.locator('.spot-links .fa-instagram').count(),2);
+  for(const width of [390,1280]){await page.setViewportSize({width,height:844});assert.ok(await page.locator('.spot-links').evaluate(el=>el.getBoundingClientRect().right<=innerWidth));assert.equal(await page.locator('.spot-link').first().evaluate(el=>el.getBoundingClientRect().height),32);}
+  await page.locator('#spotEditBtn').click();assert.equal(await page.locator('.spot-link-row').count(),3);
+  while(await page.locator('.spot-link-row').count())await page.locator('.spot-link-row button').first().click();
+  await page.locator('.pt-save').click();await page.waitForFunction(()=>document.querySelectorAll('.spot-links .spot-link').length===0);await open();assert.equal(await page.locator('.spot-link').count(),0);
   await page.goto(base+'/manager/test');
   const form=page.locator('form').filter({has:page.locator('textarea[name="bylineFormats[spot]"]')});
   assert.equal(await form.count(),1);

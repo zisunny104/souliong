@@ -15,7 +15,7 @@ require_once __DIR__ . '/routes.php';
  *  spot_append_version() 與其呼叫端都以這份清單為準，不要各自硬編一份欄位名單。 */
 function spot_overridable_fields(): array
 {
-    return ['lat', 'lon', 'content'];
+    return ['lat', 'lon', 'content', 'links'];
 }
 
 /**
@@ -174,6 +174,21 @@ function spot_content_render(array $content): array
             $b['thumb_url'] = Route::api('photo', ['f' => $b['thumb'] ?: $b['photo']] + (empty($b['thumb']) ? ['th' => 1] : []));
         }
         $out[] = $b;
+    }
+    return $out;
+}
+
+function spot_links_validate($links): array {
+    if (!is_array($links) || !array_is_list($links) || count($links) > 30) throw new InvalidArgumentException('連結最多 30 筆');
+    $out = [];
+    foreach ($links as $link) {
+        if (!is_array($link)) throw new InvalidArgumentException('連結格式錯誤');
+        $url = $link['url'] ?? ''; $icon = $link['icon'] ?? 'link';
+        if (!is_string($url) || strlen($url) > 2000 || !filter_var($url, FILTER_VALIDATE_URL)
+            || !preg_match('#^https?://#i', $url) || preg_match('/[\x00-\x20]/', $url)
+            || parse_url($url, PHP_URL_USER) !== null || parse_url($url, PHP_URL_PASS) !== null
+            || !in_array($icon, ['link', 'facebook', 'instagram', 'line', 'threads'], true)) throw new InvalidArgumentException('請填寫有效的 HTTP／HTTPS 網址及圖示');
+        $out[] = ['url' => $url, 'icon' => $icon];
     }
     return $out;
 }
