@@ -3,7 +3,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 # 有顏色的終端機才上色，避免 log 檔案裡混進一堆 ANSI 逃脫碼
-if [ -t 1 ]; then
+if [ -t 1 ] && [ -z "${NO_COLOR+x}" ] && [ "${TERM:-}" != "dumb" ]; then
   BOLD=$'\033[1m'; DIM=$'\033[2m'
   RED=$'\033[31m'; GREEN=$'\033[32m'; YELLOW=$'\033[33m'; CYAN=$'\033[36m'
   RESET=$'\033[0m'
@@ -11,10 +11,17 @@ else
   BOLD=''; DIM=''; RED=''; GREEN=''; YELLOW=''; CYAN=''; RESET=''
 fi
 
-step() { echo "${BOLD}${CYAN}$1${RESET}"; }
-ok()   { echo "  ${GREEN}✓${RESET} $1"; }
-warn() { echo "  ${YELLOW}!${RESET} $1"; }
-fail() { echo "  ${RED}✗${RESET} $1"; }
+step() { printf '%s%s%s%s\n' "$BOLD" "$CYAN" "$1" "$RESET"; }
+ok()   { printf '  %s✓ %s%s\n' "$GREEN" "$1" "$RESET"; }
+warn() { printf '  %s! %s%s\n' "$YELLOW" "$1" "$RESET"; }
+fail() { printf '  %s✗ %s%s\n' "$RED" "$1" "$RESET"; }
+install_hint() { printf '  %sUbuntu/Debian 安裝：sudo apt install %s%s\n' "$CYAN" "$1" "$RESET"; }
+require_cmd() {
+  command -v "$1" >/dev/null 2>&1 && return 0
+  fail "缺少 $1，部署已中止"
+  install_hint "$2"
+  return 1
+}
 
 
 show_help() {
@@ -62,7 +69,7 @@ if [ "${1:-}" = "--set-check-url" ]; then
 fi
 
 if [ "${1:-}" = "--setup-admin" ]; then
-  command -v php >/dev/null 2>&1 || { fail "需要 php"; exit 1; }
+  require_cmd php php-cli
   echo "設定管理者登入：1) 主要 PIN  2) 主要帳號"
   printf '選擇 [1/2]: '; read -r pick
   case "$pick" in 1) php tools/admin_setup.php pin ;; 2) php tools/admin_setup.php account ;; *) fail "請輸入 1 或 2"; exit 2 ;; esac
@@ -190,7 +197,8 @@ selfcheck_web() {
     return 0
   fi
   if ! command -v curl >/dev/null 2>&1; then
-    warn "找不到 curl，略過外洩檢查"
+    warn "缺少 curl，略過網站檢查"
+    install_hint curl
     return 0
   fi
   base="${CHECK_URL%/}"
@@ -351,16 +359,18 @@ BRANCH="${DEPLOY_BRANCH:-main}"
 # souliong 以檔案儲存，沒有資料庫、沒有編譯步驟。
 # 流程：fetch → 用獨立 worktree 跑過新版本的 tools/checkall.php → fast-forward 合併 → 選用重載 PHP。
 
-step "檢查 working tree"
+require_cmd git git
+
+step "檢查本機變更"
 # 伺服器上的檔案被手動改過時，git fast-forward merge 會中途失敗；先擋下來，講清楚是哪些檔案。
 DIRTY="$(git status --porcelain --untracked-files=no)"
 if [ -n "$DIRTY" ]; then
-  fail "有尚未 commit 的修改，部署已中止（怕蓋掉伺服器上的手動修改）："
+  fail "有未提交的修改，部署已中止："
   sed 's/^/    /' <<< "$DIRTY"
-  echo "  ${DIM}確認不需要之後，用 git checkout -- <檔案> 還原，再重新執行 ./deploy.sh${RESET}"
+  echo "  ${DIM}請先提交或備份上述修改，再執行 ./deploy.sh${RESET}"
   exit 1
 fi
-ok "沒有未 commit 的修改"
+ok "沒有未提交的修改"
 
 HAS_PHP=0
 if command -v php >/dev/null 2>&1; then
@@ -371,11 +381,12 @@ if command -v php >/dev/null 2>&1; then
     exit 1
   fi
 else
-  warn "找不到 php 指令，會略過部署前檢查：有問題的程式碼不會被擋在部署之前（網頁的 PHP-FPM 不受影響）"
+  warn "缺少 PHP CLI，略過部署前檢查"
+  install_hint php-cli
 fi
 
 echo
-step "Fetch 最新程式碼"
+step "取得最新程式碼"
 BEFORE=$(git rev-parse --short HEAD)
 git fetch --quiet origin "$BRANCH"
 AFTER=$(git rev-parse --short FETCH_HEAD)
@@ -456,6 +467,6 @@ if [ "$HAS_PHP" -eq 1 ]; then
   VERSION="$(php -r '$c = require "config.php"; echo $c["version"] ?? "?";' 2>/dev/null || echo '?')"
   echo "  應用版本：${BOLD}v${VERSION}${RESET}"
 fi
-echo "  目前 commit：${BOLD}$(git rev-parse --short HEAD)${RESET}"
+echo "  目前提交：${BOLD}$(git rev-parse --short HEAD)${RESET}"
 echo "  完成時間：${DIM}$(date '+%Y-%m-%d %H:%M:%S')${RESET}"
 [ "$CRIT" -eq 0 ] || { echo; fail "自我驗證發現外洩，請依上面修法處理"; exit 1; }
