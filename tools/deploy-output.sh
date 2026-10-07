@@ -36,5 +36,5 @@ deployment_summary() {
     fi
     [ -z "$version" ] || printf '  專案版本：%sv%s%s\n' "$BOLD" "$version" "$RESET"
     printf '  目前提交：%s%s%s\n' "$BOLD" "$(git rev-parse --short HEAD)" "$RESET"
-    printf '  完成時間：%s\n' "$(TZ=Asia/Taipei date '+%Y-%m-%d %H:%M:%S %Z (%z)')"
+    printf '  完成時間：%s\n' "$(date '+%Y-%m-%d %H:%M:%S %Z (%z)')"
 }
