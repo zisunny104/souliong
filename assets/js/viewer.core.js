@@ -829,18 +829,21 @@ window.MapApp = (() => {
       if (active[spot.cat] === false || !Number.isFinite(spot.lat) || !Number.isFinite(spot.lon)) return;
       const selected = (grouped.get(spot.num) || []).slice().sort(byCreatedAt);
       const start = (PIN_SIZE_PX[META.pinSize] || 24) / 2 + 8;
+      // 固定的高低錯落，重繪時不跳位；各欄仍保留完整縮圖間距。
+      const heights = [-0.7, 0.55, -0.35, 0.65];
+      const anchorAt = index => [-start - index * (size + gap), size / 2 - heights[index] * size];
       selected.slice(0, 3).forEach((e, index) => {
         const icon = entryIcon(e, thumb), url = entryFullUrl(e);
         specs.push({
           id: e.id, lat: spot.lat, lon: spot.lon, html: icon.html, size: icon.size,
-          anchor: [-start - index * (size + gap), size / 2],
+          anchor: anchorAt(index),
           onClick: () => { if (url) openLightbox(e, url); else openSpot(spot); },
         });
       });
       if (selected.length > 3) specs.push({
         id: 'featured-more-' + spot.num, lat: spot.lat, lon: spot.lon,
         html: '<button type="button" class="sl-featured-more" aria-label="' + esc(t('featured_entry')) + ' +' + (selected.length - 3) + '">+' + (selected.length - 3) + '</button>',
-        size: [size, size], anchor: [-start - 3 * (size + gap), size / 2],
+        size: [size, size], anchor: anchorAt(3),
         onClick: () => openSpot(spot),
       });
     });
