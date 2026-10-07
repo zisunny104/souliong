@@ -11,10 +11,10 @@ fi
 separator() { printf '\n%s────────────────────────────%s\n' "$DIM" "$RESET"; }
 step() { separator; printf '%s%s%s\n' "${BOLD}${CYAN}" "$1" "$RESET"; }
 status_line() {
-    local color="$1" fallback="$2" text="$3" marker
+    local color="$1" fallback="$2" text="$3" indent="${4-  }" marker
     marker="$fallback"
     [ -z "$color" ] || marker='■'
-    printf '  %s%s%s %s\n' "$color" "$marker" "$RESET" "$text"
+    printf '%s%s%s%s %s\n' "$indent" "$color" "$marker" "$RESET" "$text"
 }
 ok() { status_line "$GREEN" '✓' "$1"; }
 warn() { status_line "$YELLOW" '!' "$1"; }
@@ -30,11 +30,11 @@ deployment_summary() {
     local version="${1:-}" critical="${2:-0}"
     separator
     if [ "$critical" -eq 0 ]; then
-        ok "${BOLD}部署完成${RESET}"
+        status_line "$GREEN" '✓' "${BOLD}部署完成${RESET}" ''
     else
-        fail "${BOLD}部署未完成${RESET}"
+        status_line "$RED" '✗' "${BOLD}部署未完成${RESET}" ''
     fi
     [ -z "$version" ] || printf '  專案版本：%sv%s%s\n' "$BOLD" "$version" "$RESET"
     printf '  目前提交：%s%s%s\n' "$BOLD" "$(git rev-parse --short HEAD)" "$RESET"
-    printf '  完成時間：%s\n' "$(date '+%Y-%m-%d %H:%M:%S %Z (%z)')"
+    printf '  部署時間：%s\n' "$(date '+%Y-%m-%d %H:%M:%S %Z (%z)')"
 }
