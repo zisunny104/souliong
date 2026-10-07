@@ -783,10 +783,12 @@ window.MapApp = (() => {
     }
     const specs = [];
     if (!showSpots) return specs;
+    const previewSpots = new Set(effectiveEntries().filter(e => e.featured === true && (!filterPerson || e.name === filterPerson)).map(e => e.item_num));
     effectiveSpots().forEach(c => {
       if (active[c.cat] === false) return;
       const count = personCounts ? (personCounts[c.num] || 0) : (counts[c.num] || 0);
-      const icon = spotIcon(c, showContributions ? count : 0, badgeColor);
+      const hasPreview = previewSpots.has(c.num);
+      const icon = spotIcon(c, showContributions && !hasPreview ? count : 0, badgeColor);
       specs.push({
         id: c.num, lat: c.lat, lon: c.lon, html: icon.html, size: icon.size, anchor: icon.anchor,
         color: c.color || '#888',
@@ -812,15 +814,52 @@ window.MapApp = (() => {
       : '<div class="' + cls + ' sl-mk-ico"><i class="fa-solid ' + def.icon + '"></i></div>';
     return { size: [sz, sz], anchor: [half, half], html: html };
   }
+  // 精選以點位為顯示錨點，像素偏移只改 marker anchor，不寫回投稿座標。
+  // 最多三則，剩餘數量開啟點位面板，避免同一點位無限展開。
+  function featuredMarkerSpecs(entries, spots, thumb) {
+    const specs = [], size = thumb ? 30 : 14, gap = 5;
+    const openSpot = spot => { if (BARE) emitHook('spotClick', spot); else openPanel(spot); };
+    const grouped = new Map();
+    entries.forEach(e => {
+      if (e.featured !== true) return;
+      if (!grouped.has(e.item_num)) grouped.set(e.item_num, []);
+      grouped.get(e.item_num).push(e);
+    });
+    spots.forEach(spot => {
+      if (active[spot.cat] === false || !Number.isFinite(spot.lat) || !Number.isFinite(spot.lon)) return;
+      const selected = (grouped.get(spot.num) || []).slice().sort(byCreatedAt);
+      const start = (PIN_SIZE_PX[META.pinSize] || 24) / 2 + 8;
+      selected.slice(0, 3).forEach((e, index) => {
+        const icon = entryIcon(e, thumb), url = entryFullUrl(e);
+        specs.push({
+          id: e.id, lat: spot.lat, lon: spot.lon, html: icon.html, size: icon.size,
+          anchor: [-start - index * (size + gap), size / 2],
+          onClick: () => { if (url) openLightbox(e, url); else openSpot(spot); },
+        });
+      });
+      if (selected.length > 3) specs.push({
+        id: 'featured-more-' + spot.num, lat: spot.lat, lon: spot.lon,
+        html: '<button type="button" class="sl-featured-more" aria-label="' + esc(t('featured_entry')) + ' +' + (selected.length - 3) + '">+' + (selected.length - 3) + '</button>',
+        size: [size, size], anchor: [-start - 3 * (size + gap), size / 2],
+        onClick: () => openSpot(spot),
+      });
+    });
+    return specs;
+  }
   function renderContribLayer() {
-    if ((!EMBED && !photoLayerOn) || !showContributions) { engine.clearMarkerLayer('contrib'); return; }
+    if (!showContributions) { engine.clearMarkerLayer('contrib'); return; }
     const thumb = engine.getZoom() >= THUMB_ZOOM;
-    const specs = [];
-    effectiveEntries().forEach(e => {
-      if (!kindDef(e).layer) return;
-      if (filterPerson && e.name !== filterPerson) return;
+    const entries = effectiveEntries().filter(e => !filterPerson || e.name === filterPerson);
+    const spots = effectiveSpots();
+    const specs = showSpots ? featuredMarkerSpecs(entries, spots, thumb) : [];
+    const featuredIds = new Set(specs.map(s => s.id));
+    const spotNums = new Set(spots.filter(s => active[s.cat] !== false && Number.isFinite(s.lat) && Number.isFinite(s.lon)).map(s => s.num));
+    if (EMBED || photoLayerOn) entries.forEach(e => {
+      if (!kindDef(e).layer || featuredIds.has(e.id)) return;
+      // 已在點位旁呈現或收合的精選不再於原座標重複顯示。
+      if (showSpots && e.featured === true && spotNums.has(e.item_num)) return;
       const url = entryFullUrl(e);
-      if (typeof e.lat !== 'number' || typeof e.lon !== 'number' || !url) return;
+      if (!Number.isFinite(e.lat) || !Number.isFinite(e.lon) || !url) return;
       const icon = entryIcon(e, thumb);
       specs.push({
         id: e.id, lat: e.lat, lon: e.lon, html: icon.html, size: icon.size, anchor: icon.anchor,
@@ -991,7 +1030,7 @@ window.MapApp = (() => {
     CATS.forEach(c => {
       const el = document.createElement('div'); el.className = 'chip' + (active[c.key] === false ? ' off' : '');
       el.innerHTML = '<span class="dot" style="background:' + esc(c.color) + '"></span>' + esc(c.label);
-      el.onclick = () => { active[c.key] = active[c.key] === false ? true : false; el.classList.toggle('off', active[c.key] === false); renderSpots(); };
+      el.onclick = () => { active[c.key] = active[c.key] === false ? true : false; el.classList.toggle('off', active[c.key] === false); renderSpots(); renderContribLayer(); };
       legend.appendChild(el);
     });
   }
@@ -1223,7 +1262,7 @@ window.MapApp = (() => {
     const j = await res.json().catch(() => ({ error: 'HTTP ' + res.status }));
     if (!res.ok || j.error) throw new Error(j.error || ('HTTP ' + res.status));
     CONTRIB.push(j.item);
-    renderSpots(); rebuildPersonFilter();
+    renderSpots(); renderContribLayer(); rebuildPersonFilter();
     refreshCurrentSpot(itemNum);
     return j.item;
   }
@@ -1327,7 +1366,7 @@ window.MapApp = (() => {
     star.className = 'entry-featured-star';
     const color = /^#[0-9a-f]{6}$/i.test(META.featuredColor || '') ? META.featuredColor : '#d6a52a';
     star.style.setProperty('--featured-color', color);
-    star.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 2.5 15 8.7 21.8 9.7 16.9 14.5 18 21.3 12 18.1 6 21.3 7.1 14.5 2.2 9.7 9 8.7Z"/></svg>';
+    star.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 2.5 15 8.7 21.8 9.7 16.9 14.5 18 21.3 12 18.1 6 21.3 7.1 14.5 2.2 9.7 9 8.7Z"/></svg>';
     if (editable) star.type = 'button';
     const update = () => {
       const selected = entry.featured === true;
@@ -1352,6 +1391,7 @@ window.MapApp = (() => {
         if (original) original.featured = result.featured;
         entry.featured = result.featured;
         update();
+        renderSpots(); renderContribLayer();
       } catch (error) { alert(error.message || '儲存失敗'); }
       finally { star.disabled = false; }
     });
@@ -1900,7 +1940,7 @@ window.MapApp = (() => {
       dark: isDark(), manifests: layerManifests(),
     });
     engine.mountControls({ zoomPosition: 'bottomleft', attributionPosition: 'bottomright', opButtons: [{ el: document.getElementById('resetBtn') }] });
-    engine.onZoomThresholdCross(THUMB_ZOOM, () => { if (EMBED || photoLayerOn) renderContribLayer(); });
+    engine.onZoomThresholdCross(THUMB_ZOOM, () => renderContribLayer());
 
     buildLegend();
     renderSpots();
