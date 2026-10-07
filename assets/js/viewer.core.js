@@ -1339,7 +1339,7 @@ window.MapApp = (() => {
       d.innerHTML = entryPreviewHtml(e, alt) + '<div class="meta">' + entryBylineHtml(e) +
         (e.comment ? (['text', 'photo'].includes(kindOf(e)) && e.html ? '<div class="txt sc-md">' + e.html + '</div>' : '<div class="txt">' + esc(e.comment) + '</div>') : '') +
         '<div class="entry-footer"><span class="entry-link-actions"></span><div class="entry-actions">' +
-        (canEdit ? '<button class="btn small edit-btn" type="button"><i class="fa-solid fa-pen"></i> ' + esc(t('edit')) + '</button>' : '') +
+        (canEdit ? '<button class="btn small entry-icon-action edit-btn" type="button" title="' + esc(t('edit')) + '" aria-label="' + esc(t('edit')) + '"><i class="fa-solid fa-pen" aria-hidden="true"></i></button>' : '') +
         (!EMBED && MOD('entryHistory') && e.editHistory && e.editHistory.length > 1 ? '<button class="btn small hist-btn" type="button">' + esc(t('history_versions', { n: e.editHistory.length })) + '</button>' : '') +
         (!EMBED && isMine(e) ? '<button class="del-btn" type="button"><i class="fa-solid fa-trash"></i> ' + esc(t('delete')) + '</button>' : '') + '</div>' + entryLicenseHtml(e) + '</div>' +
         '</div><div class="photo-editor" style="display:none"></div><div class="photo-history" style="display:none"></div>';
@@ -1593,7 +1593,7 @@ window.MapApp = (() => {
   }
   function citationButton(e) {
     const button = document.createElement('button');
-    button.type = 'button'; button.className = 'btn small';
+    button.type = 'button'; button.className = 'btn small entry-icon-action';
     button.title = t('copy_citation'); button.setAttribute('aria-label', t('copy_citation'));
     button.innerHTML = '<i class="fa-solid fa-quote-right" aria-hidden="true"></i>';
     button.onclick = async event => {
@@ -1677,7 +1677,7 @@ window.MapApp = (() => {
     const txt = e.comment ? '<div class="lb-txt sc-md">' + (!e.spotBlock && ['text', 'photo'].includes(kindOf(e)) && e.html ? e.html : esc(e.comment)) + '</div>' : '';
     const canEdit = !e.spotBlock && canEditEntry(e);   // 說明區的照片區塊不是投稿，沒有可編輯的投稿紀錄
     const actions =
-      (canEdit ? '<button class="btn small" type="button" id="lbEditBtn"><i class="fa-solid fa-pen"></i> ' + esc(t('edit')) + '</button>' : '') +
+      (canEdit ? '<button class="btn small entry-icon-action" type="button" id="lbEditBtn" title="' + esc(t('edit')) + '" aria-label="' + esc(t('edit')) + '"><i class="fa-solid fa-pen" aria-hidden="true"></i></button>' : '') +
       (!EMBED && isMine(e) ? '<button class="btn small danger" type="button" id="lbDelBtn"><i class="fa-solid fa-trash"></i> ' + esc(t('delete')) + '</button>' : '');
     const cap = document.getElementById('lbCap');
     cap.style.display = '';

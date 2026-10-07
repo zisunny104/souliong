@@ -147,13 +147,15 @@
   opacity: .6
 }
 
-#lb .cap .lb-actions .btn {
+#lb .cap .lb-actions .btn,
+#lb .cap .entry-footer .entry-icon-action {
   background: rgba(255, 255, 255, .14);
   border-color: rgba(255, 255, 255, .3);
   color: #fff
 }
 
-#lb .cap .lb-actions .btn:hover {
+#lb .cap .lb-actions .btn:hover,
+#lb .cap .entry-footer .entry-icon-action:hover {
   background: rgba(255, 255, 255, .24)
 }
 

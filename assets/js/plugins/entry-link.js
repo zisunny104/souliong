@@ -35,7 +35,7 @@
       App.registerEntryAction(e => {
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = 'btn small';
+        btn.className = 'btn small entry-icon-action';
         btn.dataset.entryLink = '1';
         btn.title = t('copy_entry_link');
         btn.setAttribute('aria-label', t('copy_entry_link'));

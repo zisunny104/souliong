@@ -1089,3 +1089,19 @@
 
 .entry-footer .entry-actions, .entry-footer .lb-actions { display: inline-flex; align-items: center; gap: 6px; margin: 0; padding: 0; }
 .entry-footer .entry-license { margin-left: auto; }
+
+.entry-footer .btn.entry-icon-action,
+#lb .cap .entry-footer .btn.entry-icon-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+  flex: 0 0 32px;
+  font-size: 14px;
+  line-height: 1;
+}
+.entry-footer .entry-icon-action i { line-height: 1; }
