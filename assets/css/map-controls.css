@@ -54,7 +54,12 @@
 }
 
 /* ---------- 版權標註（MapLibre 的 CreditControl，見 maplibre-engine.js；內容來自 map-engine.js 的 buildCredit()）---------- */
+/* 只置中版權條，保留其他右下角控制項的位置。 */
 .cr-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
   background: var(--glass) !important;
   -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
@@ -64,7 +69,7 @@
   padding: 4px 12px !important;
   font-size: 0.625rem;
   line-height: 1.5;
-  margin: 14px !important;
+  margin: 0 !important;
   box-shadow: var(--sh-1);
   max-width: calc(100vw - 28px);
   white-space: normal;
