@@ -840,7 +840,7 @@ window.MapApp = (() => {
     const angleOf = off => Math.atan2(off.y, off.x) * 180 / Math.PI;
     const tieStyle = (off, angle) => 'transform:rotate(' + (angle != null ? angle : angleOf(off)).toFixed(1) + 'deg) translateX(' + (pinPx / 2 + 1) + 'px) scaleX(' + (Math.max(4, Math.hypot(off.x, off.y) - pinPx / 2 - 1) / 100).toFixed(3) + ')';
     const withTie = (html, off) =>
-      '<div class="sl-tie" data-angle="' + angleOf(off).toFixed(1) + '" style="top:' + (size / 2 - 4.5) + 'px;left:' + size / 2 + 'px;' + tieStyle(off) + '"></div>' +
+      '<div class="sl-tie" data-angle="' + angleOf(off).toFixed(1) + '" style="top:' + (size / 2 - 5.5) + 'px;left:' + size / 2 + 'px;' + tieStyle(off) + '"></div>' +
       '<div class="sl-move" style="' + moveStyle(off) + '"><div class="sl-featured-body">' + html + '</div></div>';
     const anchorOf = () => [size / 2, size / 2];
     shown.forEach(spot => {
