@@ -834,13 +834,16 @@ window.MapApp = (() => {
       const n = picked.get(spot.num).length;
       return { id: spot.num, lat: spot.lat, lon: spot.lon, slots: n ? Math.min(n, 3) + (n > 3 ? 1 : 0) : 0 };
     }), engine.getZoom(), { pinPx: pinPx, size: size });
-    // 連回點位的細線：從預覽中心畫到點位標記邊緣，放在縮圖後面；html 的外框尺寸就是縮圖尺寸
+    // 連回點位的「煙」：沿著預覽到點位標記邊緣畫一條模糊的寬帶，靠點位那端淡出；顏色跟深淺主題走（見 map-markers.css）
+    let tieSeq = 0;
     const withTie = (html, off) => {
       const r = Math.hypot(off.x, off.y) || 1, ax = size / 2 - off.x, ay = size / 2 - off.y;
-      const ex = ax + off.x / r * (pinPx / 2 + 1), ey = ay + off.y / r * (pinPx / 2 + 1);
+      const sx = size / 2, sy = size / 2;
+      const ex = ax + off.x / r * (pinPx / 2 + 1), ey = ay + off.y / r * (pinPx / 2 + 1), gid = 'sl-tie-' + (++tieSeq);
       return '<svg class="sl-featured-tie" width="' + size + '" height="' + size + '" aria-hidden="true">' +
-        '<line class="halo" x1="' + size / 2 + '" y1="' + size / 2 + '" x2="' + ex.toFixed(1) + '" y2="' + ey.toFixed(1) + '"/>' +
-        '<line x1="' + size / 2 + '" y1="' + size / 2 + '" x2="' + ex.toFixed(1) + '" y2="' + ey.toFixed(1) + '"/></svg>' +
+        '<defs><linearGradient id="' + gid + '" gradientUnits="userSpaceOnUse" x1="' + sx + '" y1="' + sy + '" x2="' + ex.toFixed(1) + '" y2="' + ey.toFixed(1) + '">' +
+        '<stop offset="0" stop-color="currentColor" stop-opacity=".55"/><stop offset="1" stop-color="currentColor" stop-opacity=".08"/></linearGradient></defs>' +
+        '<line x1="' + sx + '" y1="' + sy + '" x2="' + ex.toFixed(1) + '" y2="' + ey.toFixed(1) + '" stroke="url(#' + gid + ')"/></svg>' +
         '<div class="sl-featured-body">' + html + '</div>';
     };
     const anchorOf = off => [size / 2 - off.x, size / 2 - off.y];
