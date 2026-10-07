@@ -95,6 +95,9 @@ switch ($action) {
     case 'delete':
         require __DIR__ . '/api/delete.php';
         return;
+    case 'featureentry':
+        require __DIR__ . '/api/featureentry.php';
+        return;
     case 'editentry':
         require __DIR__ . '/api/editentry.php';
         return;

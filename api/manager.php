@@ -736,6 +736,7 @@ if (!$authed) {
                 $meta['categoryIcons'][$catKey] = souliong_marker_icon($iconName);
               }
             }
+            if (isset($_POST['featuredColor'])) $meta['featuredColor'] = souliong_hex_color($_POST['featuredColor'], '#d6a52a');
             if (isset($_POST['badgeColor'])) $meta['badgeColor'] = souliong_hex_color($_POST['badgeColor'], '#c0392b');
             if (isset($_POST['categoryColors']) && is_array($_POST['categoryColors'])) {
               foreach ($_POST['categoryColors'] as $catKey => $catColor) {
@@ -3811,6 +3812,9 @@ if (!$authed) {
                     <input type="color" name="badgeColor" value="<?= $esc(souliong_hex_color($meta['badgeColor'] ?? null, '#c0392b')) ?>">
                   </label>
                   <div class="hint"><?= $t('badgecolor_hint') ?></div>
+                  <label><?= $t('field_featuredcolor_label') ?>
+                    <input type="color" name="featuredColor" value="<?= $esc(souliong_hex_color($meta['featuredColor'] ?? null, '#d6a52a')) ?>">
+                  </label>
                   <div class="hint"><?= $t('uncategorized_color_hint') ?></div>
                   <?php foreach ($markerCategories as $catKey => $markerSpot): ?>
                   <label><?= $t('field_categorycolor_label') ?> · <?= $esc($markerSpot['catLabel'] ?? $catKey) ?>

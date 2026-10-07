@@ -1105,3 +1105,21 @@
   line-height: 1;
 }
 .entry-footer .entry-icon-action i { line-height: 1; }
+
+/* 星章與 QR 連結的暫時高亮分開呈現，不改動卡片排序。 */
+.entry { position: relative; }
+.entry-featured-star {
+  position: absolute; top: 10px; right: 10px; z-index: 2;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; padding: 0; border-radius: 50%;
+  border: 1px solid rgba(255,255,255,.7);
+  background: #7a7f87; color: #fff; font-size: 14px; line-height: 1;
+  transition: background-color .18s ease;
+}
+.entry-featured-star.is-featured { background: var(--featured-color, #d6a52a); }
+button.entry-featured-star { cursor: pointer; }
+button.entry-featured-star::after { content: ''; position: absolute; inset: -5px; }
+button.entry-featured-star:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
+button.entry-featured-star:disabled { cursor: progress; }
+.sl-kind-text:has(.entry-featured-star) > .meta { padding-right: 54px; }
+@media (prefers-reduced-motion: reduce) { .entry-featured-star { transition: none; } }

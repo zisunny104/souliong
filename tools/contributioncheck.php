@@ -145,6 +145,25 @@ ck($c === 200 && !empty($r['item']['id']), 'anonymous real photo accepted', [$c,
 $entry = $r['item'] ?? [];
 ck(($entry['comment'] ?? '') === $fields['comment'] && ($entry['name'] ?? '') === $fields['name'], 'caption and name preserved');
 ck(!empty($entry['photo']) && is_file($cfg['projects_dir'] . '/' . $P . '/photos/' . basename($entry['photo'])), 'photo bytes persisted');
+// 精選只由管理者設定，不更動投稿內容或其原始 ID。
+$feature = ['project' => $P, 'id' => $entry['id'], 'featured' => '1'];
+[$c, $r] = cc_post("$base/?api=featureentry", $feature, [], null);
+ck($c === 403 || $c === 401, 'visitor cannot feature entries', [$c, $r]);
+[$c, $r] = cc_post("$base/?api=featureentry", $feature + ['csrf' => 'wrong'], [], $cookie);
+ck($c === 403, 'featured state requires CSRF', [$c, $r]);
+[$c, $r] = cc_post("$base/?api=featureentry", $feature + ['csrf' => $csrf], [], $cookie);
+ck($c === 200 && ($r['featured'] ?? false) === true, 'manager can feature entry', [$c, $r]);
+[$c, $r] = cc_http("$base/?api=list&project=$P");
+$list = $r['items'] ?? [];
+$starred = array_values(array_filter($list, fn($row) => ($row['id'] ?? '') === $entry['id']))[0] ?? [];
+ck(($starred['featured'] ?? false) === true && $starred['comment'] === $entry['comment'] && $starred['photo'] === $entry['photo'], 'featured state reloads without changing content');
+[$c, $r] = cc_post("$base/?api=featureentry", array_merge($feature, ['featured' => '<script>', 'csrf' => $csrf]), [], $cookie);
+ck($c === 400, 'invalid featured values rejected');
+[$c, $r] = cc_post("$base/?api=featureentry", array_merge($feature, ['id' => '0000000000000000', 'csrf' => $csrf]), [], $cookie);
+ck($c === 404, 'missing featured entry rejected');
+[$c, $r] = cc_post("$base/?api=featureentry", array_merge($feature, ['featured' => '0', 'csrf' => $csrf]), [], $cookie);
+ck($c === 200 && ($r['featured'] ?? true) === false, 'manager can remove featured state');
+
 [$c, $r] = cc_http("$base/?api=contribstatus&project=$P");
 ck($c === 200 && $r['open'] === true, 'status endpoint');
 [$c, $r] = cc_http("$base/?p=$P&embed=1&ui=submit&type=photo");

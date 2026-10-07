@@ -1292,6 +1292,44 @@ window.MapApp = (() => {
     if (!last.name) return '';
     return '<div class="story-by byline-text">' + esc(bylineText('spot', last.name, last.created_at)) + '</div>';
   }
+  function addFeaturedStar(card, entry) {
+    const editable = !EMBED && can('manage_contrib');
+    if (!editable && entry.featured !== true) return;
+    const star = document.createElement(editable ? 'button' : 'span');
+    star.className = 'entry-featured-star';
+    const color = /^#[0-9a-f]{6}$/i.test(META.featuredColor || '') ? META.featuredColor : '#d6a52a';
+    star.style.setProperty('--featured-color', color);
+    star.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 2.5 15 8.7 21.8 9.7 16.9 14.5 18 21.3 12 18.1 6 21.3 7.1 14.5 2.2 9.7 9 8.7Z"/></svg>';
+    if (editable) star.type = 'button';
+    const update = () => {
+      const selected = entry.featured === true;
+      star.classList.toggle('is-featured', selected);
+      const label = editable ? (selected ? t('featured_unset') : t('featured_set')) : t('featured_entry');
+      star.title = label; star.setAttribute('aria-label', label);
+      if (editable) star.setAttribute('aria-pressed', String(selected));
+    };
+    update();
+    if (editable) star.addEventListener('click', async ev => {
+      ev.stopPropagation();
+      star.disabled = true;
+      try {
+        const fd = new FormData();
+        fd.append('project', PROJECT); fd.append('id', entry.id);
+        fd.append('featured', entry.featured === true ? '0' : '1');
+        if (APP.csrf) fd.append('csrf', APP.csrf);
+        const res = await fetch(apiUrl('featureentry'), { method: 'POST', body: fd });
+        const result = await res.json();
+        if (!res.ok || !result.ok) throw new Error(result.error || '儲存失敗');
+        const original = CONTRIB.find(row => row.id === entry.id);
+        if (original) original.featured = result.featured;
+        entry.featured = result.featured;
+        update();
+      } catch (error) { alert(error.message || '儲存失敗'); }
+      finally { star.disabled = false; }
+    });
+    card.appendChild(star);
+  }
+
   function renderEntries() {
     if (!current) return;
     const box = document.getElementById('entries');
@@ -1343,6 +1381,7 @@ window.MapApp = (() => {
         (!EMBED && MOD('entryHistory') && e.editHistory && e.editHistory.length > 1 ? '<button class="btn small hist-btn" type="button">' + esc(t('history_versions', { n: e.editHistory.length })) + '</button>' : '') +
         (!EMBED && isMine(e) ? '<button class="del-btn" type="button"><i class="fa-solid fa-trash"></i> ' + esc(t('delete')) + '</button>' : '') + '</div>' + entryLicenseHtml(e) + '</div>' +
         '</div><div class="photo-editor" style="display:none"></div><div class="photo-history" style="display:none"></div>';
+      addFeaturedStar(d, e);
       const open = d.querySelector('.sl-open');   // 文字與音訊沒有這個元素：文字不開燈箱，音訊直接在卡片上聽
       if (open) {
         open.onclick = () => openLightbox(e);

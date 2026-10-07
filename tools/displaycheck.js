@@ -63,11 +63,32 @@ const {chromium}=require(process.env.PLAYWRIGHT_PATH||'playwright');
   await form.locator('select[name="pinMark"]').selectOption('icon');
   await form.locator('select[name="categoryIcons[test]"]').selectOption('mug-hot');
   assert.ok(await form.locator('[data-pin-icon-select]').last().evaluate(el=>el.parentElement.querySelector('.pin-icon-preview svg path').getAttribute('d').length>10));
+  await form.locator('input[name="featuredColor"]').fill('#a87820');
   await form.locator('select[name="numbering"]').selectOption('disable');
   await form.locator('textarea[name="bylineFormats[spot]"]').fill('{name}｜{date} {time} <script>');
   await form.evaluate(async el=>{const response=await fetch(el.action||location.href,{method:'POST',body:(()=>{const data=new FormData(el);data.set('categoryIcons[new]','fa-solid fa-user onclick=alert(1)');return data;})()});if(!response.ok)throw Error('儲存失敗 '+response.status);});
+  await open();
+  const star=page.locator('.entry-featured-star');
+  assert.equal(await star.count(),1);assert.equal(await star.getAttribute('aria-pressed'),'false');
+  await star.click();await page.waitForFunction(()=>document.querySelector('.entry-featured-star')?.getAttribute('aria-pressed')==='true');
+  await open();assert.equal(await page.locator('.entry-featured-star').getAttribute('aria-pressed'),'true');
+  await context.clearCookies();await open();assert.equal(await page.locator('.entry-featured-star').count(),1);assert.equal(await page.locator('button.entry-featured-star').count(),0);
+  await page.locator('#skeleton').waitFor({state:'detached',timeout:11000});
+  await page.locator('.entry-featured-star').scrollIntoViewIfNeeded();
+  for (const width of [390,1280]) {
+    await page.setViewportSize({width,height:900});
+    const geometry=await page.locator('.entry-featured-star').evaluate(el=>{const a=el.getBoundingClientRect(),b=el.closest('.entry').getBoundingClientRect(),css=getComputedStyle(el);return {width:a.width,height:a.height,right:b.right-a.right,top:a.top-b.top,color:css.color,bg:css.backgroundColor};});
+    assert.equal(geometry.width,32);assert.equal(geometry.height,32);assert.ok(geometry.right>=8&&geometry.right<=12);assert.ok(geometry.top>=8&&geometry.top<=12);
+    assert.equal(geometry.color,'rgb(255, 255, 255)');assert.equal(geometry.bg,'rgb(168, 120, 32)');
+    await page.screenshot({path:'/tmp/souliong-featured-'+width+'.png'});
+  }
+
+  await context.addCookies([{name:auth.name,value:auth.token,url:base}]);await open();
+  await page.locator('.entry-featured-star').click();await page.waitForFunction(()=>document.querySelector('.entry-featured-star')?.getAttribute('aria-pressed')==='false');
+  await context.clearCookies();await open();assert.equal(await page.locator('.entry-featured-star').count(),0);
+  await context.addCookies([{name:auth.name,value:auth.token,url:base}]);
   await open();assert.equal(await page.locator('#histBtn').count(),0);assert.equal(await page.locator('.hist-btn').count(),1);assert.equal(await page.locator('.entry .who').count(),0);assert.equal(await page.locator('.entry .time').count(),0);
-  const saved=JSON.parse(fs.readFileSync(tmp+'/projects/test/meta.json','utf8'));assert.equal(saved.pinMark,'icon');assert.equal(saved.categoryIcons.test,'mug-hot');assert.equal(saved.categoryIcons.new,'location-dot');
+  const saved=JSON.parse(fs.readFileSync(tmp+'/projects/test/meta.json','utf8'));assert.equal(saved.featuredColor,'#a87820');assert.equal(saved.pinMark,'icon');assert.equal(saved.categoryIcons.test,'mug-hot');assert.equal(saved.categoryIcons.new,'location-dot');
   const specs=await page.evaluate(()=>MapApp.spotMarkerSpecs());assert.ok(specs[0].html.includes('sl-pin-icon'));assert.ok(!specs[0].html.includes('<span>1</span>'));assert.ok(specs[0].html.includes('#aa3311'));assert.ok(specs[0].html.includes('class="badge"'));assert.equal(await page.locator('#pTitle').textContent(),'點位一');
   assert.ok(specs[0].html.includes('has-audio'));
   await page.locator('.sc-block-audio audio').evaluate(el=>el.dispatchEvent(new Event('play')));
@@ -88,6 +109,6 @@ const {chromium}=require(process.env.PLAYWRIGHT_PATH||'playwright');
     if(mode==='number')assert.ok(result.html.includes('<span>1</span>'));if(mode==='blank')assert.ok(!result.html.includes('<span>'));if(mode==='shape')assert.ok(result.html.includes('<svg'));if(mode==='image')assert.ok(result.html.includes('center/cover'));
   }
   assert.deepEqual(errors,[]);
-  console.log('PASS: 點位清單膠囊、面板寬度、後台儲存、獨立紀錄／署名開關、格式與 HTML 跳脫、icon 儲存與預設、五種模式及導航按鈕尺寸');
+  console.log('PASS: 精選星章管理／訪客、重載保留、底色儲存與手機／桌面位置；點位清單膠囊、面板寬度、後台儲存、獨立紀錄／署名開關、格式與 HTML 跳脫、icon 儲存與預設、五種模式及導航按鈕尺寸');
  }finally{if(browser)await browser.close();if(server)server.kill();fs.rmSync(tmp,{recursive:true,force:true});}
 })().catch(e=>{console.error(e);process.exitCode=1;});
