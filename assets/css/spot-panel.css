@@ -1092,6 +1092,11 @@
 
 .entry-footer .entry-actions, .entry-footer .lb-actions { display: inline-flex; align-items: center; gap: 6px; margin: 0; padding: 0; }
 .entry-footer .entry-license { margin-left: auto; }
+/* 順序：連結、引用（左）→ 授權 → 編輯與刪除（最右）；編輯類從另一端加 */
+.entry-footer .entry-link-actions, .entry-footer .lb-link-actions { order: 1; }
+.entry-footer > .entry-icon-action { order: 2; }
+.entry-footer .entry-license { order: 3; }
+.entry-footer .entry-actions, .entry-footer .lb-actions { order: 4; }
 
 .entry-footer .btn.entry-icon-action,
 #lb .cap .entry-footer .btn.entry-icon-action {
@@ -1135,7 +1140,10 @@ button.entry-featured-star:disabled { cursor: progress; }
 
 .spot-links { min-width: 0; display: flex; flex-wrap: wrap; gap: 6px; }
 .spot-link.btn { flex: 0 0 32px; width: 32px; height: 32px; padding: 0; justify-content: center; }
-.spot-link i { font-size: 20px; }
+.spot-link i { font-size: 16px; }
+.spot-link, .spot-link:hover { text-decoration: none; }
+/* 調整定位這類編輯鈕靠最右邊，連結與導覽靠左 */
+.p-head .p-actions #spotEditBtn { margin-left: auto; }
 .spot-links-editor { margin: 12px 18px; }
 .spot-link-row { display: grid; grid-template-columns: 100px minmax(0,1fr) 32px; gap: 6px; margin-bottom: 8px; }
 .spot-link-row input, .spot-link-row select { width: 100%; min-width: 0; }

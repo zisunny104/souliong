@@ -302,7 +302,6 @@ if ($pack) {
 <div id="topright" class="tr-group">
   <button class="icon-btn tr-toggle" id="trToggle" title="<?= $t('more_options') ?>" aria-label="<?= $t('expand_options_aria') ?>" aria-expanded="false" aria-controls="trItems"><i class="fa-solid fa-bars" aria-hidden="true"></i></button>
   <div class="tr-items" id="trItems">
-    <?php if ($isManager && !$bare): ?><a class="icon-btn hide-in-embed" id="adminBtn" href="<?= $esc($APP['manager']) ?>" title="<?= $t('admin_settings_btn') ?>" aria-label="<?= $t('admin_settings_btn') ?>"><i class="fa-solid fa-gear" aria-hidden="true"></i></a><?php endif; ?>
     <?php if ($mod('homeLink')): ?><a class="icon-btn hide-in-embed" id="homeBtn" href="<?= $b ?>" title="<?= $t('back_to_list') ?>" aria-label="<?= $t('back_to_list') ?>"><i class="fa-solid fa-house" aria-hidden="true"></i></a><?php endif; ?>
     <button id="themeBtn" class="icon-btn" title="<?= $t('toggle_theme') ?>" aria-label="<?= $t('toggle_theme_aria') ?>"><i class="fa-solid fa-circle-half-stroke" aria-hidden="true"></i></button>
     <button id="shortcutsBtn" class="icon-btn shortcuts-btn" title="<?= $t('shortcuts_btn') ?>" aria-label="<?= $t('shortcuts_btn') ?>"><i class="fa-solid fa-keyboard" aria-hidden="true"></i></button>
@@ -316,6 +315,7 @@ if ($pack) {
         <li role="option" data-lang="en" aria-selected="<?= $LANG === 'en' ? 'true' : 'false' ?>">English</li>
       </ul>
     </div>
+    <?php if ($isManager && !$bare): ?><a class="icon-btn hide-in-embed" id="adminBtn" href="<?= $esc($APP['manager']) ?>" title="<?= $t('admin_settings_btn') ?>" aria-label="<?= $t('admin_settings_btn') ?>"><i class="fa-solid fa-gear" aria-hidden="true"></i></a><?php endif; ?>
   </div>
 </div>
 
