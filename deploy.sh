@@ -127,7 +127,6 @@ fix_perms() {
       ok "api/config.php：640，群組 ${WEB_GROUP}（機密不給 other 讀）"; fi
     fi
   fi
-  echo
 }
 
 # ── 設定與網站檢查（部署後執行；也可單獨跑：./deploy.sh --check-only）──────────────
@@ -232,13 +231,11 @@ selfcheck_web() {
   esac
   if [ "$exposed" -eq 1 ]; then
     CRIT=1
-    echo
     echo "  ${BOLD}${RED}投稿代碼、明碼管理 PIN 或整份原始碼與提交歷史，任何人都能取得${RESET}"
     echo "  ${BOLD}修法${RESET}：貼進 nginx 的 server 區塊，再 reload"
     echo "${CYAN}${NGINX_SNIPPET}${RESET}"
     echo "  ${DIM}完成後執行 ./deploy.sh --check-only 重測${RESET}"
     echo "  ${DIM}已外流的 PIN 與投稿代碼請一併更換${RESET}"
-    echo
   elif [ "$notfound" -eq 1 ]; then
     echo "  ${DIM}回 404 時，請確認檢查網址指向本站，而不是別的站台${RESET}"
   fi
@@ -381,7 +378,6 @@ if [ "$(git rev-parse HEAD)" != "$(git rev-parse FETCH_HEAD)" ] && ! git merge-b
 fi
 
 if [ "$BEFORE" = "$AFTER" ]; then
-  echo
   ok "已是最新版本（${AFTER}）"
 else
   step "檢查程式"
@@ -434,11 +430,8 @@ if [ -n "${DEPLOY_RELOAD_CMD:-}" ] && [ "$BEFORE" != "$AFTER" ]; then
     exit 1
   fi
 fi
-
-echo
 if [ "$FIX_PERMS" -eq 1 ]; then fix_perms || true; fi
 run_selfcheck
-echo
 VERSION=''
 if [ "$HAS_PHP" -eq 1 ]; then
   VERSION="$(php -r '$c = require "config.php"; echo $c["version"] ?? "?";' 2>/dev/null || echo '?')"
