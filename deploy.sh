@@ -2,26 +2,8 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-# 有顏色的終端機才上色，避免 log 檔案裡混進一堆 ANSI 逃脫碼
-if [ -t 1 ] && [ -z "${NO_COLOR+x}" ] && [ "${TERM:-}" != "dumb" ]; then
-  BOLD=$'\033[1m'; DIM=$'\033[2m'
-  RED=$'\033[31m'; GREEN=$'\033[32m'; YELLOW=$'\033[33m'; CYAN=$'\033[36m'
-  RESET=$'\033[0m'
-else
-  BOLD=''; DIM=''; RED=''; GREEN=''; YELLOW=''; CYAN=''; RESET=''
-fi
-
-step() { printf '%s%s%s%s\n' "$BOLD" "$CYAN" "$1" "$RESET"; }
-ok()   { printf '  %s✓ %s%s\n' "$GREEN" "$1" "$RESET"; }
-warn() { printf '  %s! %s%s\n' "$YELLOW" "$1" "$RESET"; }
-fail() { printf '  %s✗ %s%s\n' "$RED" "$1" "$RESET"; }
-install_hint() { printf '  %sUbuntu/Debian 安裝：sudo apt install %s%s\n' "$CYAN" "$1" "$RESET"; }
-require_cmd() {
-  command -v "$1" >/dev/null 2>&1 && return 0
-  fail "缺少 $1，部署已中止"
-  install_hint "$2"
-  return 1
-}
+# 與其他開利手專案共用部署輸出慣例。
+source tools/deploy-output.sh
 
 
 show_help() {
@@ -30,14 +12,14 @@ ${BOLD}用法${RESET}
   ./deploy.sh [選項]
 
 ${BOLD}不加選項${RESET}
-  更新程式碼並檢查：抓最新版、跑自動測試、快轉合併、修復權限、自我檢查。
+  更新程式並檢查：取得遠端版本、檢查程式、快轉更新、修復權限與網站檢查。
 
 ${BOLD}選項${RESET}
-  --check-only           不更新程式碼，只跑設定與網站自我檢查
+  --check-only           不更新程式，只跑設定與網站檢查
   --setup-admin          設定主要 PIN 或主要帳號，只存雜湊
-  --set-check-url URL    儲存網站對外網址，自我檢查會用它連線測試
+  --set-check-url URL    儲存網站對外網址，網站檢查會用它連線測試
   --fix-perms            更新時一併修復 projects/、state/、config 的權限
-  --fix-perms-only       只修復權限，不更新程式碼
+  --fix-perms-only       只修復權限，不更新程式
   --no-fix-perms         更新時略過權限修復
   --dry-run              搭配權限修復，只列出會做的事
   -h, --help, help       顯示這份說明
@@ -148,7 +130,7 @@ fix_perms() {
   echo
 }
 
-# ── 設定與網站自我檢查（部署後執行；也可單獨跑：./deploy.sh --check-only）──────────────
+# ── 設定與網站檢查（部署後執行；也可單獨跑：./deploy.sh --check-only）──────────────
 CANARY_TEXT="souliong-selfcheck-canary-do-not-serve"
 CRIT=0
 
@@ -192,7 +174,7 @@ selfcheck_web() {
   CHECK_URL="${DEPLOY_CHECK_URL:-}"
   [ -n "$CHECK_URL" ] || CHECK_URL="$(head -n1 state/deploy_check_url 2>/dev/null || true)"
   if [ -z "$CHECK_URL" ]; then
-    warn "沒設檢查網址，略過外洩檢查"
+    warn "未設定網址，略過網站檢查"
     echo "    ${DIM}只需設一次：./deploy.sh --set-check-url https://example.com/project${RESET}"
     return 0
   fi
@@ -300,7 +282,7 @@ check_admin_login() {
 }
 
 run_selfcheck() {
-  step "設定與網站自我檢查"
+  step "設定與網站檢查"
   echo "  ${DIM}密鑰與權限需要人判斷，腳本只檢查、不代勞${RESET}"
   if [ ! -f api/config.php ]; then
     fail "api/config.php 不存在——幾乎每一支 api/*.php 都會 require 它，整站目前無法運作"
@@ -357,7 +339,7 @@ fi
 BRANCH="${DEPLOY_BRANCH:-main}"
 
 # souliong 以檔案儲存，沒有資料庫、沒有編譯步驟。
-# 流程：fetch → 用獨立 worktree 跑過新版本的 tools/checkall.php → fast-forward 合併 → 選用重載 PHP。
+# 流程：fetch → 用獨立 worktree 跑過新版本的 tools/checkall.php → fast-forward 合併 → 選用重載服務。
 
 require_cmd git git
 
@@ -385,26 +367,24 @@ else
   install_hint php-cli
 fi
 
-echo
-step "取得最新程式碼"
+step "取得遠端版本"
 BEFORE=$(git rev-parse --short HEAD)
 git fetch --quiet origin "$BRANCH"
 AFTER=$(git rev-parse --short FETCH_HEAD)
-ok "remote ${BRANCH}：${AFTER}"
+ok "遠端分支 ${BRANCH}：${AFTER}"
 
 if [ "$(git rev-parse HEAD)" != "$(git rev-parse FETCH_HEAD)" ] && ! git merge-base --is-ancestor HEAD FETCH_HEAD; then
   # local 有 remote 沒有的 commit（或兩邊 diverge）：fast-forward 做不到，硬 merge 會在伺服器上產生 merge commit，都不是預期的部署結果
-  fail "local（${BEFORE}）不是 remote（${AFTER}）的 ancestor，無法 fast-forward，部署已中止"
-  echo "  ${DIM}伺服器上不該有 remote 沒有的 commit；請確認後再處理（例如 git log ${AFTER}..HEAD 看多出什麼）${RESET}"
+  fail "本機與遠端版本已分歧，無法快轉更新，部署已中止"
+  echo "  ${DIM}請先保留並確認本機提交：git log ${AFTER}..HEAD${RESET}"
   exit 1
 fi
 
 if [ "$BEFORE" = "$AFTER" ]; then
   echo
-  warn "已經是最新版本（${AFTER}），沒有新的變更"
+  ok "已是最新版本（${AFTER}）"
 else
-  echo
-  step "部署前完整檢查新版本"
+  step "檢查程式"
   echo "  ${DIM}git worktree 跑 tools/checkall.php（php -l／authlint／authcheck／contentcheck）${RESET}"
   # 在 merge「之前」就檢查：把 FETCH_HEAD 的內容放到旁邊一個獨立 worktree 去跑 checkall，
   # 有錯就中止，線上的檔案完全沒動。merge 之後才發現，網站已經是壞的了。
@@ -435,8 +415,7 @@ else
     warn "略過（沒有 php 指令）"
   fi
 
-  echo
-  step "更新程式碼"
+  step "更新程式"
   git merge --ff-only --quiet FETCH_HEAD
   ok "已更新：${DIM}${BEFORE}${RESET} → ${GREEN}${BOLD}${AFTER}${RESET}"
   echo "  ${DIM}此次更新的變更：${RESET}"
@@ -444,15 +423,14 @@ else
 fi
 
 # 選用：PHP 開了 opcache 且不檢查檔案時間戳（validate_timestamps=0）的伺服器，
-# 換了檔案要重載 PHP-FPM 才會生效；用環境變數帶進來，例如
+# 換了檔案要重載服務-FPM 才會生效；用環境變數帶進來，例如
 #   DEPLOY_RELOAD_CMD="systemctl reload php-fpm" ./deploy.sh
 if [ -n "${DEPLOY_RELOAD_CMD:-}" ] && [ "$BEFORE" != "$AFTER" ]; then
-  echo
-  step "重載 PHP"
+  step "重載服務"
   if bash -c "$DEPLOY_RELOAD_CMD"; then
     ok "${DEPLOY_RELOAD_CMD}"
   else
-    fail "重載失敗：${DEPLOY_RELOAD_CMD}（程式碼已更新，請手動重載 PHP-FPM）"
+    fail "重載失敗：${DEPLOY_RELOAD_CMD}（程式碼已更新，請手動重載服務-FPM）"
     exit 1
   fi
 fi
@@ -461,12 +439,9 @@ echo
 if [ "$FIX_PERMS" -eq 1 ]; then fix_perms || true; fi
 run_selfcheck
 echo
-echo "${DIM}------------------------------------------------------------${RESET}"
-step "部署完成"
+VERSION=''
 if [ "$HAS_PHP" -eq 1 ]; then
   VERSION="$(php -r '$c = require "config.php"; echo $c["version"] ?? "?";' 2>/dev/null || echo '?')"
-  echo "  應用版本：${BOLD}v${VERSION}${RESET}"
 fi
-echo "  目前提交：${BOLD}$(git rev-parse --short HEAD)${RESET}"
-echo "  完成時間：${DIM}$(date '+%Y-%m-%d %H:%M:%S')${RESET}"
-[ "$CRIT" -eq 0 ] || { echo; fail "自我驗證發現外洩，請依上面修法處理"; exit 1; }
+deployment_summary "$VERSION" "$CRIT"
+[ "$CRIT" -eq 0 ] || { echo; fail "網站檢查未通過，請依上方訊息處理"; exit 1; }
