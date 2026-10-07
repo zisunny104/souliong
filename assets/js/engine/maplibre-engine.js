@@ -400,6 +400,7 @@ window.MapLibreEngine = (() => {
       this._markerLayers[layerKey] = [];
       this._markerSpecs[layerKey] = [];
     }
+    onZoomEnd(fn) { this.map.on('zoomend', fn); }
     onZoomThresholdCross(zoom, fn) {
       this._zoomThresholds.push({ zoom, wasAbove: this.map.getZoom() >= zoom, fn });
     }

@@ -444,6 +444,7 @@ window.maplibregl = maplibregl;
 <script src="<?= $assetUrl('assets/js/engine/map-engine.js') ?>"></script>
 <script src="<?= $assetUrl('assets/js/engine/maplibre-engine.js') ?>"></script>
 <script src="<?= $assetUrl('assets/js/marker-colors.js') ?>"></script>
+<script src="<?= $assetUrl('assets/js/featured-layout.js') ?>"></script>
 <?php if (($meta['pinMark'] ?? '') === 'icon'): ?><script src="<?= $assetUrl('assets/js/pin-icons.js') ?>"></script><?php endif; ?>
 <script src="<?= $assetUrl('assets/js/contribution-client.js') ?>"></script>
 <script src="<?= $assetUrl('assets/js/viewer.core.js') ?>"></script>

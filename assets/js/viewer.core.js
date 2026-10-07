@@ -816,8 +816,10 @@ window.MapApp = (() => {
   }
   // 精選以點位為顯示錨點，像素偏移只改 marker anchor，不寫回投稿座標。
   // 最多三則，剩餘數量開啟點位面板，避免同一點位無限展開。
+  // 位置由 featured-layout.js 依目前縮放排：預覽比任何其他點位都更靠自己的點位、各點位的角度錯開、
+  // 避開別人的點位與預覽；每張預覽另畫一條細線連回所屬點位，一眼看得出是誰的。
   function featuredMarkerSpecs(entries, spots, thumb) {
-    const specs = [], size = thumb ? 30 : 14, gap = 5;
+    const specs = [], size = thumb ? 30 : 14, pinPx = PIN_SIZE_PX[META.pinSize] || 24;
     const openSpot = spot => { if (BARE) emitHook('spotClick', spot); else openPanel(spot); };
     const grouped = new Map();
     entries.forEach(e => {
@@ -825,28 +827,38 @@ window.MapApp = (() => {
       if (!grouped.has(e.item_num)) grouped.set(e.item_num, []);
       grouped.get(e.item_num).push(e);
     });
-    spots.forEach(spot => {
-      if (active[spot.cat] === false || !Number.isFinite(spot.lat) || !Number.isFinite(spot.lon)) return;
-      const selected = (grouped.get(spot.num) || []).slice().sort(byCreatedAt);
-      // 固定分布在點位四周；半徑留出中央標記及縮圖外框的空間。
-      const radius = ((PIN_SIZE_PX[META.pinSize] || 24) / 2 + size / 2 + gap + 3) * Math.SQRT2;
-      const angles = [-35, 140, -140, 45];
-      const anchorAt = index => {
-        const angle = angles[index] * Math.PI / 180;
-        return [size / 2 - Math.cos(angle) * radius, size / 2 - Math.sin(angle) * radius];
-      };
+    const shown = spots.filter(spot => active[spot.cat] !== false && Number.isFinite(spot.lat) && Number.isFinite(spot.lon));
+    const picked = new Map();
+    shown.forEach(spot => { picked.set(spot.num, (grouped.get(spot.num) || []).slice().sort(byCreatedAt)); });
+    const layout = window.SouliongFeaturedLayout.place(shown.map(spot => {
+      const n = picked.get(spot.num).length;
+      return { id: spot.num, lat: spot.lat, lon: spot.lon, slots: n ? Math.min(n, 3) + (n > 3 ? 1 : 0) : 0 };
+    }), engine.getZoom(), { pinPx: pinPx, size: size });
+    // 連回點位的細線：從預覽中心畫到點位標記邊緣，放在縮圖後面；html 的外框尺寸就是縮圖尺寸
+    const withTie = (html, off) => {
+      const r = Math.hypot(off.x, off.y) || 1, ax = size / 2 - off.x, ay = size / 2 - off.y;
+      const ex = ax + off.x / r * (pinPx / 2 + 1), ey = ay + off.y / r * (pinPx / 2 + 1);
+      return '<svg class="sl-featured-tie" width="' + size + '" height="' + size + '" aria-hidden="true">' +
+        '<line class="halo" x1="' + size / 2 + '" y1="' + size / 2 + '" x2="' + ex.toFixed(1) + '" y2="' + ey.toFixed(1) + '"/>' +
+        '<line x1="' + size / 2 + '" y1="' + size / 2 + '" x2="' + ex.toFixed(1) + '" y2="' + ey.toFixed(1) + '"/></svg>' +
+        '<div class="sl-featured-body">' + html + '</div>';
+    };
+    const anchorOf = off => [size / 2 - off.x, size / 2 - off.y];
+    shown.forEach(spot => {
+      const selected = picked.get(spot.num), offs = layout.get(spot.num);
+      if (!offs) return;
       selected.slice(0, 3).forEach((e, index) => {
         const icon = entryIcon(e, thumb), url = entryFullUrl(e);
         specs.push({
-          id: e.id, lat: spot.lat, lon: spot.lon, html: icon.html, size: icon.size,
-          anchor: anchorAt(index),
+          id: e.id, lat: spot.lat, lon: spot.lon, html: withTie(icon.html, offs[index]), size: icon.size,
+          anchor: anchorOf(offs[index]),
           onClick: () => { if (url) openLightbox(e, url); else openSpot(spot); },
         });
       });
       if (selected.length > 3) specs.push({
         id: 'featured-more-' + spot.num, lat: spot.lat, lon: spot.lon,
-        html: '<button type="button" class="sl-featured-more" aria-label="' + esc(t('featured_entry')) + ' +' + (selected.length - 3) + '">+' + (selected.length - 3) + '</button>',
-        size: [size, size], anchor: anchorAt(3),
+        html: withTie('<button type="button" class="sl-featured-more" aria-label="' + esc(t('featured_entry')) + ' +' + (selected.length - 3) + '">+' + (selected.length - 3) + '</button>', offs[3]),
+        size: [size, size], anchor: anchorOf(offs[3]),
         onClick: () => openSpot(spot),
       });
     });
@@ -1947,6 +1959,7 @@ window.MapApp = (() => {
     });
     engine.mountControls({ zoomPosition: 'bottomleft', attributionPosition: 'bottomright', opButtons: [{ el: document.getElementById('resetBtn') }] });
     engine.onZoomThresholdCross(THUMB_ZOOM, () => renderContribLayer());
+    engine.onZoomEnd(() => renderContribLayer()); // 預覽的位置依縮放重排，避開變近的點位
 
     buildLegend();
     renderSpots();
