@@ -84,7 +84,7 @@
   font-size: 0.8125rem;
   background: rgba(20, 20, 20, .72);
   border-radius: var(--r-md);
-  padding: 10px 14px;
+  padding: 10px 40px 10px 14px; /* 右側 40px 留給 i 鈕 */
 }
 
 #lb .cap:empty {
@@ -96,22 +96,25 @@
   margin-bottom: 4px
 }
 
-/* 照片資訊：說明卡右上角的 i 小圖示，不另佔一行；有姓名與時間時，那一行右邊留位置給它 */
+/* 照片資訊：說明卡右上角的 i 小圖示，不另佔一行；說明卡右側固定留一欄給它（觸控目標 32px），文字不會跑到它底下 */
 #lb .cap .lb-info-i {
   position: absolute;
-  top: 6px;
-  right: 8px;
+  top: 2px;
+  right: 4px;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
   border: none;
   background: none;
   color: #fff;
   opacity: .7;
   font-size: 0.875rem;
   line-height: 1;
-  padding: 4px;
+  padding: 0;
   cursor: pointer;
   transition: opacity var(--t)
 }
-#lb .cap .lb-who { padding-right: 1.6rem }
 
 #lb .cap .lb-info-i:hover {
   opacity: 1
