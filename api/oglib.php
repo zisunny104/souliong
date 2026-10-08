@@ -5,6 +5,7 @@
 require_once __DIR__ . '/store.php';
 require_once __DIR__ . '/coverlib.php';
 require_once __DIR__ . '/spotlib.php';
+require_once __DIR__ . '/features.php';
 
 /** 點位「名稱」欄位不是單一 key，跟前端 spotName() 用同一套優先序。 */
 function souliong_og_spot_name(array $s): string
@@ -34,7 +35,8 @@ function souliong_og_truncate(string $s, int $len = 200): string
     if (function_exists('mb_strlen')) {
         return mb_strlen($s, 'UTF-8') > $len ? mb_substr($s, 0, $len, 'UTF-8') . '…' : $s;
     }
-    return strlen($s) > $len ? substr($s, 0, $len) . '…' : $s;
+    $chars = preg_split('//u', $s, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+    return count($chars) > $len ? implode('', array_slice($chars, 0, $len)) . '…' : $s;
 }
 
 /**
@@ -47,13 +49,31 @@ function souliong_og_resolve_spot(array $apiCfg, string $project, $ref): ?array
     return spot_effective_by_ref($apiCfg, $project, (string)$ref);
 }
 
-/**
- * ?entry=<id>：直接用既有的 store_find()——og:image 只看檔案欄位（photo/thumb/media），這些
- * 欄位不受編輯覆寫。
- */
+/** 與投稿牆相同：說明及關聯點位取最新編輯，作者與檔案沿用原投稿。 */
+function souliong_og_entries(array $rows): array
+{
+    $originals = []; $latest = [];
+    foreach ($rows as $row) {
+        if (($row['kind'] ?? 'photo') === 'spot') continue;
+        if (!empty($row['edit_of'])) {
+            $id = (string)$row['edit_of'];
+            if (!isset($latest[$id]) || strtotime((string)($row['created_at'] ?? '')) >= strtotime((string)($latest[$id]['created_at'] ?? ''))) $latest[$id] = $row;
+        } elseif (in_array($row['kind'] ?? 'photo', souliong_contrib_kinds(), true)
+            && (!empty($row['photo']) || !empty($row['media']) || (($row['kind'] ?? '') === 'text' && !empty($row['comment'])))) {
+            $originals[(string)$row['id']] = $row;
+        }
+    }
+    foreach ($originals as $id => &$original) {
+        if (isset($latest[$id])) foreach (['comment', 'item_num', 'lat', 'lon', 'loc_source'] as $field) $original[$field] = $latest[$id][$field] ?? null;
+    }
+    unset($original);
+    return $originals;
+}
+
 function souliong_og_resolve_entry(array $apiCfg, string $project, string $id): ?array
 {
-    return store_find($apiCfg, $project, $id);
+    if (!preg_match('/^[A-Za-z0-9_-]{1,64}$/D', $id)) return null;
+    return souliong_og_entries(store_all($apiCfg, $project))[$id] ?? null;
 }
 
 /**

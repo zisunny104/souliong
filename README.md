@@ -20,6 +20,7 @@
 ## 文件
 
 - [管理指南](docs/GUIDE.md)：建立地圖、投稿代碼、後台
+- [社群預覽](docs/SOCIAL-PREVIEW.md)：點位／投稿名片、地圖執行環境與快取
 - [嵌入與資料 API](docs/EMBED-API.md)
 - [擴充架構](docs/EXTENDING.md)：投稿型別、插件、圖層、權限
 - [切圖磚工具](docs/TILECUT.md)、[3D 區域編輯](docs/REGION3D.md)

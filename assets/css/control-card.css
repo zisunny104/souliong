@@ -154,6 +154,7 @@
 
 .icon-btn {
   border: none;
+  text-decoration: none;
   background: transparent;
   color: var(--muted);
   font-size: 0.9375rem;

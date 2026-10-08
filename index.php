@@ -88,6 +88,9 @@ switch ($action) {
         if (isset($seg[1])) $_GET['project'] = $seg[1];
         require __DIR__ . '/api/cover.php';   // 專案封面／地圖快照：GET 輸出圖檔，POST 限管理者 upload/auto/reset
         return;
+    case 'socialpreview':
+        require __DIR__ . '/api/socialpreview.php';
+        return;
     case 'pinmark':
         if (isset($seg[1])) $_GET['project'] = $seg[1];
         require __DIR__ . '/api/pinmark.php';   // 地圖標記自訂圖片：GET 輸出圖檔（上傳/重設在後台 manager.php）

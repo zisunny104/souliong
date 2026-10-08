@@ -29,6 +29,7 @@ ${BOLD}環境變數${RESET}
   DEPLOY_WEB_USER        PHP 執行身分，未指定時自動偵測
   DEPLOY_RELOAD_CMD      程式碼有更新時要執行的重載指令
   DEPLOY_CHECK_URL       網站對外網址，優先於已儲存的設定
+  DEPLOY_SKIP_SOCIAL_PREVIEW  設為 1 時略過社群地圖預覽環境安裝
 
 ${DIM}範例：./deploy.sh --set-check-url https://example.com/project${RESET}
 EOF
@@ -104,17 +105,17 @@ fix_perms() {
   local d bad_o bad_d bad_f
   for d in projects state; do
     [ -d "$d" ] || { warn "$d/ 不存在，略過"; continue; }
-    bad_o="$(find "$d" ! -user "$WEB_USER" 2>/dev/null | wc -l | tr -d ' ')"
-    bad_d="$(find "$d" -type d ! -perm 2775 2>/dev/null | wc -l | tr -d ' ')"
-    bad_f="$(find "$d" -type f ! -perm 664 2>/dev/null | wc -l | tr -d ' ')"
+    bad_o="$(find "$d" -path state/social-preview-runtime -prune -o ! -user "$WEB_USER" -print 2>/dev/null | wc -l | tr -d ' ')"
+    bad_d="$(find "$d" -path state/social-preview-runtime -prune -o -type d ! -perm 2775 -print 2>/dev/null | wc -l | tr -d ' ')"
+    bad_f="$(find "$d" -path state/social-preview-runtime -prune -o -type f ! -perm 664 -print 2>/dev/null | wc -l | tr -d ' ')"
     if [ "$DRY_RUN" -eq 1 ]; then
       warn "$d/：擁有者不符 ${bad_o}、資料夾權限不符 ${bad_d}、檔案權限不符 ${bad_f}（dry-run，未修改）"
       continue
     fi
     if [ "$((bad_o + bad_d + bad_f))" -eq 0 ]; then ok "$d/：權限已正確"; continue; fi
-    $SUDO chown -R "$WEB_USER:$WEB_GROUP" "$d"
-    $SUDO find "$d" -type d -exec chmod 2775 {} +
-    $SUDO find "$d" -type f -exec chmod 664 {} +
+    $SUDO find "$d" -path state/social-preview-runtime -prune -o -exec chown --no-dereference "$WEB_USER:$WEB_GROUP" {} +
+    $SUDO find "$d" -path state/social-preview-runtime -prune -o -type d -exec chmod 2775 {} +
+    $SUDO find "$d" -path state/social-preview-runtime -prune -o -type f -exec chmod 664 {} +
     ok "$d/：已修正（擁有者 ${bad_o}、資料夾 ${bad_d}、檔案 ${bad_f} 項）"
   done
   if [ -f api/config.php ]; then
@@ -397,6 +398,18 @@ if [ -n "${DEPLOY_RELOAD_CMD:-}" ] && [ "$BEFORE" != "$AFTER" ]; then
   else
     fail "重載失敗：${DEPLOY_RELOAD_CMD}（程式碼已更新，請手動重載服務-FPM）"
     exit 1
+  fi
+fi
+if [ "${DEPLOY_SKIP_SOCIAL_PREVIEW:-0}" != 1 ] && [ -f tools/setup-social-preview.sh ]; then
+  mkdir -p state
+  if bash tools/setup-social-preview.sh --check > state/social-preview-environment.log 2>&1; then
+    step "社群預覽環境"
+    ok "Node.js、Chromium、Playwright 與 PHP 圖像功能已就緒"
+  else
+    if ! DEPLOY_OUTPUT_STARTED=1 bash tools/setup-social-preview.sh ||
+       ! bash tools/setup-social-preview.sh --check > state/social-preview-environment.log 2>&1; then
+      warn "社群地圖預覽環境尚未就緒，目前使用淡底名片；詳見 tools/setup-social-preview.sh"
+    fi
   fi
 fi
 if [ "$FIX_PERMS" -eq 1 ]; then fix_perms || true; fi

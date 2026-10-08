@@ -14,10 +14,14 @@ trap 'stop_server; rm -rf "$TMP"' EXIT
 
 # 假站台：只放 deploy.sh 與它檢查會讀的檔案，不碰真正的 state／projects
 SITE="$TMP/site"
-mkdir -p "$SITE/api" "$SITE/state" "$SITE/projects"
+mkdir -p "$SITE/api" "$SITE/tools" "$SITE/state" "$SITE/projects"
 cp "$ROOT/deploy.sh" "$SITE/"
-cp "$ROOT/api/features.php" "$SITE/api/"
+cp "$ROOT/tools/deploy-output.sh" "$SITE/tools/"
+for api_file in "$ROOT"/api/*.php; do
+  [ "$(basename "$api_file")" = config.php ] || cp "$api_file" "$SITE/api/"
+done
 cp "$ROOT/api/config.example.php" "$SITE/api/config.php"
+cp "$ROOT/tools/admin_setup.php" "$SITE/tools/"
 cat > "$TMP/router_block.php" <<'P'
 <?php
 if (preg_match('#/(state|projects|\.git)/#', $_SERVER['REQUEST_URI'])) { http_response_code(403); echo 'Forbidden'; return true; }
@@ -97,7 +101,7 @@ grep -qF ".git/ 連不上，略過" <<< "$out"; expect "連不上：有提醒" $
 # 沒設網址：略過並提醒，不失敗
 out="$(cd "$SITE" && env -u DEPLOY_CHECK_URL bash ./deploy.sh --check-only 2>&1)"; code=$?
 [ "$code" -eq 0 ]; expect "沒設網址：不失敗" $?
-grep -qF "沒設檢查網址，略過外洩檢查" <<< "$out"; expect "沒設網址：有提醒" $?
+grep -qF "未設定網址，略過網站檢查" <<< "$out"; expect "沒設網址：有提醒" $?
 grep -qF "./deploy.sh --set-check-url https://example.com/project" <<< "$out"; expect "沒設網址：提示設定方式" $?
 
 # --set-check-url：存取、去結尾斜線、錯誤輸入

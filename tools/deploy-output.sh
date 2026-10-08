@@ -8,7 +8,7 @@ else
     BOLD=''; DIM=''; RED=''; GREEN=''; YELLOW=''; CYAN=''; RESET=''
 fi
 
-DEPLOY_OUTPUT_STARTED=0
+DEPLOY_OUTPUT_STARTED=${DEPLOY_OUTPUT_STARTED:-0}
 separator() {
     if [ "$DEPLOY_OUTPUT_STARTED" -eq 0 ]; then
         printf '%s────────────────────────────%s\n' "$DIM" "$RESET"

@@ -163,6 +163,7 @@ $assetUrl = function (string $rel) use ($esc): string {
 // 社群分享預覽卡（OG/Twitter Card）：三層（專案預設／?spot=/?entry=）共用同一組輸出，
 // 依 entry > spot > 專案預設 優先序決定，跟 $mod('share') 開關無關——網址列本來就能複製。
 require_once __DIR__ . '/../api/oglib.php';
+require_once __DIR__ . '/../api/socialcardlib.php';
 $ogTitle = $meta['title'] ?? i18n_t($DICT, 'app_title');
 $ogDesc  = $meta['desc'] ?? $meta['subtitle'] ?? i18n_t($DICT, 'app_tagline');
 $ogImage = cover_file_of(project_dir($apiCfg, $proj) . '/cover') !== null
@@ -170,8 +171,8 @@ $ogImage = cover_file_of(project_dir($apiCfg, $proj) . '/cover') !== null
     : null;
 $ogUrl   = Route::abs(Route::map($proj));
 
-$entryId = preg_replace('/[^0-9a-f]/', '', (string)($_GET['entry'] ?? ''));
-$spotRef = (string)($_GET['spot'] ?? '');   // spotId（新連結）或 num（舊連結）
+$entryId = is_string($_GET['entry'] ?? null) && preg_match('/^[A-Za-z0-9_-]{1,64}$/D', $_GET['entry']) ? $_GET['entry'] : '';
+$spotRef = is_string($_GET['spot'] ?? null) && preg_match('/^[A-Za-z0-9_-]{1,64}$/D', $_GET['spot']) ? $_GET['spot'] : '';   // spotId（新連結）或 num（舊連結）
 
 if ($entryId !== '' && ($entry = souliong_og_resolve_entry($apiCfg, $proj, $entryId))) {
     $sp = isset($entry['item_num']) ? souliong_og_resolve_spot($apiCfg, $proj, (int)$entry['item_num']) : null;
@@ -187,6 +188,14 @@ if ($entryId !== '' && ($entry = souliong_og_resolve_entry($apiCfg, $proj, $entr
     $ogDesc  = souliong_og_truncate(souliong_og_plain(spot_content_text($sp)) ?: (string)($meta['desc'] ?? i18n_t($DICT, 'app_tagline')));
     $ogUrl = Route::abs(Route::map($proj) . '?spot=' . rawurlencode((string)$sp['id']));   // 新連結一律用 spotId
 }
+$socialCard = souliong_social_ready($apiCfg) && is_array($meta)
+    ? souliong_social_data($apiCfg, $proj, $meta, $entryId, $spotRef) : null;
+if ($socialCard) {
+    $socialQuery = ['project' => $proj, 'v' => substr(souliong_social_revision($apiCfg, $proj, $meta, $socialCard), 0, 16)];
+    if ($entryId !== '') $socialQuery['entry'] = $entryId;
+    elseif ($spotRef !== '') $socialQuery['spot'] = $spotRef;
+    $ogImage = Route::abs(Route::api('socialpreview', $socialQuery));
+}
 ?><!DOCTYPE html>
 <html lang="<?= $LANG === 'en' ? 'en' : 'zh-Hant' ?>">
 <head>
@@ -197,8 +206,16 @@ if ($entryId !== '' && ($entry = souliong_og_resolve_entry($apiCfg, $proj, $entr
 <meta property="og:title" content="<?= $esc($ogTitle) ?>">
 <meta property="og:description" content="<?= $esc($ogDesc) ?>">
 <meta property="og:url" content="<?= $esc($ogUrl) ?>">
-<?php if ($ogImage): ?><meta property="og:image" content="<?= $esc($ogImage) ?>"><?php endif; ?>
+<?php if ($ogImage): ?><meta property="og:image" content="<?= $esc($ogImage) ?>">
+<?php if ($socialCard): ?><meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:type" content="image/jpeg">
+<?php endif; ?><meta property="og:image:alt" content="<?= $esc($ogTitle) ?>">
+<meta name="twitter:image" content="<?= $esc($ogImage) ?>">
+<meta name="twitter:image:alt" content="<?= $esc($ogTitle) ?>"><?php endif; ?>
 <meta name="twitter:card" content="<?= $ogImage ? 'summary_large_image' : 'summary' ?>">
+<meta name="twitter:title" content="<?= $esc($ogTitle) ?>">
+<meta name="twitter:description" content="<?= $esc($ogDesc) ?>">
 <?php /* 大型第三方函式庫走真的 <link>/<script src>，不用 readfile() 內嵌，才吃得到瀏覽器快取 */ ?>
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.6.0/dist/maplibre-gl.css">
 <?php if ($mod('map3d')): /* three.js importmap 只服務 3D 切換鈕，跟主引擎是不是 MapLibre 無關——
