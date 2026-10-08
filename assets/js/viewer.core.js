@@ -791,7 +791,7 @@ window.MapApp = (() => {
       const icon = spotIcon(c, showContributions && !hasPreview ? count : 0, badgeColor);
       specs.push({
         id: c.num, lat: c.lat, lon: c.lon, html: icon.html, size: icon.size, anchor: icon.anchor,
-        color: c.color || '#888',
+        color: c.color || '#888', label: (c.num != null ? c.num + ' ' : '') + spotName(c),
         onClick: () => { if (BARE) { emitHook('spotClick', c); return; } emitHook('panelReset'); openPanel(c); },
       });
     });
@@ -839,9 +839,9 @@ window.MapApp = (() => {
     const moveStyle = off => 'transform:translate(' + off.x.toFixed(1) + 'px,' + off.y.toFixed(1) + 'px)';
     const angleOf = off => Math.atan2(off.y, off.x) * 180 / Math.PI;
     const tieStyle = (off, angle) => 'transform:rotate(' + (angle != null ? angle : angleOf(off)).toFixed(1) + 'deg) translateX(' + (pinPx / 2 + 1) + 'px) scaleX(' + (Math.max(4, Math.hypot(off.x, off.y) - pinPx / 2 - 1) / 100).toFixed(3) + ')';
-    const withTie = (html, off) =>
+    const withTie = (html, off, label) =>
       '<div class="sl-tie" data-angle="' + angleOf(off).toFixed(1) + '" style="top:' + (size / 2 - 5.5) + 'px;left:' + size / 2 + 'px;' + tieStyle(off) + '"></div>' +
-      '<div class="sl-move" style="' + moveStyle(off) + '"><div class="sl-featured-body">' + html + '</div></div>';
+      '<div class="sl-move"' + (label ? ' role="button" tabindex="0" aria-label="' + esc(label) + '"' : '') + ' style="' + moveStyle(off) + '"><div class="sl-featured-body">' + html + '</div></div>';
     const anchorOf = () => [size / 2, size / 2];
     shown.forEach(spot => {
       const selected = picked.get(spot.num), offs = layout.get(spot.num);
@@ -849,14 +849,14 @@ window.MapApp = (() => {
       selected.slice(0, 3).forEach((e, index) => {
         const icon = entryIcon(e, thumb), url = entryFullUrl(e);
         specs.push({
-          id: e.id, lat: spot.lat, lon: spot.lon, html: withTie(icon.html, offs[index]), size: icon.size, className: 'sl-featured-marker', off: offs[index], tieStyle: tieStyle, moveStyle: moveStyle, angleOf: angleOf,
+          id: e.id, lat: spot.lat, lon: spot.lon, html: withTie(icon.html, offs[index], e.name || t('featured_entry')), size: icon.size, className: 'sl-featured-marker', off: offs[index], tieStyle: tieStyle, moveStyle: moveStyle, angleOf: angleOf,
           anchor: anchorOf(),
           onClick: () => { if (url) openLightbox(e, url); else openSpot(spot); },
         });
       });
       if (selected.length > 3) specs.push({
         id: 'featured-more-' + spot.num, lat: spot.lat, lon: spot.lon,
-        html: withTie('<button type="button" class="sl-featured-more" aria-label="' + esc(t('featured_entry')) + ' +' + (selected.length - 3) + '">+' + (selected.length - 3) + '</button>', offs[3]),
+        html: withTie('<button type="button" class="sl-featured-more" aria-label="' + esc(t('featured_entry')) + ' +' + (selected.length - 3) + '">+' + (selected.length - 3) + '</button>', offs[3], ''),
         size: [size, size], anchor: anchorOf(), className: 'sl-featured-marker', off: offs[3], tieStyle: tieStyle, moveStyle: moveStyle, angleOf: angleOf,
         onClick: () => openSpot(spot),
       });
@@ -879,7 +879,7 @@ window.MapApp = (() => {
       if (!Number.isFinite(e.lat) || !Number.isFinite(e.lon) || !url) return;
       const icon = entryIcon(e, thumb);
       specs.push({
-        id: e.id, lat: e.lat, lon: e.lon, html: icon.html, size: icon.size, anchor: icon.anchor,
+        id: e.id, lat: e.lat, lon: e.lon, html: icon.html, size: icon.size, anchor: icon.anchor, label: e.name || t('featured_entry'),
         onClick: () => openLightbox(e, url),
       });
     });
@@ -1882,8 +1882,27 @@ window.MapApp = (() => {
     // 換一張照片時，上一張留在 lbEditor 裡未存檔的編輯面板（含迷你地圖）要先清掉，避免殘留
     const oldPanel = document.getElementById('lbEditor');
     if (oldPanel) { const p2 = oldPanel._picker; if (p2) p2.destroy(); oldPanel._picker = null; oldPanel.style.display = 'none'; oldPanel.innerHTML = ''; }
-    document.getElementById('lb').style.display = 'flex';
+    const lbEl = document.getElementById('lb');
+    if (lbEl.style.display === 'none' || !lbEl.style.display) lbReturnFocus = document.activeElement;
+    lbEl.style.display = 'flex';
+    lbEl.focus({ preventScroll: true });
   }
+  // 燈箱是對話框：開啟時焦點移進來，Tab 只在燈箱內循環，關閉後回到原本的元素
+  let lbReturnFocus = null;
+  function lightboxFocusables() {
+    return [...document.querySelectorAll('#lb button, #lb a[href], #lb input, #lb select, #lb textarea, #lb [tabindex]:not([tabindex="-1"])')]
+      .filter(el => !el.disabled && el.getClientRects().length);
+  }
+  document.addEventListener('keydown', ev => {
+    if (ev.key !== 'Tab') return;
+    const lbEl = document.getElementById('lb');
+    if (!lbEl || getComputedStyle(lbEl).display === 'none') return;
+    const list = lightboxFocusables();
+    if (!list.length) { ev.preventDefault(); lbEl.focus(); return; }
+    const first = list[0], last = list[list.length - 1], active = document.activeElement;
+    if (ev.shiftKey && (active === first || active === lbEl)) { ev.preventDefault(); last.focus(); }
+    else if (!ev.shiftKey && (active === last || !lbEl.contains(active))) { ev.preventDefault(); first.focus(); }
+  });
   // 清掉燈箱裡的播放器。用 pause() + removeAttribute('src') + load() 三步而不只是清 innerHTML：
   // 光把節點拿掉，某些瀏覽器仍會讓已經開始的音訊播完那一段緩衝。
   function clearLightboxMedia() {
@@ -1900,6 +1919,8 @@ window.MapApp = (() => {
     if (panel) { const p2 = panel._picker; if (p2) p2.destroy(); panel._picker = null; panel.style.display = 'none'; panel.innerHTML = ''; }
     clearLightboxMedia();
     document.getElementById('lb').style.display = 'none';
+    if (lbReturnFocus && lbReturnFocus.isConnected && lbReturnFocus.focus) { try { lbReturnFocus.focus({ preventScroll: true }); } catch (err) {} }
+    lbReturnFocus = null;
   }
 
   // 照片定位來源標示：lightbox 資訊面板（核心）與上傳插件的批次卡片共用，故留在核心並開放給插件呼叫

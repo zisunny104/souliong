@@ -397,7 +397,7 @@ if ($pack) {
 
 <!-- #lbMedia 是影片／音訊的播放槽：播放器要能點（拖進度條、按暫停），所以它自己吞掉 click，
      不能跟照片一樣讓點擊冒泡到 #lb 去關燈箱。內容由 openLightbox() 每次重建，關閉時清空停止播放。 -->
-<div id="lb" onclick="MapApp.closeLightbox()"><img id="lbImg" alt=""><div id="lbMedia" style="display:none" onclick="event.stopPropagation()"></div><div class="cap" id="lbCap"></div><div class="photo-editor" id="lbEditor" style="display:none" onclick="event.stopPropagation()"></div></div>
+<div id="lb" role="dialog" aria-modal="true" aria-label="<?= $t('photo_info_title') ?>" tabindex="-1" onclick="MapApp.closeLightbox()"><img id="lbImg" alt=""><div id="lbMedia" style="display:none" onclick="event.stopPropagation()"></div><div class="cap" id="lbCap"></div><div class="photo-editor" id="lbEditor" style="display:none" onclick="event.stopPropagation()"></div></div>
 
 <div id="extLinkDialog" class="dialog">
   <div class="dialog-box">

@@ -101,8 +101,10 @@
 /* hover 用半透明的 --hover-strong，不用不透明的 --line：這顆晶片坐在 .tr-group 上，
    套主題包時底下是材質底圖、文字是 --pack-ink（深色材質配白字），--line 是淺灰不透明色，
    hover 會整塊蓋成一片淺灰白、白字直接看不見。理由詳見 theme.css 的 --hover 說明。 */
+@media (hover: hover) {
 .idchip:hover {
   background: var(--hover-strong)
+}
 }
 
 .lang-menu {
@@ -127,8 +129,10 @@
 }
 
 /* hover／展開中的底色同樣改用半透明疊色，理由同 .idchip:hover */
+@media (hover: hover) {
 .lang-btn:hover {
   background: var(--hover-strong)
+}
 }
 
 .lang-menu.open .lang-btn {
@@ -172,9 +176,10 @@
   cursor: pointer;
   transition: background var(--t)
 }
-
+@media (hover: hover) {
 .lang-list li:hover {
   background: var(--hover)
+}
 }
 
 .lang-list li[aria-selected="true"] {
@@ -204,9 +209,10 @@
   cursor: pointer;
   transition: background var(--t)
 }
-
+@media (hover: hover) {
 .sl-idmenu-btn:hover {
   background: var(--hover-strong)
+}
 }
 
 .sl-idmenu.open .sl-idmenu-btn {
@@ -248,9 +254,10 @@
   cursor: pointer;
   transition: background var(--t)
 }
-
+@media (hover: hover) {
 .sl-idmenu-list li:hover {
   background: var(--hover)
+}
 }
 
 .sl-idmenu-list li[aria-selected="true"] {
@@ -540,7 +547,8 @@ body.focus-contrib .dot-pin:not(.has-contrib) {
   word-break: break-all;
   text-decoration: underline
 }
-
+@media (hover: hover) {
 .src-links a:hover {
   color: var(--fg)
+}
 }

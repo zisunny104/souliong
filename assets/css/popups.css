@@ -31,10 +31,11 @@
   gap: 8px;
   transition: transform var(--t), box-shadow var(--t), opacity var(--t)
 }
-
+@media (hover: hover) {
 .fabtn:hover {
   transform: translateY(-2px);
   box-shadow: var(--sh-3)
+}
 }
 
 .fabtn:active {
@@ -314,9 +315,11 @@
 
 /* 平常完全透明、坐在對話框的材質底圖上，hover 用加強版疊色才看得出來，理由同
    .icon-btn:hover（control-card.css） */
+@media (hover: hover) {
 .pin-toggle-btn:hover {
   background: var(--hover-strong);
   color: var(--fg)
+}
 }
 
 /* 畫面上可點的數字鍵盤：data-pin-keypad 欄位才會長出來（目前僅 PIN 登入），
@@ -342,9 +345,10 @@
   justify-content: center;
   transition: background var(--t)
 }
-
+@media (hover: hover) {
 .pin-key:hover {
   background: var(--hover)
+}
 }
 
 .pin-key:active {
