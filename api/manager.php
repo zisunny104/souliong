@@ -11,6 +11,8 @@ require_once __DIR__ . '/labellang.php';
 require_once __DIR__ . '/markercolors.php';
 require_once __DIR__ . '/pinicons.php';
 require_once __DIR__ . '/contribaccess.php';
+require_once __DIR__ . '/contribhistory.php';
+define('SOULIONG_MANAGER_CONTEXT', true);
 require_once __DIR__ . '/spotlib.php';     // spotId 判斷
 require_once __DIR__ . '/embedorigins.php';   // 允許嵌入的來源清單解析與驗證（CORS／frame-ancestors／postMessage 共用）
 require_once __DIR__ . '/regions3d.php';  // 3D 自訂模型區域註冊表，形狀同上，見 api/region3d.php
@@ -678,13 +680,30 @@ if (!$authed) {
           $enabled = isset($_POST['contrib_free_enabled']);
           $startRaw = (string)($_POST['contrib_free_start'] ?? '');
           $endRaw = (string)($_POST['contrib_free_end'] ?? '');
+          $mode = (string)($_POST['contrib_free_mode'] ?? '');
+          if ($mode !== '' && !in_array($mode, ['long', 'period', 'scheduled'], true)) {
+            error_page(400, '無法儲存開放投稿設定', '請選擇有效的開放方式。', Route::manager($scopeProject, 'access'));
+          }
+          if ($enabled && $mode === 'long') { $startRaw = ''; $endRaw = ''; }
+          if ($enabled && (($mode === 'period' && $endRaw === '') || ($mode === 'scheduled' && $startRaw === ''))) {
+            error_page(400, '無法儲存開放投稿設定', '指定期間請填結束時間；預約時段請填開始時間。', Route::manager($scopeProject, 'access'));
+          }
           $start = $startRaw === '' ? null : contrib_local_time($startRaw);
           $end = $endRaw === '' ? null : contrib_local_time($endRaw);
           if (($startRaw !== '' && $start === null) || ($endRaw !== '' && $end === null)
               || ($start !== null && $end !== null && strtotime($end) <= strtotime($start))) {
             error_page(400, '無法儲存開放投稿設定', '請設定有效的開始與結束時間（台北時間）；留空表示不限制。', Route::manager($scopeProject, 'access'));
           }
-          $meta['contributionAccess'] = ['enabled' => $enabled, 'starts_at' => $start, 'expires_at' => $end];
+          if ($enabled && $mode === 'scheduled' && strtotime($start) <= time()) {
+            error_page(400, '無法儲存開放投稿設定', '預約開始時間須晚於現在；已開始的期間請選擇指定期間。', Route::manager($scopeProject, 'access'));
+          }
+          $nextPolicy = ['enabled' => $enabled, 'starts_at' => $start, 'expires_at' => $end];
+          contrib_history_archive_access($meta, $nextPolicy);
+          $meta['contributionAccess'] = $nextPolicy;
+          if (isset($_POST['contrib_newspot_submitted'])) {
+            $previous = souliong_contrib_cfg($meta)['newSpot'];
+            $meta['contrib'] = array_merge($meta['contrib'] ?? [], ['newSpot' => isset($_POST['contrib_allow_newspot']) ? 'contributor' : ($previous === 'admin' ? 'admin' : 'off')]);
+          }
           if (file_put_contents($mf, json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) . "\n", LOCK_EX) === false) {
             error_page(500, '儲存失敗', '請稍後再試。');
           }
@@ -1023,6 +1042,15 @@ if (!$authed) {
           // primary／bootstrap 兩種來源（全域身分）僅限主 PIN 本人操作
           if ($mSource === 'project') $gate($mProject, 'grant_access', 'primary_only_pin_perm_msg', $migBack);
           else $gate(null, 'manage_site', 'primary_only_pin_perm_msg', $migBack);
+          if ($mSource === 'project') {
+            $sourcePin = null;
+            foreach (pins_load($cfg)['projects'][$mProject] ?? [] as $candidate) {
+              if (($candidate['kind'] ?? 'pin') === 'pin' && (string)($candidate['id'] ?? '') === $mLegacyId) { $sourcePin = $candidate; break; }
+            }
+            if ($sourcePin === null || !auth_source_visible($cfg, $mProject, $sourcePin['perms'] ?? [])) {
+              error_page(403, $t('no_permission_title'), $t('primary_only_pin_perm_msg'), $migBack, $t('back_to_admin'));
+            }
+          }
           $pending = account_migrate_create($cfg, $mSource, $mProject, $mLegacyId, $mLabel !== '' ? $mLabel : 'user', $mLabel);
           audit_log($cfg, $auditWho(), 'migrate_create', $mProject, $mSource . ':' . ($mLegacyId ?? ''));
           $justCreatedMigrate = ['source' => $mSource, 'project' => $mProject, 'kind' => 'migrate', 'url' => Route::abs(Route::manager('', '', 'activate=' . rawurlencode($pending['token']))), 'note' => $t('migrate_link_hint')];
@@ -1091,9 +1119,12 @@ if (!$authed) {
           $p = clean_id($_POST['project'] ?? '');
           $gate($p, 'manage_contrib', null, Route::manager($scopeProject, 'access'));
           $code = preg_replace('/\D/', '', (string)($_POST['code'] ?? ''));
+          $oldCode = null;
+          foreach (codes_load($cfg, $p) as $candidate) if (($candidate['code'] ?? '') === $code) { $oldCode = $candidate; break; }
           if (!code_set_enabled($cfg, $p, $code, ($_POST['enabled'] ?? '') === '1')) {
             error_page(400, '無法變更投稿碼', '請確認投稿碼仍存在，並稍後再試。', Route::manager($scopeProject, 'access'));
           }
+          if ($oldCode && ($_POST['enabled'] ?? '') !== '1' && ($oldCode['enabled'] ?? true)) contrib_history_archive_code($cfg, $p, $oldCode, 'disabled');
           audit_log($cfg, $auditWho(), 'toggle_contribution_code', $p, '');
           header('Location: ' . Route::manager($scopeProject, 'access'));
           exit;
@@ -1104,7 +1135,9 @@ if (!$authed) {
           $gate($p, 'manage_contrib', null, Route::manager($scopeProject, 'access'));
           $dc = preg_replace('/\D/', '', (string)($_POST['code_del'] ?? ''));
           if ($dc !== '') {
-            codes_save($cfg, $p, array_values(array_filter(codes_load($cfg, $p), fn($e) => (string)($e['code'] ?? '') !== $dc)));
+            $codeRows = codes_load($cfg, $p);
+            foreach ($codeRows as $candidate) if ((string)($candidate['code'] ?? '') === $dc) { contrib_history_archive_code($cfg, $p, $candidate, 'removed'); break; }
+            codes_save($cfg, $p, array_values(array_filter($codeRows, fn($e) => (string)($e['code'] ?? '') !== $dc)));
           }
           header('Location: ' . Route::manager($scopeProject, 'access'));
           exit;
@@ -3467,9 +3500,21 @@ if (!$authed) {
       font-size: 0.8125rem
     }
 
-    .contrib-access-form { display: grid; gap: 12px; padding: 20px; margin-bottom: 20px; }
+    .contribution-settings { padding: 20px; margin-bottom: 20px; min-width: 0; }
+    .contribution-settings > h3 { margin: 0 0 16px; }
+    .contribution-settings summary { cursor: pointer; font-weight: 600; padding: 10px 0; }
+    .contribution-history-list { max-height: 300px; overflow: auto; }
+    .contribution-period { padding: 10px 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+    .contrib-access-form { display: grid; gap: 12px; margin-bottom: 16px; }
+    .contrib-access-body { display: grid; gap: 12px; }
+    .contrib-access-body[hidden] { display: none; }
+    .contribution-settings select { max-width: 100%; }
+    .contribution-codes { border-top: 1px solid var(--line); }
+    .contribution-code-notice { flex-basis: 100%; margin: 0; }
+
     .contrib-access-form h3, .contrib-access-form p { margin: 0; }
     .contrib-access-dates { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 12px; }
+    .contrib-access-dates[hidden] { display: none; }
     .contrib-access-dates label { display: grid; gap: 6px; min-width: 0; }
     .contrib-access-dates input { width: 100%; min-width: 0; box-sizing: border-box; padding: 9px; }
     .contrib-access-actions { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -3720,6 +3765,7 @@ if (!$authed) {
       $contribOpen = codes_active($cfg, $p) !== [];   // 有沒有還有效的投稿代碼＝這張地圖現在開不開放投稿
       $ppinsAll = $pinsAllData['projects'][$p] ?? [];
       $realPins = array_values(array_filter($ppinsAll, fn($e) => ($e['kind'] ?? 'pin') !== 'invite'));
+      if (!$primary) $realPins = array_values(array_filter($realPins, fn($e) => auth_source_visible($cfg, $p, $e['perms'] ?? [])));
       $invites = array_values(array_filter($ppinsAll, fn($e) => ($e['kind'] ?? 'pin') === 'invite'));
     ?>
       <div class="projhead" id="proj-<?= $esc($p) ?>">
@@ -4259,27 +4305,11 @@ if (!$authed) {
           </div>
         <?php };
       ?>
-        <?php if ($canContrib($p)):
-          $accessPolicy = contrib_free_policy($meta);
-          $accessTime = static function ($v) { try { return $v ? (new DateTimeImmutable($v))->setTimezone(new DateTimeZone('Asia/Taipei'))->format('Y-m-d\TH:i') : ''; } catch (Throwable $e) { return ''; } };
-        ?>
-        <form method="post" class="card contrib-access-form">
-          <input type="hidden" name="action" value="contribaccess">
-          <input type="hidden" name="project" value="<?= $esc($p) ?>">
-          <input type="hidden" name="csrf" value="<?= $esc_csrf ?>">
-          <h3>開放投稿</h3>
-          <?php $accessState = contrib_free_state($meta); $accessLabels = ['disabled' => '已關閉', 'scheduled' => '尚未開始', 'ended' => '已到期', 'open' => $accessState['expires_at'] ? '限時開放中' : '長期開放中']; ?>
-          <p class="hint">目前狀態：<?= $esc($accessLabels[$accessState['state']]) ?><?= !souliong_module_on($meta, 'upload') ? '（專案上傳功能已關閉）' : '' ?></p>
-          <p class="hint">可投稿的內容依專案設定。時間留空為長期開放，取消啟用即可關閉開放投稿；任何人都能投稿，不需投稿碼。既有投稿碼仍可獨立使用。</p>
-          <label><input type="checkbox" name="contrib_free_enabled" <?= !empty($accessPolicy['enabled']) ? 'checked' : '' ?>> 啟用</label>
-          <div class="contrib-access-dates">
-          <label>開始（台北時間，可留空）<input type="datetime-local" name="contrib_free_start" value="<?= $esc($accessTime($accessPolicy['starts_at'] ?? null)) ?>"></label>
-          <label>結束（台北時間，可留空）<input type="datetime-local" name="contrib_free_end" value="<?= $esc($accessTime($accessPolicy['expires_at'] ?? null)) ?>"></label>
-          </div>
-          <div class="contrib-access-actions"><button class="btn" type="submit">儲存開放投稿設定</button>
-          <a class="btn" target="_blank" rel="noopener" href="<?= $esc(Route::map($p) . '?embed=1&ui=submit') ?>">預覽嵌入投稿頁</a></div>
-        </form>
-        <?php endif; ?>
+        <section class="contribution-settings card">
+          <h3><?= $t('contribution_access_group') ?></h3>
+        <?php if ($canContrib($p)): require __DIR__ . '/manager-contribaccess.php'; endif; ?>
+        <details class="contribution-codes" <?= !contrib_free_state($meta)['open'] || $justHere('code') ? 'open' : '' ?>>
+          <summary><?= $t('contrib_code') ?></summary>
         <!-- 投稿代碼：一碼一張卡，連結／QR／限制／用量都在同一張卡上 -->
         <div class="sechead"><i class="fa-solid fa-ticket"></i> <?= $t('contrib_code') ?><span class="sechint"><?= $contribOpen ? $t('codes_gated_hint') : $t('codes_none_hint') ?></span></div>
         <?php if ($codesList): ?>
@@ -4327,14 +4357,39 @@ if (!$authed) {
               </div>
             </label>
             <label class="fieldlabel"><?= $t('max_uses_label') ?><input name="max_uses" type="number" min="1" placeholder="<?= $t('max_uses_placeholder') ?>"></label>
+            <?php if (!empty(contrib_free_policy($meta)['enabled'])): ?><p class="hint contribution-code-notice"><?= $t('contribution_code_overlap_notice') ?></p><?php endif; ?>
             <button class="btn solid"><i class="fa-solid fa-check"></i> <?= $t('confirm_add_btn') ?></button>
           </form>
         </details>
         <?php if ($justHere('code')) $shareNew($justCreatedShare, $t('contrib_code')); ?>
+        </details>
+        <?php if ($canContrib($p)): require __DIR__ . '/manager-contribhistory.php'; endif; ?>
+        </section>
 
         <!-- 身分管理：投稿者（純自助）與管理 PIN 並列 -->
         <div class="sechead"><i class="fa-solid fa-users"></i> <?= $t('identity_management_heading') ?></div>
         <div class="idgrid">
+          <div class="idgroup identity-source">
+            <div class="sechead"><i class="fa-solid fa-user-shield"></i> <?= $t('identity_site_source') ?></div>
+            <p class="hint"><?= $t('identity_site_source_hint') ?></p>
+            <?php if ($primary): ?>
+              <details><summary><?= $t('identity_source_members') ?></summary>
+                <div class="pinlist">
+                  <?php foreach (accounts_load($cfg)['accounts'] as $sourceAccount): if (($sourceAccount['role'] ?? '') !== 'primary' || !empty($sourceAccount['disabled'])) continue; ?>
+                    <span class="pinchip"><?= $esc($sourceAccount['label'] ?: $sourceAccount['userid']) ?></span>
+                  <?php endforeach; ?>
+                  <?php foreach (pins_load($cfg)['primary'] as $sourcePin): ?>
+                    <span class="pinchip"><?= $esc(($sourcePin['label'] ?? '') ?: $t('no_nickname_label')) ?></span>
+                  <?php endforeach; ?>
+                  <?php if (_cfg_primary_pin($cfg) !== '' || !empty($cfg['primary_pin_hash'])): ?><span class="pinchip"><?= $t('identity_config_source') ?></span><?php endif; ?>
+                </div>
+              </details>
+            <?php endif; ?>
+          </div>
+          <div class="idgroup identity-source">
+            <div class="sechead"><i class="fa-solid fa-user-gear"></i> <?= $t('identity_project_source') ?></div>
+            <p class="hint"><?= $t(souliong_module_on($meta, 'delegation') ? 'identity_project_source_hint' : 'identity_project_source_disabled') ?></p>
+          </div>
           <div class="idgroup">
             <div class="sechead"><i class="fa-solid fa-id-badge"></i> <?= $t('contributors_heading') ?></div>
             <?php if ($cList || $ownerGroups): ?>
@@ -4401,7 +4456,7 @@ if (!$authed) {
                     <?php endif; ?>
                   </div>
                 <?php endforeach; else: ?>
-                  <?php foreach ($realPins as $e): ?>
+                  <?php foreach ($realPins as $e): if (!auth_source_visible($cfg, $p, $e['perms'] ?? [])) continue; ?>
                     <span class="pinchip" title="<?= $t('primary_only_pin_visible_title') ?>"><?= $esc(($e['label'] ?? '') !== '' ? $e['label'] : $t('no_nickname_label')) ?></span>
                   <?php endforeach; ?>
                 <?php endif; ?>

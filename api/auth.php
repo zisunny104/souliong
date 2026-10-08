@@ -66,6 +66,17 @@ function auth_perms_default(): array {
 function auth_perms_primary(): array {
     return array_fill_keys(auth_perm_keys(), true);
 }
+
+/** 名單與 PIN 轉換共用的範圍判定；不授予任何新的操作權限。 */
+function auth_source_visible(array $cfg, string $project, array $perms): bool {
+    $actor = Auth::actor($cfg, $project);
+    if ($actor->kind() === 'primary') return true;
+    if (!$actor->can($project, 'grant_access')) return false;
+    foreach ($perms as $key => $enabled) {
+        if ($enabled && !$actor->can($project, (string)$key)) return false;
+    }
+    return true;
+}
 /**
  * 既有身分的 perms 自我修復：backfill 鍵缺席時回填 true。有改動回傳 true（呼叫端負責存檔）。
  * pins_load() 與 project_perms_load() 共用，兩邊不再各寫一份迴圈。
