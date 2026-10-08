@@ -200,7 +200,7 @@ if ($socialCard) {
 <html lang="<?= $LANG === 'en' ? 'en' : 'zh-Hant' ?>">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= $t('app_title') ?></title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="<?= $esc($ogTitle) ?>">
@@ -268,6 +268,8 @@ if ($pack) {
 <script>try{var t=localStorage.getItem('theme');if(t==='dark'||t==='light')document.documentElement.dataset.theme=t;}catch(e){}</script>
 </head>
 <body class="<?= $esc($bodyCls) ?>">
+<main id="mapPage">
+<h1 class="sl-sr-only"><?= $esc($meta['title'] ?? $t('app_title')) ?></h1>
 
 <?php if (!$bare): ?>
 <div id="skeleton" aria-hidden="true">
@@ -342,7 +344,7 @@ if ($pack) {
 
 <div id="cloudWarn" class="toast" style="display:none"></div>
 
-<div id="panel">
+<div id="panel" role="region" aria-labelledby="pTitle" aria-hidden="true" inert>
   <button class="p-expand" onclick="MapApp.togglePanelSize()" aria-label="<?= $t('expand_panel') ?>" title="<?= $t('expand_panel') ?>"><i class="fa-solid fa-up-right-and-down-left-from-center" aria-hidden="true"></i></button>
   <button class="p-close" onclick="MapApp.closePanel()" aria-label="<?= $t('close') ?>"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
   <div class="p-head">
@@ -357,6 +359,7 @@ if ($pack) {
   </div>
 </div>
 
+</main>
 <?php if ($mod('upload')): ?>
 <div id="unlockDialog" class="dialog">
   <div class="dialog-box">

@@ -166,6 +166,32 @@ const {chromium}=require(process.env.PLAYWRIGHT_PATH||'playwright');
   assert.equal(await page.evaluate(()=>window.testLayers.contrib.filter(p=>p.id==='ordinary').length),1);
   assert.equal(await page.evaluate(()=>window.testLayers.contrib.filter(p=>p.id==='photo0').length),1);
   assert.deepEqual(errors,[]);
+  // 無障礙操作不改變既有晶片與精選星章的外觀。
+  await page.evaluate(()=>MapApp.closePanel());
+  assert.equal(await page.locator('#panel').getAttribute('aria-hidden'),'true');
+  assert.equal(await page.locator('#panel').getAttribute('inert'),'');
+  const chip=page.locator('.chip').first();
+  await chip.focus();await page.keyboard.press('Enter');
+  assert.equal(await chip.getAttribute('aria-pressed'),'false');
+  await page.keyboard.press(' ');assert.equal(await chip.getAttribute('aria-pressed'),'true');
+  assert.ok(!(await page.locator('meta[name="viewport"]').getAttribute('content')).includes('user-scalable=no'));
+  if(process.env.AXE_PATH){
+    await context.clearCookies();
+    entryEdit.comment='### 內容標題\n###### 子標題';
+    fs.writeFileSync(tmp+'/projects/test/spots.jsonl',[spot,edit,entry,entryEdit,...photos,ordinary].map(JSON.stringify).join('\n')+'\n');
+    for(const width of [390,1280]){
+      await page.setViewportSize({width,height:900});await open();await page.waitForTimeout(350);
+      await page.addScriptTag({path:process.env.AXE_PATH});
+      const result=await page.evaluate(()=>axe.run(document));
+      assert.deepEqual(result.violations.map(v=>({id:v.id,nodes:v.nodes.map(n=>({target:n.target,reason:n.failureSummary}))})),[]);
+      assert.equal(await page.locator('.entry-featured-star').first().getAttribute('role'),'img');
+      assert.equal(await page.locator('.entry .sc-md h5').getAttribute('aria-level'),'3');
+      await page.locator('.p-close').focus();await page.keyboard.press('Enter');
+      assert.equal(await page.locator('#panel').getAttribute('inert'),'');
+      assert.equal(await page.locator('#panel').evaluate(el=>el.contains(document.activeElement)),false);
+    }
+    console.log('PASS: 地圖 390／1280 無障礙掃描、分類鍵盤操作、面板隱藏與焦點、精選星章及 Markdown 語意');
+  }
   console.log('PASS: 精選預覽無 GPS、數量收合、像素錯開、縮放重繪、即時更新、原座標保留與一般投稿相容；精選星章管理／訪客、重載保留、底色儲存與手機／桌面位置；點位清單膠囊、面板寬度、後台儲存、獨立紀錄／署名開關、格式與 HTML 跳脫、icon 儲存與預設、五種模式及導航按鈕尺寸');
  }finally{if(browser)await browser.close();if(server)server.kill();fs.rmSync(tmp,{recursive:true,force:true});}
 })().catch(e=>{console.error(e);process.exitCode=1;});

@@ -1104,14 +1104,20 @@ window.MapApp = (() => {
     CATS.forEach(c => {
       const el = document.createElement('div'); el.className = 'chip' + (active[c.key] === false ? ' off' : '');
       el.innerHTML = '<span class="dot" style="background:' + esc(c.color) + '"></span>' + esc(c.label);
-      el.onclick = () => { active[c.key] = active[c.key] === false ? true : false; el.classList.toggle('off', active[c.key] === false); renderSpots(); renderContribLayer(); };
+      el.setAttribute('role', 'button'); el.tabIndex = 0;
+      el.setAttribute('aria-pressed', String(active[c.key] !== false));
+      el.onclick = () => { active[c.key] = active[c.key] === false ? true : false; el.classList.toggle('off', active[c.key] === false); el.setAttribute('aria-pressed', String(active[c.key] !== false)); renderSpots(); renderContribLayer(); };
+      el.onkeydown = ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); el.click(); } };
       legend.appendChild(el);
     });
   }
 
   /* ---------- panel ---------- */
-  let current = null;
+  let current = null, panelReturnFocus = null;
   function openPanel(c) {
+    const panel = document.getElementById('panel');
+    if (!panel.classList.contains('open')) panelReturnFocus = document.activeElement;
+    panel.removeAttribute('inert'); panel.removeAttribute('aria-hidden');
     current = c;
     const cat = CATS.find(x => x.key === c.cat) || { label: '', color: '' };
     document.getElementById('pCat').textContent = cat.label;
@@ -1126,7 +1132,15 @@ window.MapApp = (() => {
     renderEntries();
     statSend('spot', c.num);
   }
-  function closePanel() { document.getElementById('panel').classList.remove('open'); resetSpotEditor(); closeNavMenu(); current = null; emitHook('panelReset'); }
+  function closePanel() {
+    const panel = document.getElementById('panel');
+    if (panel.contains(document.activeElement)) {
+      const target = panelReturnFocus?.isConnected && panelReturnFocus !== document.body && !panel.contains(panelReturnFocus) ? panelReturnFocus : document.getElementById('spotFilterTrigger');
+      if (target) target.focus({ preventScroll: true });
+    }
+    panel.classList.remove('open'); panel.setAttribute('inert', ''); panel.setAttribute('aria-hidden', 'true');
+    panelReturnFocus = null; resetSpotEditor(); closeNavMenu(); current = null; emitHook('panelReset');
+  }
 
   /* ---------- 點位導航選單 ---------- */
   // 連結模板由伺服器提供（APP.nav.apps，見 api/navlinks.php）；這裡只套值、依平台過濾、排成選單。
@@ -1441,7 +1455,7 @@ window.MapApp = (() => {
     const color = /^#[0-9a-f]{6}$/i.test(META.featuredColor || '') ? META.featuredColor : '#d6a52a';
     star.style.setProperty('--featured-color', color);
     star.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 2.5 15 8.7 21.8 9.7 16.9 14.5 18 21.3 12 18.1 6 21.3 7.1 14.5 2.2 9.7 9 8.7Z"/></svg>';
-    if (editable) star.type = 'button';
+    if (editable) star.type = 'button'; else star.setAttribute('role', 'img');
     const update = () => {
       const selected = entry.featured === true;
       star.classList.toggle('is-featured', selected);
@@ -1470,6 +1484,20 @@ window.MapApp = (() => {
       finally { star.disabled = false; }
     });
     card.appendChild(star);
+  }
+
+  // 保留 Markdown 原有標題樣式，讓嵌入片段的閱讀層級接續點位標題。
+  function contentHeadingLevels(root, base) {
+    root.querySelectorAll('.sc-md').forEach(block => {
+      const headings = [...block.querySelectorAll('h1,h2,h3,h4,h5,h6')];
+      if (!headings.length) return;
+      const firstLevel = Math.min(...headings.map(heading => Number(heading.tagName[1])));
+      let previous = base - 1;
+      headings.forEach(heading => {
+        const level = Math.min(6, previous + 1, base + Number(heading.tagName[1]) - firstLevel);
+        heading.setAttribute('aria-level', String(level)); previous = level;
+      });
+    });
   }
 
   function renderEntries() {
@@ -1540,6 +1568,7 @@ window.MapApp = (() => {
       gwrap.appendChild(d);
     });
     box.appendChild(gwrap);
+    contentHeadingLevels(box, 3);
   }
   // 聲音區塊的分享連結：?spot=<num>&block=<id>，進站時由 boot() 展開點位並標出這個聲音。
   // 網址形式沿用 share-link 插件（origin + base + 專案 ID），這裡不依賴該插件。
@@ -1562,7 +1591,7 @@ window.MapApp = (() => {
     const def = kindDef(e);
     const dur = e.duration ? '<span class="sl-dur">' + esc(fmtDur(e.duration)) + '</span>' : '';
     if (def.box === 'image') {
-      return '<img class="sl-open" src="' + esc(entryThumbUrl(e) || '') + '" loading="lazy" decoding="async" alt="' + alt + '" tabindex="0">';
+      return '<img class="sl-open" src="' + esc(entryThumbUrl(e) || '') + '" loading="lazy" decoding="async" alt="' + alt + '" role="button" aria-haspopup="dialog" tabindex="0">';
     }
     if (def.box === 'video') {
       // 只鋪封面圖不放 <video>：一個點位可能有十幾則投稿，全部掛播放器等於同時開十幾條連線
@@ -1868,6 +1897,7 @@ window.MapApp = (() => {
       '<div class="lb-info" id="lbInfo" style="display:none"></div>';
     if (!e.spotBlock) entryActionFns.forEach(fn => { const el = fn(e); if (el?.dataset.entryLink) cap.querySelector('.lb-link-actions').appendChild(el); });
     if (!e.spotBlock) { const footer = cap.querySelector('.entry-footer'); footer.insertBefore(citationButton(e), footer.querySelector('.entry-license')); }
+    contentHeadingLevels(cap, 2);
     const ib = cap.querySelector('#lbInfoBtn');
     if (ib) ib.onclick = (ev) => {
       ev.stopPropagation();
