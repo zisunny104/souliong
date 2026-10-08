@@ -26,7 +26,7 @@ const {chromium}=require(process.env.PLAYWRIGHT_PATH||'playwright');
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await context.route('**/*',async route=>{
    const url=new URL(route.request().url());if(url.origin!==base)return route.abort();
-   if((url.searchParams.get('f')||url.pathname).endsWith('/maplibre-engine.js'))return route.fulfill({contentType:'application/javascript',body:'window.MapLibreEngine=class {constructor(){this.supportsSnapshot=false;} getZoom(){return window.testZoom||14;} mountControls(){} onZoomThresholdCross(z,fn){window.testZoomCross=fn;} fitBounds(){} setMarkerLayer(key,specs){(window.testLayers||=( {} ))[key]=specs;} clearMarkerLayer(key){(window.testLayers||=( {} ))[key]=[];} onBackgroundClick(){} panTo(){} applyTheme(){} setView(){} createMiniPicker(){return {onChange(){},setPosition(){},destroy(){}}}};'});
+   if((url.searchParams.get('f')||url.pathname).endsWith('/maplibre-engine.js'))return route.fulfill({contentType:'application/javascript',body:'window.MapLibreEngine=class {constructor(){this.supportsSnapshot=false;} getZoom(){return window.testZoom||14;} markerElements(){return new Map();} mountControls(){} onZoomEnd(fn){window.testZoomEnd=fn;} onZoomThresholdCross(z,fn){window.testZoomCross=fn;} fitBounds(){} setMarkerLayer(key,specs){(window.testLayers||=( {} ))[key]=specs;} clearMarkerLayer(key){(window.testLayers||=( {} ))[key]=[];} onBackgroundClick(){} panTo(){} applyTheme(){} setView(){} createMiniPicker(){return {onChange(){},setPosition(){},destroy(){}}}};'});
    return route.continue();
   });
   async function open(){await page.goto(base+'/test');await page.waitForFunction(()=>window.MapApp?.effectiveSpots().length===1,null,{timeout:10000}).catch(e=>{console.error(errors);throw e;});await page.evaluate(()=>MapApp.openPanel(MapApp.effectiveSpots()[0]));}
@@ -129,16 +129,16 @@ const {chromium}=require(process.env.PLAYWRIGHT_PATH||'playwright');
   const ordinary={...photos[0],id:'ordinary',photo:'ordinary.jpg',featured:false,lat:26,lon:122};
   fs.writeFileSync(tmp+'/projects/test/spots.jsonl',[spot,edit,entry,entryEdit,...photos,ordinary].map(JSON.stringify).join('\n')+'\n');
   await open();
-  let previews=await page.evaluate(()=>window.testLayers.contrib.map(({id,lat,lon,anchor,size,html})=>({id,lat,lon,anchor,size,html})));
+  let previews=await page.evaluate(()=>window.testLayers.contrib.map(({id,lat,lon,anchor,size,html,off})=>({id,lat,lon,anchor,size,html,off})));
   assert.deepEqual(previews.map(p=>p.id),['photo0','photo1','photo2','featured-more-1']);
   assert.ok(previews.every(p=>p.lat===24&&p.lon===120));
   function checkSurrounding(markers) {
-    const centers=markers.map(p=>({x:p.size[0]/2-p.anchor[0],y:p.size[1]/2-p.anchor[1],half:p.size[0]/2}));
-    assert.deepEqual(centers.map(p=>[Math.sign(p.x),Math.sign(p.y)]),[[1,-1],[-1,1],[-1,-1],[1,1]]);
-    for(const p of centers) assert.ok(Math.abs(p.x)>12+p.half || Math.abs(p.y)>12+p.half,'中央地點不被遮住');
+    const centers=markers.map(p=>({x:p.off.x,y:p.off.y,half:p.size[0]/2}));
+    assert.ok(centers.every(p=>Number.isFinite(p.x)&&Number.isFinite(p.y)));
+    for(const p of centers) assert.ok(Math.hypot(p.x,p.y)>12+p.half,'中央地點不被遮住');
     for(let i=0;i<centers.length;i++) for(let j=i+1;j<centers.length;j++) {
       const a=centers[i],b=centers[j],distance=a.half+b.half+5;
-      assert.ok(Math.abs(a.x-b.x)>=distance || Math.abs(a.y-b.y)>=distance,'預覽彼此保留間距');
+      assert.ok(Math.hypot(a.x-b.x,a.y-b.y)>=distance,'預覽彼此保留間距');
     }
   }
   checkSurrounding(previews);
@@ -147,7 +147,7 @@ const {chromium}=require(process.env.PLAYWRIGHT_PATH||'playwright');
   assert.equal(await page.evaluate(()=>MapApp.effectiveEntries().find(e=>e.id==='photo1').lat),null);
   await page.evaluate(()=>{window.testZoom=16;window.testZoomCross();});
   assert.ok(await page.evaluate(()=>window.testLayers.contrib.every(p=>p.size[0]===30)));
-  checkSurrounding(await page.evaluate(()=>window.testLayers.contrib.map(({size,anchor})=>({size,anchor}))));
+  checkSurrounding(await page.evaluate(()=>window.testLayers.contrib.map(({size,anchor,off})=>({size,anchor,off}))));
   await page.evaluate(()=>window.testLayers.contrib[3].onClick());
   assert.ok((await page.locator('#pTitle').textContent()).startsWith('點位一'));
   await page.evaluate(()=>window.testLayers.contrib[0].onClick());

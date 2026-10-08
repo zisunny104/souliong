@@ -97,7 +97,7 @@ window.MapLibreEngine = class {
   this.ready=fetch(options.manifests.find(m=>m.type==='vector').url).then(r=>r.json()).then(style=>{this.element.style.background=style.layers[0].paint['background-color'];this.loaded=true;});
   this.map={jumpTo:o=>{this.center=Array.isArray(o.center)?o.center:[o.center.lng,o.center.lat];this.offset=[0,0];},project:p=>({x:600+((p[0]??p.lng)-this.center[0])*1000-this.offset[0],y:315+((p[1]??p.lat)-this.center[1])*1000-this.offset[1]}),panBy:p=>{this.offset=p;},getCenter:()=>this.center,isStyleLoaded:()=>this.loaded,areTilesLoaded:()=>this.loaded,on:()=>{},once:(event,cb)=>this.ready.then(cb)};
  }
- getRawMap(){return this.map;} getZoom(){return 16;} mountControls(){} onZoomThresholdCross(){} fitBounds(){} onBackgroundClick(){} panTo(){} applyTheme(){} setView(){}
+ getRawMap(){return this.map;} getZoom(){return 16;} mountControls(){} onZoomEnd(){} onZoomThresholdCross(){} fitBounds(){} onBackgroundClick(){} panTo(){} applyTheme(){} setView(){}
  clearMarkerLayer(key){(this.markers[key]||[]).forEach(el=>el.remove());this.markers[key]=[];}
  setMarkerLayer(key,specs){this.clearMarkerLayer(key);this.markers[key]=(specs||[]).map(spec=>{const el=document.createElement('div'),p=this.map.project([spec.lon,spec.lat]);el.innerHTML=spec.html;Object.assign(el.style,{position:'absolute',left:(p.x-spec.anchor[0])+'px',top:(p.y-spec.anchor[1])+'px',width:spec.size[0]+'px',height:spec.size[1]+'px'});this.element.append(el);return el;});}
 };
