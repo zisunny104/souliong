@@ -26,6 +26,12 @@
 - Chromium／Playwright 以實際 CSS 與控制項 DOM 驗證：1280 與 390 像素寬度皆置中；手機音訊迷你列出現時仍置中並上移；兩種寬度的純地圖嵌入版權條皆位於右下角。此次未載入完整地圖或驗證 VPS 上的圖磚請求。
 - Souliong 已用 `https://github.com/zisunny104/souliong.git` 登記為開利手子模組；母專案 `3f62be8` 已記錄這次修正。一般部署由母專案同步記錄的提交；需單獨重跑部署時可用 `./deploy.sh --deploy-apps souliong`。
 
+### 精選投稿地圖預覽（2026-10-08）
+
+- 沿用原始投稿的 `featured` 狀態，精選立即連動地圖，使用所屬點位及像素偏移呈現，不更動投稿 GPS；最多三則，其餘收合至點位面板。預覽位置由 `assets/js/featured-layout.js` 依目前縮放排：比任何其他點位都更靠自己的點位、各點位角度錯開、避開別人的點位與預覽，並以細線連回所屬點位；縮放結束時重排。
+- 有精選預覽時取代數字角標；一般 GPS 投稿仍沿用投稿模式。星章圓底 26px、星星 20px，點擊範圍 32px。
+- 使用隔離資料與模擬地圖引擎的 Chromium／Playwright 驗證無 GPS、即時精選、數量收合、縮放、顯示開關及手機／桌面星章；尚未驗證 VPS 真實圖磚。
+
 ### 先前完成事項
 
 伺服器端壓縮、Route:: 遷移、樣式 json 縮短快取、tools/checkall.php、點位導航（Google、Apple、geo、OSM 選單）、封面快照隱藏底圖地名並重拍三個專案、地名跟隨語言、路徑需先選投稿者、光柵底圖 minZoom／maxNativeZoom／tms／bounds、預設底圖對齊 paper-ink、3D 建物沿用原底圖（紙墨）、燈箱說明置中。

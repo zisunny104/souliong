@@ -256,7 +256,6 @@
 
 .p-nav-item i {
   flex: none;
-  width: 1.1em;
   text-align: center;
   color: var(--muted)
 }
@@ -304,10 +303,12 @@
    --hover，hover 再給同一個值等於完全沒變化，看不出有沒有 hover 到。
    另外加一圈用 --fg 混色的細外框當作「有 hover 到」的視覺回饋——細框不像整片底色那樣需要
    跟文字拼對比，比較不會被材質顏色吃掉。 */
+@media (hover: hover) {
 .p-close:hover {
   background: var(--hover-strong);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--fg) 35%, transparent);
   color: var(--fg)
+}
 }
 
 /* 展開/縮回鈕：樣式同關閉鈕，排在它左邊；手機版面板是底部抽屜，展開沒有意義，直接隱藏 */
@@ -329,11 +330,12 @@
   cursor: pointer;
   transition: background var(--t), color var(--t)
 }
-
+@media (hover: hover) {
 .p-expand:hover {
   background: var(--hover-strong);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--fg) 35%, transparent);
   color: var(--fg)
+}
 }
 
 @media (max-width:640px) {
@@ -490,9 +492,10 @@
   cursor: pointer;
   transition: background var(--t)
 }
-
+@media (hover: hover) {
 .sl-play-btn:hover {
   background: color-mix(in srgb, var(--accent) 75%, transparent)
+}
 }
 
 .sl-play-btn i {
@@ -606,9 +609,10 @@
   padding: 4px 0;
   margin-top: 4px
 }
-
+@media (hover: hover) {
 .del-btn:hover {
   text-decoration: underline
+}
 }
 
 @media (prefers-color-scheme: dark) {
@@ -1083,7 +1087,6 @@
 .entry-license { margin-top: 6px; font-size: .75rem; color: var(--muted); overflow-wrap: anywhere; }
 
 .entry-footer { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
-.entry-footer .entry-license { margin-top: 0; }
 .entry-license a { color: inherit; }
 .entry-license a[rel~="license"] { text-decoration: none; }
 .entry-license-label { text-decoration: underline; }
@@ -1091,7 +1094,11 @@
 .entry-link-actions:empty, .lb-link-actions:empty { display: none; }
 
 .entry-footer .entry-actions, .entry-footer .lb-actions { display: inline-flex; align-items: center; gap: 6px; margin: 0; padding: 0; }
-.entry-footer .entry-license { margin-left: auto; }
+/* 順序：連結、引用（左）→ 授權 → 編輯與刪除（最右）；編輯類從另一端加 */
+.entry-footer .entry-link-actions, .entry-footer .lb-link-actions { order: 1; }
+.entry-footer > .entry-icon-action { order: 2; }
+.entry-footer .entry-license { margin: 0 0 0 auto; order: 3; }
+.entry-footer .entry-actions, .entry-footer .lb-actions { order: 4; }
 
 .entry-footer .btn.entry-icon-action,
 #lb .cap .entry-footer .btn.entry-icon-action {
@@ -1114,14 +1121,14 @@
 .entry-featured-star {
   position: absolute; top: 10px; right: 10px; z-index: 2;
   display: inline-flex; align-items: center; justify-content: center;
-  width: 32px; height: 32px; padding: 0; border-radius: 50%;
+  width: 26px; height: 26px; padding: 0; border-radius: 50%;
   border: 1px solid rgba(255,255,255,.7);
   background: #7a7f87; color: #fff; font-size: 14px; line-height: 1;
   transition: background-color .18s ease;
 }
 .entry-featured-star.is-featured { background: var(--featured-color, #d6a52a); }
 button.entry-featured-star { cursor: pointer; }
-button.entry-featured-star::after { content: ''; position: absolute; inset: -5px; }
+button.entry-featured-star::after { content: ''; position: absolute; inset: -3px; }
 button.entry-featured-star:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
 button.entry-featured-star:disabled { cursor: progress; }
 .sl-kind-text:has(.entry-featured-star) > .meta { padding-right: 54px; }
@@ -1135,9 +1142,25 @@ button.entry-featured-star:disabled { cursor: progress; }
 
 .spot-links { min-width: 0; display: flex; flex-wrap: wrap; gap: 6px; }
 .spot-link.btn { flex: 0 0 32px; width: 32px; height: 32px; padding: 0; justify-content: center; }
-.spot-link i { font-size: 20px; }
+.spot-link i { font-size: 16px; }
+@media (hover: hover) {
+.spot-link, .spot-link:hover { text-decoration: none; }
+}
+/* 調整定位這類編輯鈕靠最右邊，連結與導覽靠左 */
+.p-head .p-actions #spotEditBtn { margin-left: auto; }
 .spot-links-editor { margin: 12px 18px; }
 .spot-link-row { display: grid; grid-template-columns: 100px minmax(0,1fr) 32px; gap: 6px; margin-bottom: 8px; }
 .spot-link-row input, .spot-link-row select { width: 100%; min-width: 0; }
 
 .spot-link-row .btn { width: 32px; min-height: 32px; padding: 0; justify-content: center; color: var(--danger, #b33); }
+
+/* 觸控目標：畫面上維持 32px，點擊範圍用透明的 ::after 向外擴到約 44px（只在粗指標，也就是觸控時） */
+@media (pointer: coarse) {
+  .spot-link.btn,
+  .entry-footer .btn.entry-icon-action,
+  .spot-link-row .btn { position: relative; }
+  .spot-link.btn::after,
+  .entry-footer .btn.entry-icon-action::after,
+  .spot-link-row .btn::after,
+  #lb .cap .lb-info-i::after { content: ''; position: absolute; inset: -6px; }
+}

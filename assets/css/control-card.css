@@ -170,9 +170,14 @@
 
 /* 這顆按鈕平常是完全透明的，直接坐在材質底圖上，hover 用一般的 --hover（5.5%／8%）
    幾乎看不出差別。改用加強版疊色，理由同 .idchip:hover（page-frame.css）。 */
+@media (hover: hover) {
+a.btn, a.btn:hover, a.icon-btn, a.icon-btn:hover { text-decoration: none; }
+}
+@media (hover: hover) {
 .icon-btn:hover {
   background: var(--hover-strong);
   color: var(--fg)
+}
 }
 
 .ctl-body {
@@ -239,8 +244,10 @@
 /* 疊色寫法同 .btn:hover（理由見那條規則）：晶片自己有不透明的 --bg 底色，直接
    background: var(--hover) 會把它換成一層 8% 的薄膜，整顆晶片變半透明、底下的材質格紋
    直接透出來。上層 linear-gradient 鋪疊色、下層重新宣告原本的底色才是「疊上去」。 */
+@media (hover: hover) {
 .chip:hover {
   background: linear-gradient(var(--hover), var(--hover)), var(--bg)
+}
 }
 
 .chip .dot {
@@ -285,9 +292,10 @@
   cursor: pointer;
   transition: background var(--t)
 }
-
+@media (hover: hover) {
 .sl-spot-list-item:hover {
   background: var(--hover)
+}
 }
 
 .sl-spot-list-dot {
@@ -357,8 +365,10 @@
    --hover 只有 5.5% 不透明度，換上去等於整顆按鈕變成幾乎全透明的薄膜：沒選主題包時底下
    是白色頁面看不太出來，套了深色材質的主題包就會看到按鈕 hover 時黃色底整個消失、
    直接透出底下的格紋。 */
+@media (hover: hover) {
 .btn:hover {
   background: linear-gradient(var(--hover), var(--hover)), var(--pack-btn-bg, var(--bg))
+}
 }
 
 .btn:active {
@@ -382,9 +392,10 @@
   color: #c0392b;
   border-color: #c0392b
 }
-
+@media (hover: hover) {
 .btn.danger:hover {
   background: rgba(192, 57, 43, .08)
+}
 }
 
 @media (prefers-color-scheme: dark) {
@@ -401,9 +412,11 @@
 /* 不能用 opacity 當 hover 回饋：opacity 淡化的是「整個元素」，連文字、圖示一起變半透明，
    套主題包時底下的材質格紋會從按鈕正中央透出來，看起來像按鈕壞掉而不是被 hover 到。
    改成跟 .btn:hover 同一招，在 --accent 底色上疊一層半透明色，底色本身維持不透明。 */
+@media (hover: hover) {
 .btn.on:hover,
 .btn.primary:hover {
   background: linear-gradient(var(--hover-strong), var(--hover-strong)), var(--accent)
+}
 }
 
 .btn i {

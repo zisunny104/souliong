@@ -783,13 +783,15 @@ window.MapApp = (() => {
     }
     const specs = [];
     if (!showSpots) return specs;
+    const previewSpots = new Set(effectiveEntries().filter(e => e.featured === true && (!filterPerson || e.name === filterPerson)).map(e => e.item_num));
     effectiveSpots().forEach(c => {
       if (active[c.cat] === false) return;
       const count = personCounts ? (personCounts[c.num] || 0) : (counts[c.num] || 0);
-      const icon = spotIcon(c, showContributions ? count : 0, badgeColor);
+      const hasPreview = previewSpots.has(c.num);
+      const icon = spotIcon(c, showContributions && !hasPreview ? count : 0, badgeColor);
       specs.push({
         id: c.num, lat: c.lat, lon: c.lon, html: icon.html, size: icon.size, anchor: icon.anchor,
-        color: c.color || '#888',
+        color: c.color || '#888', label: (c.num != null ? c.num + ' ' : '') + spotName(c),
         onClick: () => { if (BARE) { emitHook('spotClick', c); return; } emitHook('panelReset'); openPanel(c); },
       });
     });
@@ -812,22 +814,133 @@ window.MapApp = (() => {
       : '<div class="' + cls + ' sl-mk-ico"><i class="fa-solid ' + def.icon + '"></i></div>';
     return { size: [sz, sz], anchor: [half, half], html: html };
   }
+  // 精選以點位為顯示錨點，像素偏移只改 marker anchor，不寫回投稿座標。
+  // 最多三則，剩餘數量開啟點位面板，避免同一點位無限展開。
+  // 位置由 featured-layout.js 依目前縮放排：預覽比任何其他點位都更靠自己的點位、各點位的角度錯開、
+  // 避開別人的點位與預覽；每張預覽另畫一條細線連回所屬點位，一眼看得出是誰的。
+  function featuredMarkerSpecs(entries, spots, thumb) {
+    const specs = [], size = thumb ? 30 : 14, pinPx = PIN_SIZE_PX[META.pinSize] || 24;
+    const openSpot = spot => { if (BARE) emitHook('spotClick', spot); else openPanel(spot); };
+    const grouped = new Map();
+    entries.forEach(e => {
+      if (e.featured !== true) return;
+      if (!grouped.has(e.item_num)) grouped.set(e.item_num, []);
+      grouped.get(e.item_num).push(e);
+    });
+    const shown = spots.filter(spot => active[spot.cat] !== false && Number.isFinite(spot.lat) && Number.isFinite(spot.lon));
+    const picked = new Map();
+    shown.forEach(spot => { picked.set(spot.num, (grouped.get(spot.num) || []).slice().sort(byCreatedAt)); });
+    const layout = window.SouliongFeaturedLayout.place(shown.map(spot => {
+      const n = picked.get(spot.num).length;
+      return { id: spot.num, lat: spot.lat, lon: spot.lon, slots: n ? Math.min(n, 3) + (n > 3 ? 1 : 0) : 0 };
+    }), engine.getZoom(), { pinPx: pinPx, size: size });
+    // 預覽的外框固定在點位中心，真正的位置由內層 .sl-move 的 transform 決定，所以縮放後換位置只改 transform，
+    // 瀏覽器用 CSS 緩動滑過去，不重建標記、不閃。煙是 .sl-tie：從點位邊緣依角度與長度伸向預覽，同樣只靠 transform。
+    const moveStyle = off => 'transform:translate(' + off.x.toFixed(1) + 'px,' + off.y.toFixed(1) + 'px)';
+    const angleOf = off => Math.atan2(off.y, off.x) * 180 / Math.PI;
+    const tieStyle = (off, angle) => 'transform:rotate(' + (angle != null ? angle : angleOf(off)).toFixed(1) + 'deg) translateX(' + (pinPx / 2 + 1) + 'px) scaleX(' + (Math.max(4, Math.hypot(off.x, off.y) - pinPx / 2 - 1) / 100).toFixed(3) + ')';
+    const withTie = (html, off, label) =>
+      '<div class="sl-tie" data-angle="' + angleOf(off).toFixed(1) + '" style="top:' + (size / 2 - 5.5) + 'px;left:' + size / 2 + 'px;' + tieStyle(off) + '"></div>' +
+      '<div class="sl-move"' + (label ? ' role="button" tabindex="0" aria-label="' + esc(label) + '"' : '') + ' style="' + moveStyle(off) + '"><div class="sl-featured-body">' + html + '</div></div>';
+    const anchorOf = () => [size / 2, size / 2];
+    shown.forEach(spot => {
+      const selected = picked.get(spot.num), offs = layout.get(spot.num);
+      if (!offs) return;
+      selected.slice(0, 3).forEach((e, index) => {
+        const icon = entryIcon(e, thumb), url = entryFullUrl(e);
+        specs.push({
+          id: e.id, lat: spot.lat, lon: spot.lon, html: withTie(icon.html, offs[index], e.name || t('featured_entry')), size: icon.size, className: 'sl-featured-marker', off: offs[index], tieStyle: tieStyle, moveStyle: moveStyle, angleOf: angleOf,
+          anchor: anchorOf(),
+          onClick: () => { if (url) openLightbox(e, url); else openSpot(spot); },
+        });
+      });
+      if (selected.length > 3) specs.push({
+        id: 'featured-more-' + spot.num, lat: spot.lat, lon: spot.lon,
+        html: withTie('<button type="button" class="sl-featured-more" aria-label="' + esc(t('featured_entry')) + ' +' + (selected.length - 3) + '">+' + (selected.length - 3) + '</button>', offs[3], ''),
+        size: [size, size], anchor: anchorOf(), className: 'sl-featured-marker', off: offs[3], tieStyle: tieStyle, moveStyle: moveStyle, angleOf: angleOf,
+        onClick: () => openSpot(spot),
+      });
+    });
+    return specs;
+  }
   function renderContribLayer() {
-    if ((!EMBED && !photoLayerOn) || !showContributions) { engine.clearMarkerLayer('contrib'); return; }
+    if (!showContributions) { engine.clearMarkerLayer('contrib'); return; }
     const thumb = engine.getZoom() >= THUMB_ZOOM;
-    const specs = [];
-    effectiveEntries().forEach(e => {
-      if (!kindDef(e).layer) return;
-      if (filterPerson && e.name !== filterPerson) return;
+    const entries = effectiveEntries().filter(e => !filterPerson || e.name === filterPerson);
+    const spots = effectiveSpots();
+    const specs = showSpots ? featuredMarkerSpecs(entries, spots, thumb) : [];
+    const featuredIds = new Set(specs.map(s => s.id));
+    const spotNums = new Set(spots.filter(s => active[s.cat] !== false && Number.isFinite(s.lat) && Number.isFinite(s.lon)).map(s => s.num));
+    if (EMBED || photoLayerOn) entries.forEach(e => {
+      if (!kindDef(e).layer || featuredIds.has(e.id)) return;
+      // 已在點位旁呈現或收合的精選不再於原座標重複顯示。
+      if (showSpots && e.featured === true && spotNums.has(e.item_num)) return;
       const url = entryFullUrl(e);
-      if (typeof e.lat !== 'number' || typeof e.lon !== 'number' || !url) return;
+      if (!Number.isFinite(e.lat) || !Number.isFinite(e.lon) || !url) return;
       const icon = entryIcon(e, thumb);
       specs.push({
-        id: e.id, lat: e.lat, lon: e.lon, html: icon.html, size: icon.size, anchor: icon.anchor,
+        id: e.id, lat: e.lat, lon: e.lon, html: icon.html, size: icon.size, anchor: icon.anchor, label: e.name || t('featured_entry'),
         onClick: () => openLightbox(e, url),
       });
     });
     engine.setMarkerLayer('contrib', specs);
+    featuredKey = featuredKeyOf(specs, thumb);
+  }
+  // 縮放結束：精選預覽的集合沒變就只換位置（CSS 緩動滑過去），變了（例如縮圖與小方塊切換）才整層重建
+  let featuredKey = '';
+  const featuredKeyOf = (specs, thumb) => (thumb ? 't' : 's') + specs.filter(sp => sp.off).map(sp => sp.id).join('|');
+  // 縮圖與小方塊切換（跨過 THUMB_ZOOM）時整層重建，但新標記從舊的位置與大小（FLIP）以緩動滑到新位置，不是閃一下
+  function snapshotFeatured() {
+    const snap = new Map();
+    engine.markerElements('contrib').forEach((el, id) => {
+      const move = el.querySelector('.sl-move');
+      if (move) { const r = move.getBoundingClientRect(); if (r.width) snap.set(id, r); }
+    });
+    return snap;
+  }
+  function glideFeatured(snap) {
+    if (!snap.size || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const moves = [];
+    engine.markerElements('contrib').forEach((el, id) => {
+      const before = snap.get(id), move = el.querySelector('.sl-move');
+      if (!before || !move) return;
+      const now = move.getBoundingClientRect();
+      if (!now.width) return;
+      const dx = before.left + before.width / 2 - (now.left + now.width / 2), dy = before.top + before.height / 2 - (now.top + now.height / 2);
+      const final = move.style.transform;
+      move.style.transition = 'none';
+      move.style.transform = 'translate(' + dx.toFixed(1) + 'px,' + dy.toFixed(1) + 'px) ' + final + ' scale(' + (before.width / now.width).toFixed(3) + ')';
+      moves.push([move, final]);
+    });
+    if (!moves.length) return;
+    moves[0][0].getBoundingClientRect();   // 先讓起點生效，再恢復過渡與終點，瀏覽器才會補間
+    moves.forEach(([move, final]) => { move.style.transition = ''; move.style.transform = final; });
+  }
+  function renderContribGlide() {
+    const snap = snapshotFeatured();
+    renderContribLayer();
+    glideFeatured(snap);
+  }
+  function relayoutFeatured() {
+    if (!showContributions || !showSpots) return;
+    const thumb = engine.getZoom() >= THUMB_ZOOM;
+    const entries = effectiveEntries().filter(e => !filterPerson || e.name === filterPerson);
+    const specs = featuredMarkerSpecs(entries, effectiveSpots(), thumb);
+    if (featuredKeyOf(specs, thumb) !== featuredKey) { renderContribGlide(); return; }
+    const els = engine.markerElements('contrib');
+    specs.forEach(sp => {
+      const el = els.get(String(sp.id));
+      if (!el) return;
+      const move = el.querySelector('.sl-move'), tie = el.querySelector('.sl-tie');
+      if (move) move.style.cssText = sp.moveStyle(sp.off);
+      if (tie) {
+        // 角度取與上一次最接近的等價值，避免從 170° 轉到 -170° 時繞遠路轉一整圈
+        let angle = sp.angleOf(sp.off); const prev = parseFloat(tie.dataset.angle);
+        if (Number.isFinite(prev)) { while (angle - prev > 180) angle -= 360; while (angle - prev < -180) angle += 360; }
+        tie.dataset.angle = angle.toFixed(1);
+        tie.style.transform = sp.tieStyle(sp.off, angle).replace(/^transform:/, '');
+      }
+    });
   }
 
   // 某人的觀察路線（照片依時間串連）
@@ -991,7 +1104,7 @@ window.MapApp = (() => {
     CATS.forEach(c => {
       const el = document.createElement('div'); el.className = 'chip' + (active[c.key] === false ? ' off' : '');
       el.innerHTML = '<span class="dot" style="background:' + esc(c.color) + '"></span>' + esc(c.label);
-      el.onclick = () => { active[c.key] = active[c.key] === false ? true : false; el.classList.toggle('off', active[c.key] === false); renderSpots(); };
+      el.onclick = () => { active[c.key] = active[c.key] === false ? true : false; el.classList.toggle('off', active[c.key] === false); renderSpots(); renderContribLayer(); };
       legend.appendChild(el);
     });
   }
@@ -1083,7 +1196,7 @@ window.MapApp = (() => {
       a.innerHTML = '<i class="' + (icon === 'link' ? 'fa-solid fa-link' : 'fa-brands fa-' + icon) + '" aria-hidden="true"></i>';
       links.appendChild(a);
     });
-    box.row.appendChild(links);
+    box.row.insertBefore(links, document.getElementById('spotEditBtn'));
     box.row.style.display = (ok || editShown || links.childElementCount) ? '' : 'none';
   }
   // 貼著觸發鈕定位：預設左對齊，右緣放不下才翻右對齊；下方放不下就翻到上面，兩軸都夾在視窗內
@@ -1223,7 +1336,7 @@ window.MapApp = (() => {
     const j = await res.json().catch(() => ({ error: 'HTTP ' + res.status }));
     if (!res.ok || j.error) throw new Error(j.error || ('HTTP ' + res.status));
     CONTRIB.push(j.item);
-    renderSpots(); rebuildPersonFilter();
+    renderSpots(); renderContribLayer(); rebuildPersonFilter();
     refreshCurrentSpot(itemNum);
     return j.item;
   }
@@ -1327,7 +1440,7 @@ window.MapApp = (() => {
     star.className = 'entry-featured-star';
     const color = /^#[0-9a-f]{6}$/i.test(META.featuredColor || '') ? META.featuredColor : '#d6a52a';
     star.style.setProperty('--featured-color', color);
-    star.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 2.5 15 8.7 21.8 9.7 16.9 14.5 18 21.3 12 18.1 6 21.3 7.1 14.5 2.2 9.7 9 8.7Z"/></svg>';
+    star.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 2.5 15 8.7 21.8 9.7 16.9 14.5 18 21.3 12 18.1 6 21.3 7.1 14.5 2.2 9.7 9 8.7Z"/></svg>';
     if (editable) star.type = 'button';
     const update = () => {
       const selected = entry.featured === true;
@@ -1352,6 +1465,7 @@ window.MapApp = (() => {
         if (original) original.featured = result.featured;
         entry.featured = result.featured;
         update();
+        renderSpots(); renderContribLayer();
       } catch (error) { alert(error.message || '儲存失敗'); }
       finally { star.disabled = false; }
     });
@@ -1740,8 +1854,8 @@ window.MapApp = (() => {
       lbImg.src = nextUrl;
     }
     // 照片資訊改成「時間後面的 i 小圖示」，不佔一顆獨立按鈕
-    const who = (MOD(e.spotBlock ? 'spotByline' : 'entryByline') ? esc(bylineText(e.spotBlock ? 'spot' : 'entry', e.name, e.photo_time || e.created_at)).replace(/\n/g, ' ・ ') : '') +
-      ' <button class="lb-info-i" type="button" id="lbInfoBtn" title="' + esc(t('photo_info_title')) + '" aria-label="' + esc(t('photo_info_title')) + '"><i class="fa-solid fa-circle-info" aria-hidden="true"></i></button>';
+    const who = (MOD(e.spotBlock ? 'spotByline' : 'entryByline') ? esc(bylineText(e.spotBlock ? 'spot' : 'entry', e.name, e.photo_time || e.created_at)).replace(/\n/g, ' ・ ') : '');
+    const infoBtn = '<button class="lb-info-i" type="button" id="lbInfoBtn" title="' + esc(t('photo_info_title')) + '" aria-label="' + esc(t('photo_info_title')) + '"><i class="fa-solid fa-circle-info" aria-hidden="true"></i></button>';
     const markdown = !e.spotBlock && ['text', 'photo'].includes(kindOf(e)) && e.html;
     const txt = e.comment ? '<div class="lb-txt' + (markdown ? ' sc-md' : '') + '">' + (markdown || esc(e.comment)) + '</div>' : '';
     const canEdit = !e.spotBlock && canEditEntry(e);   // 說明區的照片區塊不是投稿，沒有可編輯的投稿紀錄
@@ -1750,7 +1864,7 @@ window.MapApp = (() => {
       (!EMBED && isMine(e) ? '<button class="btn small danger" type="button" id="lbDelBtn"><i class="fa-solid fa-trash"></i> ' + esc(t('delete')) + '</button>' : '');
     const cap = document.getElementById('lbCap');
     cap.style.display = '';
-    cap.innerHTML = '<div class="lb-who byline-text">' + who + '</div>' + txt + (!e.spotBlock ? '<div class="entry-footer"><span class="lb-link-actions"></span>' + (actions ? '<div class="lb-actions">' + actions + '</div>' : '') + entryLicenseHtml(e) + '</div>' : '') +
+    cap.innerHTML = infoBtn + (who ? '<div class="lb-who byline-text">' + who + '</div>' : '') + txt + (!e.spotBlock ? '<div class="entry-footer"><span class="lb-link-actions"></span>' + (actions ? '<div class="lb-actions">' + actions + '</div>' : '') + entryLicenseHtml(e) + '</div>' : '') +
       '<div class="lb-info" id="lbInfo" style="display:none"></div>';
     if (!e.spotBlock) entryActionFns.forEach(fn => { const el = fn(e); if (el?.dataset.entryLink) cap.querySelector('.lb-link-actions').appendChild(el); });
     if (!e.spotBlock) { const footer = cap.querySelector('.entry-footer'); footer.insertBefore(citationButton(e), footer.querySelector('.entry-license')); }
@@ -1768,8 +1882,27 @@ window.MapApp = (() => {
     // 換一張照片時，上一張留在 lbEditor 裡未存檔的編輯面板（含迷你地圖）要先清掉，避免殘留
     const oldPanel = document.getElementById('lbEditor');
     if (oldPanel) { const p2 = oldPanel._picker; if (p2) p2.destroy(); oldPanel._picker = null; oldPanel.style.display = 'none'; oldPanel.innerHTML = ''; }
-    document.getElementById('lb').style.display = 'flex';
+    const lbEl = document.getElementById('lb');
+    if (lbEl.style.display === 'none' || !lbEl.style.display) lbReturnFocus = document.activeElement;
+    lbEl.style.display = 'flex';
+    lbEl.focus({ preventScroll: true });
   }
+  // 燈箱是對話框：開啟時焦點移進來，Tab 只在燈箱內循環，關閉後回到原本的元素
+  let lbReturnFocus = null;
+  function lightboxFocusables() {
+    return [...document.querySelectorAll('#lb button, #lb a[href], #lb input, #lb select, #lb textarea, #lb [tabindex]:not([tabindex="-1"])')]
+      .filter(el => !el.disabled && el.getClientRects().length);
+  }
+  document.addEventListener('keydown', ev => {
+    if (ev.key !== 'Tab') return;
+    const lbEl = document.getElementById('lb');
+    if (!lbEl || getComputedStyle(lbEl).display === 'none') return;
+    const list = lightboxFocusables();
+    if (!list.length) { ev.preventDefault(); lbEl.focus(); return; }
+    const first = list[0], last = list[list.length - 1], active = document.activeElement;
+    if (ev.shiftKey && (active === first || active === lbEl)) { ev.preventDefault(); last.focus(); }
+    else if (!ev.shiftKey && (active === last || !lbEl.contains(active))) { ev.preventDefault(); first.focus(); }
+  });
   // 清掉燈箱裡的播放器。用 pause() + removeAttribute('src') + load() 三步而不只是清 innerHTML：
   // 光把節點拿掉，某些瀏覽器仍會讓已經開始的音訊播完那一段緩衝。
   function clearLightboxMedia() {
@@ -1786,6 +1919,8 @@ window.MapApp = (() => {
     if (panel) { const p2 = panel._picker; if (p2) p2.destroy(); panel._picker = null; panel.style.display = 'none'; panel.innerHTML = ''; }
     clearLightboxMedia();
     document.getElementById('lb').style.display = 'none';
+    if (lbReturnFocus && lbReturnFocus.isConnected && lbReturnFocus.focus) { try { lbReturnFocus.focus({ preventScroll: true }); } catch (err) {} }
+    lbReturnFocus = null;
   }
 
   // 照片定位來源標示：lightbox 資訊面板（核心）與上傳插件的批次卡片共用，故留在核心並開放給插件呼叫
@@ -1900,7 +2035,8 @@ window.MapApp = (() => {
       dark: isDark(), manifests: layerManifests(),
     });
     engine.mountControls({ zoomPosition: 'bottomleft', attributionPosition: 'bottomright', opButtons: [{ el: document.getElementById('resetBtn') }] });
-    engine.onZoomThresholdCross(THUMB_ZOOM, () => { if (EMBED || photoLayerOn) renderContribLayer(); });
+    engine.onZoomThresholdCross(THUMB_ZOOM, () => renderContribGlide());
+    engine.onZoomEnd(() => relayoutFeatured()); // 預覽的位置依縮放重排，避開變近的點位；只換位置，緩動滑過去
 
     buildLegend();
     renderSpots();

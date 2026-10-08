@@ -386,13 +386,26 @@ window.MapLibreEngine = (() => {
         el.style.width = spec.size[0] + 'px';
         el.style.height = spec.size[1] + 'px';
         el.innerHTML = spec.html;
+        if (spec.className) el.className = spec.className;
+        el.dataset.mid = String(spec.id);
         // maplibregl.Marker 的 DOM 元素是 map 容器的子節點，click 事件預設會冒泡到
         // onBackgroundClick 的 map.on('click', ...)，這裡先擋掉。
         if (spec.onClick) el.addEventListener('click', (e) => { e.stopPropagation(); spec.onClick(); });
+        // 鍵盤與螢幕閱讀器：有 label 的標記本身當按鈕；內層已自帶 role=button 的（例如精選預覽）由 Enter／空白鍵觸發
+        if (spec.label) { el.setAttribute('role', 'button'); el.tabIndex = 0; el.setAttribute('aria-label', spec.label); }
+        if (spec.onClick) el.addEventListener('keydown', (ev) => {
+          if ((ev.key === 'Enter' || ev.key === ' ') && (ev.target === el || (ev.target.matches && ev.target.matches('[role="button"]')))) { ev.preventDefault(); ev.stopPropagation(); spec.onClick(); }
+        });
         const marker = new maplibregl.Marker({ element: el, anchor: 'top-left', offset: [-spec.anchor[0], -spec.anchor[1]] })
           .setLngLat([spec.lon, spec.lat]).addTo(this.map);
         arr.push(marker);
       });
+    }
+    // 某層目前的標記元素：id（字串）→ 元素，供只更新樣式、不重建標記時使用
+    markerElements(layerKey) {
+      const map = new Map();
+      (this._markerLayers[layerKey] || []).forEach(mk => { const el = mk.getElement(); if (el && el.dataset.mid != null) map.set(el.dataset.mid, el); });
+      return map;
     }
     clearMarkerLayer(layerKey) {
       const arr = this._markerLayers[layerKey];
@@ -400,6 +413,7 @@ window.MapLibreEngine = (() => {
       this._markerLayers[layerKey] = [];
       this._markerSpecs[layerKey] = [];
     }
+    onZoomEnd(fn) { this.map.on('zoomend', fn); }
     onZoomThresholdCross(zoom, fn) {
       this._zoomThresholds.push({ zoom, wasAbove: this.map.getZoom() >= zoom, fn });
     }

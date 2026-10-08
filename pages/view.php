@@ -319,7 +319,6 @@ if ($pack) {
 <div id="topright" class="tr-group">
   <button class="icon-btn tr-toggle" id="trToggle" title="<?= $t('more_options') ?>" aria-label="<?= $t('expand_options_aria') ?>" aria-expanded="false" aria-controls="trItems"><i class="fa-solid fa-bars" aria-hidden="true"></i></button>
   <div class="tr-items" id="trItems">
-    <?php if ($isManager && !$bare): ?><a class="icon-btn hide-in-embed" id="adminBtn" href="<?= $esc($APP['manager']) ?>" title="<?= $t('admin_settings_btn') ?>" aria-label="<?= $t('admin_settings_btn') ?>"><i class="fa-solid fa-gear" aria-hidden="true"></i></a><?php endif; ?>
     <?php if ($mod('homeLink')): ?><a class="icon-btn hide-in-embed" id="homeBtn" href="<?= $b ?>" title="<?= $t('back_to_list') ?>" aria-label="<?= $t('back_to_list') ?>"><i class="fa-solid fa-house" aria-hidden="true"></i></a><?php endif; ?>
     <button id="themeBtn" class="icon-btn" title="<?= $t('toggle_theme') ?>" aria-label="<?= $t('toggle_theme_aria') ?>"><i class="fa-solid fa-circle-half-stroke" aria-hidden="true"></i></button>
     <button id="shortcutsBtn" class="icon-btn shortcuts-btn" title="<?= $t('shortcuts_btn') ?>" aria-label="<?= $t('shortcuts_btn') ?>"><i class="fa-solid fa-keyboard" aria-hidden="true"></i></button>
@@ -333,6 +332,7 @@ if ($pack) {
         <li role="option" data-lang="en" aria-selected="<?= $LANG === 'en' ? 'true' : 'false' ?>">English</li>
       </ul>
     </div>
+    <?php if ($isManager && !$bare): ?><a class="icon-btn hide-in-embed" id="adminBtn" href="<?= $esc($APP['manager']) ?>" title="<?= $t('admin_settings_btn') ?>" aria-label="<?= $t('admin_settings_btn') ?>"><i class="fa-solid fa-gear" aria-hidden="true"></i></a><?php endif; ?>
   </div>
 </div>
 
@@ -414,7 +414,7 @@ if ($pack) {
 
 <!-- #lbMedia 是影片／音訊的播放槽：播放器要能點（拖進度條、按暫停），所以它自己吞掉 click，
      不能跟照片一樣讓點擊冒泡到 #lb 去關燈箱。內容由 openLightbox() 每次重建，關閉時清空停止播放。 -->
-<div id="lb" onclick="MapApp.closeLightbox()"><img id="lbImg" alt=""><div id="lbMedia" style="display:none" onclick="event.stopPropagation()"></div><div class="cap" id="lbCap"></div><div class="photo-editor" id="lbEditor" style="display:none" onclick="event.stopPropagation()"></div></div>
+<div id="lb" role="dialog" aria-modal="true" aria-label="<?= $t('photo_info_title') ?>" tabindex="-1" onclick="MapApp.closeLightbox()"><img id="lbImg" alt=""><div id="lbMedia" style="display:none" onclick="event.stopPropagation()"></div><div class="cap" id="lbCap"></div><div class="photo-editor" id="lbEditor" style="display:none" onclick="event.stopPropagation()"></div></div>
 
 <div id="extLinkDialog" class="dialog">
   <div class="dialog-box">
@@ -461,6 +461,7 @@ window.maplibregl = maplibregl;
 <script src="<?= $assetUrl('assets/js/engine/map-engine.js') ?>"></script>
 <script src="<?= $assetUrl('assets/js/engine/maplibre-engine.js') ?>"></script>
 <script src="<?= $assetUrl('assets/js/marker-colors.js') ?>"></script>
+<script src="<?= $assetUrl('assets/js/featured-layout.js') ?>"></script>
 <?php if (($meta['pinMark'] ?? '') === 'icon'): ?><script src="<?= $assetUrl('assets/js/pin-icons.js') ?>"></script><?php endif; ?>
 <script src="<?= $assetUrl('assets/js/contribution-client.js') ?>"></script>
 <script src="<?= $assetUrl('assets/js/viewer.core.js') ?>"></script>

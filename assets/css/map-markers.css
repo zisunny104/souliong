@@ -154,3 +154,18 @@
 .dot-pin .sl-pin-icon { display: flex; align-items: center; justify-content: center; font-size: 14px; }
 .dot-pin.sl-sz-sm .sl-pin-icon { font-size: 10px; }
 .dot-pin.sl-sz-lg .sl-pin-icon { font-size: 19px; }
+
+/* 精選預覽：外框固定在點位中心且不擋點擊，縮圖在 .sl-move 裡，換位置時 transform 以緩動滑過去（先快後慢，不閃） */
+.sl-featured-marker { pointer-events: none; }
+.sl-featured-marker .sl-move { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: auto; transition: transform .6s cubic-bezier(.22, 1, .36, 1); }
+/* 連回點位的「煙」：一條模糊的漸層帶，從點位邊緣伸向預覽，靠點位那端淡出；顏色跟深淺主題走，不接收點擊 */
+.sl-tie {
+  position: absolute; width: 100px; height: 11px; border-radius: 6px; pointer-events: none; z-index: 0;
+  transform-origin: 0 50%; color: var(--fg-base, #1b1b1d); opacity: .85; filter: blur(3px);
+  background: linear-gradient(90deg, transparent 0, currentColor 100%);
+  transition: transform .6s cubic-bezier(.22, 1, .36, 1);
+}
+@media (prefers-reduced-motion: reduce) { .sl-featured-marker .sl-move, .sl-tie { transition: none; } }
+.sl-featured-body { position: relative; z-index: 1; width: 100%; height: 100%; }
+/* 精選預覽的收合入口，尺寸跟相鄰縮圖一致。 */
+.sl-featured-more { width: 100%; height: 100%; padding: 0; border: 1px solid #fff; border-radius: 4px; background: var(--panel-bg, #fff); color: var(--text, #333); font-size: 11px; cursor: pointer; }
