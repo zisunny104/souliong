@@ -90,9 +90,10 @@
   white-space: nowrap;
   transition: color var(--t), border-color var(--t)
 }
-
+@media (hover: hover) {
 .sl-tab:hover {
   color: var(--fg)
+}
 }
 
 .sl-tab.on {
@@ -216,11 +217,12 @@
   border: 1px solid transparent;
   color: var(--muted)
 }
-
+@media (hover: hover) {
 .card .c-cancel:hover:not(:disabled) {
   border-color: var(--line);
   background: var(--hover);
   color: #c0392b
+}
 }
 
 .card .thumb {

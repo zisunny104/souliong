@@ -1850,8 +1850,27 @@ window.MapApp = (() => {
     // 換一張照片時，上一張留在 lbEditor 裡未存檔的編輯面板（含迷你地圖）要先清掉，避免殘留
     const oldPanel = document.getElementById('lbEditor');
     if (oldPanel) { const p2 = oldPanel._picker; if (p2) p2.destroy(); oldPanel._picker = null; oldPanel.style.display = 'none'; oldPanel.innerHTML = ''; }
-    document.getElementById('lb').style.display = 'flex';
+    const lbEl = document.getElementById('lb');
+    if (lbEl.style.display === 'none' || !lbEl.style.display) lbReturnFocus = document.activeElement;
+    lbEl.style.display = 'flex';
+    lbEl.focus({ preventScroll: true });
   }
+  // 燈箱是對話框：開啟時焦點移進來，Tab 只在燈箱內循環，關閉後回到原本的元素
+  let lbReturnFocus = null;
+  function lightboxFocusables() {
+    return [...document.querySelectorAll('#lb button, #lb a[href], #lb input, #lb select, #lb textarea, #lb [tabindex]:not([tabindex="-1"])')]
+      .filter(el => !el.disabled && el.getClientRects().length);
+  }
+  document.addEventListener('keydown', ev => {
+    if (ev.key !== 'Tab') return;
+    const lbEl = document.getElementById('lb');
+    if (!lbEl || getComputedStyle(lbEl).display === 'none') return;
+    const list = lightboxFocusables();
+    if (!list.length) { ev.preventDefault(); lbEl.focus(); return; }
+    const first = list[0], last = list[list.length - 1], active = document.activeElement;
+    if (ev.shiftKey && (active === first || active === lbEl)) { ev.preventDefault(); last.focus(); }
+    else if (!ev.shiftKey && (active === last || !lbEl.contains(active))) { ev.preventDefault(); first.focus(); }
+  });
   // 清掉燈箱裡的播放器。用 pause() + removeAttribute('src') + load() 三步而不只是清 innerHTML：
   // 光把節點拿掉，某些瀏覽器仍會讓已經開始的音訊播完那一段緩衝。
   function clearLightboxMedia() {
@@ -1868,6 +1887,8 @@ window.MapApp = (() => {
     if (panel) { const p2 = panel._picker; if (p2) p2.destroy(); panel._picker = null; panel.style.display = 'none'; panel.innerHTML = ''; }
     clearLightboxMedia();
     document.getElementById('lb').style.display = 'none';
+    if (lbReturnFocus && lbReturnFocus.isConnected && lbReturnFocus.focus) { try { lbReturnFocus.focus({ preventScroll: true }); } catch (err) {} }
+    lbReturnFocus = null;
   }
 
   // 照片定位來源標示：lightbox 資訊面板（核心）與上傳插件的批次卡片共用，故留在核心並開放給插件呼叫

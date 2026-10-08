@@ -237,8 +237,9 @@
 }
 
 .sl-mp-side-btn i { pointer-events: none }
-
+@media (hover: hover) {
 .sl-mp-side-btn:hover { background: var(--hover) }
+}
 
 .sl-mp-side-btn.on { color: var(--accent) }
 

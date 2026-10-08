@@ -115,9 +115,10 @@
   cursor: pointer;
   transition: opacity var(--t)
 }
-
+@media (hover: hover) {
 #lb .cap .lb-info-i:hover {
   opacity: 1
+}
 }
 
 #lb .cap .lb-txt {
@@ -160,10 +161,11 @@
   border-color: rgba(255, 255, 255, .3);
   color: #fff
 }
-
+@media (hover: hover) {
 #lb .cap .lb-actions .btn:hover,
 #lb .cap .entry-footer .entry-icon-action:hover {
   background: rgba(255, 255, 255, .24)
+}
 }
 
 #lb .cap .lb-actions .del-btn {
@@ -175,9 +177,10 @@
   cursor: pointer;
   padding: 4px 0
 }
-
+@media (hover: hover) {
 #lb .cap .lb-actions .del-btn:hover {
   text-decoration: underline
+}
 }
 
 #lb .photo-editor {
@@ -196,3 +199,4 @@
 
 
 #lb .cap .lb-txt.sc-md { white-space: normal; }
+#lb:focus { outline: none; }
