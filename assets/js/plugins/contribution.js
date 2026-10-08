@@ -125,23 +125,25 @@
         }).join('') +
         '</div>';
       const closeFn = spot ? 'closeSpotModal' : 'closeModal';
-      const consent = spot ? '' :
+      const nameField = '<label class="modal-field"><span>' + esc(t('attribution_name')) + '</span><input class="name-in" id="' + this.ids.name + '" placeholder="' + esc(t('attribution_placeholder')) + '" autocomplete="nickname"></label>';
+      const consent = spot ? '<div class="modal-consent">' + nameField + '</div>' :
         '<div class="modal-consent" id="modalConsent">' +
-          '<div id="ccByRow"><label for="ccByChk">' + esc(t('license_select_label')) + '</label><select id="ccByChk">' + Object.entries(APP.licenses).map(([key, value]) => '<option value="' + key + '">' + esc(value.label) + '</option>').join('') + '</select><a id="licenseHelp" target="_blank" rel="noopener noreferrer">' + esc(t('license_help')) + '</a><label>' + esc(t('author_url_label')) + '<input type="url" id="authorUrl" placeholder="https://"></label></div>' +
+          '<div id="ccByRow" class="license-fields"><label class="modal-field"><span>' + esc(t('license_select_label')) + '</span><select id="ccByChk" aria-describedby="licenseSummary">' + Object.entries(APP.licenses).map(([key, value]) => '<option value="' + key + '">' + esc(value.label) + '</option>').join('') + '</select></label>' + nameField + '</div>' +
+          '<div class="license-summary"><span id="licenseSummary" aria-live="polite"></span><a id="licenseHelp" target="_blank" rel="noopener noreferrer">' + esc(t('license_help')) + '</a></div>' +
+          '<details class="author-link"><summary>' + esc(t('author_url_label')) + '</summary><label class="modal-field"><span>' + esc(t('author_url_hint')) + '</span><input type="url" id="authorUrl" placeholder="https://" maxlength="500" autocomplete="url"></label></details>' +
           '<label><input type="checkbox" id="wikidataChk"> ' + esc(t('wikidata_consent_label')) + '</label>' +
         '</div>';
       const anchor = document.getElementById('contribModal') || panel;
       anchor.insertAdjacentHTML('afterend',
-        '<div id="' + this.ids.modal + '" class="contrib-modal">' +
+        '<div id="' + this.ids.modal + '" class="contrib-modal" role="dialog" aria-modal="true" aria-labelledby="' + this.ids.modal + '-title">' +
           '<div class="modal-box">' +
             '<div class="modal-head">' +
-              '<h3>' + esc(t(spot ? 'create_dialog_title' : 'contrib_dialog_title')) + '</h3>' +
-              '<input class="name-in" id="' + this.ids.name + '" placeholder="' + esc(t('your_nickname')) + '" autocomplete="off" style="width:130px">' +
+              '<h3 id="' + this.ids.modal + '-title">' + esc(t(spot ? 'create_dialog_title' : 'contrib_dialog_title')) + '</h3>' +
               '<button class="btn" onclick="MapApp.' + closeFn + '()">' + esc(t('close')) + '</button>' +
             '</div>' +
             tabsHtml +
-            '<div class="modal-body" id="' + this.ids.queue + '"></div>' +
-            consent +
+            '<div class="modal-content"><div class="modal-body" id="' + this.ids.queue + '"></div>' +
+            consent + '</div>' +
             '<div class="modal-foot">' +
               '<button class="btn" id="' + this.ids.add + '"><i class="fa-solid fa-plus"></i> ' + esc(t('add_more')) + '</button>' +
               '<span class="spacer"></span>' +
@@ -169,19 +171,20 @@
       const modalName = this.$('name');
       if (modalName) {
         modalName.value = document.getElementById('myName').value;
-        modalName.setAttribute('placeholder', this.mapApp.anonName());
-        modalName.oninput = e => { document.getElementById('myName').value = e.target.value; localStorage.setItem('myName', e.target.value); };
+        modalName.setAttribute('placeholder', t('attribution_placeholder'));
+        modalName.oninput = e => { const previous = document.getElementById('myName').value; document.getElementById('myName').value = e.target.value; localStorage.setItem('myName', e.target.value); this.$('queue').querySelectorAll('.c-name').forEach(input => { if (!input.value || input.value === previous) input.value = e.target.value; }); this.refreshLicense(); };
         this.mapApp.onHook('identityReroll', () => {
           modalName.value = '';
-          modalName.setAttribute('placeholder', this.mapApp.anonName());
+          modalName.setAttribute('placeholder', t('attribution_placeholder'));
+          this.refreshLicense();
         });
       }
       // 授權／Wikidata 捐贈選擇：記住上次選擇（跟暱稱同一層，不分專案），但整個批次共用同一份、
-      // 每次開彈窗皆可確認授權；具名授權需要已建立投稿者身分。
+      // 每次開彈窗皆可確認授權；具名授權可使用身分或自行填寫署名。
       // 顯示與否在 openModal() 依當下身分狀態即時判斷。
       const ccByChk = document.getElementById('ccByChk');
       const wikidataChk = document.getElementById('wikidataChk');
-      if (ccByChk) ccByChk.onchange = () => { localStorage.setItem('prefLicense', ccByChk.value); document.getElementById('licenseHelp').href = APP.licenses[ccByChk.value].url; };
+      if (ccByChk && this.scope === 'contrib') ccByChk.onchange = () => { this.preferredLicense = ccByChk.value; localStorage.setItem('prefLicense', ccByChk.value); this.refreshLicense(); };
       if (wikidataChk) wikidataChk.onchange = () => localStorage.setItem('prefWikidata', wikidataChk.checked ? '1' : '0');
       // 供核心 view.php 內嵌的 onclick="MapApp.closeModal()" 呼叫（HTML 屬性只能呼叫掛在 MapApp 上的方法，無法用 hook）
       this.mapApp[this.scope === 'spot' ? 'closeSpotModal' : 'closeModal'] = () => this.closeModal();
@@ -266,17 +269,26 @@
       // 沒有分頁可投時整個對話框沒有內容（見 initTabs()），所有入口（FAB、快捷鍵 U、身分鈕）共用這道保險
       if (!this.tabs.length) return;
       this.$('name').value = document.getElementById('myName').value || localStorage.getItem('myName') || '';
-      // 依當下身分限制具名授權，並還原上次選擇供投稿者確認。
-      const ccByRow = document.getElementById('ccByRow');
-      const ccByChk = document.getElementById('ccByChk');
+      this.preferredLicense = localStorage.getItem('prefLicense') || (localStorage.getItem('prefCcBy') === '1' ? 'cc-by' : localStorage.getItem('prefCcBy') === '0' ? 'cc0' : 'cc-by-sa');
+      if (!APP.licenses[this.preferredLicense]) this.preferredLicense = 'cc-by-sa';
+      this.refreshLicense();
       const wikidataChk = document.getElementById('wikidataChk');
-      if (ccByRow) ccByRow.style.display = '';
-      if (ccByChk) Array.from(ccByChk.options).forEach(o => { o.disabled = !this.mapApp.hasIdentity() && o.value !== 'cc0'; });
-      if (ccByChk) { const pref = localStorage.getItem('prefLicense') || (localStorage.getItem('prefCcBy') === '1' ? 'cc-by' : localStorage.getItem('prefCcBy') === '0' ? 'cc0' : 'cc-by-nc'); ccByChk.value = this.mapApp.hasIdentity() && APP.licenses[pref] ? pref : 'cc0'; document.getElementById('licenseHelp').href = APP.licenses[ccByChk.value].url; }
       const authorUrl = document.getElementById('authorUrl'); if (authorUrl) authorUrl.value = '';
       if (wikidataChk) wikidataChk.checked = localStorage.getItem('prefWikidata') === '1';
       this.$('modal').classList.add('open');
       this.modalContext = contextSpot || null;
+    }
+    refreshLicense() {
+      if (this.scope !== 'contrib') return;
+      const select = document.getElementById('ccByChk');
+      if (!select) return;
+      const named = this.mapApp.hasIdentity() || !!this.$('name').value.trim() || Array.from(this.$('queue').querySelectorAll('.c-name')).some(input => input.value.trim());
+      Array.from(select.options).forEach(option => { option.disabled = !named && option.value !== 'cc0'; });
+      select.value = named ? (this.preferredLicense || 'cc-by-sa') : 'cc0';
+      document.getElementById('licenseHelp').href = APP.licenses[select.value].url;
+      const summary = document.getElementById('licenseSummary');
+      const hint = t('license_hint_' + select.value.replaceAll('-', '_'));
+      if (summary.textContent !== hint) summary.textContent = hint;
     }
     closeModal() {
       const m = this.$('modal');
@@ -293,6 +305,7 @@
       this.syncTabUi();
       // 只有空狀態要換（佇列裡已經有的卡片保留——一個批次本來就可以混型別）
       if (!Object.keys(this.cards).length) this.renderEmpty();
+      this.refreshLicense();
     }
     syncTabUi() {
       const modalEl = this.$('modal');
@@ -339,6 +352,7 @@
       });
       Object.keys(this.cards).forEach(k => delete this.cards[k]);
       this.renderEmpty();
+      this.refreshLicense();
     }
     cancelCard(id) {
       const st = this.cards[id];
@@ -349,6 +363,7 @@
       const card = document.getElementById(id);
       if (card) card.remove();
       if (!Object.keys(this.cards).length) this.renderEmpty();
+      this.refreshLicense();
     }
 
     getDeviceLoc() {
@@ -389,7 +404,7 @@
         (kind.hasPreview() ? '<div class="thumb">' + kind.placeholderHtml() + '</div>' : '') +
         '<div class="fields">' +
           (kind.needsFile() ? '<div class="time">' + esc(t('loading')) + '</div>' : '') +
-          '<input type="text" class="c-name" placeholder="' + anon + '">' +
+          '<details class="card-attribution"><summary>' + esc(t('individual_attribution')) + '</summary><input type="text" class="c-name" placeholder="' + anon + '"></details>' +
           kind.extraTopHtml() +
           (this.captionAllowed(kind) ? '<textarea class="c-cmt" placeholder="' + esc(t(kind.key === 'newspot' ? 'newspot_story_placeholder' : 'write_something_placeholder')) + '"></textarea>' : '') +
           kind.extraBottomHtml() +
@@ -415,6 +430,9 @@
       card.innerHTML = this.cardHtml(kind);
       this.$('queue').appendChild(card);
       card.querySelector('.c-name').value = this.$('name').value || '';
+      card.querySelector('.c-name').setAttribute('aria-label', t('attribution_name'));
+      card.querySelector('.c-name').oninput = () => this.refreshLicense();
+      this.refreshLicense();
 
       const state = { id, kind, file, blob: null, thumb: null, duration: null, urls: [], loc: null, origLoc: null, source: null, done: false, picker: null };
       this.cards[id] = state;
@@ -511,17 +529,17 @@
         const common = {
           kind: kind.key,
           item_num: isNaN(spotNum) ? undefined : spotNum,
-          name: card.querySelector('.c-name').value.trim() || this.mapApp.displayName(),
+          name: card.querySelector('.c-name').value.trim() || this.$('name').value.trim() || (this.mapApp.hasIdentity() ? this.mapApp.displayName() : ''),
           comment: (card.querySelector('.c-cmt') || { value: '' }).value.trim(),
           lat: state.loc ? state.loc.lat : undefined,
           lon: state.loc ? state.loc.lon : undefined,
           loc_source: state.loc ? state.source : undefined,
         };
-        // 授權／Wikidata 捐贈：從共用的頁尾勾選框即時讀取（單筆、批次共用同一份，送出當下才讀值）。
-        // 授權由伺服器白名單及投稿者身分驗證。
+        // 授權與連結共用，沒有身分及署名的個別項目使用 CC0。
+        // 伺服器另行驗證授權白名單與署名條件。
         const ccByChk = document.getElementById('ccByChk');
         const wikidataChk = document.getElementById('wikidataChk');
-        common.license = ccByChk ? ccByChk.value : 'cc0';
+        common.license = ccByChk && (this.mapApp.hasIdentity() || common.name) ? ccByChk.value : 'cc0';
         common.author_url = document.getElementById('authorUrl')?.value.trim() || '';
         if (common.author_url && !/^https?:\/\//i.test(common.author_url)) throw Error(t('author_url_invalid'));
         common.wikidata_ok = (wikidataChk && wikidataChk.checked) ? 1 : 0;

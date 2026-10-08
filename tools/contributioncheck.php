@@ -281,6 +281,18 @@ ck(count($saved['contributionCodeHistory'] ?? []) === 2 && codes_load($cfg, $P) 
 $bounded = ['contributionAccess' => ['enabled' => true, 'starts_at' => null, 'expires_at' => null], 'contributionAccessHistory' => array_fill(0, 100, ['reason' => 'closed'])];
 contrib_history_archive_access($bounded, ['enabled' => false, 'starts_at' => null, 'expires_at' => null]);
 ck(count($bounded['contributionAccessHistory']) === 100, 'period snapshots stay bounded');
+// Attribution is independent of registered identity; tests write only to the sandbox.
+cc_write($metaPath, policy(time() - 60, time() + 3600));
+foreach (['cc-by', 'cc-by-sa', 'cc-by-nd', 'cc-by-nc', 'cc-by-nc-sa', 'cc-by-nc-nd', 'cc0'] as $license) {
+    [$c, $r] = cc_post($url, array_replace($fields, ['license' => $license, 'author_url' => 'https://example.com/profile']), ['photo' => ['license.png', $png]], null);
+    ck($c === 200 && ($r['item']['license'] ?? '') === $license && ($r['item']['name'] ?? '') === $fields['name'] && ($r['item']['author_url'] ?? '') === 'https://example.com/profile', 'unregistered named author preserves ' . $license, [$c, $r]);
+}
+foreach (['cc-by-sa', '<script>alert(1)</script>'] as $license) {
+    [$c, $r] = cc_post($url, array_replace($fields, ['name' => '   ', 'license' => $license]), ['photo' => ['license.png', $png]], null);
+    ck($c === 400, 'unnamed or invalid licence rejected ' . $license);
+}
+[$c, $r] = cc_post($url, array_replace($fields, ['name' => '', 'license' => 'cc0']), ['photo' => ['license.png', $png]], null);
+ck($c === 200 && ($r['item']['license'] ?? '') === 'cc0' && ($r['item']['name'] ?? '') === '匿名', 'unnamed author uses CC0 without fabricated attribution');
 echo 'contributioncheck: ' . ($n - count($fails)) . '/' . $n . " passed\n";
 foreach ($fails as $fail) echo "FAIL $fail\n";
 exit($fails ? 1 : 0);

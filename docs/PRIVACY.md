@@ -50,11 +50,11 @@ Maps render via MapLibre GL JS with vector tiles from openfreemap.org by default
 
 1. 你保證對上傳內容擁有合法權利，且不侵害他人著作權、肖像權或隱私。
    You warrant you have the rights to what you upload and infringe no one's copyright, likeness, or privacy.
-2. 你同意上傳內容以公開、非專屬方式在本平台展示，並在送出前確認授權。已建立投稿者身分的新投稿預設選擇 **CC BY-NC 4.0（姓名標示－非商業性）**，允許具名的非商業分享及改作；可另選 CC BY、CC BY-SA、CC BY-ND、CC BY-NC-SA、CC BY-NC-ND，或 CC0。未建立身分者使用 CC0，若要保留姓名標示權利，請先建立身分。之前記住的授權選擇會保留，既有投稿不會變更授權。
-   Choose and confirm the licence before submitting. New identified submissions initially select CC BY-NC 4.0; other CC licences and CC0 are available. Unidentified submissions use CC0. Existing licences and previously saved choices remain unchanged.
+2. 你同意上傳內容以公開、非專屬方式在本平台展示，並在送出前確認授權。已建立投稿者身分或填寫署名的新投稿預設選擇 **CC BY-SA 4.0（姓名標示－相同方式分享）**，允許商用與改作，分享改作時須採相同授權；可另選 CC BY、CC BY-ND、CC BY-NC、CC BY-NC-SA、CC BY-NC-ND，或 CC0。署名可使用筆名，不必註冊；未建立身分且未署名者使用 CC0。之前記住的授權選擇會保留，既有投稿不會變更授權。
+   Choose and confirm the licence before submitting. New submissions with an identity or an explicit attribution initially select CC BY-SA 4.0, allowing commercial reuse and adaptations under the same licence. A pen name is acceptable; registration is not required. Other CC licences and CC0 are available. Submissions without either identity or attribution use CC0. Existing licences and previously saved choices remain unchanged.
    - BY：重用時須標示作者；SA：改作須以相同授權釋出；NC：限非商業使用；ND：不得分享改作版本。CC0 是公眾領域貢獻，不要求姓名標示。
    - CC BY 與 CC BY-SA 屬開放授權；NC 與 ND 限制較多。CC 授權通常不能撤回已授予的使用權；不代表禁止下載，也不取代肖像、隱私或商標等其他權利。授權標章會連到 Creative Commons 官方說明，具體權利義務以對應條款為準。
-   - 作者網址為選填，只接受 http／https。授權者姓名獨立於可關閉的投稿署名，仍須依所選授權保留。
+   - 作者網址為選填，只接受 http／https，可連到個人網站、社群或聯絡頁面，不代表已驗證身分。授權者姓名獨立於可關閉的投稿署名，仍須依所選授權保留。
 3. 禁止上傳違法、仇恨、猥褻、廣告或含他人敏感個資之內容。
    No illegal, hateful, obscene, advertising, or sensitive-personal-data content.
 4. 站方得於必要時移除不當內容或更換投稿代碼。

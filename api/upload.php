@@ -55,7 +55,8 @@ $contribCfg = souliong_contrib_cfg($metaU);
 if (in_array($kind, souliong_contrib_kinds(), true) && !in_array($kind, $contribCfg['kinds'], true)) {
     json_out(['error' => '這張地圖沒有開放這種投稿：' . souliong_kind_label($kind)], 403);
 }
-$name       = clean_str($_POST['name'] ?? null, $cfg['name_max']) ?? '匿名';
+$submittedName = clean_str($_POST['name'] ?? null, $cfg['name_max']);
+$name = $submittedName ?? '匿名';
 $comment    = clean_str($_POST['comment'] ?? null, $cfg['comment_max']);
 // 這個媒體型別若被後台設為不開放附說明，直接忽略說明欄，不信任前端有沒有隱藏
 if (in_array($kind, ['photo', 'video', 'audio'], true) && !in_array($kind, $contribCfg['captions'], true)) $comment = null;
@@ -79,11 +80,11 @@ if ($duration !== null && ($duration <= 0 || $duration > 86400)) $duration = nul
 if ($lat !== null && ($lat < -90 || $lat > 90)) $lat = null;
 if ($lon !== null && ($lon < -180 || $lon > 180)) $lon = null;
 
-// 具名 CC 授權須有穩定投稿者身分；授權值由伺服器白名單驗證。
+// 具名授權使用投稿者身分或明確署名，授權值由白名單驗證。
 $hasIdentity = $who->hasIdentity();
 $requestedLicense = (string)($_POST['license'] ?? 'cc0');
 if (!isset(souliong_licenses()[$requestedLicense])) json_out(['error' => 'invalid license'], 400);
-if (!$hasIdentity &&$requestedLicense !== 'cc0') json_out(['error' => '具名授權需要先建立投稿者身分'], 400);
+if (!$hasIdentity && $submittedName === null && $requestedLicense !== 'cc0') json_out(['error' => '請填寫署名，或選擇 CC0'], 400);
 $license =$requestedLicense;
 $authorUrl = souliong_author_url($_POST['author_url'] ?? null);
 $wikidataOk  = !empty($_POST['wikidata_ok']);

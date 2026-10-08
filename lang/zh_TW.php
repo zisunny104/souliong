@@ -1,10 +1,21 @@
 <?php
 // 主字典（繁體中文）。所有語言的翻譯 key 以此檔為準；其他語言檔缺的 key 會自動 fallback 回這裡。
 return [
+    'individual_attribution' => '個別署名',
+    'attribution_name' => '署名',
+    'attribution_placeholder' => '建議填寫，可用筆名',
+    'author_url_hint' => '個人網站、社群或聯絡頁面',
+    'license_hint_cc0' => 'CC0 公眾領域貢獻，不要求署名；無身分且未署名時使用此授權。',
+    'license_hint_cc_by' => '可商用與改作，使用時須標示作者。',
+    'license_hint_cc_by_sa' => '可商用與改作；須署名，分享改作時須使用相同授權。',
+    'license_hint_cc_by_nd' => '可商用與分享原作，須署名；不得分享改作。',
+    'license_hint_cc_by_nc' => '可非商業分享與改作，使用時須標示作者。',
+    'license_hint_cc_by_nc_sa' => '限非商業使用，須署名；分享改作時須使用相同授權。',
+    'license_hint_cc_by_nc_nd' => '可非商業分享原作，須署名；不得分享改作。',
     'copy_citation' => '複製引用資訊',
     'license_select_label' => '投稿授權',
     'license_help' => '查看授權說明',
-    'author_url_label' => '作者連結（選填）',
+    'author_url_label' => '加入個人連結（選填）',
     'author_url_invalid' => '作者連結請使用 http 或 https 網址。',
     'pinmark_icon_option' => 'Font Awesome 圖示',
     'pinmark_icon_hint' => '使用內建的免費 Solid 圖示；同類別共用圖示，背景沿用類別顏色。未設定時使用預設地標圖示。',

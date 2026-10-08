@@ -405,3 +405,32 @@
 .card .status.warn {
   color: #b7791f
 }
+
+/* 投稿與建立點位共用的表單區，使用單一內容捲動區。 */
+.contrib-modal .modal-box { color: var(--fg); border: 1px solid var(--line); }
+.contrib-modal .modal-head { flex-shrink: 0; }
+.contrib-modal .modal-head h3 { min-width: 0; }
+.contrib-modal .modal-content { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.contrib-modal .modal-content .modal-body { overflow: visible; }
+.contrib-modal .modal-foot { flex-shrink: 0; flex-wrap: wrap; }
+.contrib-modal .license-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.contrib-modal .modal-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; cursor: default; }
+.contrib-modal .modal-field > span { color: var(--fg); }
+.contrib-modal .modal-field input,
+.contrib-modal .modal-field select { box-sizing: border-box; width: 100%; min-width: 0; min-height: 40px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--bg); color: var(--fg-base); font: inherit; }
+.contrib-modal .modal-field input:focus-visible,
+.contrib-modal .modal-field select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.contrib-modal .license-summary { display: flex; flex-wrap: wrap; gap: 4px 12px; line-height: 1.5; }
+.contrib-modal .license-summary > span { flex: 1 1 240px; }
+.contrib-modal .license-summary a { color: var(--fg); text-underline-offset: 3px; }
+.contrib-modal .author-link { margin: 4px 0; }
+.contrib-modal .author-link summary { cursor: pointer; color: var(--fg); padding: 6px 0; }
+.contrib-modal .author-link .modal-field { margin-top: 6px; }
+@media (max-width: 360px) {
+  .contrib-modal .license-fields { grid-template-columns: minmax(0, 1fr); }
+}
+
+.contrib-modal .card-attribution { margin-bottom: 8px; }
+.contrib-modal .card-attribution summary { cursor: pointer; font-size: .75rem; color: var(--muted); padding: 4px 0; }
+.contrib-modal .card-attribution input { margin-top: 6px; }
+.contrib-modal .card .row:has(.c-cat) { margin-bottom: 8px; }

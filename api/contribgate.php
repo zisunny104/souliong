@@ -20,7 +20,7 @@ final class Contributor {
     public function contribId(): ?string { return $this->ctoken !== '' ? contrib_id_of($this->ctoken) : null; }
     /** 存進投稿紀錄供跨裝置驗證本人的 contrib_hash（不外流）；沒送 ctoken 為 null。 */
     public function contribHash(): ?string { return $this->ctoken !== '' ? contrib_hash_of($this->ctoken) : null; }
-    /** 有穩定身分（ctoken）：CC BY 姓名標示只對有穩定身分的投稿者開放。 */
+    /** 是否帶有跨裝置投稿者身分，不代表署名授權的唯一來源。 */
     public function hasIdentity(): bool { return $this->ctoken !== ''; }
 
     /** 這筆紀錄是不是這位投稿者本人的（owner 或 ctoken 任一相符）。管理者代編代刪不走這裡，走 Auth。 */
