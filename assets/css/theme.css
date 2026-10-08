@@ -223,3 +223,11 @@ textarea:focus {
   opacity: .7
 }
 
+
+/* 鍵盤焦點框：全站預設，用主題的強調色；個別元件自己宣告過的（例如 .p-nav-item）不受影響。
+   燈箱底是深色半透明，改用白色，不然淺色主題的強調色（深色）看不見。 */
+:where(a[href], button, input, select, textarea, summary, [role="button"], [tabindex]:not([tabindex="-1"])):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+#lb :where(a[href], button, input, select, textarea, [role="button"], [tabindex]:not([tabindex="-1"])):focus-visible { outline-color: #fff; }
