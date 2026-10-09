@@ -26,13 +26,33 @@ const {chromium}=require(process.env.PLAYWRIGHT_PATH||'playwright');
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await context.route('**/*',async route=>{
    const url=new URL(route.request().url());if(url.origin!==base)return route.abort();
-   if((url.searchParams.get('f')||url.pathname).endsWith('/maplibre-engine.js'))return route.fulfill({contentType:'application/javascript',body:'window.MapLibreEngine=class {constructor(options){this.supportsSnapshot=false;window.testInitialOptions=options;window.testFits=0;} getZoom(){return window.testZoom??13;} markerElements(){return new Map();} mountControls(){} onZoomEnd(fn){window.testZoomEnd=fn;} onZoomThresholdCross(z,fn){window.testZoomCross=fn;} fitBounds(){window.testFits++;} setMarkerLayer(key,specs){(window.testLayers||=( {} ))[key]=specs;} clearMarkerLayer(key){(window.testLayers||=( {} ))[key]=[];} onBackgroundClick(){} panTo(){} applyTheme(){} setView(){} createMiniPicker(){return {onChange(){},setPosition(){},destroy(){}}}};'});
+   if((url.searchParams.get('f')||url.pathname).endsWith('/maplibre-engine.js'))return route.fulfill({contentType:'application/javascript',body:'window.MapLibreEngine=class {constructor(options){this.supportsSnapshot=false;window.testInitialOptions=options;window.testFits=0;} getZoom(){return window.testZoom??13;} markerElements(){return new Map();} mountControls(){} onZoomEnd(fn){window.testZoomEnd=fn;} onZoomThresholdCross(z,fn){window.testZoomCross=fn;} fitBounds(){window.testFits++;} setMarkerLayer(key,specs){(window.testLayers||=( {} ))[key]=specs;} clearMarkerLayer(key){(window.testLayers||=( {} ))[key]=[];} onBackgroundClick(){} projectPoint(){return window.testPin||[100,100];} panTo(lat,lon,o){window.testPanTo=o||null;} applyTheme(){} setView(){} createMiniPicker(){return {onChange(){},setPosition(){},destroy(){}}}};'});
    return route.continue();
   });
   for(const [query,expected] of [['','測試地圖'],['?spot=1','點位一'],['?entry=entry1','目前投稿']]){
    const html=await (await fetch(base+'/test'+query)).text(),title=(html.match(/<title>([^<]*)<\/title>/)||[])[1]||'';
    console.log('TITLE',JSON.stringify(query),title);
    assert.ok(title.startsWith(expected)&&title.includes('測試地圖'),'分享標題由內而外：'+title);
+  }
+  // 手機：底部卡片蓋住地標時要把地圖往上挪，地標落在卡片上方的區域；沒被蓋住就不動
+  {
+   const mobile=await context.newPage();await mobile.setViewportSize({width:390,height:800});
+   await mobile.goto(base+'/test');await mobile.waitForFunction(()=>window.MapApp?.effectiveSpots().length===1&&window.testLayers?.spots?.length===1,null,{timeout:10000});
+   for(const [pin,moves] of [[[195,700],true],[[195,120],false]]){
+    await mobile.evaluate(p=>{window.testPin=p;window.testPanTo=null;MapApp.closePanel?.();window.testLayers.spots[0].onClick();},pin);
+    await mobile.waitForTimeout(150);
+    const offset=await mobile.evaluate(()=>window.testPanTo&&window.testPanTo.offset);
+    assert.equal(!!offset,moves,'手機卡片蓋住地標時才挪動：'+JSON.stringify([pin,offset]));
+    if(moves)assert.ok(offset[1]<0,'地標要往上移到卡片上方：'+JSON.stringify(offset));
+   }
+   // 帶內容進站（?spot=）：即使先前存過「展開」，左上面板也先收起；明確帶 ?collapsed=0 則照指定；沒帶內容則照存的偏好
+   await mobile.evaluate(()=>localStorage.setItem('ctlCollapsed','0'));
+   for(const [query,collapsed] of [['?spot=1',true],['?spot=1&collapsed=0',false],['',false]]){
+    await mobile.goto(base+'/test'+query);await mobile.waitForFunction(()=>window.MapApp?.effectiveSpots().length===1,null,{timeout:10000});
+    assert.equal(await mobile.locator('#controls').evaluate(el=>el.classList.contains('collapsed')),collapsed,'手機面板收合狀態：'+query);
+   }
+   assert.equal(await mobile.evaluate(()=>localStorage.getItem('ctlCollapsed')),'0','進站預設收合不寫回偏好');
+   await mobile.close();
   }
   async function open(){await page.goto(base+'/test');await page.waitForFunction(()=>window.MapApp?.effectiveSpots().length===1,null,{timeout:10000}).catch(e=>{console.error(errors);throw e;});await page.evaluate(()=>MapApp.openPanel(MapApp.effectiveSpots()[0]));}
   for (const mode of ['meta','fit']) {

@@ -1156,7 +1156,8 @@ window.MapApp = (() => {
     if (!panel || !mapEl) return null;
     const map = mapEl.getBoundingClientRect(), style = getComputedStyle(panel);
     const w = panel.offsetWidth, h = Math.min(panel.offsetHeight, window.innerHeight * 0.82);
-    if (style.top === 'auto') return { map, rect: { x0: 0, y0: window.innerHeight - 10 - h - map.top, x1: map.width, y1: map.height } };
+    // 手機（CSS 在 640px 以下）是貼底的卡片。不能讀 computed top 判斷：定位元素的 computed top 是換算後的像素，不會是 auto
+    if (window.matchMedia('(max-width:640px)').matches) return { map, rect: { x0: 0, y0: window.innerHeight - 10 - h - map.top, x1: map.width, y1: map.height } };
     const left = window.innerWidth - 14 - w - map.left;
     return { map, rect: { x0: left, y0: 0, x1: map.width, y1: map.height } };
   }
@@ -2202,8 +2203,12 @@ window.MapApp = (() => {
     // 只決定這次載入的初始狀態，使用者手動切換仍照舊存回 localStorage，不會被網址參數卡住。
     const urlCollapsed = params.get('collapsed');
     const savedCollapsed = lsGet('ctlCollapsed');
+    // 手機用 ?spot= / ?entry= 帶內容進站時，卡片會直接打開：左上面板一律先收起來讓出畫面，
+    // 不受先前存過的偏好影響（只是這次載入的初始狀態，不寫回偏好）
+    const deepLinked = !BARE && !!(params.get('spot') || params.get('entry')) && window.matchMedia('(max-width:640px)').matches;
     const startCollapsed = urlCollapsed === '1' ? true
       : urlCollapsed === '0' ? false
+      : deepLinked ? true
       : savedCollapsed !== null ? savedCollapsed === '1'
       : window.matchMedia('(max-width:640px)').matches;
     if (startCollapsed) { controls.classList.add('collapsed'); document.getElementById('collapseBtn').innerHTML = chevron(true); }
