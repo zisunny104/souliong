@@ -1156,7 +1156,8 @@ window.MapApp = (() => {
     if (!panel || !mapEl) return null;
     const map = mapEl.getBoundingClientRect(), style = getComputedStyle(panel);
     const w = panel.offsetWidth, h = Math.min(panel.offsetHeight, window.innerHeight * 0.82);
-    if (style.top === 'auto') return { map, rect: { x0: 0, y0: window.innerHeight - 10 - h - map.top, x1: map.width, y1: map.height } };
+    // 手機（CSS 在 640px 以下）是貼底的卡片。不能讀 computed top 判斷：定位元素的 computed top 是換算後的像素，不會是 auto
+    if (window.matchMedia('(max-width:640px)').matches) return { map, rect: { x0: 0, y0: window.innerHeight - 10 - h - map.top, x1: map.width, y1: map.height } };
     const left = window.innerWidth - 14 - w - map.left;
     return { map, rect: { x0: left, y0: 0, x1: map.width, y1: map.height } };
   }
