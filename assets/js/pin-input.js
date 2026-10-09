@@ -35,7 +35,7 @@
 
   // 真正輸入仍走原生欄位（含數字鍵盤/切換），只是把看得見的字換成幾何圖案疊層。
   // 掛了 data-pin-toggle 的欄位一律套用——這些欄位就是 PIN／投稿代碼，本來就該遮起來，
-  // 不再只認 type="password"：view.php 裡除了管理者 PIN 之外的幾個欄位都是 type="text"，
+  // 不能只認 type="password"：view.php 裡除了管理者 PIN 之外的幾個欄位都是 type="text"，
   // 只認 password 的話那幾個欄位會直接把碼明碼顯示，遮罩形同沒做。
   // 個別欄位若真的需要看見原文，加 data-pin-mask="off" 就好。
   function buildMaskOverlay(input, wrap) {

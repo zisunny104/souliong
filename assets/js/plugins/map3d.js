@@ -32,7 +32,7 @@
       if (!cfg || !cfg.styleUrl) return;
       // WebGL 容錯：壞掉的 webview（Instagram/Line 內建瀏覽器常見）直接不出現切換鈕，
       // 不留一顆按下去只會看到黑畫面的按鈕。maplibregl.supported() 在 v6 被拿掉了（WebGL1
-      // 支援整個移除、改成一律要求 WebGL2），改成不依賴 MapLibre API 表面的手動探測。
+      // 支援整個移除、一律要求 WebGL2），所以用不依賴 MapLibre API 表面的手動探測。
       if (typeof maplibregl === 'undefined' || !document.createElement('canvas').getContext('webgl2')) return;
       this.cfg = cfg;
       this.injectStyle();

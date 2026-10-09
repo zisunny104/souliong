@@ -228,7 +228,7 @@ function store_delete_by(array $cfg, string $project, string $field, string $val
  */
 function store_patch(array $cfg, string $project, string $id, array $fields): ?array {
     $f = store_file($cfg, $project);
-    // 相容舊專案將投稿與點位保存在同一檔案的格式。
+    // 先在投稿檔找該 id，找不到就改查點位檔。
     $inEntries = false;
     foreach (_store_read_lines($f) as $row) {
         if (($row['id'] ?? '') === $id) { $inEntries = true; break; }

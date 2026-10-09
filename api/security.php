@@ -18,7 +18,7 @@ function client_ip(array $cfg): string {
 
 /**
  * 管理登入：多 PIN + 簡易權限管理。
- * - 主 PIN：config['primary_pin']（bootstrap，向下相容舊鍵名 admin_pin）+ state/pins.json 的 primary 清單，皆為全域權限。
+ * - 主 PIN：config['primary_pin']（bootstrap）+ state/pins.json 的 primary 清單，皆為全域權限。
  * - 各專案 PIN：state/pins.json 的 projects[<id>] 清單，僅該專案。
  * - 每把 PIN 可帶暱稱 label。
  * - 主 PIN 的簽章不含特定 PIN id（所有主 PIN 共用同一把簽章），移除某把主 PIN 不會讓已登入的

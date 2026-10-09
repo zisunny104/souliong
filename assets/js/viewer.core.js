@@ -1953,7 +1953,7 @@ window.MapApp = (() => {
       }
       lbImg.src = nextUrl;
     }
-    // 照片資訊改成「時間後面的 i 小圖示」，不佔一顆獨立按鈕
+    // 照片資訊用「時間後面的 i 小圖示」呈現，不佔獨立按鈕
     const who = (MOD(e.spotBlock ? 'spotByline' : 'entryByline') ? esc(bylineText(e.spotBlock ? 'spot' : 'entry', e.name, e.photo_time || e.created_at)).replace(/\n/g, ' ・ ') : '');
     const infoBtn = '<button class="lb-info-i" type="button" id="lbInfoBtn" title="' + esc(t('photo_info_title')) + '" aria-label="' + esc(t('photo_info_title')) + '"><i class="fa-solid fa-circle-info" aria-hidden="true"></i></button>';
     const markdown = !e.spotBlock && ['text', 'photo'].includes(kindOf(e)) && e.html;

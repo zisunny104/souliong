@@ -19,7 +19,7 @@ function souliong_settings_save(array $cfg, array $d): void
     @file_put_contents(souliong_settings_file($cfg), json_encode($d, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX);
 }
 
-// 沒存過（舊安裝）一律視為開啟，行為與拆分之前一致。
+// 沒存過（舊安裝）一律視為開啟。
 function souliong_random_explore_on(array $cfg): bool
 {
     $s = souliong_settings_load($cfg);

@@ -54,7 +54,7 @@ unset($spotRec);
 // 任何動作能不能做一律看具體權限鍵（APP.perms／APP.can(key)）。
 $actor     = Auth::actor($apiCfg, $proj);
 $isManager = $actor->isMember($proj);
-$canEditSpots = $actor->can($proj, 'edit_spots');   // 過渡期保留給舊前端；新前端改用 APP.can('edit_spots')
+$canEditSpots = $actor->can($proj, 'edit_spots');   // 伺服端判斷用；同時輸出到 APP.canEditSpots 供 authcheck 核對
 // 投稿開放條件由免碼設定與有效投稿碼組成；前端不取得真正的碼。
 // APP.gated 因此變成「現在有碼可解鎖」：一組都沒有時前端連解鎖鈕都不出現。
 $gated = codes_active($apiCfg, $proj) !== [];
@@ -244,7 +244,7 @@ if ($socialCard) {
 <?php endif; ?>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <?php
-// 依 style.css 原本的層疊順序列出各檔（見 assets/css/），新增樣式分類時在陣列加檔名即可。
+// 依層疊順序列出 assets/css/ 各檔，新增樣式分類時在陣列加檔名即可。
 $cssFiles = ['theme', 'control-card', 'popups', 'map-markers', 'spot-panel', 'map-controls', 'lightbox', 'page-frame'];
 // 投稿與建立點位對話框的樣式跟著它們的外掛走：沒載入外掛就沒必要送這段 CSS
 if ($contribFiles) {

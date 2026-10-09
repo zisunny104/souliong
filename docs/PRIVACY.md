@@ -28,8 +28,8 @@ We collect as little as possible, keep it de-identified, and use no third-party 
 上傳時照片會轉存為 WebP，過程**移除原始 EXIF**（僅另存我們讀到的拍攝時間、座標，以及相機廠牌/型號/鏡頭/軟體、光圈、快門、ISO、焦距等有限的拍攝參數欄位；不含機身序號等可唯一識別裝置的資訊）。
 On upload, photos are re-encoded to WebP and **original EXIF is stripped** (only shot time, coordinates, and a limited set of shooting parameters are kept — camera make/model/lens/software, aperture, shutter speed, ISO, focal length; no device serial number or other uniquely-identifying fields).
 
-影片與音訊**依原檔保存、不重新編碼**，因此檔案內原有的中繼資料（部分手機會寫入拍攝地點與機型）也會一起留在伺服器上。在網頁上直接錄下的聲音不含這些欄位；若你上傳的是相簿裡的既有檔案且介意這件事，請先自行清除中繼資料再上傳。
-Video and audio are kept **exactly as uploaded — we do not re-encode them**, so any metadata already inside the file (some phones embed location and device model) stays on the server too. Audio recorded in the browser contains none of this; if you upload an existing file from your gallery and this matters to you, strip its metadata first.
+影片與音訊在未超過伺服器壓縮門檻時**依原檔保存、不重新編碼**，因此檔案內原有的中繼資料（部分手機會寫入拍攝地點與機型）也會一起留在伺服器上。在網頁上直接錄下的聲音不含這些欄位；若你上傳的是相簿裡的既有檔案且介意這件事，請先自行清除中繼資料再上傳。
+Video and audio that stay under the server's compression thresholds are kept **exactly as uploaded, without re-encoding**, so any metadata already inside the file (some phones embed location and device model) stays on the server too. Audio recorded in the browser contains none of this; if you upload an existing file from your gallery and this matters to you, strip its metadata first.
 
 ## 刪除與內容處理 / Deletion &amp; takedown
 
