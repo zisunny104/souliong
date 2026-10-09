@@ -26,7 +26,7 @@ const {chromium}=require(process.env.PLAYWRIGHT_PATH||'playwright');
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await context.route('**/*',async route=>{
    const url=new URL(route.request().url());if(url.origin!==base)return route.abort();
-   if((url.searchParams.get('f')||url.pathname).endsWith('/maplibre-engine.js'))return route.fulfill({contentType:'application/javascript',body:'window.MapLibreEngine=class {constructor(){this.supportsSnapshot=false;} getZoom(){return window.testZoom||14;} markerElements(){return new Map();} mountControls(){} onZoomEnd(fn){window.testZoomEnd=fn;} onZoomThresholdCross(z,fn){window.testZoomCross=fn;} fitBounds(){} setMarkerLayer(key,specs){(window.testLayers||=( {} ))[key]=specs;} clearMarkerLayer(key){(window.testLayers||=( {} ))[key]=[];} onBackgroundClick(){} panTo(){} applyTheme(){} setView(){} createMiniPicker(){return {onChange(){},setPosition(){},destroy(){}}}};'});
+   if((url.searchParams.get('f')||url.pathname).endsWith('/maplibre-engine.js'))return route.fulfill({contentType:'application/javascript',body:'window.MapLibreEngine=class {constructor(){this.supportsSnapshot=false;} getZoom(){return window.testZoom??13;} markerElements(){return new Map();} mountControls(){} onZoomEnd(fn){window.testZoomEnd=fn;} onZoomThresholdCross(z,fn){window.testZoomCross=fn;} fitBounds(){} setMarkerLayer(key,specs){(window.testLayers||=( {} ))[key]=specs;} clearMarkerLayer(key){(window.testLayers||=( {} ))[key]=[];} onBackgroundClick(){} panTo(){} applyTheme(){} setView(){} createMiniPicker(){return {onChange(){},setPosition(){},destroy(){}}}};'});
    return route.continue();
   });
   async function open(){await page.goto(base+'/test');await page.waitForFunction(()=>window.MapApp?.effectiveSpots().length===1,null,{timeout:10000}).catch(e=>{console.error(errors);throw e;});await page.evaluate(()=>MapApp.openPanel(MapApp.effectiveSpots()[0]));}
@@ -146,7 +146,12 @@ const {chromium}=require(process.env.PLAYWRIGHT_PATH||'playwright');
   assert.equal(await page.evaluate(()=>MapApp.effectiveEntries().find(e=>e.id==='photo0').lat),25);
   assert.equal(await page.evaluate(()=>MapApp.effectiveEntries().find(e=>e.id==='photo1').lat),null);
   await page.evaluate(()=>{window.testZoom=16;window.testZoomCross();});
-  assert.ok(await page.evaluate(()=>window.testLayers.contrib.every(p=>p.size[0]===30)));
+  assert.ok(await page.evaluate(()=>window.testLayers.contrib.every(p=>p.size[0]===32)));
+  for(const [zoom,size] of [[14,22],[13,14],[16,32]]) {
+    await page.evaluate(zoom=>{window.testZoom=zoom;window.testZoomCross();},zoom);
+    assert.ok(await page.evaluate(size=>window.testLayers.contrib.every(p=>p.size[0]===size),size));
+    checkSurrounding(await page.evaluate(()=>window.testLayers.contrib.map(({size,anchor,off})=>({size,anchor,off}))));
+  }
   checkSurrounding(await page.evaluate(()=>window.testLayers.contrib.map(({size,anchor,off})=>({size,anchor,off}))));
   await page.evaluate(()=>window.testLayers.contrib[3].onClick());
   assert.ok((await page.locator('#pTitle').textContent()).startsWith('點位一'));
@@ -192,6 +197,15 @@ const {chromium}=require(process.env.PLAYWRIGHT_PATH||'playwright');
     }
     console.log('PASS: 地圖 390／1280 無障礙掃描、分類鍵盤操作、面板隱藏與焦點、精選星章及 Markdown 語意');
   }
-  console.log('PASS: 精選預覽無 GPS、數量收合、像素錯開、縮放重繪、即時更新、原座標保留與一般投稿相容；精選星章管理／訪客、重載保留、底色儲存與手機／桌面位置；點位清單膠囊、面板寬度、後台儲存、獨立紀錄／署名開關、格式與 HTML 跳脫、icon 儲存與預設、五種模式及導航按鈕尺寸');
+  const source=fs.readFileSync(root+'/assets/js/engine/maplibre-engine.js','utf8');
+  const zoomMethod=source.slice(source.indexOf('    _checkZoomThresholds('),source.indexOf('    _nextId('));
+  const redraws=await page.evaluate(method=>{
+    let count=0;const redraw=()=>count++;
+    const engine={map:{getZoom:()=>17},_zoomThresholds:[14,16].map(zoom=>({zoom,wasAbove:false,fn:redraw}))};
+    const check=new Function('return ({'+method+'})._checkZoomThresholds')();
+    check.call(engine);check.call(engine);return count;
+  },zoomMethod);
+  assert.equal(redraws,1,'一次跨越兩個級距只重繪一次，同級距不重繪');
+  console.log('PASS: 三段縮圖尺寸、環繞間距與跨級距單次重繪；精選預覽無 GPS、數量收合、像素錯開、縮放重繪、即時更新、原座標保留與一般投稿相容；精選星章管理／訪客、重載保留、底色儲存與手機／桌面位置；點位清單膠囊、面板寬度、後台儲存、獨立紀錄／署名開關、格式與 HTML 跳脫、icon 儲存與預設、五種模式及導航按鈕尺寸');
  }finally{if(browser)await browser.close();if(server)server.kill();fs.rmSync(tmp,{recursive:true,force:true});}
 })().catch(e=>{console.error(e);process.exitCode=1;});

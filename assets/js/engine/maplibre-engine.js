@@ -418,11 +418,12 @@ window.MapLibreEngine = (() => {
       this._zoomThresholds.push({ zoom, wasAbove: this.map.getZoom() >= zoom, fn });
     }
     _checkZoomThresholds() {
-      const z = this.map.getZoom();
+      const z = this.map.getZoom(), callbacks = new Set();
       this._zoomThresholds.forEach(entry => {
         const above = z >= entry.zoom;
-        if (above !== entry.wasAbove) { entry.wasAbove = above; entry.fn(); }
+        if (above !== entry.wasAbove) { entry.wasAbove = above; callbacks.add(entry.fn); }
       });
+      callbacks.forEach(fn => fn());
     }
 
     _nextId() { return 'sl-ln-' + (++this._idSeq); }

@@ -800,26 +800,28 @@ window.MapApp = (() => {
   function renderSpots() {
     engine.setMarkerLayer('spots', spotMarkerSpecs());
   }
-  const THUMB_ZOOM = 15;   // ≥ 此縮放顯示縮圖，較遠只顯示小方塊
+  const THUMB_ZOOMS = [14, 16];
+  const entrySize = zoom => zoom >= THUMB_ZOOMS[1] ? 32 : zoom >= THUMB_ZOOMS[0] ? 22 : 14;
   // 一則投稿在地圖上的標記。照片與影片有縮圖就鋪成方塊（影片右下角補一個播放角標）；
   // 音訊沒有縮圖、影片也可能因主機沒 GD 而抽不出封面，這時退成同尺寸的圖示方塊。
-  function entryIcon(e, thumb) {
-    const sz = thumb ? 30 : 14, half = sz / 2;
+  function entryIcon(e, sz) {
+    const thumb = sz > 14, half = sz / 2;
     const def = kindDef(e);
     const url = entryThumbUrl(e);
     const cls = 'photo-sq' + (thumb ? '' : ' plain');
+    const dimensions = 'width:' + sz + 'px;height:' + sz + 'px;';
     const html = url
-      ? '<div class="' + cls + '" style="background-image:url(' + esc(url) + ')">' +
+      ? '<div class="' + cls + '" style="' + dimensions + 'background-image:url(' + esc(url) + ')">' +
         (def.box === 'video' && thumb ? '<span class="sl-mk-play"><i class="fa-solid fa-play"></i></span>' : '') + '</div>'
-      : '<div class="' + cls + ' sl-mk-ico"><i class="fa-solid ' + def.icon + '"></i></div>';
+      : '<div class="' + cls + ' sl-mk-ico" style="' + dimensions + '"><i class="fa-solid ' + def.icon + '"></i></div>';
     return { size: [sz, sz], anchor: [half, half], html: html };
   }
   // 精選以點位為顯示錨點，像素偏移只改 marker anchor，不寫回投稿座標。
   // 最多三則，剩餘數量開啟點位面板，避免同一點位無限展開。
   // 位置由 featured-layout.js 依目前縮放排：預覽比任何其他點位都更靠自己的點位、各點位的角度錯開、
   // 避開別人的點位與預覽；每張預覽另畫一條細線連回所屬點位，一眼看得出是誰的。
-  function featuredMarkerSpecs(entries, spots, thumb) {
-    const specs = [], size = thumb ? 30 : 14, pinPx = PIN_SIZE_PX[META.pinSize] || 24;
+  function featuredMarkerSpecs(entries, spots, size) {
+    const specs = [], pinPx = PIN_SIZE_PX[META.pinSize] || 24;
     const openSpot = spot => { if (BARE) emitHook('spotClick', spot); else openPanel(spot); };
     const grouped = new Map();
     entries.forEach(e => {
@@ -847,7 +849,7 @@ window.MapApp = (() => {
       const selected = picked.get(spot.num), offs = layout.get(spot.num);
       if (!offs) return;
       selected.slice(0, 3).forEach((e, index) => {
-        const icon = entryIcon(e, thumb), url = entryFullUrl(e);
+        const icon = entryIcon(e, size), url = entryFullUrl(e);
         specs.push({
           id: e.id, lat: spot.lat, lon: spot.lon, html: withTie(icon.html, offs[index], e.name || t('featured_entry')), size: icon.size, className: 'sl-featured-marker', off: offs[index], tieStyle: tieStyle, moveStyle: moveStyle, angleOf: angleOf,
           anchor: anchorOf(),
@@ -865,10 +867,10 @@ window.MapApp = (() => {
   }
   function renderContribLayer() {
     if (!showContributions) { engine.clearMarkerLayer('contrib'); return; }
-    const thumb = engine.getZoom() >= THUMB_ZOOM;
+    const size = entrySize(engine.getZoom());
     const entries = effectiveEntries().filter(e => !filterPerson || e.name === filterPerson);
     const spots = effectiveSpots();
-    const specs = showSpots ? featuredMarkerSpecs(entries, spots, thumb) : [];
+    const specs = showSpots ? featuredMarkerSpecs(entries, spots, size) : [];
     const featuredIds = new Set(specs.map(s => s.id));
     const spotNums = new Set(spots.filter(s => active[s.cat] !== false && Number.isFinite(s.lat) && Number.isFinite(s.lon)).map(s => s.num));
     if (EMBED || photoLayerOn) entries.forEach(e => {
@@ -877,19 +879,19 @@ window.MapApp = (() => {
       if (showSpots && e.featured === true && spotNums.has(e.item_num)) return;
       const url = entryFullUrl(e);
       if (!Number.isFinite(e.lat) || !Number.isFinite(e.lon) || !url) return;
-      const icon = entryIcon(e, thumb);
+      const icon = entryIcon(e, size);
       specs.push({
         id: e.id, lat: e.lat, lon: e.lon, html: icon.html, size: icon.size, anchor: icon.anchor, label: e.name || t('featured_entry'),
         onClick: () => openLightbox(e, url),
       });
     });
     engine.setMarkerLayer('contrib', specs);
-    featuredKey = featuredKeyOf(specs, thumb);
+    featuredKey = featuredKeyOf(specs, size);
   }
   // 縮放結束：精選預覽的集合沒變就只換位置（CSS 緩動滑過去），變了（例如縮圖與小方塊切換）才整層重建
   let featuredKey = '';
-  const featuredKeyOf = (specs, thumb) => (thumb ? 't' : 's') + specs.filter(sp => sp.off).map(sp => sp.id).join('|');
-  // 縮圖與小方塊切換（跨過 THUMB_ZOOM）時整層重建，但新標記從舊的位置與大小（FLIP）以緩動滑到新位置，不是閃一下
+  const featuredKeyOf = (specs, size) => String(size) + specs.filter(sp => sp.off).map(sp => sp.id).join('|');
+  // 縮圖與小方塊切換（跨過縮圖級距）時整層重建，但新標記從舊的位置與大小（FLIP）以緩動滑到新位置，不是閃一下
   function snapshotFeatured() {
     const snap = new Map();
     engine.markerElements('contrib').forEach((el, id) => {
@@ -923,10 +925,10 @@ window.MapApp = (() => {
   }
   function relayoutFeatured() {
     if (!showContributions || !showSpots) return;
-    const thumb = engine.getZoom() >= THUMB_ZOOM;
+    const size = entrySize(engine.getZoom());
     const entries = effectiveEntries().filter(e => !filterPerson || e.name === filterPerson);
-    const specs = featuredMarkerSpecs(entries, effectiveSpots(), thumb);
-    if (featuredKeyOf(specs, thumb) !== featuredKey) { renderContribGlide(); return; }
+    const specs = featuredMarkerSpecs(entries, effectiveSpots(), size);
+    if (featuredKeyOf(specs, size) !== featuredKey) { renderContribGlide(); return; }
     const els = engine.markerElements('contrib');
     specs.forEach(sp => {
       const el = els.get(String(sp.id));
@@ -2065,7 +2067,8 @@ window.MapApp = (() => {
       dark: isDark(), manifests: layerManifests(),
     });
     engine.mountControls({ zoomPosition: 'bottomleft', attributionPosition: 'bottomright', opButtons: [{ el: document.getElementById('resetBtn') }] });
-    engine.onZoomThresholdCross(THUMB_ZOOM, () => renderContribGlide());
+    const redrawContrib = () => renderContribGlide();
+    THUMB_ZOOMS.forEach(zoom => engine.onZoomThresholdCross(zoom, redrawContrib));
     engine.onZoomEnd(() => relayoutFeatured()); // 預覽的位置依縮放重排，避開變近的點位；只換位置，緩動滑過去
 
     buildLegend();
