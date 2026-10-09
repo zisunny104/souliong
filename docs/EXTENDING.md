@@ -152,7 +152,7 @@ license, owner_hash, src_hash, contrib_id, contrib_hash, edit_of, created_at
 - **區塊 id**：每個區塊有穩定的 `id`。送來的區塊帶現有 `id` 就沿用原區塊、只採用新的 `comment`；沒帶 `id` 是新區塊；現有區塊沒被列出就是刪除。伺服器一律以 `spot_effective()` 的現有內容為底重建，不信任前端送整包，所以 audio／photo 的檔案欄位無法被前端改寫。
 - **`content_rev` 與 409**：`content_rev` 是目前生效版本的紀錄 `id`。前端載入內容時記下它，儲存時當 `base_rev` 送回；與現況不同回 409、不寫入，前端據此提示重新載入。內容與現況完全相同就不寫版本，直接回傳現況。
 - **歷史還原**：每次儲存都是 `edit_of` 鏈上的一筆版本，歷史檢視列得出每一版的完整區塊。還原不是伺服器動作：前端把舊版區塊載成草稿（已不存在的聲音／照片先抓回檔案當新區塊），使用者檢查後按儲存，走一般的 `op=save`，因此也會產生一筆新版本並受 `content_rev` 保護。
-- **聲音區塊分享連結** `<base>/<project>?spot=<num>&block=<id>`：進站時展開該點位、捲到該區塊並邀請點擊播放；`?spot=` 單獨使用時只開啟點位卡片，社群預覽卡（OG）也吃同一個參數。
+- **聲音區塊分享連結** `<base>/<project>?spot=<spotId>&block=<id>`（舊連結的 `num` 仍可開啟）：進站時展開該點位、捲到該區塊並邀請點擊播放；`?spot=` 單獨使用時只開啟點位卡片，社群預覽卡（OG）也吃同一個參數。
 
 權限由該地圖的 `contrib.newSpot` 決定：`off`（預設，端點直接 403）／`admin`（比照 `editspot.php`）／
 `contributor`（比照 `upload.php` 的停權與投稿代碼把關）。配號在 `store_append_locked()` 的 `LOCK_EX` 內完成，

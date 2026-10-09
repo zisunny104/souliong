@@ -350,7 +350,8 @@ window.MapLibreEngine = (() => {
     setView(center, zoom) { this.map.jumpTo({ center: [center[1], center[0]], zoom }); }
     panTo(lat, lon, opts) {
       const o = opts || {};
-      this.map.easeTo({ center: [lon, lat], duration: o.animate === false ? 0 : (o.duration != null ? o.duration * 1000 : 250) });
+      // offset：目標點落在畫面中心之外多少像素（卡片蓋住一部分地圖時，讓點位停在沒被蓋住的區域中央）
+      this.map.easeTo({ center: [lon, lat], offset: Array.isArray(o.offset) ? o.offset : [0, 0], duration: o.animate === false ? 0 : (o.duration != null ? o.duration * 1000 : 250) });
     }
     fitBounds(latlonPairs, opts) {
       if (!latlonPairs || !latlonPairs.length) return;

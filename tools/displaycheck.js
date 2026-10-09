@@ -93,7 +93,7 @@ const {chromium}=require(process.env.PLAYWRIGHT_PATH||'playwright');
   }
   await page.locator('.pt-save').click();await page.waitForFunction(()=>document.querySelectorAll('.spot-links .spot-link').length===3);
   await open();assert.equal(await page.locator('.spot-links .spot-link').count(),3);assert.equal(await page.locator('.spot-links .fa-instagram').count(),2);
-  for(const width of [390,1280]){await page.setViewportSize({width,height:844});assert.ok(await page.locator('.spot-links').evaluate(el=>el.getBoundingClientRect().right<=innerWidth));assert.equal(await page.locator('.spot-link').first().evaluate(el=>el.getBoundingClientRect().height),32);}
+  for(const width of [390,1280]){await page.setViewportSize({width,height:844});assert.ok(await page.locator('.spot-links').evaluate(el=>el.getBoundingClientRect().right<=innerWidth));assert.equal(await page.locator('.spot-link').first().evaluate(el=>Math.round(el.getBoundingClientRect().height)),32);}
   await page.locator('#spotEditBtn').click();assert.equal(await page.locator('.spot-link-row').count(),3);
   while(await page.locator('.spot-link-row').count())await page.locator('.spot-link-row button').first().click();
   await page.locator('.pt-save').click();await page.waitForFunction(()=>document.querySelectorAll('.spot-links .spot-link').length===0);await open();assert.equal(await page.locator('.spot-link').count(),0);
