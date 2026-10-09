@@ -231,20 +231,19 @@ function souliong_social_render(array $data, string $font, ?string $bold = null)
     $decodedMap = !empty($data['mapBytes']) ? souliong_image_decode_bytes($data['mapBytes'])
         : (!empty($data['map']) ? souliong_image_decode_file($data['map']) : null);
     if ($decodedMap) {
+        // 地圖只用左側 800px（截圖的左 2/3），完全不加覆蓋
         [$source, $w, $h] = $decodedMap;
-        imagecopyresampled($canvas, $source, 0, 0, 0, 0, 1200, 630, $w, $h);
+        imagecopyresampled($canvas, $source, 0, 0, 0, 0, 800, 630, (int)round($w * 800 / 1200), $h);
         imagedestroy($source);
-        for ($x = 0; $x < 1200; $x++) {
-            if ($x < 520) continue;   // 左側地圖不加任何覆蓋，只在文字欄前漸層
-            $opacity = (int)round(127 - 122 * min(1, ($x - 520) / 140));
-            imageline($canvas, $x, 0, $x, 629, imagecolorallocatealpha($canvas, 250, 250, 244, $opacity));
-        }
     } else {
         for ($y = 0; $y < 630; $y++) {
             $mix = $y / 629;
-            imageline($canvas, 0, $y, 1199, $y, imagecolorallocate($canvas, (int)(239 + 9 * $mix), (int)(246 + 2 * $mix), (int)(237 + 7 * $mix)));
+            imageline($canvas, 0, $y, 799, $y, imagecolorallocate($canvas, (int)(239 + 9 * $mix), (int)(246 + 2 * $mix), (int)(237 + 7 * $mix)));
         }
     }
+    // 右側資訊欄：白底，與地圖之間一條細線
+    imagefilledrectangle($canvas, 800, 0, 1199, 629, imagecolorallocate($canvas, 253, 253, 251));
+    imageline($canvas, 800, 0, 800, 629, imagecolorallocate($canvas, 222, 226, 220));
     $ink = imagecolorallocate($canvas, 35, 55, 48);
     $muted = imagecolorallocate($canvas, 78, 95, 86);
     $accent = imagecolorallocate($canvas, 32, 115, 95);
@@ -254,50 +253,57 @@ function souliong_social_render(array $data, string $font, ?string $bold = null)
         souliong_social_pill($canvas, 36, 69 + $box[5] - 14, 64 + ($box[2] - $box[0]) + 28, 69 + $box[1] + 14);
     }
     souliong_social_text_bold($canvas, $data['projectTitle'], $font, $bold, 23, 64, 69, 520, 1, $accent, 32);
+    $cx = 826; $cw = 296;   // 資訊欄文字起點與寬度（右側留給色條）
     $hasPhoto = false;
+    $photoBottom = 0;
     if (!empty($data['image']) && ($decoded = souliong_image_decode_file($data['image']))) {
         [$source, $w, $h] = $decoded;
-        $scale = min(518 / $w, 320 / $h);
+        $scale = min($cw / $w, 210 / $h);
         $dw = max(1, (int)round($w * $scale)); $dh = max(1, (int)round($h * $scale));
-        $px = 618 + (int)((518 - $dw) / 2); $py = 93 + (int)((320 - $dh) / 2);
+        $px = $cx + (int)(($cw - $dw) / 2); $py = 72;
         $under = imagecreatetruecolor($dw, $dh); imagecopy($under, $canvas, 0, 0, $px, $py, $dw, $dh);
         imagecopyresampled($canvas, $source, $px, $py, 0, 0, $dw, $dh, $w, $h);
-        souliong_social_round($canvas, $px, $py, $dw, $dh, 18, $under); imagedestroy($under);
-        imagedestroy($source); $hasPhoto = true;
+        souliong_social_round($canvas, $px, $py, $dw, $dh, 16, $under); imagedestroy($under);
+        imagedestroy($source); $hasPhoto = true; $photoBottom = $py + $dh;
         if (($data['entryKind'] ?? '') === 'video') {
-            $white = imagecolorallocate($canvas, 255, 255, 255);
-            imagefilledellipse($canvas, 877, 253, 64, 64, imagecolorallocatealpha($canvas, 35, 55, 48, 30));
-            imagefilledpolygon($canvas, [869, 237, 869, 269, 894, 253], $white);
+            $mx = $px + (int)($dw / 2); $my = $py + (int)($dh / 2);
+            imagefilledellipse($canvas, $mx, $my, 56, 56, imagecolorallocatealpha($canvas, 35, 55, 48, 30));
+            imagefilledpolygon($canvas, [$mx - 8, $my - 14, $mx - 8, $my + 14, $mx + 14, $my], imagecolorallocate($canvas, 255, 255, 255));
         }
     }
     if ($data['kind'] === 'entry') {
-        if (!$hasPhoto) souliong_social_text($canvas, $data['entryLabel'] ?? '', $font, 18, 618, 130, 518, 1, $accent, 28);
+        if (!$hasPhoto) souliong_social_text($canvas, $data['entryLabel'] ?? '', $font, 16, $cx, 108, $cw, 1, $accent, 26);
         if (!$hasPhoto && ($data['entryKind'] ?? '') === 'audio') {
             $wave = imagecolorallocate($canvas, 32, 115, 95);
-            foreach ([30, 58, 86, 116, 86, 58, 30] as $i => $height) {
-                imagefilledrectangle($canvas, 760 + $i * 34, 204 - (int)($height / 2), 771 + $i * 34, 204 + (int)($height / 2), $wave);
+            foreach ([26, 50, 76, 104, 76, 50, 26] as $i => $height) {
+                imagefilledrectangle($canvas, $cx + 28 + $i * 36, 190 - (int)($height / 2), $cx + 28 + $i * 36 + 11, 190 + (int)($height / 2), $wave);
             }
         }
         if (!$hasPhoto && ($data['entryKind'] ?? '') === 'video') {
-            imagefilledellipse($canvas, 877, 204, 72, 72, $accent);
-            imagefilledpolygon($canvas, [867, 185, 867, 223, 897, 204], imagecolorallocate($canvas, 255, 255, 255));
+            imagefilledellipse($canvas, $cx + (int)($cw / 2), 190, 72, 72, $accent);
+            imagefilledpolygon($canvas, [$cx + (int)($cw / 2) - 10, 171, $cx + (int)($cw / 2) - 10, 209, $cx + (int)($cw / 2) + 20, 190], imagecolorallocate($canvas, 255, 255, 255));
         }
         $media = !$hasPhoto && in_array($data['entryKind'] ?? '', ['audio', 'video'], true);
-        souliong_social_text($canvas, $data['description'], $font, 25, 618, $hasPhoto ? 459 : ($media ? 333 : 192), 518, $hasPhoto ? (empty($data['spotName']) ? 3 : 2) : ($media ? 5 : 9), $ink, 38);
+        souliong_social_text($canvas, $data['description'], $font, 19, $cx, $hasPhoto ? $photoBottom + 44 : ($media ? 290 : 160), $cw, $hasPhoto ? 4 : ($media ? 8 : 12), $ink, 30);
         $credit = implode(' · ', array_filter([$data['author'] ?? '', $data['license'] ?? ''], fn($v) => $v !== ''));
-        souliong_social_text($canvas, $credit, $font, 18, 618, 598, 518, 1, $muted, 28);
-        if (($data['spotName'] ?? '') !== '') souliong_social_text_bold($canvas, $data['spotName'], $font, $bold, 18, 618, 553, 518, 1, $accent, 28);
+        souliong_social_text($canvas, $credit, $font, 15, $cx, 596, $cw, 1, $muted, 24);
+        if (($data['spotName'] ?? '') !== '') souliong_social_text_bold($canvas, $data['spotName'], $font, $bold, 17, $cx, 560, $cw, 1, $accent, 26);
     } else {
-        souliong_social_text_bold($canvas, $data['title'], $font, $bold, $hasPhoto ? 28 : 39, 618, $hasPhoto ? 463 : 220, 518, $hasPhoto ? 1 : 2, $ink, 54);
         $hasAudio = !empty($data['audioSeconds']);
-        souliong_social_text($canvas, $data['description'], $font, 24, 618, $hasPhoto ? 512 : ($hasAudio ? 420 : 365), 518, $hasPhoto ? 2 : ($hasAudio ? 4 : 5), $muted, 36);
-    }
-    if (!empty($data['audioSeconds']) && $data['kind'] !== 'entry') {
-        $seconds = (int)$data['audioSeconds'];
-        $y = $hasPhoto ? 596 : 346;
-        imagefilledellipse($canvas, 642, $y - 13, 50, 50, $accent);
-        imagefilledpolygon($canvas, [633, $y - 25, 633, $y - 1, 655, $y - 13], imagecolorallocate($canvas, 255, 255, 255));
-        imagettftext($canvas, 34, 0, 680, $y, $accent, $font, sprintf('%d:%02d', intdiv($seconds, 60), $seconds % 60));
+        if ($hasPhoto) {
+            souliong_social_text_bold($canvas, $data['title'], $font, $bold, 24, $cx, $photoBottom + 44, $cw, 2, $ink, 34);
+            souliong_social_text($canvas, $data['description'], $font, 17, $cx, $photoBottom + 44 + 34 * 2 + 6, $cw, $hasAudio ? 2 : 4, $muted, 27);
+        } else {
+            souliong_social_text_bold($canvas, $data['title'], $font, $bold, 34, $cx, 150, $cw, 3, $ink, 48);
+            souliong_social_text($canvas, $data['description'], $font, 21, $cx, $hasAudio ? 400 : 340, $cw, $hasAudio ? 5 : 7, $muted, 32);
+        }
+        if ($hasAudio) {
+            $seconds = (int)$data['audioSeconds'];
+            $y = $hasPhoto ? 590 : 330;
+            imagefilledellipse($canvas, $cx + 22, $y - 11, 44, 44, $accent);
+            imagefilledpolygon($canvas, [$cx + 14, $y - 22, $cx + 14, $y, $cx + 34, $y - 11], imagecolorallocate($canvas, 255, 255, 255));
+            imagettftext($canvas, 32, 0, $cx + 58, $y, $accent, $font, sprintf('%d:%02d', intdiv($seconds, 60), $seconds % 60));
+        }
     }
     $creditLines = !empty($data['attribution']) ? souliong_social_wrap($data['attribution'], $font, 9, 540, 2) : [];
     $creditWidth = 0;

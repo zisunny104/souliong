@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/routes.php';
+require_once __DIR__ . '/layers.php';
 
 function souliong_social_runtime(array $cfg): ?array
 {
@@ -42,7 +43,14 @@ function souliong_social_map(array $cfg, string $project, ?string $spotId, int $
     try {
         $home = rtrim($cfg['state_dir'], '/\\') . '/social-preview-home';
         if (!is_dir($home)) @mkdir($home, 0775, true);
-        $url = $runtime['origin'] . Route::map($project) . '?embed=1&ui=bare&view=meta&contributions=0';
+        // 專案有勾選「無標註」的底圖就直接用它（?layer= 只認專案已啟用的底圖）；沒有才在瀏覽器裡隱藏文字圖層
+        $layerParam = '';
+        $metaFile = project_dir($cfg, $project) . '/meta.json';
+        $meta = is_file($metaFile) ? json_decode((string)file_get_contents($metaFile), true) : null;
+        foreach (is_array($meta) ? souliong_layers_visible($cfg, $meta, $project) : [] as $layer) {
+            if (($layer['pane'] ?? 'art') === 'base' && str_ends_with((string)($layer['id'] ?? ''), '-nolabels')) { $layerParam = '&layer=' . rawurlencode((string)$layer['id']); break; }
+        }
+        $url = $runtime['origin'] . Route::map($project) . '?embed=1&ui=bare&view=meta&contributions=0' . $layerParam;
         $process = @proc_open([$runtime['node'], dirname(__DIR__) . '/tools/social-preview-map.cjs'], [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
         if (!is_resource($process)) return null;
         fwrite($pipes[0], json_encode([
@@ -63,7 +71,7 @@ function souliong_social_map(array $cfg, string $project, ?string $spotId, int $
         $bytes .= stream_get_contents($pipes[1]);
         $errors = substr($errors . stream_get_contents($pipes[2]), -2000);
         $info = @getimagesizefromstring($bytes);
-        if (!$info) souliong_social_log($cfg, $errors !== '' ? $errors : 'renderer produced no image');
+        if (!$info) souliong_social_log($cfg, 'url=' . $url . ' ' . ($errors !== '' ? $errors : 'renderer produced no image'));
         return $info && $info[0] === 1200 && $info[1] === 630 && ($info['mime'] ?? '') === 'image/png' ? $bytes : null;
     } finally {
         foreach ($pipes as $pipe) if (is_resource($pipe)) fclose($pipe);
