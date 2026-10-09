@@ -180,6 +180,15 @@ function souliong_social_text_bold($canvas, string $text, string $font, ?string 
     }
 }
 
+/** 實心膠囊條（不用透明度，避免圓角與矩形接縫重疊變色）。 */
+function souliong_social_capsule($canvas, int $x0, int $y0, int $x1, int $y1, int $color): void
+{
+    $r = (int)(($y1 - $y0) / 2);
+    imagefilledrectangle($canvas, $x0 + $r, $y0, $x1 - $r, $y1, $color);
+    imagefilledellipse($canvas, $x0 + $r, $y0 + $r, $r * 2, $r * 2, $color);
+    imagefilledellipse($canvas, $x1 - $r, $y0 + $r, $r * 2, $r * 2, $color);
+}
+
 function souliong_social_ready(array $cfg): bool
 {
     return function_exists('imagecreatetruecolor') && function_exists('imagettftext')
@@ -315,7 +324,18 @@ function souliong_social_render(array $data, string $font, ?string $bold = null)
         $y = $hasPhoto ? 534 : 346;
         imagefilledellipse($canvas, 642, $y - 13, 50, 50, $accent);
         imagefilledpolygon($canvas, [633, $y - 25, 633, $y - 1, 655, $y - 13], imagecolorallocate($canvas, 255, 255, 255));
-        imagettftext($canvas, 34, 0, 680, $y, $accent, $font, sprintf('%d:%02d', intdiv($seconds, 60), $seconds % 60));
+        $label = sprintf('%d:%02d', intdiv($seconds, 60), $seconds % 60);
+        imagettftext($canvas, 34, 0, 680, $y, $accent, $font, $label);
+        // 時間後面接一條假的播放條（示意，不代表實際進度）；粗一點，縮小後才不會像分隔線
+        $labelBox = imagettfbbox(34, 0, $font, $label);
+        $barX0 = 680 + ($labelBox[2] - $labelBox[0]) + 28; $barX1 = 1136; $barMid = $y - 13; $barH = 18;
+        if ($barX1 - $barX0 > 120) {
+            souliong_social_capsule($canvas, $barX0, $barMid - (int)($barH / 2), $barX1, $barMid + (int)($barH / 2), imagecolorallocate($canvas, 205, 220, 211));
+            $knob = $barX0 + (int)(($barX1 - $barX0) * 0.38);
+            souliong_social_capsule($canvas, $barX0, $barMid - (int)($barH / 2), $knob, $barMid + (int)($barH / 2), $accent);
+            imagefilledellipse($canvas, $knob, $barMid, 34, 34, imagecolorallocate($canvas, 255, 255, 255));
+            imagefilledellipse($canvas, $knob, $barMid, 26, 26, $accent);
+        }
     }
     // 下緣置中：平台名稱與來源標示放同一個膠囊（LINE 最壞會裁成正方形，置中的內容才保得住）
     $brandText = (string)($data['brand'] ?? 'Souliong');
