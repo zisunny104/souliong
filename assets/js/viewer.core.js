@@ -2203,8 +2203,12 @@ window.MapApp = (() => {
     // 只決定這次載入的初始狀態，使用者手動切換仍照舊存回 localStorage，不會被網址參數卡住。
     const urlCollapsed = params.get('collapsed');
     const savedCollapsed = lsGet('ctlCollapsed');
+    // 手機用 ?spot= / ?entry= 帶內容進站時，卡片會直接打開：左上面板一律先收起來讓出畫面，
+    // 不受先前存過的偏好影響（只是這次載入的初始狀態，不寫回偏好）
+    const deepLinked = !BARE && !!(params.get('spot') || params.get('entry')) && window.matchMedia('(max-width:640px)').matches;
     const startCollapsed = urlCollapsed === '1' ? true
       : urlCollapsed === '0' ? false
+      : deepLinked ? true
       : savedCollapsed !== null ? savedCollapsed === '1'
       : window.matchMedia('(max-width:640px)').matches;
     if (startCollapsed) { controls.classList.add('collapsed'); document.getElementById('collapseBtn').innerHTML = chevron(true); }

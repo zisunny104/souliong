@@ -45,6 +45,13 @@ const {chromium}=require(process.env.PLAYWRIGHT_PATH||'playwright');
     assert.equal(!!offset,moves,'手機卡片蓋住地標時才挪動：'+JSON.stringify([pin,offset]));
     if(moves)assert.ok(offset[1]<0,'地標要往上移到卡片上方：'+JSON.stringify(offset));
    }
+   // 帶內容進站（?spot=）：即使先前存過「展開」，左上面板也先收起；明確帶 ?collapsed=0 則照指定；沒帶內容則照存的偏好
+   await mobile.evaluate(()=>localStorage.setItem('ctlCollapsed','0'));
+   for(const [query,collapsed] of [['?spot=1',true],['?spot=1&collapsed=0',false],['',false]]){
+    await mobile.goto(base+'/test'+query);await mobile.waitForFunction(()=>window.MapApp?.effectiveSpots().length===1,null,{timeout:10000});
+    assert.equal(await mobile.locator('#controls').evaluate(el=>el.classList.contains('collapsed')),collapsed,'手機面板收合狀態：'+query);
+   }
+   assert.equal(await mobile.evaluate(()=>localStorage.getItem('ctlCollapsed')),'0','進站預設收合不寫回偏好');
    await mobile.close();
   }
   async function open(){await page.goto(base+'/test');await page.waitForFunction(()=>window.MapApp?.effectiveSpots().length===1,null,{timeout:10000}).catch(e=>{console.error(errors);throw e;});await page.evaluate(()=>MapApp.openPanel(MapApp.effectiveSpots()[0]));}
