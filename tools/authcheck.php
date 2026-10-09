@@ -10,7 +10,7 @@
  *   - 行程內：註冊表、預設與回填、Actor 的 kind／audit／can／csrf／isMember、Contributor。
  *   - 子行程（因為 Auth::require／contrib_gate 失敗會 exit）：Auth::require 逐情境逐鍵逐 CSRF 型態，
  *     以及 editspot／spotcontent／upload／newspot 四支端點的實際回應（沙盒內的 api/ 副本，逐字複製）。
- *   - view.php：對真正的 _packdemo 頁面在各情境下輸出 APP.actor／perms／csrf，並確認 APP.csrf
+ *   - view.php：對真正的 _authcheck_alpha 頁面在各情境下輸出 APP.actor／perms／csrf，並確認 APP.csrf
  *     餵給 Auth::require 會被接受；身分資料以預先植入快取的方式提供，不寫真實 state。
  */
 error_reporting(E_ALL);
@@ -153,7 +153,7 @@ if (($argv[1] ?? '') === '--child') {
         $root = $p['root'];
         require_once $root . '/api/security.php';
         $keepCfg = require $root . '/api/config.php';
-        $A = '_packdemo'; $B = '_authcheck_beta';
+        $A = '_authcheck_alpha'; $B = '_authcheck_beta';
         $sc = fx_scenarios($keepCfg, $A, $B)[$p['scenario']];
         fx_seed($A, $B, fx_data($A, $B));
         $_COOKIE = $sc['cookies'];

@@ -3,7 +3,7 @@
    地圖繪製透過 assets/js/engine/ 底下的 MapEngine 抽象層（見 map-engine.js）：這個檔案跟所有
    plugin 一律只呼叫 engine.* / MapApp.getEngine().*，不直接認得 MapLibre 的 API。 */
 window.MapApp = (() => {
-  const APP = window.APP || { base: './', project: 'chairs' };
+  const APP = window.APP || { base: './', project: '' };
   const I18N = window.I18N || {};
   // 翻譯輔助：key 缺就直接顯示 key 本身（不會整段消失，方便發現漏翻）
   const t = (key, vars) => {
@@ -12,7 +12,7 @@ window.MapApp = (() => {
     return s;
   };
   const params = new URLSearchParams(location.search);
-  const PROJECT = (APP.project || params.get('p') || 'chairs').replace(/[^a-z0-9_-]/gi, '');
+  const PROJECT = (APP.project || params.get('p') || '').replace(/[^a-z0-9_-]/gi, '');
   const EMBED = !!(APP.embed) || params.get('embed') === '1';
   // 嵌入參數（僅 embed=1 有效）。bare＝純地圖，控制由 assets/js/embed-bridge.js 負責，核心只讀這份旗標。
   const pick = (v, allowed, fallback) => (allowed.includes(v) ? v : fallback);

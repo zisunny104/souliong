@@ -60,7 +60,7 @@
     }
 
     // 3D 狀態只存在這個瀏覽器、以專案為單位；儲存被擋（無痕、停用）時靜默略過
-    stateKey() { return 'souliong3d_' + ((window.APP && window.APP.project) || 'chairs'); }
+    stateKey() { return 'souliong3d_' + ((window.APP && window.APP.project) || ''); }
     loadState() {
       try {
         const o = JSON.parse(localStorage.getItem(this.stateKey()) || 'null');

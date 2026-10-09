@@ -16,7 +16,7 @@ $submit  = $embed && (($_GET['ui'] ?? '') === 'submit');
 $bodyCls = trim(($embed ? 'embed' : '') . ($bare ? ' embed-bare' : '') . ($submit ? ' embed-submit' : '')
     . ($bare && ($_GET['interactive'] ?? '') !== '1' ? ' embed-static' : '')
     . ($embed && ($_GET['bg'] ?? '') === 'transparent' ? ' embed-bg-transparent' : ''));
-$proj    = preg_replace('/[^a-z0-9_-]/', '', $_GET['p'] ?? ($cfg['default_project'] ?? 'chairs'));
+$proj    = preg_replace('/[^a-z0-9_-]/', '', $_GET['p'] ?? '');
 $metaF   = __DIR__ . '/../projects/' . $proj . '/meta.json';
 $meta    = is_file($metaF) ? json_decode(file_get_contents($metaF), true) : null;
 

@@ -6,5 +6,4 @@ return [
     'version'         => '1.2.7',
     'author'          => 'Tokas(Xiang-zi Xie)',
     'icon'            => 'map',        // Tocas UI 圖標名（框架卡片用）
-    'default_project' => '100chairs',  // 預設地圖（未指定時的 fallback）
 ];
