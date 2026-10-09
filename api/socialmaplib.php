@@ -11,7 +11,7 @@ function souliong_social_runtime(array $cfg): ?array
     foreach ($nodePaths as $path) if (is_executable($path)) { $node = $path; break; }
     $playwright = (string)($cfg['social_preview_playwright'] ?? $dir . '/node_modules/playwright-core');
     $browsers = isset($cfg['social_preview_chromium']) ? [(string)$cfg['social_preview_chromium']]
-        : array_merge(glob($dir . '/browsers/chromium-*/chrome-linux*/chrome') ?: [], ['/usr/bin/chromium', '/usr/bin/chromium-browser']);
+        : array_merge(['/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable'], glob($dir . '/browsers/chromium-*/chrome-linux*/chrome') ?: []);
     $chromium = null;
     foreach ($browsers as $path) if (is_executable($path)) { $chromium = $path; break; }
     if (!$node || !is_file($playwright . '/package.json') || !$chromium) return null;

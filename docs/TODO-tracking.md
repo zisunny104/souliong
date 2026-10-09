@@ -98,3 +98,7 @@ tilecut.php 擴增選區「不拉伸原圖」功能（程式碼、lang 檔、doc
 - 接受純 AAC 的實際 MIME，優先以 FFmpeg 無損換容器為 M4A；缺少工具或失敗則保留原檔，AAC 媒體端點使用 audio/aac。
 - 互動部署缺少 FFmpeg 時直接引導安裝，確認後 apt 安裝及複查；不重複安裝，非互動／其他系統保留手動指引。
 - `tools/aaccheck.php` 以實際 ADTS AAC 驗證 MIME、換容器、解碼內容一致與缺少工具回退；隔離上傳端點測試 82／82 通過。部署安裝引導以隔離的 apt／PHP 模擬驗證，沒有修改測試主機套件。
+
+### 1.2.4：沿用 Google Chrome 產生社群預覽
+
+- 部署環境檢查與 PHP 執行路徑皆納入系統 Google Chrome／Google Chrome Stable，避免已有 Chrome 卻重試 Playwright 不支援的 Ubuntu 20.04 Chromium 安裝。優先順序為系統瀏覽器，再查找下載瀏覽器；自訂 social_preview_chromium 仍優先。

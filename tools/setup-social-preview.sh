@@ -7,7 +7,7 @@ case "${1:-}" in
   -h|--help|help)
     cat <<'EOF'
 用法：bash tools/setup-social-preview.sh [--check]
-安裝社群預覽所需的 Playwright 與 Chromium，檔案放在 state/social-preview-runtime。
+安裝社群預覽所需的 Playwright，沿用系統 Chromium／Google Chrome 或安裝 Chromium，檔案放在 state/social-preview-runtime。
 --check 只檢查，不安裝。使用 root 執行時會一併安裝瀏覽器系統依賴。
 需要 Node.js 18 以上與 npm；未提供時以官方 Node.js 22 下載並驗證校驗碼。
 不修改專案資料、帳號或 api/config.php。
@@ -24,6 +24,7 @@ if [ -x "$runtime/node/bin/node" ]; then node_command="$runtime/node/bin/node"; 
 node_ready() { [ -n "$node_command" ] && "$node_command" -e 'process.exit(Number(process.versions.node.split(".")[0]) >= 18 ? 0 : 1)' >/dev/null 2>&1; }
 browser_ready() {
   [ -x /usr/bin/chromium ] || [ -x /usr/bin/chromium-browser ] ||
+    [ -x /usr/bin/google-chrome ] || [ -x /usr/bin/google-chrome-stable ] ||
     compgen -G "$runtime/browsers/chromium-*/chrome-linux*/chrome" >/dev/null
 }
 font_ready() {
@@ -84,7 +85,7 @@ if ! npm_config_update_notifier=false npm install --prefix "$runtime" --cache "$
 fi
 export PLAYWRIGHT_BROWSERS_PATH="$runtime/browsers"
 if browser_ready; then
-  ok "沿用已安裝的 Chromium"
+  ok "沿用已安裝的 Chromium／Google Chrome"
 elif [ "$(id -u)" -eq 0 ]; then
   "$node_command" "$runtime/node_modules/playwright-core/cli.js" install --with-deps chromium
 else

@@ -26,3 +26,5 @@ bash tools/setup-social-preview.sh
 `?api=socialpreview&project=<slug>&spot=<id>` 或 `entry=<id>` 輸出 JPEG，支援 HEAD／ETag。僅讀取同專案公開紀錄所引用的圖片，拒絕任意檔案路徑及跨專案照片。已刪除的紀錄不可取得舊快取。
 
 快取存於 `state/social-previews/`，每個專案、投稿／點位一份，不修改原照片或任何專案資料。內容、關聯、代表照片及專案設定改變會更新版本；完成的地圖名片快取一天，地圖降級結果一分鐘後重試。對外快取最多五分鐘；更新後可使用平台提供的分享偵錯工具要求重新抓取。
+
+部署與 PHP 預覽程序皆會自動偵測 `/usr/bin/chromium`、`/usr/bin/chromium-browser`、`/usr/bin/google-chrome`、`/usr/bin/google-chrome-stable`，優先沿用系統瀏覽器，之後才尋找 Playwright 下載的 Chromium。已有 Google Chrome 的舊版 Ubuntu 不必為此重新下載 Chromium 或升級整個系統；仍須確認 Chrome 可由網站 PHP 執行身分啟動。
