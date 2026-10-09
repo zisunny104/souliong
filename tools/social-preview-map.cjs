@@ -22,10 +22,15 @@ async function main() {
     if (parsed.username) proxy.username = decodeURIComponent(parsed.username);
     if (parsed.password) proxy.password = decodeURIComponent(parsed.password);
   }
+  // 網站執行身分（如 www-data）的家目錄常常不可寫，Chromium 的 crashpad 與設定目錄會因此啟動失敗而崩潰；
+  // 改用 state 底下專用的可寫目錄，並關掉 crash 回報。
+  const env = { ...process.env };
+  if (config.home) Object.assign(env, { HOME: config.home, XDG_CONFIG_HOME: config.home + '/.config', XDG_CACHE_HOME: config.home + '/.cache', XDG_DATA_HOME: config.home + '/.local/share' });
   const browser = await chromium.launch({
     executablePath: config.chromium,
     headless: true,
-    args: ['--disable-dev-shm-usage', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
+    args: ['--disable-dev-shm-usage', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--disable-crash-reporter', '--disable-breakpad'],
+    env,
     proxy,
   });
   process.once('SIGTERM', async () => { await browser.close(); process.exit(1); });

@@ -30,3 +30,5 @@ bash tools/setup-social-preview.sh
 部署與 PHP 預覽程序皆會自動偵測 `/usr/bin/chromium`、`/usr/bin/chromium-browser`、`/usr/bin/google-chrome`、`/usr/bin/google-chrome-stable`，優先沿用系統瀏覽器，之後才尋找 Playwright 下載的 Chromium。已有 Google Chrome 的舊版 Ubuntu 不必為此重新下載 Chromium 或升級整個系統；仍須確認 Chrome 可由網站 PHP 執行身分啟動。
 
 母專案的 `package.json` 若宣告 `"type": "module"`，`.js` 會被當成 ES module；渲染腳本因此用 `.cjs`，不受上層設定影響。每次渲染失敗的原因（逾時、瀏覽器無法啟動、圖磚載入失敗等）會寫入 `state/social-preview-error.log`，只保留最近一次，不需要開 debug。
+
+瀏覽器以網站執行身分啟動時，家目錄（例如 `/var/www`）常常不可寫，Chromium 的 crashpad 與設定目錄會因此崩潰。渲染時改用 `state/social-preview-home/` 當 `HOME` 與 XDG 目錄，並關閉 crash 回報；這個目錄放在 `state/`（網站可寫），不放進依賴目錄，因為依賴目錄的擁有者可能是安裝時的 root。
