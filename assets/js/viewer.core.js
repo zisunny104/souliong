@@ -824,7 +824,7 @@ window.MapApp = (() => {
   const nearViewport = (lat, lon) => !engine.isNearViewport || engine.isNearViewport(lat, lon, 96);
   function featuredMarkerSpecs(entries, spots, size) {
     const specs = [], pinPx = PIN_SIZE_PX[META.pinSize] || 24;
-    const openSpot = spot => { if (BARE) emitHook('spotClick', spot); else openPanel(spot); };
+    const openSpot = spot => { if (BARE) emitHook('spotClick', spot); else { openPanel(spot); revealSpot(spot, true); } };
     const grouped = new Map();
     entries.forEach(e => {
       if (e.featured !== true) return;
@@ -1135,6 +1135,20 @@ window.MapApp = (() => {
 
   /* ---------- panel ---------- */
   let current = null, panelReturnFocus = null;
+  // 使用者自己拖曳、縮放過地圖之後，就不再自動挪動地圖去避開卡片；每次開卡片重新計算
+  let panelUserMoved = false, panelWatching = false, panelRevealFrame = 0;
+  function watchPanelCoverage() {
+    if (panelWatching || EMBED || BARE || !engine) return;
+    panelWatching = true;
+    const raw = engine.getRawMap && engine.getRawMap();
+    if (raw && raw.on) raw.on('movestart', e => { if (e && e.originalEvent) panelUserMoved = true; });
+    const panel = document.getElementById('panel');
+    // 卡片內容（照片、投稿）載入後高度會變，原本沒蓋到的地標可能變成被蓋住
+    if (panel && window.ResizeObserver) new ResizeObserver(() => {
+      if (panelRevealFrame || panelUserMoved || !current || !panel.classList.contains('open')) return;
+      panelRevealFrame = requestAnimationFrame(() => { panelRevealFrame = 0; if (!panelUserMoved && current) revealSpot(current, true, true); });
+    }).observe(panel);
+  }
   // 卡片蓋住的範圍（相對地圖容器的像素）。手機是底部卡片、電腦是右側卡片；用版面尺寸推算打開後的位置，
   // 不讀進場動畫中的實際位置。
   function panelCoverage() {
@@ -1147,8 +1161,10 @@ window.MapApp = (() => {
     return { map, rect: { x0: left, y0: 0, x1: map.width, y1: map.height } };
   }
   // 打開卡片後，讓點位停在沒被卡片蓋住的區域中央。onlyIfCovered：點位本來就看得到就不動地圖
-  function revealSpot(c, onlyIfCovered) {
+  function revealSpot(c, onlyIfCovered, auto) {
     if (EMBED || BARE || !engine || !c || !engine.projectPoint) return;
+    watchPanelCoverage();
+    if (auto && panelUserMoved) return;
     const cover = panelCoverage();
     if (!cover) return;
     const r = cover.rect, m = cover.map, pad = 36;
@@ -1161,6 +1177,7 @@ window.MapApp = (() => {
     engine.panTo(c.lat, c.lon, { animate: true, offset: [(free.x0 + free.x1) / 2 - m.width / 2, (free.y0 + free.y1) / 2 - m.height / 2] });
   }
   function openPanel(c) {
+    panelUserMoved = false;
     const panel = document.getElementById('panel');
     if (!panel.classList.contains('open')) panelReturnFocus = document.activeElement;
     panel.removeAttribute('inert'); panel.removeAttribute('aria-hidden');
@@ -2351,6 +2368,9 @@ window.MapApp = (() => {
       const pt = effectiveSpots().find(p => p.id === urlSpot || p.num === +urlSpot);
       if (pt) {
         openPanel(pt); revealSpot(pt);
+        // 進站當下地圖還在載入、卡片內容也還在長：載完再確認一次，使用者還沒動過地圖才會自動挪
+        const rawMap = engine && engine.getRawMap && engine.getRawMap();
+        if (rawMap && rawMap.once) rawMap.once('idle', () => { if (current && !panelUserMoved) revealSpot(current, true, true); });
         const urlBlock = params.get('block');
         if (urlBlock) focusBlock(urlBlock);
       }
