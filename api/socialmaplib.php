@@ -27,18 +27,20 @@ function souliong_social_runtime(array $cfg): ?array
 /** 最近一次渲染失敗原因，只留一份、不論 debug 是否開啟，方便查地圖名片為何退回淡色底。 */
 function souliong_social_log(array $cfg, string $message): void
 {
-    @file_put_contents(rtrim($cfg['state_dir'], '/\\') . '/social-preview-error.log', date('c') . ' ' . substr($message, -1500) . "\n", LOCK_EX);
+    $line = preg_replace('/[\r\n]+/', ' ', substr($message, -1500));   // 單行，避免頁面錯誤訊息插入偽造的紀錄行
+    @file_put_contents(rtrim($cfg['state_dir'], '/\\') . '/social-preview-error.log', date('c') . ' ' . $line . "\n", LOCK_EX);
 }
 
-/** A single bounded browser process reuses the actual map engine, layer selection and pin renderer. */
-function souliong_social_map(array $cfg, string $project, ?string $spotId, int $zoom): ?string
+/** 同時只跑一個瀏覽器程序，重用實際的地圖引擎、底圖選擇與標記繪製。別的請求正在渲染時 $busy 為 true。 */
+function souliong_social_map(array $cfg, string $project, ?string $spotId, int $zoom, ?bool &$busy = null): ?string
 {
+    $busy = false;
     $runtime = souliong_social_runtime($cfg);
     if (!$runtime) return null;
     $lockPath = rtrim($cfg['state_dir'], '/\\') . '/social-preview-renderer.lock';
     $lock = @fopen($lockPath, 'c');
     if (!$lock) return null;
-    if (!flock($lock, LOCK_EX | LOCK_NB)) { fclose($lock); return null; }
+    if (!flock($lock, LOCK_EX | LOCK_NB)) { fclose($lock); $busy = true; return null; }
     $process = null; $pipes = [];
     try {
         $home = rtrim($cfg['state_dir'], '/\\') . '/social-preview-home';
@@ -61,11 +63,17 @@ function souliong_social_map(array $cfg, string $project, ?string $spotId, int $
         ], JSON_UNESCAPED_SLASHES));
         fclose($pipes[0]); unset($pipes[0]);
         stream_set_blocking($pipes[1], false); stream_set_blocking($pipes[2], false);
-        $bytes = ''; $errors = ''; $deadline = microtime(true) + 15;
+        $bytes = ''; $errors = ''; $deadline = microtime(true) + 20;
         do {
             $bytes .= stream_get_contents($pipes[1]); $errors = substr($errors . stream_get_contents($pipes[2]), -2000);
             $status = proc_get_status($process);
-            if (strlen($bytes) > 4 * 1024 * 1024 || microtime(true) >= $deadline) { proc_terminate($process); souliong_social_log($cfg, 'renderer stopped: ' . (microtime(true) >= $deadline ? 'timeout' : 'output too large') . ($errors !== '' ? ' / ' . $errors : '')); return null; }
+            if (strlen($bytes) > 4 * 1024 * 1024 || microtime(true) >= $deadline) {
+                souliong_social_log($cfg, 'renderer stopped: ' . (microtime(true) >= $deadline ? 'timeout' : 'output too large') . ($errors !== '' ? ' / ' . $errors : ''));
+                proc_terminate($process);
+                for ($wait = 0; $wait < 50 && proc_get_status($process)['running']; $wait++) usleep(40000);   // 先請它結束，兩秒後仍在就強制終止，不讓 proc_close 一直等
+                if (proc_get_status($process)['running']) proc_terminate($process, 9);
+                return null;
+            }
             if ($status['running']) usleep(40000);
         } while ($status['running']);
         $bytes .= stream_get_contents($pipes[1]);

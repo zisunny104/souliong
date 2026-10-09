@@ -39,7 +39,7 @@ const {chromium}=require(process.env.PLAYWRIGHT_PATH||'playwright');
    const mobile=await context.newPage();await mobile.setViewportSize({width:390,height:800});
    await mobile.goto(base+'/test');await mobile.waitForFunction(()=>window.MapApp?.effectiveSpots().length===1&&window.testLayers?.spots?.length===1,null,{timeout:10000});
    for(const [pin,moves] of [[[195,700],true],[[195,120],false]]){
-    await mobile.evaluate(p=>{window.testPin=p;window.testPanTo=null;MapApp.closePanel?.();window.testLayers.spots[0].onClick();},pin);
+    await mobile.evaluate(p=>{window.testPin=p;window.testPanTo=null;MapApp.closePanel();window.testLayers.spots[0].onClick();},pin);
     await mobile.waitForTimeout(150);
     const offset=await mobile.evaluate(()=>window.testPanTo&&window.testPanTo.offset);
     assert.equal(!!offset,moves,'手機卡片蓋住地標時才挪動：'+JSON.stringify([pin,offset]));
