@@ -1,6 +1,8 @@
 <?php
 // 主字典（繁體中文）。所有語言的翻譯 key 以此檔為準；其他語言檔缺的 key 會自動 fallback 回這裡。
 return [
+    'actions_label' => '操作',
+    'language_navigation' => '語言切換',
     'markdown_guide_title' => 'Markdown 語法說明',
     'markdown_guide_intro' => '左側是寫法，右側是實際顯示效果。',
     'markdown_common' => '常用',

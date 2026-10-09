@@ -108,7 +108,7 @@ footer a{color:inherit}
 </style>
 </head>
 <body>
-<div class="langsw">
+<div class="langsw" role="navigation" aria-label="<?= $t('language_navigation') ?>">
   <a href="?lang=zh_TW" class="<?= $LANG === 'zh_TW' ? 'on' : '' ?>">中文</a>
   <a href="?lang=en" class="<?= $LANG === 'en' ? 'on' : '' ?>">English</a>
 </div>
@@ -123,7 +123,7 @@ footer a{color:inherit}
     <a class="btn" href="https://github.com/zisunny104/souliong" target="_blank" rel="noopener"><i class="fa-brands fa-github"></i> <?= $t('source_code_btn') ?></a>
   </div>
 </header>
-<div class="wrap">
+<div class="wrap" role="main">
   <?php if (!$maps): ?>
     <div class="empty"><?= $t('no_maps_yet') ?><a href="<?= $b ?>manager"><?= $t('create_first_map_link') ?></a><?= $t('or_contact_admin_suffix') ?></div>
   <?php else: ?>

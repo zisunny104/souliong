@@ -492,7 +492,7 @@ if (!$authed) {
   </head>
 
   <body>
-    <div class="langsw">
+    <div class="langsw" role="navigation" aria-label="<?= $t('language_navigation') ?>">
       <a href="?<?= $reqProject !== '' ? 'project=' . rawurlencode($reqProject) . '&' : '' ?>lang=zh_TW" class="<?= $LANG === 'zh_TW' ? 'on' : '' ?>">中文</a>
       <a href="?<?= $reqProject !== '' ? 'project=' . rawurlencode($reqProject) . '&' : '' ?>lang=en" class="<?= $LANG === 'en' ? 'on' : '' ?>">English</a>
     </div>
@@ -502,23 +502,24 @@ if (!$authed) {
       $postAction = (string)($_POST['action'] ?? '');
       $initPanel = in_array($postAction, ['account_register', 'account_activate'], true) ? $postAction : 'login';
     ?>
+    <main style="display:contents">
     <form method="post" id="panel-login" style="display:<?= $initPanel === 'login' ? '' : 'none' ?>">
       <input type="hidden" name="action" value="login"><input type="hidden" name="project" value="<?= $esc($reqProject) ?>">
       <h1><?= $t('app_title') ?></h1>
       <div class="s"><?= $reqProject !== '' ? $t('project_scope_label', ['project' => $reqProject]) : $t('primary_scope_label') ?><?= $t('enter_admin_pin') ?></div>
       <div class="err"><?= $esc($loginErr) ?></div>
       <div id="loginPinFields">
-        <input name="pin" type="password" autocomplete="off" autofocus placeholder="PIN" data-pin-toggle data-pin-slots="4" data-pin-keypad>
+        <input name="pin" aria-label="PIN" type="password" autocomplete="off" autofocus placeholder="PIN" data-pin-toggle data-pin-slots="4" data-pin-keypad>
       </div>
       <div id="loginAcctFields" style="display:none">
         <input name="userid" type="text" class="textfield" autocomplete="username" placeholder="<?= $t('userid_placeholder') ?>">
         <input name="pw" type="password" class="textfield" autocomplete="current-password" placeholder="<?= $t('password_placeholder') ?>">
       </div>
       <button><?= $t('login_btn') ?></button>
-      <div class="switchlink" id="toAcctWrap"><a id="toAcctLogin"><?= $t('login_with_account_link') ?></a></div>
-      <div class="switchlink" id="toPinWrap" style="display:none"><a id="toPinLogin"><?= $t('login_with_pin_link') ?></a></div>
+      <div class="switchlink" id="toAcctWrap"><a href="#" id="toAcctLogin"><?= $t('login_with_account_link') ?></a></div>
+      <div class="switchlink" id="toPinWrap" style="display:none"><a href="#" id="toPinLogin"><?= $t('login_with_pin_link') ?></a></div>
       <?php if (souliong_registration_open($cfg)): ?>
-        <div class="switchlink"><a id="toRegister"><?= $t('register_link') ?></a></div>
+        <div class="switchlink"><a href="#" id="toRegister"><?= $t('register_link') ?></a></div>
       <?php endif; ?>
     </form>
 
@@ -531,7 +532,7 @@ if (!$authed) {
       <input name="pw" type="password" class="textfield" autocomplete="new-password" placeholder="<?= $t('password_placeholder') ?>">
       <input name="label" type="text" class="textfield" autocomplete="nickname" placeholder="<?= $t('nickname_optional_placeholder') ?>">
       <button><?= $t('register_btn') ?></button>
-      <div class="switchlink"><a id="backToLoginFromRegister"><?= $t('back_to_login_link') ?></a></div>
+      <div class="switchlink"><a href="#" id="backToLoginFromRegister"><?= $t('back_to_login_link') ?></a></div>
     </form>
 
     <form method="post" id="panel-activate" style="display:<?= $initPanel === 'account_activate' ? '' : 'none' ?>">
@@ -545,6 +546,7 @@ if (!$authed) {
       <button><?= $t('activate_btn') ?></button>
     </form>
 
+    </main>
     <script>window.I18N = <?= json_encode($DICT, JSON_UNESCAPED_UNICODE) ?>; window.LANG = <?= json_encode($LANG) ?>;</script>
     <script><?php readfile(__DIR__ . '/../assets/js/pin-input.js'); ?></script>
     <script>
@@ -3522,9 +3524,9 @@ if (!$authed) {
 </head>
 
 <body>
-  <div class="wrap">
+  <div class="wrap" role="main">
     <?php $langUrl = fn(string $l) => $esc(Route::manager($scopeProject, $reqPane) . '?lang=' . $l); ?>
-    <div class="langsw">
+    <div class="langsw" role="navigation" aria-label="<?= $t('language_navigation') ?>">
       <a href="<?= $langUrl('zh_TW') ?>" class="<?= $LANG === 'zh_TW' ? 'on' : '' ?>">中文</a>
       <a href="<?= $langUrl('en') ?>" class="<?= $LANG === 'en' ? 'on' : '' ?>">English</a>
     </div>
@@ -3683,7 +3685,7 @@ if (!$authed) {
         <span class="hint mono" title="<?= $t('layer_total_size_title') ?>"><i class="fa-solid fa-hard-drive" aria-hidden="true"></i> <?= $esc($fmtBytes($totalBytes)) ?></span>
         <?php endif; ?>
       </span>
-      <dialog id="<?= $esc($dlgId) ?>" class="metadlg" onclick="if(event.target===this)this.close()">
+      <dialog aria-label="<?= $t('layer_edit_heading', ['id' => $lid]) ?>" id="<?= $esc($dlgId) ?>" class="metadlg" onclick="if(event.target===this)this.close()">
         <form method="post" class="metaform">
           <input type="hidden" name="csrf" value="<?= $esc_csrf ?>">
           <input type="hidden" name="action" value="layeredit">
@@ -3778,7 +3780,7 @@ if (!$authed) {
             $layAllForP = souliong_layer_list($cfg, $p);
           ?>
           <button type="button" class="btn" onclick="document.getElementById('metadlg-<?= $esc($p) ?>').showModal()"><i class="fa-solid fa-gear"></i> <?= $t('project_settings_btn') ?></button>
-          <dialog id="metadlg-<?= $esc($p) ?>" class="metadlg" onclick="if(event.target===this)this.close()">
+          <dialog aria-label="<?= $t('project_settings_btn') ?>" id="metadlg-<?= $esc($p) ?>" class="metadlg" onclick="if(event.target===this)this.close()">
             <form method="post" class="metaform">
               <h3><i class="fa-solid fa-gear"></i> <?= $t('project_settings_btn') ?></h3>
               <input type="hidden" name="csrf" value="<?= $esc_csrf ?>"><input type="hidden" name="action" value="meta"><input type="hidden" name="project" value="<?= $esc($p) ?>">
@@ -4103,7 +4105,7 @@ if (!$authed) {
             $projLayers = array_filter($layAllForP, fn($li) => ($li['scope'] ?? '') === 'project');
           ?>
           <button type="button" class="btn" onclick="document.getElementById('lyrdlg-<?= $esc($p) ?>').showModal()"><i class="fa-solid fa-layer-group"></i> <?= $t('layers_heading') ?></button>
-          <dialog id="lyrdlg-<?= $esc($p) ?>" class="metadlg" onclick="if(event.target===this)this.close()">
+          <dialog aria-label="<?= $t('project_layers_heading') ?>" id="lyrdlg-<?= $esc($p) ?>" class="metadlg" onclick="if(event.target===this)this.close()">
             <div class="metaform">
               <h3><i class="fa-solid fa-layer-group"></i> <?= $t('project_layers_heading') ?></h3>
               <div class="hint"><?= $t('project_layers_hint') ?></div>
@@ -4172,7 +4174,7 @@ if (!$authed) {
             </div>
           </dialog>
           <button type="button" class="btn" onclick="document.getElementById('covdlg-<?= $esc($p) ?>').showModal()"><i class="fa-solid fa-image"></i> <?= $t('cover_heading') ?></button>
-          <dialog id="covdlg-<?= $esc($p) ?>" class="metadlg" onclick="if(event.target===this)this.close()">
+          <dialog aria-label="<?= $t('cover_heading') ?>" id="covdlg-<?= $esc($p) ?>" class="metadlg" onclick="if(event.target===this)this.close()">
             <div class="metaform">
               <h3><i class="fa-solid fa-image"></i> <?= $t('cover_heading') ?></h3>
               <div class="hint"><?= $t('cover_hint') ?></div>
@@ -4200,7 +4202,7 @@ if (!$authed) {
             </div>
           </dialog>
           <button type="button" class="btn" onclick="document.getElementById('pmkdlg-<?= $esc($p) ?>').showModal()"><i class="fa-solid fa-location-dot"></i> <?= $t('pinmark_image_heading') ?></button>
-          <dialog id="pmkdlg-<?= $esc($p) ?>" class="metadlg" onclick="if(event.target===this)this.close()">
+          <dialog aria-label="<?= $t('pinmark_image_heading') ?>" id="pmkdlg-<?= $esc($p) ?>" class="metadlg" onclick="if(event.target===this)this.close()">
             <div class="metaform">
               <h3><i class="fa-solid fa-location-dot"></i> <?= $t('pinmark_image_heading') ?></h3>
               <div class="hint"><?= $t('pinmark_image_dlg_hint') ?></div>
@@ -4232,7 +4234,7 @@ if (!$authed) {
             $projPacks = array_filter($packListAll, fn($pk) => ($pk['scope'] ?? '') === 'project');
           ?>
           <button type="button" class="btn" onclick="document.getElementById('pkrdlg-<?= $esc($p) ?>').showModal()"><i class="fa-solid fa-swatchbook"></i> <?= $t('packs_heading') ?></button>
-          <dialog id="pkrdlg-<?= $esc($p) ?>" class="metadlg" onclick="if(event.target===this)this.close()">
+          <dialog aria-label="<?= $t('project_packs_heading') ?>" id="pkrdlg-<?= $esc($p) ?>" class="metadlg" onclick="if(event.target===this)this.close()">
             <div class="metaform">
               <h3><i class="fa-solid fa-swatchbook"></i> <?= $t('project_packs_heading') ?></h3>
               <div class="hint"><?= $t('project_packs_hint') ?></div>
@@ -4721,35 +4723,35 @@ if (!$authed) {
         <div class="cols">
           <?php if ($s['spots']): ?>
           <div class="col">
-            <h4><?= $t('spots_rank_heading') ?></h4>
+            <h4 aria-level="3"><?= $t('spots_rank_heading') ?></h4>
             <p class="colnote"><?= $t('spots_rank_note') ?></p>
             <?= $statBars($s['spots'], fn($k) => i18n_t($DICT, 'spot_short_label', ['k' => $k])) ?>
           </div>
           <?php endif; ?>
           <?php if ($s['kinds']): ?>
           <div class="col">
-            <h4><?= $t('kinds_rank_heading') ?></h4>
+            <h4 aria-level="3"><?= $t('kinds_rank_heading') ?></h4>
             <p class="colnote"><?= $t('kinds_rank_note') ?></p>
             <?= $statBars($s['kinds'], fn($k) => souliong_kind_label($k)) ?>
           </div>
           <?php endif; ?>
           <?php if ($s['cameras']): ?>
           <div class="col">
-            <h4><?= $t('cameras_rank_heading') ?></h4>
+            <h4 aria-level="3"><?= $t('cameras_rank_heading') ?></h4>
             <p class="colnote"><?= $t('cameras_rank_note') ?></p>
             <?= $statBars($s['cameras'], fn($k) => (string)$k) ?>
           </div>
           <?php endif; ?>
           <?php if ($feats): ?>
           <div class="col">
-            <h4><?= $t('feature_usage_heading') ?></h4>
+            <h4 aria-level="3"><?= $t('feature_usage_heading') ?></h4>
             <p class="colnote"><?= $t('feature_usage_note') ?></p>
             <?= $statBars($feats, fn($k) => $featLabels[$k] ?? $k) ?>
           </div>
           <?php endif; ?>
           <?php if ($browsers || $oses): ?>
           <div class="col">
-            <h4><?= $t('browser_os_heading') ?></h4>
+            <h4 aria-level="3"><?= $t('browser_os_heading') ?></h4>
             <p class="colnote"><?= $t('browser_os_note') ?></p>
             <?php if ($browsers): ?><div class="statsub"><?= $t('browser_label') ?></div><?= $statBars($browsers, fn($k) => $bLabels[$k] ?? $k, 8) ?><?php endif; ?>
             <?php if ($oses): ?><div class="statsub"><?= $t('os_label') ?></div><?= $statBars($oses, fn($k) => $oLabels[$k] ?? $k, 8) ?><?php endif; ?>
@@ -4757,7 +4759,7 @@ if (!$authed) {
           <?php endif; ?>
           <?php if ($byHour): ?>
           <div class="col wide">
-            <h4><?= $t('visit_time_heading') ?></h4>
+            <h4 aria-level="3"><?= $t('visit_time_heading') ?></h4>
             <p class="colnote"><?= $t('visit_time_note') ?></p>
             <?= $statCols($hourCells, $hourAria) ?>
             <?= $statCols($dowCells, $dowAria) ?>
@@ -4786,7 +4788,7 @@ if (!$authed) {
           <th><?= $t('col_time') ?></th>
           <th><?= $t('col_coords') ?></th>
           <th>o/s</th>
-          <th></th>
+          <th><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap"><?= $t('actions_label') ?></span></th>
         </tr>
         <?php $idx = count($rows);
         foreach ($rows as $r):

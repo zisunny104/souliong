@@ -2,6 +2,8 @@
 // English dictionary. Any key missing here falls back to lang/zh_TW.php automatically,
 // so this file only needs to list keys that have actually been translated.
 return [
+    'actions_label' => 'Actions',
+    'language_navigation' => 'Language selector',
     'markdown_guide_title' => 'Markdown guide',
     'markdown_guide_intro' => 'Syntax on the left, rendered result on the right.',
     'markdown_common' => 'Common',

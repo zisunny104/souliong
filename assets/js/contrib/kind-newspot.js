@@ -29,7 +29,7 @@
         '<option value="">' + esc(t('newspot_cat_new')) + '</option>';
       return '<input type="text" class="c-title" maxlength="80" placeholder="' + esc(t('newspot_title_placeholder')) + '">' +
         '<label class="c-lab">' + esc(t('newspot_cat_label')) + '</label>' +
-        '<div class="row"><select class="c-cat">' + opts + '</select>' +
+        '<div class="row"><select class="c-cat" aria-label="' + esc(t('newspot_cat_label')) + '">' + opts + '</select>' +
         '<input type="text" class="c-catlabel" maxlength="30" placeholder="' + esc(t('newspot_cat_name_placeholder')) + '" style="display:none">' +
         '<input type="color" class="c-catcolor" value="#7A7F87" style="display:none" aria-label="' + esc(t('newspot_cat_color')) + '"></div>';
     }

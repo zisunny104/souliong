@@ -15,3 +15,16 @@ AXE_PATH=/path/to/axe-core/axe.min.js node tools/displaycheck.js
 正式站曾進行唯讀檢查，未修改投稿或專案內容。正式站的檢查是在修正部署前執行，不能視為部署後驗收；字型下載亦未納入該次檢查。
 
 尚待實機使用 NVDA、VoiceOver／TalkBack 確認宣告，以及正式嵌入視窗內外的焦點操作。自訂圖磚、類別配色、投稿內容及照片替代文字仍需依實際素材檢查；自動通過不代表全面符合 WCAG。
+
+## 全站頁面與後台檢核
+
+`tools/accessibilitycheck.js` 使用隔離專案，在 390／1280 像素檢查首頁、隱私頁、PIN／帳號登入、訪客地圖、點位面板、投稿、建立點位、Markdown 說明、投稿嵌入及純地圖嵌入。後台涵蓋總覽、專案、投稿權限、紀錄、工具頁，以及展開的設定內容和專案設定／圖磚／封面／地標圖片／樣式包視窗。
+
+補齊主內容區域、語言導覽、欄位及視窗名稱、表格操作欄與標題層級；登入方式切換可使用鍵盤 Enter。既有字級、排版及資料保留。投稿與建立點位另以 `tools/contributionuicheck.js` 驗證焦點、表單順序及送出流程。
+
+```bash
+AXE_PATH=/path/to/axe-core/axe.min.js node tools/accessibilitycheck.js
+node tools/contributionuicheck.js
+```
+
+本次自動檢核沒有回報違規。測試以模擬地圖引擎隔離外部網路，因此未驗證正式圖磚、外部字型、真實素材及各瀏覽器的地圖操作；輔助科技與正式嵌入仍須依上述實機項目確認。結果不是全站 WCAG 認證。

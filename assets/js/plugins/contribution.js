@@ -138,7 +138,7 @@
         '<div id="' + this.ids.modal + '" class="contrib-modal" role="dialog" aria-modal="true" aria-labelledby="' + this.ids.modal + '-title">' +
           '<div class="modal-box">' +
             '<div class="modal-head">' +
-              '<h3 id="' + this.ids.modal + '-title">' + esc(t(spot ? 'create_dialog_title' : 'contrib_dialog_title')) + '</h3>' +
+              '<h3 aria-level="2" id="' + this.ids.modal + '-title">' + esc(t(spot ? 'create_dialog_title' : 'contrib_dialog_title')) + '</h3>' +
               '<button class="btn" onclick="MapApp.' + closeFn + '()">' + esc(t('close')) + '</button>' +
             '</div>' +
             tabsHtml +
@@ -441,7 +441,7 @@
           kind.extraBottomHtml() +
           (kind.needsSpot()
             ? '<label class="c-lab">' + esc(t('related_spot_label_multi')) + '</label>' +
-              '<div class="row"><select class="c-spot"></select><button class="btn small c-nearest" type="button">' + esc(t('nearest_btn')) + '</button></div>'
+              '<div class="row"><select class="c-spot" aria-label="' + esc(t('related_spot_label_multi')) + '"></select><button class="btn small c-nearest" type="button">' + esc(t('nearest_btn')) + '</button></div>'
             : '') +
           (kind.needsLocation()
             ? '<div class="mini"></div><div class="location-tools"><div class="loc"></div><button class="btn small c-reset-loc" type="button">' + esc(t('reset_location_btn')) + '</button></div>'

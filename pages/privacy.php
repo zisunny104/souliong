@@ -17,6 +17,8 @@ $marker = '<!-- site:content -->';
 $pos = strpos($md, $marker);
 $body = Markdown::toHtml($pos !== false ? substr($md, $pos + strlen($marker)) : $md, ['heading_offset' => 1]);
 
+$body = preg_replace('/<h3\b/', '<h3 aria-level="2"', $body);
+
 header('Content-Type: text/html; charset=utf-8');
 ?>
 <!DOCTYPE html>
@@ -172,14 +174,14 @@ header('Content-Type: text/html; charset=utf-8');
 </head>
 
 <body>
-  <div class="wrap">
+  <div class="wrap" role="main">
     <a class="back" href="<?= $b ?>">← 返回地圖列表 · Back</a>
     <h1>隱私與資料說明</h1>
     <p class="lead">Privacy &amp; Data Notice — 我們盡量少收資料、以去識別方式處理，且不使用第三方追蹤或廣告。<br>We collect as little as possible, keep it de-identified, and use no third-party tracking or ads.</p>
 
     <?= $body ?>
 
-    <footer>© 2026 prjToka · Souliong 循跡 · 本頁為平台通則，各地圖另可能有自訂的投稿說明。</footer>
+    <footer role="none">© 2026 prjToka · Souliong 循跡 · 本頁為平台通則，各地圖另可能有自訂的投稿說明。</footer>
   </div>
 </body>
 
