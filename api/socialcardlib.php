@@ -65,7 +65,7 @@ function souliong_social_data(array $cfg, string $project, array $meta, string $
     return [
         'kind' => $entry ? 'entry' : ($spot ? 'spot' : 'project'),
         'entryKind' => $kind,
-        'entryLabel' => $entry ? souliong_kind_label($kind) : '',
+        'entryLabel' => $entry ? i18n_t(i18n_dict('zh_TW'), 'og_entry_label') : '',   // 投稿一律寫「投稿」，種類由畫面本身（照片、播放列、文字）表達
         'brand' => i18n_t(i18n_dict('zh_TW'), 'app_title'),   // 與首頁相同的平台名稱（中英並列）
         'projectTitle' => $title,
         'title' => $spot ? souliong_og_spot_title($spotName, (int)$spot['num'], $meta['numbering'] ?? 'suffix') : $title,

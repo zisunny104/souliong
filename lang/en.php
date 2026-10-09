@@ -231,6 +231,7 @@ return [
     'contrib_photo_alt'      => 'Contributed item',
     'anon_fallback'          => 'Anonymous',
     'og_entry_fallback'      => '{kind} shared by {name}',
+    'og_entry_label'         => 'Contribution',
     'edited_tag'             => 'Edited',
     'edit'                   => 'Edit',
     'delete'                 => 'Delete',
