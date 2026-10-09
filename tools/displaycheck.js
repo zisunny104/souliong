@@ -26,10 +26,17 @@ const {chromium}=require(process.env.PLAYWRIGHT_PATH||'playwright');
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await context.route('**/*',async route=>{
    const url=new URL(route.request().url());if(url.origin!==base)return route.abort();
-   if((url.searchParams.get('f')||url.pathname).endsWith('/maplibre-engine.js'))return route.fulfill({contentType:'application/javascript',body:'window.MapLibreEngine=class {constructor(){this.supportsSnapshot=false;} getZoom(){return window.testZoom??13;} markerElements(){return new Map();} mountControls(){} onZoomEnd(fn){window.testZoomEnd=fn;} onZoomThresholdCross(z,fn){window.testZoomCross=fn;} fitBounds(){} setMarkerLayer(key,specs){(window.testLayers||=( {} ))[key]=specs;} clearMarkerLayer(key){(window.testLayers||=( {} ))[key]=[];} onBackgroundClick(){} panTo(){} applyTheme(){} setView(){} createMiniPicker(){return {onChange(){},setPosition(){},destroy(){}}}};'});
+   if((url.searchParams.get('f')||url.pathname).endsWith('/maplibre-engine.js'))return route.fulfill({contentType:'application/javascript',body:'window.MapLibreEngine=class {constructor(options){this.supportsSnapshot=false;window.testInitialOptions=options;window.testFits=0;} getZoom(){return window.testZoom??13;} markerElements(){return new Map();} mountControls(){} onZoomEnd(fn){window.testZoomEnd=fn;} onZoomThresholdCross(z,fn){window.testZoomCross=fn;} fitBounds(){window.testFits++;} setMarkerLayer(key,specs){(window.testLayers||=( {} ))[key]=specs;} clearMarkerLayer(key){(window.testLayers||=( {} ))[key]=[];} onBackgroundClick(){} panTo(){} applyTheme(){} setView(){} createMiniPicker(){return {onChange(){},setPosition(){},destroy(){}}}};'});
    return route.continue();
   });
   async function open(){await page.goto(base+'/test');await page.waitForFunction(()=>window.MapApp?.effectiveSpots().length===1,null,{timeout:10000}).catch(e=>{console.error(errors);throw e;});await page.evaluate(()=>MapApp.openPanel(MapApp.effectiveSpots()[0]));}
+  for (const mode of ['meta','fit']) {
+   meta.initialView=mode;meta.center=[23.1,121.2];meta.zoom=0;
+   fs.writeFileSync(tmp+'/projects/test/meta.json',JSON.stringify(meta));await open();
+   assert.equal(await page.evaluate(()=>window.testFits),mode==='fit'?1:0);
+   assert.equal(await page.evaluate(()=>window.testInitialOptions.zoom),0);
+   assert.deepEqual(await page.evaluate(()=>window.testInitialOptions.center),meta.center);
+  }
   await open();assert.equal(await page.locator('#personFilter option').first().textContent(),'點位清單');assert.equal(await page.locator('#spotFilterCount').textContent(),'1');
   for (const [cat, label, expected] of [['test',' 自訂類別 ','自訂類別'],['secret-code','',meta.title],['secret-code','   ',meta.title],['new','新增點位',meta.title],['new','new',meta.title]]) {
    const records=[{...spot,cat,catLabel:label},{...edit,cat,catLabel:label},entry,entryEdit];
@@ -40,6 +47,7 @@ const {chromium}=require(process.env.PLAYWRIGHT_PATH||'playwright');
   }
   fs.writeFileSync(tmp+'/projects/test/spots.jsonl',[spot,edit,entry,entryEdit].map(JSON.stringify).join('\n')+'\n');
   await open();
+  assert.deepEqual(await page.locator('.sc-block-link').first().evaluate(el=>[el.getBoundingClientRect().width,el.getBoundingClientRect().height]),[32,32]);
   const favicon=await (await fetch(base+'/?api=appasset&f=assets/favicon.svg'));
   assert.equal(favicon.status,200);assert.equal(favicon.headers.get('content-type'),'image/svg+xml');
   meta.features.delegation=true;meta.features.categoryLegend=false;
@@ -69,6 +77,13 @@ const {chromium}=require(process.env.PLAYWRIGHT_PATH||'playwright');
   await context.addCookies([{name:auth.name,value:auth.token,url:base}]);
   await page.setViewportSize({width:390,height:844});
   await open();await page.locator('#spotEditBtn').click();
+  await page.locator('.pt-inherit-color').uncheck();await page.locator('.pt-color').fill('#123456');
+  await page.locator('.pt-save').click();await page.waitForFunction(()=>MapApp.effectiveSpots()[0].color==='#123456');
+  await open();assert.equal(await page.evaluate(()=>MapApp.effectiveSpots()[0].markerColor),'#123456');
+  await page.locator('#spotEditBtn').click();await page.locator('.pt-inherit-color').check();
+  await page.locator('.pt-save').click();await page.waitForFunction(()=>MapApp.effectiveSpots()[0].markerColor==='');
+  assert.equal(await page.evaluate(()=>MapApp.effectiveSpots()[0].color),'#aa3311');
+  await open();await page.locator('#spotEditBtn').click();
   for(const [icon,url] of [['link','https://example.com/a'],['instagram','https://instagram.com/one'],['instagram','https://instagram.com/two']]){
    await page.locator('.add-spot-link').click();const row=page.locator('.spot-link-row').last();await row.locator('select').selectOption(icon);await row.locator('input').fill(url);
   }
@@ -91,11 +106,15 @@ const {chromium}=require(process.env.PLAYWRIGHT_PATH||'playwright');
   await form.locator('select[name="pinMark"]').selectOption('icon');
   await form.locator('select[name="categoryIcons[test]"]').selectOption('mug-hot');
   assert.ok(await form.locator('[data-pin-icon-select]').last().evaluate(el=>el.parentElement.querySelector('.pin-icon-preview svg path').getAttribute('d').length>10));
+  await form.locator('select[name="initialView"]').evaluate(el=>el.closest('details').open=true);
+  await form.locator('select[name="initialView"]').selectOption('meta');
   await form.locator('input[name="featuredColor"]').fill('#a87820');
   await form.locator('select[name="numbering"]').selectOption('disable');
   await form.locator('textarea[name="bylineFormats[spot]"]').fill('{name}｜{date} {time} <script>');
   await form.evaluate(async el=>{const response=await fetch(el.action||location.href,{method:'POST',body:(()=>{const data=new FormData(el);data.set('categoryIcons[new]','fa-solid fa-user onclick=alert(1)');return data;})()});if(!response.ok)throw Error('儲存失敗 '+response.status);});
   await open();
+  assert.equal(await page.evaluate(()=>MapApp.getMeta().initialView),'meta');
+  assert.equal(await page.evaluate(()=>window.testFits),0);
   const star=page.locator('.entry-featured-star');
   assert.equal(await star.count(),1);assert.equal(await star.getAttribute('aria-pressed'),'false');
   assert.deepEqual(await star.locator('svg').evaluate(el=>[el.getAttribute('width'),el.getAttribute('height')]),['20','20']);
@@ -222,6 +241,9 @@ const {chromium}=require(process.env.PLAYWRIGHT_PATH||'playwright');
   // 各型別共用操作列：編輯與分享、引用相鄰，授權文字接在後面。
   meta.features={...meta.features,contentEdit:true,share:true};meta.contrib.kinds=['photo','audio','video','text'];
   fs.writeFileSync(tmp+'/projects/test/meta.json',JSON.stringify(meta));
+  await open();await page.locator('#shareBtn').click();
+  assert.deepEqual(await page.locator('#shareCopyBtn').evaluate(el=>[el.getBoundingClientRect().width,el.getBoundingClientRect().height]),[32,32]);
+  await page.locator('.share-close').click();
   const actionEntries=['photo','audio','video','text'].map((kind,i)=>({...entry,id:'action-'+kind,kind,comment:'操作測試 '+kind,...(kind==='photo'?{photo:'test.jpg'}:kind==='text'?{}:{media:'test.'+(kind==='audio'?'m4a':'mp4')})}));
   fs.writeFileSync(tmp+'/projects/test/spots.jsonl',[spot,edit,...actionEntries].map(JSON.stringify).join('\n')+'\n');
   await open();
@@ -229,12 +251,12 @@ const {chromium}=require(process.env.PLAYWRIGHT_PATH||'playwright');
     const card=page.locator('.entry.sl-kind-'+kind),footer=card.locator('.entry-footer');
     assert.equal(await card.locator('.edit-btn').count(),1);
     assert.equal(await card.locator('[data-entry-link]').count(),1);
-    const state=await footer.evaluate(el=>({orders:[getComputedStyle(el.querySelector('.entry-link-actions')).order,getComputedStyle(el.querySelector(':scope > .entry-icon-action')).order,getComputedStyle(el.querySelector('.entry-actions')).order,getComputedStyle(el.querySelector('.entry-license')).order],buttons:[...el.querySelectorAll('button')].map(b=>({label:b.getAttribute('aria-label'),title:b.title,text:b.textContent.trim(),width:b.getBoundingClientRect().width}))}));
+    const state=await footer.evaluate(el=>({orders:[getComputedStyle(el.querySelector('.entry-link-actions')).order,getComputedStyle(el.querySelector(':scope > .entry-icon-action')).order,getComputedStyle(el.querySelector('.entry-actions')).order,getComputedStyle(el.querySelector('.entry-license')).order],buttons:[...el.querySelectorAll('button')].map(b=>({label:b.getAttribute('aria-label'),title:b.title,text:b.textContent.trim(),width:b.getBoundingClientRect().width,height:b.getBoundingClientRect().height}))}));
     assert.deepEqual(state.orders,['1','2','3','4']);
-    assert.ok(state.buttons.every(b=>b.label&&b.title&&b.text===''&&b.width===32));
+    assert.ok(state.buttons.every(b=>b.label&&b.title&&b.text===''&&b.width===32&&b.height===32));
     await card.locator('.edit-btn').click();assert.ok(await card.locator('.photo-editor').isVisible());
   }
-  for(const selector of ['#spotEditBtn','.sc-edit-btn']){
+  for(const selector of ['#spotEditBtn','.sc-edit-btn','#histBtn']){
     const button=page.locator(selector);assert.equal(await button.count(),1);
     assert.ok(await button.getAttribute('aria-label'));assert.ok(await button.getAttribute('title'));assert.equal((await button.textContent()).trim(),'');
     assert.equal(await button.evaluate(el=>el.getBoundingClientRect().width),32);

@@ -232,7 +232,7 @@ window.MapLibreEngine = (() => {
         container: o.container,
         style: this._styleFor(this._dark),
         center: [o.center ? o.center[1] : 120.7, o.center ? o.center[0] : 23.9],
-        zoom: o.zoom || 14,
+        zoom: o.zoom ?? 14,
         attributionControl: false,
         preserveDrawingBuffer: true,   // 讓 getCanvasDataURL() 讀得到畫面（見下方快照擷圖）；WebGL 預設畫完就可能清緩衝區
       });

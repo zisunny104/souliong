@@ -1121,4 +1121,9 @@ return [
     'contribution_no_end' => 'No expiry',
     'contribution_cancelled_hint' => 'Cancelled before it started; it was never open.',
     'contribution_newspot_shared_hint' => 'This setting also applies to contributors using submission codes.',
+    'spot_marker_color' => 'Marker color',
+    'spot_marker_inherit' => 'Use category color',
+    'initial_view_label' => 'Initial view',
+    'initial_view_meta' => 'Project settings',
+    'initial_view_fit' => 'Fit all spots',
 ];

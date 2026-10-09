@@ -15,7 +15,7 @@ require_once __DIR__ . '/routes.php';
  *  spot_append_version() 與其呼叫端都以這份清單為準，不要各自硬編一份欄位名單。 */
 function spot_overridable_fields(): array
 {
-    return ['lat', 'lon', 'content', 'links'];
+    return ['lat', 'lon', 'content', 'links', 'markerColor'];
 }
 
 /**

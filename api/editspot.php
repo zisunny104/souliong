@@ -39,6 +39,11 @@ try {
         try { $changes['links'] = spot_links_validate(json_decode($_POST['links'], true)); }
         catch (Throwable $e) { json_out(['error' => '連結格式錯誤，請確認網址、圖示及筆數'], 400); }
     }
+    if (array_key_exists('markerColor', $_POST)) {
+        $color = $_POST['markerColor'];
+        if (!is_string($color) || ($color !== '' && !preg_match('/^#[0-9a-f]{6}$/iD', $color))) json_out(['error' => '地標顏色格式錯誤'], 400);
+        $changes['markerColor'] = strtolower($color);
+    }
     $name   = clean_str($_POST['name'] ?? null, $cfg['name_max']) ?? '管理者';
     $record = spot_append_version($cfg, $project, $eff, $changes, $actor->audit(), $name);
     json_out(['ok' => true, 'item' => $record]);

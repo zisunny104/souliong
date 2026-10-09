@@ -29,7 +29,7 @@ window.MapApp = (() => {
     spots: params.get('spots') !== '0',
     contributions: params.get('contributions') !== '0',
   } : null;
-  const VIEW_MODE = EMBED_UI ? EMBED_UI.view : 'fit';
+  const initialViewMode = () => EMBED_UI ? EMBED_UI.view : (META.initialView === 'fit' ? 'fit' : 'meta');
   let showSpots = !EMBED_UI || EMBED_UI.spots;
   let showContributions = !EMBED_UI || EMBED_UI.contributions;
   function setDisplay(display) {
@@ -710,7 +710,7 @@ window.MapApp = (() => {
       });
       eff.content = asBlocks(eff.content);
       return {
-        ...eff, cat: o.cat || 'new', color: SouliongMarkerColors.spot(META, o),
+        ...eff, cat: o.cat || 'new', color: SouliongMarkerColors.spot(META, eff), categoryColor: SouliongMarkerColors.spot(META, { ...eff, markerColor: '' }),
         addedBy: o.name, addedAt: o.created_at,
         posEdited: eff.lat !== o.lat || eff.lon !== o.lon, origLat: o.lat, origLon: o.lon,
         contentVersions, contentRev,
@@ -1109,7 +1109,7 @@ window.MapApp = (() => {
   const catDefaulted = {};   // ?cat= 的預設只對「第一次出現」的分類套用，不覆蓋使用者後來按過的開關
   function rebuildCats() {
     const seen = {};
-    effectiveSpots().forEach(c => { if (c.cat && !seen[c.cat]) seen[c.cat] = { key: c.cat, label: categoryDisplayName(c), color: c.color }; });
+    effectiveSpots().forEach(c => { if (c.cat && !seen[c.cat]) seen[c.cat] = { key: c.cat, label: categoryDisplayName(c), color: c.categoryColor }; });
     const order = (META && META.categoryOrder) || catOrder;
     CATS = order.filter(k => seen[k]).map(k => seen[k]);
     Object.keys(seen).forEach(k => { if (!CATS.find(c => c.key === k)) CATS.push(seen[k]); });
@@ -1305,6 +1305,7 @@ window.MapApp = (() => {
     const c = current;
     const lat0 = c.lat, lon0 = c.lon;
     el.innerHTML =
+      '<label>' + esc(t('spot_marker_color')) + ' <input type="color" class="pt-color" value="' + esc(c.color) + '"></label><label><input type="checkbox" class="pt-inherit-color"' + (c.markerColor ? '' : ' checked') + '> ' + esc(t('spot_marker_inherit')) + '</label>' +
       '<div class="mini pt-mini"></div><div class="spot-links-editor"><div class="spot-link-rows"></div><button type="button" class="btn small add-spot-link">' + esc(t('spot_link_add')) + '</button></div>' +
       '<div class="row">' +
       '<button class="btn small pt-revert" type="button">' + esc(t('reset_location_btn')) + '</button>' +
@@ -1322,6 +1323,10 @@ window.MapApp = (() => {
     }
     (Array.isArray(c.links) ? c.links : []).slice(0, 30).forEach(addLink);
     addButton.onclick = () => { if (rows.children.length < 30) { addLink(); rows.lastElementChild.querySelector('input').focus(); } };
+    const colorInput = el.querySelector('.pt-color');
+    const inheritColor = el.querySelector('.pt-inherit-color');
+    colorInput.disabled = inheritColor.checked;
+    inheritColor.onchange = () => { colorInput.disabled = inheritColor.checked; };
     const miniDiv = el.querySelector('.pt-mini');
     const picker = engine.createMiniPicker(miniDiv, { lat: lat0, lon: lon0, zoom: 17 });
     el._picker = picker;
@@ -1340,7 +1345,7 @@ window.MapApp = (() => {
     btn.disabled = true; status.textContent = t('saving');
     try {
       const links = [...panel.querySelectorAll('.spot-link-row')].map(row => ({ icon: row.querySelector('select').value, url: row.querySelector('input').value.trim() })).filter(link => link.url);
-      await submitSpotEdit(orig.num, { lat: state.lat, lon: state.lon, links });
+      await submitSpotEdit(orig.num, { lat: state.lat, lon: state.lon, links, markerColor: panel.querySelector('.pt-inherit-color').checked ? '' : panel.querySelector('.pt-color').value });
       resetSpotEditor();
     } catch (err) {
       status.textContent = t('save_failed', { err: err.message });
@@ -1366,6 +1371,7 @@ window.MapApp = (() => {
     fd.append('name', fields.name || displayName());
     if (APP.csrf) fd.append('csrf', APP.csrf);
     ['lat', 'lon'].forEach(k => { if (fields[k] !== undefined && fields[k] !== null) fd.append(k, fields[k]); });
+    if (fields.markerColor !== undefined) fd.append('markerColor', fields.markerColor);
     if (fields.links !== undefined) fd.append('links', JSON.stringify(fields.links));
     const res = await fetch(apiUrl('editspot'), { method: 'POST', body: fd });
     const j = await res.json().catch(() => ({ error: 'HTTP ' + res.status }));
@@ -1537,7 +1543,7 @@ window.MapApp = (() => {
       '<div class="sc-list">' + (blocks.length ? '' : '<div class="story-body"><span class="sc-empty">' + esc(t('story_empty')) + '</span></div>') + '</div>' +
       (blocks.length ? contentBylineHtml(current) : '') +
       '<div class="story-actions" id="storyActions">' +
-      (!EMBED && MOD('spotHistory') && versions.length > 1 ? '<button class="btn small" id="histBtn">' + esc(t('history_versions', { n: versions.length })) + '</button>' : '') +
+      (!EMBED && MOD('spotHistory') && versions.length > 1 ? '<button class="btn small" id="histBtn" type="button" title="' + esc(t('history_versions', { n: versions.length })) + '" aria-label="' + esc(t('history_versions', { n: versions.length })) + '"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i></button>' : '') +
       '</div><div id="descHistory" style="display:none"></div>';
     const list = story.querySelector('.sc-list');
     blocks.forEach(item => {
@@ -2082,7 +2088,7 @@ window.MapApp = (() => {
       window.maplibregl = await import('https://unpkg.com/maplibre-gl@6.6.0/dist/maplibre-gl.mjs');
     }
     engine = new window.MapLibreEngine({
-      container: 'map', center: META.center || [23.9, 120.7], zoom: META.zoom || 14,
+      container: 'map', center: META.center || [23.9, 120.7], zoom: META.zoom ?? 14,
       dark: isDark(), manifests: layerManifests(),
     });
     engine.mountControls({ zoomPosition: 'bottomleft', attributionPosition: 'bottomright', opButtons: [{ el: document.getElementById('resetBtn') }, { el: document.getElementById('locateBtn') }] });
@@ -2094,7 +2100,7 @@ window.MapApp = (() => {
     buildLegend();
     renderSpots();
     // 嵌入 view=meta／none 不自動 fitBounds：鏡頭已在引擎建構時設為 meta center/zoom
-    if (SPOTS.length && VIEW_MODE === 'fit') engine.fitBounds(SPOTS.map(c => [c.lat, c.lon]), { pad: 0.08 });
+    if (SPOTS.length && initialViewMode() === 'fit') engine.fitBounds(SPOTS.map(c => [c.lat, c.lon]), { pad: 0.08 });
     emitHook('engineReady', engine);
 
     // 封面快照要等圖磚真的畫完才擷圖，不然存到的是半載入的畫面；只有 MapLibre 引擎有 'idle' 事件
@@ -2364,8 +2370,8 @@ window.MapApp = (() => {
   // 重置地圖回初始視角（左下地圖操作）
   function resetView() {
     if (!engine) return;
-    if (SPOTS && SPOTS.length) engine.fitBounds(effectiveSpots().map(c => [c.lat, c.lon]), { pad: 0.08 });
-    else engine.setView(META.center || [23.9, 120.7], META.zoom || 14);
+    if (initialViewMode() === 'fit' && SPOTS && SPOTS.length) engine.fitBounds(effectiveSpots().map(c => [c.lat, c.lon]), { pad: 0.08 });
+    else engine.setView(META.center || [23.9, 120.7], META.zoom ?? 14);
     feature('reset');
   }
   // 標題單擊 → 若名稱溢出則跑馬燈一次（與形狀彩蛋並存，兩者都綁在同一次點擊）

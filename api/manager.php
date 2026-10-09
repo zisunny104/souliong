@@ -874,6 +874,7 @@ if (!$authed) {
             if ($embOnly) $meta['layersEmbedOnly'] = $embOnly;
             else unset($meta['layersEmbedOnly']);
           }
+          if (isset($_POST['initialView']) && in_array($_POST['initialView'], ['meta', 'fit'], true)) $meta['initialView'] = $_POST['initialView'];
           // 依目前點位重算預設視角（假設視窗約 800x560、邊距 8%）；沒有有效點位就不動
           if (!empty($_POST['refit_view'])) {
             $la = [];
@@ -3945,6 +3946,7 @@ if (!$authed) {
                     </select>
                   </label>
                   <div class="hint"><?= $t('maplabel_hint') ?></div>
+                  <label><?= $t('initial_view_label') ?><select name="initialView"><option value="meta" <?= ($meta['initialView'] ?? 'meta') !== 'fit' ? 'selected' : '' ?>><?= $t('initial_view_meta') ?></option><option value="fit" <?= ($meta['initialView'] ?? 'meta') === 'fit' ? 'selected' : '' ?>><?= $t('initial_view_fit') ?></option></select></label>
                   <label class="modrow"><input type="checkbox" name="refit_view" value="1"><span><?= $t('refit_view_label') ?></span></label>
                   <div class="hint"><?= $t('refit_view_hint') ?></div>
                   <input type="hidden" name="layers_submitted" value="1">

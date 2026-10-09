@@ -1123,4 +1123,9 @@ return [
     'contribution_no_end' => '無到期日',
     'contribution_cancelled_hint' => '此時段在開始前取消，未曾開放。',
     'contribution_newspot_shared_hint' => '此選項同樣適用於使用投稿碼的投稿者。',
+    'spot_marker_color' => '地標顏色',
+    'spot_marker_inherit' => '沿用分類顏色',
+    'initial_view_label' => '初始取景',
+    'initial_view_meta' => '專案設定',
+    'initial_view_fit' => '自動取景',
 ];
