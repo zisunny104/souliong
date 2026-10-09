@@ -59,10 +59,21 @@ async function main() {
       const engine = MapApp.getEngine(), map = engine.getRawMap();
       const errors = [];
       map.on('error', event => errors.push(event.error?.message || 'Map source error'));
-      // 預覽底圖不要文字：隱藏樣式裡所有帶文字的圖層（地標是疊在上面的 DOM 標記，不受影響）
-      (map.getStyle().layers || []).forEach(layer => {
-        if (layer.type === 'symbol' && layer.layout && layer.layout['text-field'] !== undefined) map.setLayoutProperty(layer.id, 'visibility', 'none');
-      });
+      // 預覽底圖不要文字：隱藏樣式裡所有帶文字的圖層（地標是疊在上面的 DOM 標記，不受影響）。
+      // 樣式可能還沒載完、之後也可能再加圖層，所以進場時做一次，之後每次樣式資料變動再補做；
+      // 任何一步出錯都只略過，不能讓文字隱藏連帶讓整張地圖失敗。
+      const hideLabels = () => {
+        try {
+          const layers = (map.getStyle() || {}).layers || [];
+          layers.forEach(layer => {
+            if (layer.type === 'symbol' && layer.layout && layer.layout['text-field'] !== undefined && map.getLayoutProperty(layer.id, 'visibility') !== 'none') {
+              map.setLayoutProperty(layer.id, 'visibility', 'none');
+            }
+          });
+        } catch (_) { /* 略過 */ }
+      };
+      hideLabels();
+      map.on('styledata', hideLabels);
       const spot = config.spot ? MapApp.effectiveSpots().find(s => String(s.id) === config.spot) : null;
       if (config.spot && !spot) throw new Error('Linked point is unavailable');
       const center = spot ? [spot.lon, spot.lat] : map.getCenter();
