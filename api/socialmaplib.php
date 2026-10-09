@@ -40,13 +40,15 @@ function souliong_social_map(array $cfg, string $project, ?string $spotId, int $
     if (!flock($lock, LOCK_EX | LOCK_NB)) { fclose($lock); return null; }
     $process = null; $pipes = [];
     try {
+        $home = rtrim($cfg['state_dir'], '/\\') . '/social-preview-home';
+        if (!is_dir($home)) @mkdir($home, 0775, true);
         $url = $runtime['origin'] . Route::map($project) . '?embed=1&ui=bare&view=meta&contributions=0';
         $process = @proc_open([$runtime['node'], dirname(__DIR__) . '/tools/social-preview-map.cjs'], [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
         if (!is_resource($process)) return null;
         fwrite($pipes[0], json_encode([
             'url' => $url, 'spot' => $spotId, 'zoom' => max(1, min(20, $zoom)),
             'playwright' => $runtime['playwright'], 'chromium' => $runtime['chromium'],
-            'debug' => !empty($cfg['debug']),
+            'debug' => !empty($cfg['debug']), 'home' => is_dir($home) && is_writable($home) ? $home : null,
             'allowedHosts' => array_values(array_filter((array)($cfg['social_preview_hosts'] ?? []), fn($host) => is_string($host) && preg_match('/^[a-z0-9.-]+$/iD', $host))),
         ], JSON_UNESCAPED_SLASHES));
         fclose($pipes[0]); unset($pipes[0]);
