@@ -49,7 +49,7 @@ if ($who === 'admin') {
 } else {
     // contributor：訪客建點走投稿軸同一道關卡（停權名單 → bypass_code → 投稿代碼並計一次使用），
     // 跟 upload.php 共用 contrib_gate()——建點跟投稿是等價的寫入行為，限次的碼不能無限建點。
-    // 點位軸（建立點位）與投稿軸本應分開計算（docs/part4-coordination.md 血淚教訓 #1），這裡把兩者
+    // 點位軸（建立點位）與投稿軸本應分開計算，這裡把兩者
     // 接在一起只是現況尚未拆開（newSpot 全站目前皆為 off，等於沒在跑），之後處理訪客建點權限模型時再釐清。
     $contributor = contrib_gate($cfg, $project, '建立點位');
 }

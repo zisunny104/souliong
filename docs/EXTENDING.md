@@ -260,7 +260,7 @@ CSS 全部前綴 `.stat-card .col`，因為要蓋過同層的 `.stat-card .col o
 比照 `api/packs.php`：註冊表就是資料夾底下的資料夾本身，沒有中央 index 檔，新增一層只要新增一個資料夾（內含 `layer.json`）。解析在 `api/layers.php`：
 
 - `souliong_layer_list($cfg, $proj)` — 掃兩層作用域，回傳 `[id => manifest]`，manifest 會被補上 `id`（資料夾名稱才算數，`layer.json` 內容不可覆寫）與 `scope`。
-- `souliong_layers_for($cfg, $meta, $proj)` — 這張地圖生效的**有序**陣列。`meta.json` 的 `"layers": ["paper-ink", "chungshing-art"]` 由下往上；沒有這個欄位就退回 `config` 的 `default_layers`（預設 `['paper-ink']`）。選到不存在的 id 會被靜靜略過；指定的 id 全都不存在時退回 `default_layers`，不讓整張地圖開天窗。
+- `souliong_layers_for($cfg, $meta, $proj)` — 這張地圖生效的**有序**陣列。`meta.json` 的 `"layers": ["paper-ink", "my-art"]` 由下往上；沒有這個欄位就退回 `config` 的 `default_layers`（預設 `['paper-ink']`）。選到不存在的 id 會被靜靜略過；指定的 id 全都不存在時退回 `default_layers`，不讓整張地圖開天窗。
 - `souliong_layers_public($cfg, $meta, $proj, $base)` — 前端版本，額外把相對 `url` 改寫成絕對網址。
 
 「特定專案才有插畫疊圖」不需要額外的開關：`meta.json` 沒寫就是沒有。
@@ -287,7 +287,7 @@ CSS 全部前綴 `.stat-card .col`，因為要蓋過同層的 `.stat-card .col o
 
 ```json
 {
-  "label": "中興新村手繪",
+  "label": "手繪地圖",
   "type": "image",
   "pane": "art",
   "url": "overlay.svg",
@@ -324,8 +324,8 @@ CSS 全部前綴 `.stat-card .col`，因為要蓋過同層的 `.stat-card .col o
 `layer.json` 的 `url` 若是相對路徑，代表圖檔就放在該層自己的資料夾裡。框架不供應靜態檔（理由同 `api/photo.php`），所以由 `api/layerfile.php` 輸出：
 
 ```
-圖磚   <base>/layer/100chairs/chungshing-art/tiles/16/54738/28275.png
-單張   <base>/layer/100chairs/demo-overlay/overlay.svg
+圖磚   <base>/layer/demo-project/my-art/tiles/16/54738/28275.png
+單張   <base>/layer/demo-project/demo-overlay/overlay.svg
 ```
 
 一支端點同時吃圖磚與單張：自繪插畫可能切成金字塔、也可能就是一張大透明 PNG／SVG，兩者只差在資料夾裡的路徑長相，`layer.json` 想換形式時網址結構不用跟著改。`<project>` 只決定解析範圍（專案層優先於全站層），全站層也走同一條網址——前端因此永遠拿到同一種網址形狀，不必知道圖層是誰的。

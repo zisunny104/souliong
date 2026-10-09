@@ -3,7 +3,7 @@
 // 資料夾本身，沒有中央 index 檔，新增一層只要新增一個資料夾。
 //
 // 跟主題包的差別在「數量與順序」：一張地圖只套一個 pack，卻可以疊好幾層圖層，而且由下往上的
-// 順序有意義，所以 meta.json 存的是有序陣列 "layers": ["paper-ink", "chungshing-art"]。
+// 順序有意義，所以 meta.json 存的是有序陣列 "layers": ["paper-ink", "my-art"]。
 // 沒有這個欄位 → 退回 config 的 default_layers，舊地圖行為不變。
 //
 // 為什麼底圖不做成插件（見 docs/EXTENDING.md 第七節的判準）：插件是「可以整包關掉、關掉後

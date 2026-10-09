@@ -73,7 +73,7 @@
     tabAccept(tab) { return this.tabKinds(tab).map(k => k.acceptAttr()).filter(Boolean).join(','); }
 
     // 分頁的文案。TABS 那份是「一個分頁涵蓋多種型別」時的通用說法，但分頁裡只剩一種型別
-    // 的地圖也不少（只開照片的舊地圖就是），這時要用型別自己的文案——否則 100chairs 會看到
+    // 的地圖也不少（只開照片的舊地圖就是），這時要用型別自己的文案——否則這類地圖會看到
     // 「媒體／選擇照片或影片」，講的是這張地圖根本沒開放的東西。
     tabMeta(tab) {
       const meta = TABS[tab] || {};

@@ -577,7 +577,7 @@ window.MapApp = (() => {
     }
     return '<div class="who byline-text">' + esc(bylineText('entry', e.name, stamp)) + edited + '</div>';
   }
-  // 點位的顯示名稱。欄位名稱依資料來源而異（100chairs 是 theme／chair，一般地圖是 title，
+  // 點位的顯示名稱。欄位名稱依資料來源而異（部分地圖是 theme／chair，一般地圖是 title，
   // 訪客建立的點位也是 title），下拉選單與標題都走這一個函式，加新來源時只要改這裡。
   const spotName = (p) => p.theme || p.title || p.chair || '';
   function spotTitle(p) {

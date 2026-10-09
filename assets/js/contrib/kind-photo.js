@@ -65,7 +65,7 @@
 
     acceptAttr() { return window.SLPhotoTools.acceptAttr(); }
     accepts(file) { return window.SLPhotoTools.accepts(file); }
-    // 沒開放影片的地圖（例如 100chairs）媒體分頁只剩照片，按鈕就不該寫成「照片或影片」
+    // 沒開放影片的地圖（例如某些只收照片的地圖）媒體分頁只剩照片，按鈕就不該寫成「照片或影片」
     tabLabel() { return 'tab_photo'; }
     pickLabel() { return 'pick_photos_btn'; }
     pickHint() { return 'pick_photos_hint'; }

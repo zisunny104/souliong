@@ -1,8 +1,8 @@
 <?php
 // 由 PHP 輸出圖層圖檔（框架不供應靜態檔，理由同 api/photo.php）。
 // 用法：<base>/layer/<project>/<id>/<相對路徑>
-//   圖磚   <base>/layer/100chairs/chungshing-art/tiles/16/54738/28275.png
-//   單張   <base>/layer/100chairs/chungshing-art/overlay.svg
+//   圖磚   <base>/layer/<project>/<layer-id>/tiles/16/54738/28275.png
+//   單張   <base>/layer/<project>/<layer-id>/overlay.svg
 //
 // 為什麼是一支端點而不是「圖磚一支、單張一支」：自繪插畫可能切成金字塔，也可能就是一張大
 // 透明 PNG／SVG，兩者只差在資料夾裡的路徑長相。用同一支端點吃，layer.json 想換形式時
