@@ -282,11 +282,12 @@ function souliong_social_render(array $data, string $font, ?string $bold = null)
     // 專案預覽的文字欄標題已經是專案名稱，不再重複放膠囊
     $titleLines = $data['kind'] === 'project' ? [] : souliong_social_wrap($data['projectTitle'], $bold ?: $font, 23, 520, 1);
     if ($titleLines) {
+        // 置中在整張圖的中線；最寬約 580px，落在 LINE 裁成正方形（中間約 630px）的範圍內，名稱太長就在單行結尾加「…」
         $box = imagettfbbox(23, 0, $bold ?: $font, $titleLines[0]);
-        // 離左緣 300px：LINE 最壞裁成正方形時（中間約 630px）仍在畫面內
-        souliong_social_pill($canvas, 300, 86 + $box[5] - 14, 328 + ($box[2] - $box[0]) + 28, 86 + $box[1] + 14);
+        $titleW = $box[2] - $box[0]; $titleX = 600 - (int)($titleW / 2);
+        souliong_social_pill($canvas, $titleX - 28, 86 + $box[5] - 14, $titleX + $titleW + 28, 86 + $box[1] + 14);
+        souliong_social_text_bold($canvas, $data['projectTitle'], $font, $bold, 23, $titleX, 86, 520, 1, $accent, 32);
     }
-    if ($titleLines) souliong_social_text_bold($canvas, $data['projectTitle'], $font, $bold, 23, 328, 86, 520, 1, $accent, 32);
     $hasPhoto = false;
     if (!empty($data['image']) && ($decoded = souliong_image_decode_file($data['image']))) {
         [$source, $w, $h] = $decoded;
