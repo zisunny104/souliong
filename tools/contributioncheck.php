@@ -212,6 +212,17 @@ ck($c === 403, 'project excludes photos even while code-free');
 ck($c === 200, 'text-only project accepts code-free text');
 [$c, $r] = cc_post($url, array_replace($fields, ['kind' => 'audio']), ['media' => ['test.wav', $wav]], null);
 ck($c === 200, 'project-enabled audio uses same code-free gate', [$c, $r]);
+$aacFile = "$sb/test.aac";
+$gen = proc_open(['ffmpeg','-y','-v','error','-f','lavfi','-i','sine=frequency=440:duration=1','-c:a','aac','-f','adts',$aacFile], [1=>['file',"$sb/ffmpeg.log",'a'],2=>['file',"$sb/ffmpeg.log",'a']], $genPipes);
+if (is_resource($gen) && proc_close($gen) === 0) {
+    [$c, $r] = cc_post($url, array_replace($fields, ['kind'=>'audio']), ['media'=>['test.aac',file_get_contents($aacFile)]], null);
+    ck($c === 200 && str_ends_with($r['item']['media'] ?? '', '.m4a') && ($r['item']['media_mime'] ?? '') === 'audio/mp4', 'real AAC upload is stored as lossless M4A', [$c,$r]);
+    $rawCfg = $cfg; $rawCfg['ffmpeg_bin'] = '/nonexistent/souliong-ffmpeg'; cc_write("$sb/cfg.json", $rawCfg);
+    [$c, $r] = cc_post($url, array_replace($fields, ['kind'=>'audio']), ['media'=>['test.aac',file_get_contents($aacFile)]], null);
+    ck($c === 200 && str_ends_with($r['item']['media'] ?? '', '.aac'), 'AAC upload without FFmpeg retains original', [$c,$r]);
+    cc_write("$sb/cfg.json", $cfg);
+} else echo "SKIP: AAC endpoint checks require FFmpeg\n";
+
 ck(souliong_contrib_cfg($long)['captions'] === ['audio'], 'captions default to every enabled media kind');
 $nocap = $long; $nocap['contrib']['noCaption'] = ['audio']; cc_write($metaPath, $nocap);
 ck(souliong_contrib_cfg($nocap)['captions'] === [], 'noCaption turns captions off per kind');

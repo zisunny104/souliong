@@ -279,7 +279,52 @@ check_admin_login() {
   fi
 }
 
+ffmpeg_ready() {
+  [ "$HAS_PHP" -eq 1 ] || return 1
+  php -r '
+    require "api/uploadlib.php";
+    $c = is_file("api/config.php") ? require "api/config.php" : [];
+    exit(uploadlib_ffmpeg_bin($c) === null ? 1 : 0);
+  ' >/dev/null 2>&1
+}
+
+check_ffmpeg() {
+  step "音訊工具"
+  if ffmpeg_ready; then
+    ok "PHP CLI 可執行 FFmpeg：AAC 可直接封裝為 M4A（不重新編碼）"
+    return 0
+  fi
+  warn "FFmpeg 不可用：AAC 仍可上傳原檔，部分瀏覽器可能無法播放"
+  local answer="n" installer=()
+  if command -v apt-get >/dev/null 2>&1; then
+    if [ -t 0 ]; then
+      read -r -p "  要現在安裝 FFmpeg 嗎？ [Y/n] " answer || answer="n"
+    fi
+    case "$answer" in
+      ''|y|Y|yes|YES)
+        if [ "$(id -u)" -ne 0 ]; then
+          if command -v sudo >/dev/null 2>&1; then installer=(sudo)
+          else warn "安裝需要 root 或 sudo；AAC 原檔上傳仍可使用"; return 0; fi
+        fi
+        if "${installer[@]}" apt-get update && "${installer[@]}" apt-get install -y ffmpeg; then
+          if ffmpeg_ready; then
+            ok "FFmpeg 已安裝，AAC 可直接封裝為 M4A"
+            return 0
+          fi
+          warn "套件已安裝，但 PHP CLI 仍無法執行 FFmpeg"
+        else
+          warn "FFmpeg 安裝未完成；AAC 原檔上傳仍可使用"
+        fi ;;
+      *) echo "  安裝：sudo apt-get update && sudo apt-get install -y ffmpeg" ;;
+    esac
+  else
+    echo "  請以系統套件管理工具安裝 ffmpeg"
+  fi
+  echo "  若已安裝，檢查 api/config.php 的 ffmpeg_bin 與 PHP 的 proc_open；PHP-FPM 也須能執行 FFmpeg"
+}
+
 run_selfcheck() {
+  check_ffmpeg
   step "設定與網站檢查"
   echo "  ${DIM}密鑰與權限需要人判斷，腳本只檢查、不代勞${RESET}"
   if [ ! -f api/config.php ]; then

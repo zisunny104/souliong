@@ -40,7 +40,7 @@ $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
 $mimes = [
     'mp4' => 'video/mp4', 'webm' => 'video/webm', 'mov' => 'video/quicktime',
     'weba' => 'audio/webm', 'mp3' => 'audio/mpeg', 'm4a' => 'audio/mp4',
-    'ogg' => 'audio/ogg', 'wav' => 'audio/wav',
+    'aac' => 'audio/aac', 'ogg' => 'audio/ogg', 'wav' => 'audio/wav',
     // 縮圖（th=1）也走這支輸出
     'webp' => 'image/webp', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png',
 ];

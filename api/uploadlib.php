@@ -159,7 +159,7 @@ function uploadlib_compress_photo(array $cfg, string $src, string $mime, array $
                     : ['tmp' => $out, 'mime' => 'image/jpeg', 'ext' => $allowed['image/jpeg']];
 }
 
-/** 主機有 ffmpeg 才做的影音重新編碼；沒有、逾時、失敗、沒變小都回 null（照原檔存）。 */
+/** FFmpeg 用於 AAC 換容器與選用壓縮；不可用／失敗時照原檔存。 */
 function uploadlib_ffmpeg_bin(array $cfg): ?string {
     static $bin = false;
     if ($bin !== false) return $bin;
@@ -174,20 +174,24 @@ function uploadlib_ffmpeg_bin(array $cfg): ?string {
     return $bin;
 }
 
-function uploadlib_compress_media(array $cfg, string $src, string $kind, array $allowed): ?array {
-    if (!($cfg['compress_media'] ?? true)) return null;
+function uploadlib_compress_media(array $cfg, string $src, string $kind, array $allowed, string $sourceMime = ''): ?array {
+    // 純 AAC 換成 M4A 容器，不重新編碼；與音訊壓縮開關及大小門檻分開。
+    $remux = $kind === 'audio' && in_array($sourceMime ?: detect_mime($src), ['audio/aac', 'audio/x-aac', 'audio/x-hx-aac-adts', 'audio/vnd.dlna.adts'], true);
+    if (!$remux && !($cfg['compress_media'] ?? true)) return null;
     $isVideo = ($kind === 'video');
     if (!$isVideo && $kind !== 'audio') return null;
     $size = @filesize($src);
-    if ($size === false || $size <= (int)($cfg[$isVideo ? 'compress_video_bytes' : 'compress_audio_bytes'] ?? ($isVideo ? 16 : 4) * 1048576)) return null;
-    $mime = $isVideo ? 'video/mp4' : 'audio/mpeg';
+    if ($size === false || $size < 1 || (!$remux && $size <= (int)($cfg[$isVideo ? 'compress_video_bytes' : 'compress_audio_bytes'] ?? ($isVideo ? 16 : 4) * 1048576))) return null;
+    $mime = $remux ? 'audio/mp4' : ($isVideo ? 'video/mp4' : 'audio/mpeg');
     if (!isset($allowed[$mime])) return null;
     $bin = uploadlib_ffmpeg_bin($cfg);
     if ($bin === null) return null;
     $out = tempnam(sys_get_temp_dir(), 'ulm');
-    $args = $isVideo
+    $args = $remux
+        ? [$bin, '-y', '-i', $src, '-map', '0:a:0', '-vn', '-c:a', 'copy', '-movflags', '+faststart', '-f', 'mp4', $out]
+        : ($isVideo
         ? [$bin, '-y', '-i', $src, '-vf', "scale='min(1280,iw)':-2", '-c:v', 'libx264', '-crf', '28', '-preset', 'veryfast', '-c:a', 'aac', '-b:a', '96k', '-movflags', '+faststart', '-f', 'mp4', $out]
-        : [$bin, '-y', '-i', $src, '-vn', '-c:a', 'libmp3lame', '-b:a', '96k', '-f', 'mp3', $out];
+        : [$bin, '-y', '-i', $src, '-vn', '-c:a', 'libmp3lame', '-b:a', '96k', '-f', 'mp3', $out]);
     $p = @proc_open($args, [1 => ['file', PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null', 'w'], 2 => ['file', PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null', 'w']], $pipes);
     if (!is_resource($p)) { @unlink($out); return null; }
     $deadline = microtime(true) + (int)($cfg['compress_media_timeout'] ?? 90);
@@ -200,7 +204,7 @@ function uploadlib_compress_media(array $cfg, string $src, string $kind, array $
     }
     proc_close($p);
     clearstatcache(true, $out);
-    if ($code !== 0 || filesize($out) < 1 || filesize($out) >= $size) { @unlink($out); return null; }
+    if ($code !== 0 || filesize($out) < 1 || (!$remux && filesize($out) >= $size)) { @unlink($out); return null; }
     return ['tmp' => $out, 'mime' => $mime, 'ext' => $allowed[$mime]];
 }
 
@@ -215,8 +219,9 @@ function uploadlib_store_file(array $cfg, string $project, array $file, string $
     $ext = $mimes[$mime];
     $packed = $subdir === 'photos'
         ? uploadlib_compress_photo($cfg, $file['tmp_name'], $mime, $mimes)
-        : uploadlib_compress_media($cfg, $file['tmp_name'], $kind, $mimes);
+        : uploadlib_compress_media($cfg, $file['tmp_name'], $kind, $mimes, $mime);
     if ($packed) { $mime = $packed['mime']; $ext = $packed['ext']; }
+    elseif ($ext === 'aac') { $mime = 'audio/aac'; }
     $destDir = project_dir($cfg, $project) . '/' . $subdir;
     if (!is_dir($destDir)) { @mkdir($destDir, 0775, true); }
     $fbase = date('Ymd_His', $tsHint ?? time()) . '_' . bin2hex(random_bytes(4));

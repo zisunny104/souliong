@@ -36,7 +36,7 @@
     // .webm／.mp4 也收：只有音軌的檔案，瀏覽器仍然照副檔名給 video/* 的 MIME（錄音存下來
     // 再重新選檔就是這種）。搶不到影片的檔案——SLContrib.match() 讓「目前分頁」的型別優先，
     // 在音訊分頁選它才輪得到這裡，同一個檔案在媒體分頁仍然是影片。
-    acceptAttr() { return 'audio/*,.weba,.webm,.opus,.m4a'; },
+    acceptAttr() { return 'audio/*,.aac,.weba,.webm,.opus,.m4a'; },
     accepts(file) { return /^audio\//i.test(file.type) || /\.(mp3|m4a|aac|ogg|oga|opus|wav|weba|webm|mp4)$/i.test(file.name); },
 
     // 讀完檔案把主檔、試聽網址、時長放進 state；建立的 object URL 記在 state.urls，由呼叫端回收

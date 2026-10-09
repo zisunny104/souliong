@@ -26,7 +26,7 @@ return [
     'compress_photo'         => true,           // 照片超過門檻就縮小（GD；WebP，沒有就 JPEG）
     'compress_photo_bytes'   => 1536 * 1024,    // 超過這個大小才壓，也是壓縮的目標大小
     'compress_photo_max_dim' => 2560,           // 長邊上限（px）
-    'compress_media'         => true,           // 影音重新編碼；主機沒有 ffmpeg 就自動略過
+    'compress_media'         => true,           // 大型影音重新編碼；純 AAC 換 M4A 不受此開關影響，無 ffmpeg 則存原檔
     'compress_video_bytes'   => 16 * 1024 * 1024,
     'compress_audio_bytes'   => 4 * 1024 * 1024,
     'compress_media_timeout' => 90,             // 單一檔案編碼秒數上限

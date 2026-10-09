@@ -684,3 +684,5 @@ CSS 全部前綴 `.stat-card .col`，因為要蓋過同層的 `.stat-card .col o
 嵌入地圖預設同時顯示點位和投稿。`spots=0` 隱藏地標，`contributions=0` 同時隱藏獨立投稿標記與數量角標。外部網站也可透過 postMessage 的 `setDisplay` 指令獨立切換；只影響該次嵌入顯示，不修改地圖資料。
 
 精選預覽的畫面範圍與排列使用引擎介面 `projectPoint(lat, lon)`（畫面像素座標）、`isNearViewport(lat, lon, margin)`、`viewportKey()` 及 `onMoveEnd(fn)`（移動結束／resize）。`featured-layout.js` 的 `place()` 可接收點位的畫面 `x`／`y`；結果數量最多為要求的 slots，空間不足時可能為零。
+
+純 AAC 接受 fileinfo 的 `audio/aac`、`audio/x-aac`、`audio/x-hx-aac-adts`、`audio/vnd.dlna.adts`，副檔名為 `.aac`。`uploadlib_compress_media()` 可接收已偵測 MIME；AAC 使用 FFmpeg `-c:a copy` 封裝為 M4A，獨立於壓縮門檻與開關，不要求輸出更小；不可用則儲存原檔。`media.php` 對 `.aac` 回傳 `audio/aac` 並沿用 Range 支援。

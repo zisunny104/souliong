@@ -46,6 +46,7 @@ function souliong_kinds(): array
             'mimes' => [
                 'audio/webm' => 'weba', 'video/webm' => 'weba',
                 'audio/mp4' => 'm4a', 'audio/x-m4a' => 'm4a', 'video/mp4' => 'm4a',
+                'audio/aac' => 'aac', 'audio/x-aac' => 'aac', 'audio/x-hx-aac-adts' => 'aac', 'audio/vnd.dlna.adts' => 'aac',
                 'audio/mpeg' => 'mp3', 'audio/ogg' => 'ogg', 'audio/wav' => 'wav', 'audio/x-wav' => 'wav',
             ],
         ],
