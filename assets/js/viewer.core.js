@@ -792,7 +792,7 @@ window.MapApp = (() => {
       specs.push({
         id: c.num, lat: c.lat, lon: c.lon, html: icon.html, size: icon.size, anchor: icon.anchor,
         color: c.color || '#888', label: (c.num != null ? c.num + ' ' : '') + spotName(c),
-        onClick: () => { if (BARE) { emitHook('spotClick', c); return; } emitHook('panelReset'); openPanel(c); },
+        onClick: () => { if (BARE) { emitHook('spotClick', c); return; } emitHook('panelReset'); openPanel(c); revealSpot(c, true); },
       });
     });
     return specs;
@@ -1089,7 +1089,7 @@ window.MapApp = (() => {
     box.querySelectorAll('.sl-spot-list-item').forEach(btn => {
       btn.onclick = () => {
         const pt = effectiveSpots().find(p => p.num === +btn.dataset.num);
-        if (pt) { emitHook('panelReset'); openPanel(pt); engine.panTo(pt.lat, pt.lon, { animate: true }); }
+        if (pt) { emitHook('panelReset'); openPanel(pt); revealSpot(pt); }
       };
     });
   }
@@ -1135,6 +1135,31 @@ window.MapApp = (() => {
 
   /* ---------- panel ---------- */
   let current = null, panelReturnFocus = null;
+  // 卡片蓋住的範圍（相對地圖容器的像素）。手機是底部卡片、電腦是右側卡片；用版面尺寸推算打開後的位置，
+  // 不讀進場動畫中的實際位置。
+  function panelCoverage() {
+    const panel = document.getElementById('panel'), mapEl = document.getElementById('map');
+    if (!panel || !mapEl) return null;
+    const map = mapEl.getBoundingClientRect(), style = getComputedStyle(panel);
+    const w = panel.offsetWidth, h = Math.min(panel.offsetHeight, window.innerHeight * 0.82);
+    if (style.top === 'auto') return { map, rect: { x0: 0, y0: window.innerHeight - 10 - h - map.top, x1: map.width, y1: map.height } };
+    const left = window.innerWidth - 14 - w - map.left;
+    return { map, rect: { x0: left, y0: 0, x1: map.width, y1: map.height } };
+  }
+  // 打開卡片後，讓點位停在沒被卡片蓋住的區域中央。onlyIfCovered：點位本來就看得到就不動地圖
+  function revealSpot(c, onlyIfCovered) {
+    if (EMBED || BARE || !engine || !c || !engine.projectPoint) return;
+    const cover = panelCoverage();
+    if (!cover) return;
+    const r = cover.rect, m = cover.map, pad = 36;
+    const free = r.x0 > 0 ? { x0: 0, y0: 0, x1: r.x0, y1: m.height } : { x0: 0, y0: 0, x1: m.width, y1: Math.max(0, r.y0) };
+    if (free.x1 - free.x0 < 80 || free.y1 - free.y0 < 80) return;
+    if (onlyIfCovered) {
+      const pt = engine.projectPoint(c.lat, c.lon);
+      if (pt && pt[0] >= 0 && pt[1] >= 0 && pt[0] <= m.width && pt[1] <= m.height && !(pt[0] > r.x0 - pad && pt[1] > r.y0 - pad)) return;
+    }
+    engine.panTo(c.lat, c.lon, { animate: true, offset: [(free.x0 + free.x1) / 2 - m.width / 2, (free.y0 + free.y1) / 2 - m.height / 2] });
+  }
   function openPanel(c) {
     const panel = document.getElementById('panel');
     if (!panel.classList.contains('open')) panelReturnFocus = document.activeElement;
@@ -1142,7 +1167,7 @@ window.MapApp = (() => {
     current = c;
     const cat = CATS.find(x => x.key === c.cat) || { label: '', color: '' };
     document.getElementById('pCat').textContent = categoryDisplayName(c);
-    document.getElementById('pCat').style.color = cat.color;
+    document.getElementById('pCat').style.color = c.markerColor ? c.color : cat.color; // 單點有自訂色時，類別字樣跟著這個顏色
     document.getElementById('pTitle').textContent = spotTitle(c);
     document.getElementById('pSub').innerHTML = spotSub(c);
     document.getElementById('panel').classList.add('open');
@@ -1554,7 +1579,7 @@ window.MapApp = (() => {
       el.innerHTML = def.bodyHtml(item, current) + (def.footHtml ? def.footHtml(item, current) : '');
       list.appendChild(el);
       if (def.wire) def.wire(el, current, item);
-      if (!EMBED && item.kind === 'audio' && item.id) el.appendChild(blockLinkButton(current.num, item.id));
+      if (!EMBED && item.kind === 'audio' && item.id) el.appendChild(blockLinkButton(current.id, item.id));
     });
     box.appendChild(story);
     const hb = story.querySelector('#histBtn'); if (hb) hb.onclick = () => toggleHistory(versions);
@@ -1597,15 +1622,15 @@ window.MapApp = (() => {
     box.appendChild(gwrap);
     contentHeadingLevels(box, 3);
   }
-  // 聲音區塊的分享連結：?spot=<num>&block=<id>，進站時由 boot() 展開點位並標出這個聲音。
+  // 聲音區塊的分享連結：?spot=<spotId>&block=<id>（舊連結的 num 仍可開啟），進站時由 boot() 展開點位並標出這個聲音。
   // 網址形式沿用 share-link 插件（origin + base + 專案 ID），這裡不依賴該插件。
-  function blockLinkButton(num, blockId) {
+  function blockLinkButton(spotRef, blockId) {
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'btn small sc-block-link';
     b.title = t('copy_link'); b.setAttribute('aria-label', t('copy_link'));
     b.innerHTML = '<i class="fa-solid fa-link" aria-hidden="true"></i>';
     b.onclick = async () => {
-      const url = location.origin + window.APP.base + PROJECT + '?spot=' + encodeURIComponent(num) + '&block=' + encodeURIComponent(blockId);
+      const url = location.origin + window.APP.base + PROJECT + '?spot=' + encodeURIComponent(spotRef) + '&block=' + encodeURIComponent(blockId);
       try { await navigator.clipboard.writeText(url); } catch (e) { }
       b.innerHTML = '<i class="fa-solid fa-check" aria-hidden="true"></i>';
       b.title = t('copied');
@@ -2219,7 +2244,7 @@ window.MapApp = (() => {
         pf.value = '';
         if (num != null) {
           const pt = effectiveSpots().find(p => p.num === num);
-          if (pt) { emitHook('panelReset'); openPanel(pt); engine.panTo(pt.lat, pt.lon, { animate: true }); }
+          if (pt) { emitHook('panelReset'); openPanel(pt); revealSpot(pt); }
         }
       }
     };
@@ -2325,7 +2350,7 @@ window.MapApp = (() => {
     if (urlSpot) {
       const pt = effectiveSpots().find(p => p.id === urlSpot || p.num === +urlSpot);
       if (pt) {
-        openPanel(pt); engine.panTo(pt.lat, pt.lon, { animate: true });
+        openPanel(pt); revealSpot(pt);
         const urlBlock = params.get('block');
         if (urlBlock) focusBlock(urlBlock);
       }
