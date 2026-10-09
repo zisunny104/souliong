@@ -45,7 +45,7 @@ if ($bytes === null) {
     else { $data['map'] = null; unset($data['pin']); }
     $preserve = $mapBytes === null && is_array($cache) && ($cache['revision'] ?? '') === $revision
         && !empty($cache['map']) && is_file($path) && filesize($path) <= 4 * 1024 * 1024;
-    $bytes = $preserve ? (string)file_get_contents($path) : souliong_social_render($data, souliong_social_font($cfg));
+    $bytes = $preserve ? (string)file_get_contents($path) : souliong_social_render($data, souliong_social_font($cfg), souliong_social_font_bold($cfg));
     if ($bytes === null) social_preview_fail(503);
     $temp = $path . '.' . bin2hex(random_bytes(4)) . '.tmp';
     if (@file_put_contents($temp, $bytes, LOCK_EX) !== false) {
