@@ -239,6 +239,7 @@ return [
     'contrib_photo_alt'      => '投稿內容',
     'anon_fallback'          => '匿名',
     'og_entry_fallback'      => '{name} 分享的{kind}',
+    'og_entry_label'         => '投稿',
     'edited_tag'             => '已編輯',
     'edit'                   => '編輯',
     'delete'                 => '刪除',
