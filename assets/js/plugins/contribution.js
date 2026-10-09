@@ -157,6 +157,15 @@
     mount() {
       this.initTabs();
       this.injectDom();
+      window.addEventListener('beforeunload', event => {
+        const pending = Object.values(this.cards).some(state => {
+          if (state.done) return false;
+          if (state.file || state.blob || state.sending) return true;
+          const card = document.getElementById(state.id);
+          return card && Array.from(card.querySelectorAll('textarea, .c-title')).some(input => input.value.trim());
+        });
+        if (pending) { event.preventDefault(); event.returnValue = ''; }
+      });
       this.mapApp.onHook('closeAll', () => this.closeModal());
       if (this.scope === 'contrib') {
         this.mapApp.registerEntriesHint(spot => this.entriesUploadButton(spot));

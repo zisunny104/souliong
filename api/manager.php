@@ -18,6 +18,7 @@ require_once __DIR__ . '/embedorigins.php';   // 允許嵌入的來源清單解�
 require_once __DIR__ . '/regions3d.php';  // 3D 自訂模型區域註冊表，形狀同上，見 api/region3d.php
 require_once __DIR__ . '/coverlib.php';   // 封面／地圖快照的存檔邏輯，與 api/cover.php 共用
 require_once __DIR__ . '/routes.php';    // 網址表：後台網址只有這一份定義，不在各處黏字串
+require_once __DIR__ . '/metawrite.php';
 require_once __DIR__ . '/settings.php';   // packs.php 內部也會載它，兩邊都用 require_once 才不會重複宣告
 require __DIR__ . '/../pages/error.php';
 require_once __DIR__ . '/i18n.php';
@@ -726,7 +727,8 @@ if (!$authed) {
           $p = clean_id($_POST['project'] ?? '');
           $gate($p, 'edit_meta', 'no_project_permission_msg', Route::manager($scopeProject, 'access'));
           $mf = $cfg['projects_dir'] . '/' . $p . '/meta.json';
-          $meta = is_file($mf) ? json_decode((string)@file_get_contents($mf), true) : [];
+          $metaRaw = is_file($mf) ? (string)file_get_contents($mf) : '';
+          $meta = json_decode($metaRaw, true);
           if (!is_array($meta)) $meta = [];
           foreach (['title', 'subtitle', 'desc', 'source', 'credit'] as $k) {
             $raw = trim((string)($_POST[$k] ?? ''));
@@ -916,7 +918,9 @@ if (!$authed) {
           }
           $json = json_encode($meta, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
           if ($json !== false && is_dir(dirname($mf))) {
-            @file_put_contents($mf, $json, LOCK_EX);
+            if (!project_meta_write($mf, $json, (string)($_POST['meta_revision'] ?? hash('sha256', $metaRaw)))) {
+              error_page(409, $t('meta_conflict_title'), $t('meta_conflict_msg'), Route::manager($p), $t('back_to_admin'));
+            }
           }   // 編碼失敗絕不覆寫，避免清空 meta
           if ($embedInvalid) {
             error_page(400, $t('embed_origins_invalid_title'), $t('embed_origins_invalid_msg', ['list' => implode('、', $embedInvalid)]), Route::manager($scopeProject !== '' ? $p : '', 'access'), $t('back_to_admin'));
@@ -3771,7 +3775,8 @@ if (!$authed) {
     <?php }; ?>
     <h2><?= $t('project_access_heading') ?></h2>
     <?php foreach ($viewProjects as $p):
-      $meta = json_decode((string)@file_get_contents($cfg['projects_dir'] . '/' . $p . '/meta.json'), true);
+      $metaRaw = (string)@file_get_contents($cfg['projects_dir'] . '/' . $p . '/meta.json');
+      $meta = json_decode($metaRaw, true);
       $contribOpen = codes_active($cfg, $p) !== [];   // 有沒有還有效的投稿代碼＝這張地圖現在開不開放投稿
       $ppinsAll = $pinsAllData['projects'][$p] ?? [];
       $realPins = array_values(array_filter($ppinsAll, fn($e) => ($e['kind'] ?? 'pin') !== 'invite'));
@@ -3791,7 +3796,7 @@ if (!$authed) {
           <dialog aria-label="<?= $t('project_settings_btn') ?>" id="metadlg-<?= $esc($p) ?>" class="metadlg" onclick="if(event.target===this)this.close()">
             <form method="post" class="metaform">
               <h3><i class="fa-solid fa-gear"></i> <?= $t('project_settings_btn') ?></h3>
-              <input type="hidden" name="csrf" value="<?= $esc_csrf ?>"><input type="hidden" name="action" value="meta"><input type="hidden" name="project" value="<?= $esc($p) ?>">
+              <input type="hidden" name="csrf" value="<?= $esc_csrf ?>"><input type="hidden" name="meta_revision" value="<?= $esc(hash('sha256', $metaRaw)) ?>"><input type="hidden" name="action" value="meta"><input type="hidden" name="project" value="<?= $esc($p) ?>">
 
               <?php // 基本資訊：最常被找，預設展開 ?>
               <details class="metasec" open>

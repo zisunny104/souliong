@@ -1,6 +1,8 @@
 <?php
 // 主字典（繁體中文）。所有語言的翻譯 key 以此檔為準；其他語言檔缺的 key 會自動 fallback 回這裡。
 return [
+    'meta_conflict_title' => '設定已更新',
+    'meta_conflict_msg' => '其他管理者已修改這份設定。本次未儲存，請重新開啟設定後確認並套用變更。',
     'actions_label' => '操作',
     'language_navigation' => '語言切換',
     'markdown_guide_title' => 'Markdown 語法說明',

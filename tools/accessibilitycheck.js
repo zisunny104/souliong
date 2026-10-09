@@ -60,6 +60,12 @@ const {chromium}=require(process.env.PLAYWRIGHT_PATH||'playwright');
    await page.setViewportSize({width,height:900});
    for(const route of ['/manager','/manager/test','/manager/test/access','/manager/test/records','/manager/test/tools']){await page.goto(base+route);await page.evaluate(()=>document.querySelectorAll('details').forEach(el=>el.open=true));await audit(route+' '+width);if(route==='/manager/test'){for(const id of await page.locator('dialog').evaluateAll(els=>els.map(el=>el.id))){await page.evaluate(id=>document.getElementById(id).showModal(),id);await audit(id+' '+width);await page.keyboard.press('Escape');}}}
   }
+  await page.goto(base+'/manager/test');
+  const settings=await page.locator('#metadlg-test form').evaluate(form=>Object.fromEntries(new FormData(form)));
+  let saved=await context.request.post(base+'/manager/test',{form:{...settings,title:'管理者 A 的設定'}});assert.equal(saved.status(),200);
+  saved=await context.request.post(base+'/manager/test',{form:{...settings,title:'管理者 B 的舊表單'}});assert.equal(saved.status(),409);
+  assert.equal(JSON.parse(fs.readFileSync(tmp+'/projects/test/meta.json','utf8')).title,'管理者 A 的設定');
+  console.log('PASS: 專案設定舊表單回應 409，保留其他管理者已儲存的變更');
   fs.writeFileSync('/tmp/souliong-accessibility-audit.json',JSON.stringify(failures,null,2));
   if(failures.some(r=>r.violations.length))process.exitCode=1;
  } finally {if(browser)await browser.close();if(server)server.kill();fs.rmSync(tmp,{recursive:true,force:true});}

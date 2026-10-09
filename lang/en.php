@@ -2,6 +2,8 @@
 // English dictionary. Any key missing here falls back to lang/zh_TW.php automatically,
 // so this file only needs to list keys that have actually been translated.
 return [
+    'meta_conflict_title' => 'Settings changed',
+    'meta_conflict_msg' => 'Another administrator changed these settings. Nothing was saved. Reopen the settings and review your changes.',
     'actions_label' => 'Actions',
     'language_navigation' => 'Language selector',
     'markdown_guide_title' => 'Markdown guide',
