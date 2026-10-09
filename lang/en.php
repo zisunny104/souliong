@@ -2,6 +2,13 @@
 // English dictionary. Any key missing here falls back to lang/zh_TW.php automatically,
 // so this file only needs to list keys that have actually been translated.
 return [
+    'locate_me' => 'Show my location',
+    'locate_here' => 'Your current location',
+    'locate_denied' => 'Location access was denied. Allow location in your browser’s site settings and try again.',
+    'locate_timeout' => 'Location timed out. Please try again.',
+    'locate_failed' => 'Your location is unavailable. Please try again later.',
+    'locate_unavailable' => 'Location is unavailable. Use a browser that supports geolocation and open this site over HTTPS.',
+
     'meta_conflict_title' => 'Settings changed',
     'meta_conflict_msg' => 'Another administrator changed these settings. Nothing was saved. Reopen the settings and review your changes.',
     'actions_label' => 'Actions',

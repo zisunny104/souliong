@@ -339,6 +339,9 @@ if ($pack) {
   </div>
 </div>
 
+<?php if ($mod('locate')): ?>
+<button type="button" class="icon-btn mapop-btn" id="locateBtn" title="<?= $t('locate_me') ?>" aria-label="<?= $t('locate_me') ?>"><i class="fa-solid fa-location-arrow" aria-hidden="true"></i></button>
+<?php endif; ?>
 <button class="icon-btn mapop-btn" id="resetBtn" title="<?= $t('reset_view') ?>" aria-label="<?= $t('reset_view_aria') ?>"><i class="fa-solid fa-location-crosshairs" aria-hidden="true"></i></button>
 
 <input type="text" id="myName" hidden>

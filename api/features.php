@@ -131,6 +131,7 @@ function souliong_contrib_cfg(?array $meta): array
 function souliong_features(): array
 {
     return [
+        'locate' => ['label' => '目前位置', 'desc' => '地圖顯示定位按鈕；點擊後向瀏覽器請求定位權限，不自動定位。', 'default' => true],
         'route'  => '路線導覽',
         'photos' => '照片瀏覽',
         'filter' => '套用篩選',
@@ -153,6 +154,7 @@ function souliong_features(): array
 function souliong_modules(): array
 {
     return [
+        'locate' => ['label' => '目前位置', 'desc' => '地圖顯示定位按鈕；點擊後向瀏覽器請求定位權限，不自動定位。', 'default' => true],
         'route'  => ['label' => '路線導覽', 'desc' => '依編號的路徑導覽，及連點路線鈕的時間軸動畫彩蛋。', 'default' => true],
         'contribBrowse' => ['label' => '投稿瀏覽切換', 'desc' => '地圖控制卡上的「全部／投稿」切換鈕與投稿者篩選下拉。關閉後只保留單一檢視、點點位一樣看得到內容，適合每個點位內容是策展而非群眾投稿的地圖。', 'default' => true],
         'categoryLegend' => ['label' => '分類圖例', 'desc' => '地圖控制卡上的分類色塊清單（可點擊切換各分類顯示／隱藏）。分類只有一種、或不想讓訪客切換顯示範圍時可關閉，點位本身與點開的內容不受影響。', 'default' => true],

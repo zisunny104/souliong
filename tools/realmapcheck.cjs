@@ -25,7 +25,11 @@ const {chromium}=require(process.env.PLAYWRIGHT_PATH||'playwright');
   server=spawn('php',['-S','127.0.0.1:'+port,'-t',tmp,tmp+'/router.php'],{stdio:'ignore'});
   for(let i=0;i<50;i++){try{await fetch(base);break;}catch{await new Promise(r=>setTimeout(r,100));}}
   browser=await chromium.launch({executablePath:'/usr/bin/chromium',args:['--no-sandbox','--enable-unsafe-swiftshader']});
-  const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+  const page=await browser.newPage({locale:'zh-TW'}),errors=[];
+  await page.context().grantPermissions(['geolocation'],{origin:base});
+  await page.context().setGeolocation({latitude:24.002,longitude:120.0012,accuracy:20});
+  await page.addInitScript(()=>{const original=navigator.geolocation.getCurrentPosition.bind(navigator.geolocation);window.locationRequests=0;navigator.geolocation.getCurrentPosition=(...args)=>{window.locationRequests++;return original(...args);};});
+  page.on('pageerror',e=>errors.push(e.message));
   await page.route('**/*',async route=>{
    const url=new URL(route.request().url());
    if(url.hostname==='unpkg.com'&&url.pathname.startsWith('/maplibre-gl@6.6.0/dist/'))return route.fulfill({path:path.join(dist,path.basename(url.pathname)),contentType:url.pathname.endsWith('.css')?'text/css':'application/javascript'});
@@ -38,6 +42,13 @@ const {chromium}=require(process.env.PLAYWRIGHT_PATH||'playwright');
   for(const width of [390,1280]){
    await page.setViewportSize({width,height:900});await page.goto(base+'/test');
    await page.waitForFunction(()=>window.MapApp?.getEngine()?.getRawMap()?.loaded()&&MapApp.effectiveEntries().length===300,null,{timeout:20000});
+   assert.equal(await page.evaluate(()=>window.locationRequests),0,'不自動請求定位');
+   assert.ok(await page.evaluate(()=>document.getElementById('locateBtn').getBoundingClientRect().bottom<=document.getElementById('resetBtn').getBoundingClientRect().top),'目前位置位於回到中心上方');
+   await page.locator('#locateBtn').click();
+   await page.waitForFunction(()=>MapApp.getEngine()._markerSpecs.location?.length===1);
+   assert.equal(await page.evaluate(()=>MapApp.getEngine()._markerSpecs.location[0].lat),24.002);
+   assert.equal(await page.locator('#locateBtn').isEnabled(),true);
+
    for(const [zoom,size] of [[13,14],[14,22],[16,32],[13,14],[16,32]]){
     await page.evaluate(zoom=>MapApp.getEngine().getRawMap().jumpTo({center:[120.0012,24.002],zoom}),zoom);
     await page.waitForFunction(size=>Array.isArray(MapApp.getEngine()._markerSpecs.contrib)&&MapApp.getEngine()._markerSpecs.contrib.every(s=>s.size[0]===size),size);
@@ -84,6 +95,19 @@ const {chromium}=require(process.env.PLAYWRIGHT_PATH||'playwright');
   await page.emulateMedia({reducedMotion:'reduce'});
   await page.evaluate(()=>MapApp.getEngine().getRawMap().jumpTo({zoom:14}));
   assert.equal(await page.locator('.sl-move').first().evaluate(el=>getComputedStyle(el).transitionDuration),'0s');
+
+  const dialogs=[];page.on('dialog',async dialog=>{dialogs.push(dialog.message());await dialog.accept();});
+  for(const code of [1,2,3]) {
+   await page.evaluate(code=>{navigator.geolocation.getCurrentPosition=(success,failure)=>failure({code});},code);
+   await page.locator('#locateBtn').click();
+   assert.equal(await page.locator('#locateBtn').isEnabled(),true);
+   assert.equal(await page.locator('#locateBtn').getAttribute('aria-busy'),null);
+  }
+  assert.equal(dialogs.length,3);assert.ok(dialogs[0].includes('網站設定'));assert.ok(dialogs[2].includes('逾時'));
+  const meta=JSON.parse(fs.readFileSync(tmp+'/projects/test/meta.json','utf8'));meta.features.locate=false;
+  fs.writeFileSync(tmp+'/projects/test/meta.json',JSON.stringify(meta));
+  await page.goto(base+'/test');await page.waitForFunction(()=>window.MapApp?.getEngine()?.getRawMap()?.loaded());
+  assert.equal(await page.locator('#locateBtn').count(),0);assert.equal(await page.evaluate(()=>window.locationRequests),0);
   assert.deepEqual(errors,[]);
   console.log(JSON.stringify({functionalChecksPassed:true,crowdedOverlapsObserved:report.some(r=>r.overlappingPairs>0),spots:50,photos:300,maxPreviewMarkers:200,report},null,2));
  }finally{if(browser)await browser.close();if(server)server.kill();fs.rmSync(tmp,{recursive:true,force:true});}

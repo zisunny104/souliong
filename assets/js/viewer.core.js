@@ -2078,7 +2078,7 @@ window.MapApp = (() => {
       container: 'map', center: META.center || [23.9, 120.7], zoom: META.zoom || 14,
       dark: isDark(), manifests: layerManifests(),
     });
-    engine.mountControls({ zoomPosition: 'bottomleft', attributionPosition: 'bottomright', opButtons: [{ el: document.getElementById('resetBtn') }] });
+    engine.mountControls({ zoomPosition: 'bottomleft', attributionPosition: 'bottomright', opButtons: [{ el: document.getElementById('resetBtn') }, { el: document.getElementById('locateBtn') }] });
     const redrawContrib = () => renderContribGlide();
     THUMB_ZOOMS.forEach(zoom => engine.onZoomThresholdCross(zoom, redrawContrib));
     if (engine.onMoveEnd) engine.onMoveEnd(() => relayoutFeatured());
@@ -2229,6 +2229,27 @@ window.MapApp = (() => {
 
     // 右上：重置；左下：重置地圖（身分指示鈕的渲染／互動見 assets/js/plugins/contributor-identity.js）
     const resetBtn = document.getElementById('resetBtn'); if (resetBtn) resetBtn.onclick = resetView;
+    const locateBtn = document.getElementById('locateBtn');
+    if (locateBtn) locateBtn.onclick = () => {
+      if (!navigator.geolocation || !window.isSecureContext) { alert(t('locate_unavailable')); return; }
+      locateBtn.disabled = true; locateBtn.setAttribute('aria-busy', 'true');
+      const finish = () => { locateBtn.disabled = false; locateBtn.removeAttribute('aria-busy'); };
+      navigator.geolocation.getCurrentPosition(position => {
+        try {
+          const { latitude: lat, longitude: lon } = position.coords;
+          if (!Number.isFinite(lat) || !Number.isFinite(lon)) { alert(t('locate_failed')); return; }
+          engine.setMarkerLayer('location', [{
+            id: 'me', lat, lon, size: [20, 20], anchor: [10, 10],
+            html: '<div class="sl-user-location" role="img" aria-label="' + esc(t('locate_here')) + '"></div>',
+          }]);
+          engine.setView([lat, lon], Math.max(16, engine.getZoom()));
+        } finally { finish(); }
+      }, error => {
+        finish();
+        alert(t(error.code === 1 ? 'locate_denied' : error.code === 3 ? 'locate_timeout' : 'locate_failed'));
+      }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 });
+    };
+
 
     // 上傳權限：解鎖 FAB（右下）+ 彈窗（含 QR 掃描）+ 邀請連結 ?code=
     const ub = document.getElementById('unlockFab');

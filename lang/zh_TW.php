@@ -1,6 +1,13 @@
 <?php
 // 主字典（繁體中文）。所有語言的翻譯 key 以此檔為準；其他語言檔缺的 key 會自動 fallback 回這裡。
 return [
+    'locate_me' => '顯示目前位置',
+    'locate_here' => '你的目前位置',
+    'locate_denied' => '未允許定位。請在瀏覽器的網站設定允許定位，再試一次。',
+    'locate_timeout' => '定位逾時，請再試一次。',
+    'locate_failed' => '目前無法取得位置，請稍後再試。',
+    'locate_unavailable' => '此瀏覽器無法定位，請使用支援定位的瀏覽器並透過 HTTPS 開啟網站。',
+
     'meta_conflict_title' => '設定已更新',
     'meta_conflict_msg' => '其他管理者已修改這份設定。本次未儲存，請重新開啟設定後確認並套用變更。',
     'actions_label' => '操作',
