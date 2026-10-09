@@ -38,3 +38,23 @@ AXE_PATH=/path/to/axe-core/axe.min.js node tools/accessibilitycheck.js
 ```
 
 測試涵蓋失敗後保留內容、手動重試、送出鎖定、離開提醒、完成後不提醒、手機／桌面與深淺色介面、跨來源免碼投稿，以及舊專案設定表單衝突。螢幕閱讀器與真實跨站裝置驗收仍另行進行。
+
+## 真實地圖引擎與縮圖分級
+
+新增 `tools/realmapcheck.cjs`，使用實際 MapLibre 6.6.0 與前台／引擎程式，資料、PHP 設定及圖片請求均隔離。空白底圖與小型合成縮圖不代表正式圖磚或原始大圖片。測試不寫入正式專案。
+
+390／1280px 視窗、50 個密集地點、300 張照片、200 個預覽標記：14／22／32px 級距、跨級距過渡、縮圖點擊開啟燈箱與減少動態效果設定通過；沒有 JavaScript 執行錯誤。這是桌面 Chromium 改變視窗尺寸，沒有模擬手機 CPU。
+
+發現尚未解決的密集排列問題：縮放 13／14／16 時，預覽矩形重疊配對分別為 955／1066／287（含視窗外標記，交疊寬高均超過 1px 才計入）。避讓是候選位置評分，不是空間不足時的收合／隱藏機制；不能保證預覽不重疊。後續優先考慮依空間收合及視窗範圍控制顯示數量。
+
+30 次逐幀平移，在這次雲端 Chromium／軟體 WebGL 執行中，390px 平均 20.9ms、最大 32ms；1280px 平均 28.8ms、最大 51.7ms。這只涵蓋合成資料及空白底圖，不是正式站 FPS、真實手機或慢網路驗收；桌面尺寸未達穩定 60fps，不能宣稱所有情境順暢。
+
+正式站 HTTPS 連線被執行環境代理政策拒絕（CONNECT 403），尚未驗證 VPS、真實圖磚或實機 Safari／Firefox。
+
+重跑測試：準備 MapLibre 6.6.0 dist 目錄中的 `maplibre-gl.mjs`、`maplibre-gl-shared.mjs`、`maplibre-gl-worker.mjs`、`maplibre-gl.css`，再執行：
+
+```bash
+MAPLIBRE_DIST=/path/to/maplibre-6.6.0/dist node tools/realmapcheck.cjs
+```
+
+需要 PHP、Playwright 與 Chromium；必要時透過 `PLAYWRIGHT_PATH` 指定已安裝的 Playwright 套件。測試輸出分開標示功能檢查結果與密集重疊觀測，截圖儲存在 `/tmp/souliong-realmap-390.png`、`/tmp/souliong-realmap-1280.png`。
