@@ -22,12 +22,12 @@
   }
 
   /* spots：全部要畫的點位 [{id, lat, lon, slots}]，slots 是這個點位要放幾個預覽（含「+N」收合鈕），沒有就 0。
-     回傳 Map：id → [{x, y}]（預覽中心相對於點位中心的像素位移），長度等於 slots。 */
+     回傳 Map：id → [{x, y}]（預覽中心相對於點位中心的像素位移），長度最多 slots；空間不足時縮減至可安全放置的數量。 */
   function place(spots, zoom, opts) {
     const pinPx = (opts && opts.pinPx) || 24, size = (opts && opts.size) || 30;
     const r0 = pinPx / 2 + size / 2 + 4;   // 預覽邊緣離點位標記約 4px，貼近
     const pinMin = pinPx / 2 + size / 2 + 5, prevMin = size + 5;
-    const pts = spots.map(s => { const p = project(s.lat, s.lon, zoom); return { id: s.id, slots: s.slots || 0, x: p[0], y: p[1] }; });
+    const pts = spots.map(s => { const p = Number.isFinite(s.x) && Number.isFinite(s.y) ? [s.x, s.y] : project(s.lat, s.lon, zoom); return { id: s.id, slots: s.slots || 0, x: p[0], y: p[1] }; });
     const placed = [];               // 已排好的預覽中心（絕對像素）
     const out = new Map();
     pts.filter(p => p.slots > 0)
@@ -43,6 +43,9 @@
             const angle = base + k * STEP, rad = angle * Math.PI / 180;
             RADIUS_STEPS.forEach((extra, ri) => {
               const r = r0 + extra, cx = p.x + Math.cos(rad) * r, cy = p.y + Math.sin(rad) * r;
+              // 方形縮圖用矩形檢查；沒有安全位置就收合，不接受高成本的碰撞。
+              const hits = (a, min) => Math.abs(a.x - cx) < min && Math.abs(a.y - cy) < min;
+              if (hits(p, pinMin) || near.some(o => hits(o, pinMin)) || placed.some(q => hits(q, prevMin))) return;
               let cost = ri * 2 + angleGap(angle, pref) / STEP * 0.8;
               near.forEach(o => {
                 const d = Math.hypot(o.x - cx, o.y - cy);
@@ -59,6 +62,7 @@
               if (!best || cost < best.cost) best = { cost: cost, x: cx, y: cy };
             });
           }
+          if (!best) break;
           placed.push({ x: best.x, y: best.y });
           list.push({ x: best.x - p.x, y: best.y - p.y });
         }

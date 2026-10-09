@@ -1,49 +1,61 @@
-// Regression checks for featured preview placement around crowded spots.
+// Regression checks for featured previews: crowded maps collapse instead of covering markers.
 const assert = require('node:assert/strict');
-const layout = require('../assets/js/featured-layout.js');
-const zoom = 16, size = 30, pinPx = 24;
+// Evaluate the browser UMD module directly so a parent package's type:module does not change this test.
+const source = require('node:fs').readFileSync(require('node:path').join(__dirname, '../assets/js/featured-layout.js'), 'utf8');
+const sandbox = { module: { exports: {} } };
+require('node:vm').runInNewContext(source, sandbox);
+const layout = sandbox.module.exports;
+const pinPx = 24;
 
-function makeSpots(stepLat, stepLon) {
-  const spots = [];
-  for (let i = 0; i < 14; i++) {
-    spots.push({ id: 's' + i, lat: 23.9 + (i % 4) * stepLat + ((i * 7) % 5 - 2) * stepLat * 0.05, lon: 120.7 + Math.floor(i / 4) * stepLon + ((i * 3) % 5 - 2) * stepLon * 0.05, slots: i % 2 === 0 ? (i % 4 === 0 ? 3 : 1) : 0 });
-  }
-  return spots;
+function makeSpots(step) {
+  return Array.from({ length: 16 }, (_, i) => ({
+    id: 's' + i,
+    lat: 23.9 + (i % 4) * step,
+    lon: 120.7 + Math.floor(i / 4) * step,
+    slots: 3
+  }));
 }
-function measure(spots, offsetsOf) {
-  const px = new Map(spots.map(s => [s.id, layout.project(s.lat, s.lon, zoom)]));
-  const previews = [];
-  spots.forEach(s => (offsetsOf(s) || []).forEach(o => previews.push({ id: s.id, x: px.get(s.id)[0] + o.x, y: px.get(s.id)[1] + o.y, o })));
-  let farther = 0, covers = 0, overlap = 0;
-  previews.forEach((p, i) => {
-    const own = Math.hypot(p.o.x, p.o.y);
-    spots.forEach(s => {
-      if (s.id === p.id) return;
-      const d = Math.hypot(px.get(s.id)[0] - p.x, px.get(s.id)[1] - p.y);
-      if (d < own) farther++;               // 比自己的點位更靠近別人的點位：看不出是誰的
-      if (d < pinPx / 2 + size / 2) covers++;  // 蓋住別人的點位標記
-    });
-    previews.slice(i + 1).forEach(q => { if (Math.hypot(q.x - p.x, q.y - p.y) < size) overlap++; });
+function intersects(a, aSize, b, bSize) {
+  const half = (aSize + bSize) / 2;
+  return Math.abs(a.x - b.x) < half - 0.000001 && Math.abs(a.y - b.y) < half - 0.000001;
+}
+function check(spots, zoom, size, label) {
+  const out = layout.place(spots, zoom, { pinPx, size });
+  const points = spots.map(s => {
+    const p = layout.project(s.lat, s.lon, zoom);
+    return { ...s, x: p[0], y: p[1] };
   });
-  return { previews, farther, covers, overlap };
+  const previews = [];
+  points.forEach(p => {
+    const offsets = out.get(p.id) || [];
+    assert.ok(offsets.length <= p.slots, label + ': preview count respects requested slots');
+    offsets.forEach(o => {
+      assert.ok(Number.isFinite(o.x) && Number.isFinite(o.y), label + ': finite offsets');
+      previews.push({ id: p.id, x: p.x + o.x, y: p.y + o.y });
+    });
+  });
+  previews.forEach((p, i) => {
+    points.forEach(q => assert.ok(!intersects(p, size, q, pinPx), label + ': preview does not cover marker ' + q.id));
+    previews.slice(i + 1).forEach(q => assert.ok(!intersects(p, size, q, size), label + ': previews do not overlap'));
+  });
+  assert.deepEqual(Array.from(layout.place(spots, zoom, { pinPx, size })), Array.from(out), label + ': identical input gives stable positions');
+  return previews.length;
 }
-// 舊做法：固定四個角度與半徑
-const fixed = [-35, 140, -140, 45], oldRadius = (pinPx / 2 + size / 2 + 8) * Math.SQRT2;
-const oldOffsets = s => Array.from({ length: s.slots }, (_, i) => ({ x: Math.cos(fixed[i] * Math.PI / 180) * oldRadius, y: Math.sin(fixed[i] * Math.PI / 180) * oldRadius }));
 
-// 一般密度（點位約 90 px）：全部要做到
-let spots = makeSpots(0.0009, 0.001);
-let out = layout.place(spots, zoom, { pinPx, size });
-let result = measure(spots, s => out.get(s.id));
-assert.equal(result.farther, 0, 'every preview is closer to its own spot than to any other spot');
-assert.equal(result.covers, 0, 'no preview covers another spot marker');
-assert.equal(result.overlap, 0, 'previews do not overlap each other');
-const angles = new Set(result.previews.map(p => Math.round(Math.atan2(p.o.y, p.o.x) * 180 / Math.PI / 15)));
-assert.ok(angles.size >= 4, 'angles are staggered, not one fixed pattern: ' + angles.size);
-
-// 很擠的街區（點位約 46 px）：不保證完美，但一定比固定角度少出問題
-spots = makeSpots(0.00045, 0.00055);
-out = layout.place(spots, zoom, { pinPx, size });
-const crowded = measure(spots, s => out.get(s.id)), old = measure(spots, oldOffsets);
-assert.ok(crowded.farther < old.farther && crowded.covers <= old.covers && crowded.overlap <= old.overlap, JSON.stringify({ crowded: [crowded.farther, crowded.covers, crowded.overlap], old: [old.farther, old.covers, old.overlap] }));
-console.log(`featuredlayoutcheck: ${result.previews.length} previews, ${angles.size} distinct angles; crowded ${crowded.farther}/${crowded.covers}/${crowded.overlap} vs old ${old.farther}/${old.covers}/${old.overlap}, passed`);
+const results = [];
+for (const size of [14, 22, 32]) {
+  const ordinary = makeSpots(0.0015);
+  const normal = check(ordinary, 16, size, size + 'px ordinary');
+  assert.ok(normal > 0, 'ordinary map displays previews');
+  const dense = makeSpots(0.0002);
+  const crowded = check(dense, 16, size, size + 'px dense');
+  assert.ok(crowded < dense.reduce((n, s) => n + s.slots, 0), 'dense map collapses previews instead of forcing all slots');
+  const expanded = check(dense, 19, size, size + 'px zoomed dense');
+  assert.ok(expanded > crowded, 'zooming in makes room for more previews');
+  const samePosition = ordinary.map(s => ({ ...s, lat: 23.9, lon: 120.7 }));
+  const coincident = check(samePosition, 16, size, size + 'px coincident');
+  assert.ok(coincident < samePosition.length * 3, 'coincident spots do not force every preview onto the same point');
+  check([{ id: 'marker-only', lat: 23.9, lon: 120.7, slots: 0 }], 16, size, size + 'px marker only');
+  results.push(size + 'px ordinary/dense/zoomed/coincident: ' + [normal, crowded, expanded, coincident].join('/'));
+}
+console.log('featuredlayoutcheck: ' + results.join('; ') + '; rectangle collision and deterministic placement passed');

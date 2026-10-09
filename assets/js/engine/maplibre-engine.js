@@ -413,6 +413,16 @@ window.MapLibreEngine = (() => {
       this._markerLayers[layerKey] = [];
       this._markerSpecs[layerKey] = [];
     }
+    projectPoint(lat, lon) { const p = this.map.project([lon, lat]); return [p.x, p.y]; }
+    isNearViewport(lat, lon, margin = 96) {
+      const [x, y] = this.projectPoint(lat, lon), el = this.map.getContainer();
+      return x >= -margin && y >= -margin && x <= el.clientWidth + margin && y <= el.clientHeight + margin;
+    }
+    viewportKey() {
+      const c = this.map.getCenter(), el = this.map.getContainer();
+      return [c.lat, c.lng, this.map.getZoom(), this.map.getBearing(), this.map.getPitch(), el.clientWidth, el.clientHeight].join('|');
+    }
+    onMoveEnd(fn) { this.map.on('moveend', fn); this.map.on('resize', fn); }
     onZoomEnd(fn) { this.map.on('zoomend', fn); }
     onZoomThresholdCross(zoom, fn) {
       this._zoomThresholds.push({ zoom, wasAbove: this.map.getZoom() >= zoom, fn });

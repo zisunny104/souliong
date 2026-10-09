@@ -170,6 +170,11 @@ const {chromium}=require(process.env.PLAYWRIGHT_PATH||'playwright');
   await page.locator('#photoLayerBtn').evaluate(el=>el.click());
   assert.equal(await page.evaluate(()=>window.testLayers.contrib.filter(p=>p.id==='ordinary').length),1);
   assert.equal(await page.evaluate(()=>window.testLayers.contrib.filter(p=>p.id==='photo0').length),1);
+  // 收合後篩選投稿者，沒有 GPS 的照片也要計入數量入口。
+  await page.evaluate(()=>{MapApp.getEngine().isNearViewport=()=>false;});
+  await page.locator('#personFilter').selectOption('攝影者',{force:true});
+  assert.ok((await page.evaluate(()=>MapApp.spotMarkerSpecs()[0].html)).includes('>6</div>'));
+
   assert.deepEqual(errors,[]);
   // 無障礙操作不改變既有晶片與精選星章的外觀。
   await page.evaluate(()=>MapApp.closePanel());

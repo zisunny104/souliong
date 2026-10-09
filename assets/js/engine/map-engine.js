@@ -113,6 +113,10 @@ window.MapEngine = (() => {
     clearMarkerLayer(layerKey) { throw new Error('MapEngine.clearMarkerLayer() not implemented'); }
     onZoomThresholdCross(zoom, fn) { throw new Error('MapEngine.onZoomThresholdCross() not implemented'); }
     markerElements(layerKey) { throw new Error('MapEngine.markerElements() not implemented'); }
+    onMoveEnd(fn) { throw new Error('MapEngine.onMoveEnd() not implemented'); }
+    projectPoint(lat, lon) { throw new Error('MapEngine.projectPoint() not implemented'); }
+    isNearViewport(lat, lon, margin) { throw new Error('MapEngine.isNearViewport() not implemented'); }
+    viewportKey() { throw new Error('MapEngine.viewportKey() not implemented'); }
     onZoomEnd(fn) { throw new Error('MapEngine.onZoomEnd() not implemented'); }
 
     // ---- 路線／動畫點 ----

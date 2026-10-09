@@ -40,7 +40,7 @@ const {chromium}=require(process.env.PLAYWRIGHT_PATH||'playwright');
    await page.waitForFunction(()=>window.MapApp?.getEngine()?.getRawMap()?.loaded()&&MapApp.effectiveEntries().length===300,null,{timeout:20000});
    for(const [zoom,size] of [[13,14],[14,22],[16,32],[13,14],[16,32]]){
     await page.evaluate(zoom=>MapApp.getEngine().getRawMap().jumpTo({center:[120.0012,24.002],zoom}),zoom);
-    await page.waitForFunction(size=>MapApp.getEngine()._markerSpecs.contrib?.length===200&&MapApp.getEngine()._markerSpecs.contrib.every(s=>s.size[0]===size),size);
+    await page.waitForFunction(size=>Array.isArray(MapApp.getEngine()._markerSpecs.contrib)&&MapApp.getEngine()._markerSpecs.contrib.every(s=>s.size[0]===size),size);
     const transitions=await page.locator('.sl-move').evaluateAll(els=>els.reduce((n,el)=>n+el.getAnimations().length,0));
     await page.waitForTimeout(700);
     const geometry=await page.evaluate(()=>{
@@ -50,24 +50,41 @@ const {chromium}=require(process.env.PLAYWRIGHT_PATH||'playwright');
      for(let i=0;i<rects.length;i++)for(let j=i+1;j<rects.length;j++){const a=rects[i],b=rects[j];if(Math.min(a.right,b.right)-Math.max(a.left,b.left)>1&&Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top)>1)overlappingPairs++;}
      return {markers:els.length,widths:[...new Set(rects.map(r=>r.width))],overlappingPairs};
     });
-    assert.equal(geometry.markers,200);assert.ok(geometry.widths.every(w=>Math.abs(w-size)<.1));
-    report.push({width,zoom,size,transitions,overlappingPairs:geometry.overlappingPairs});
+    assert.ok(geometry.markers<=200);assert.equal(geometry.overlappingPairs,0);assert.ok(geometry.widths.every(w=>Math.abs(w-size)<.1));
+    report.push({width,zoom,size,transitions,markers:geometry.markers,overlappingPairs:geometry.overlappingPairs});
    }
+   await page.locator('.dot-pin:has(.badge)').first().evaluate(el=>el.click());
+   assert.equal(await page.locator('#entries .entry').count(),6,'收合入口仍可查看所有投稿');
+   await page.locator('.p-close').evaluate(el=>el.click());
+   await page.evaluate(()=>MapApp.getEngine().getRawMap().jumpTo({zoom:18}));
+   await page.waitForTimeout(700);
    await page.locator('.sl-featured-body .photo-sq').first().evaluate(el=>el.click());
    assert.equal(await page.locator('#lb').evaluate(el=>el.style.display),'flex');
    await page.evaluate(()=>document.getElementById('lb').style.display='none');
+   // 畫面外不保留預覽，移回時恢復；拖曳途中不更換 DOM 標記。
+   await page.evaluate(()=>MapApp.getEngine().getRawMap().jumpTo({center:[122,26],zoom:16}));
+   assert.equal(await page.evaluate(()=>MapApp.getEngine()._markerSpecs.contrib.length),0);
+   await page.evaluate(()=>MapApp.getEngine().getRawMap().jumpTo({center:[120.0012,24.002],zoom:16}));
+   await page.waitForTimeout(700);
+   const before=await page.evaluate(()=>[...MapApp.getEngine().markerElements('contrib').values()].map(el=>{el.dataset.stable='yes';return el.dataset.mid;}));
+   await page.evaluate(()=>MapApp.getEngine().getRawMap().easeTo({center:[120.0013,24.002],duration:400}));
+   await page.waitForTimeout(100);
+   assert.deepEqual(await page.evaluate(()=>[...MapApp.getEngine().markerElements('contrib').values()].map(el=>el.dataset.mid)),before);
+   assert.ok(await page.evaluate(()=>[...MapApp.getEngine().markerElements('contrib').values()].every(el=>el.dataset.stable==='yes')));
+   await page.waitForTimeout(1000);
    const frames=await page.evaluate(async()=>{
     const map=MapApp.getEngine().getRawMap(),deltas=[];let last=performance.now();
     for(let i=0;i<30;i++){await new Promise(requestAnimationFrame);const now=performance.now();deltas.push(now-last);last=now;map.panBy([2,1],{duration:0});}
     return {meanMs:deltas.reduce((a,b)=>a+b,0)/deltas.length,maxMs:Math.max(...deltas)};
    });
    report.push({width,panFrames:frames});
+   await page.waitForTimeout(700);
    await page.screenshot({path:'/tmp/souliong-realmap-'+width+'.png'});
   }
   await page.emulateMedia({reducedMotion:'reduce'});
   await page.evaluate(()=>MapApp.getEngine().getRawMap().jumpTo({zoom:14}));
   assert.equal(await page.locator('.sl-move').first().evaluate(el=>getComputedStyle(el).transitionDuration),'0s');
   assert.deepEqual(errors,[]);
-  console.log(JSON.stringify({functionalChecksPassed:true,crowdedOverlapsObserved:report.some(r=>r.overlappingPairs>0),spots:50,photos:300,previewMarkers:200,report},null,2));
+  console.log(JSON.stringify({functionalChecksPassed:true,crowdedOverlapsObserved:report.some(r=>r.overlappingPairs>0),spots:50,photos:300,maxPreviewMarkers:200,report},null,2));
  }finally{if(browser)await browser.close();if(server)server.kill();fs.rmSync(tmp,{recursive:true,force:true});}
 })().catch(e=>{console.error(e);process.exitCode=1;});

@@ -778,12 +778,12 @@ window.MapApp = (() => {
     let personCounts = null, badgeColor = null;
     if (filterPerson) {
       personCounts = {};
-      personPoints(filterPerson).forEach(e => { personCounts[e.item_num] = (personCounts[e.item_num] || 0) + 1; });
+      effectiveEntries().filter(e => e.name === filterPerson).forEach(e => { personCounts[e.item_num] = (personCounts[e.item_num] || 0) + 1; });
       badgeColor = personColor(filterPerson);
     }
     const specs = [];
     if (!showSpots) return specs;
-    const previewSpots = new Set(effectiveEntries().filter(e => e.featured === true && (!filterPerson || e.name === filterPerson)).map(e => e.item_num));
+    const previewSpots = featuredVisibleSpots;
     effectiveSpots().forEach(c => {
       if (active[c.cat] === false) return;
       const count = personCounts ? (personCounts[c.num] || 0) : (counts[c.num] || 0);
@@ -820,6 +820,8 @@ window.MapApp = (() => {
   // 最多三則，剩餘數量開啟點位面板，避免同一點位無限展開。
   // 位置由 featured-layout.js 依目前縮放排：預覽比任何其他點位都更靠自己的點位、各點位的角度錯開、
   // 避開別人的點位與預覽；每張預覽另畫一條細線連回所屬點位，一眼看得出是誰的。
+  let featuredVisibleSpots = new Set(), featuredView = null;
+  const nearViewport = (lat, lon) => !engine.isNearViewport || engine.isNearViewport(lat, lon, 96);
   function featuredMarkerSpecs(entries, spots, size) {
     const specs = [], pinPx = PIN_SIZE_PX[META.pinSize] || 24;
     const openSpot = spot => { if (BARE) emitHook('spotClick', spot); else openPanel(spot); };
@@ -829,12 +831,13 @@ window.MapApp = (() => {
       if (!grouped.has(e.item_num)) grouped.set(e.item_num, []);
       grouped.get(e.item_num).push(e);
     });
-    const shown = spots.filter(spot => active[spot.cat] !== false && Number.isFinite(spot.lat) && Number.isFinite(spot.lon));
+    const shown = spots.filter(spot => active[spot.cat] !== false && Number.isFinite(spot.lat) && Number.isFinite(spot.lon) && nearViewport(spot.lat, spot.lon));
     const picked = new Map();
     shown.forEach(spot => { picked.set(spot.num, (grouped.get(spot.num) || []).slice().sort(byCreatedAt)); });
     const layout = window.SouliongFeaturedLayout.place(shown.map(spot => {
       const n = picked.get(spot.num).length;
-      return { id: spot.num, lat: spot.lat, lon: spot.lon, slots: n ? Math.min(n, 3) + (n > 3 ? 1 : 0) : 0 };
+      const screen = engine.projectPoint ? engine.projectPoint(spot.lat, spot.lon) : null;
+      return { id: spot.num, lat: spot.lat, lon: spot.lon, x: screen?.[0], y: screen?.[1], slots: n ? Math.min(n, 3) + (n > 3 ? 1 : 0) : 0 };
     }), engine.getZoom(), { pinPx: pinPx, size: size });
     // 預覽的外框固定在點位中心，真正的位置由內層 .sl-move 的 transform 決定，所以縮放後換位置只改 transform，
     // 瀏覽器用 CSS 緩動滑過去，不重建標記、不閃。煙是 .sl-tie：從點位邊緣依角度與長度伸向預覽，同樣只靠 transform。
@@ -847,19 +850,20 @@ window.MapApp = (() => {
     const anchorOf = () => [size / 2, size / 2];
     shown.forEach(spot => {
       const selected = picked.get(spot.num), offs = layout.get(spot.num);
-      if (!offs) return;
-      selected.slice(0, 3).forEach((e, index) => {
+      if (!offs?.length) return;
+      const visible = selected.length <= offs.length ? Math.min(selected.length, 3) : Math.min(3, Math.max(0, offs.length - 1));
+      selected.slice(0, visible).forEach((e, index) => {
         const icon = entryIcon(e, size), url = entryFullUrl(e);
         specs.push({
-          id: e.id, lat: spot.lat, lon: spot.lon, html: withTie(icon.html, offs[index], e.name || t('featured_entry')), size: icon.size, className: 'sl-featured-marker', off: offs[index], tieStyle: tieStyle, moveStyle: moveStyle, angleOf: angleOf,
+          id: e.id, spotNum: spot.num, lat: spot.lat, lon: spot.lon, html: withTie(icon.html, offs[index], e.name || t('featured_entry')), size: icon.size, className: 'sl-featured-marker', off: offs[index], tieStyle: tieStyle, moveStyle: moveStyle, angleOf: angleOf,
           anchor: anchorOf(),
           onClick: () => { if (url) openLightbox(e, url); else openSpot(spot); },
         });
       });
-      if (selected.length > 3) specs.push({
-        id: 'featured-more-' + spot.num, lat: spot.lat, lon: spot.lon,
-        html: withTie('<button type="button" class="sl-featured-more" aria-label="' + esc(t('featured_entry')) + ' +' + (selected.length - 3) + '">+' + (selected.length - 3) + '</button>', offs[3], ''),
-        size: [size, size], anchor: anchorOf(), className: 'sl-featured-marker', off: offs[3], tieStyle: tieStyle, moveStyle: moveStyle, angleOf: angleOf,
+      if (selected.length > visible) specs.push({
+        id: 'featured-more-' + spot.num, spotNum: spot.num, lat: spot.lat, lon: spot.lon,
+        html: withTie('<button type="button" class="sl-featured-more" aria-label="' + esc(t('featured_entry')) + ' +' + (selected.length - visible) + '">+' + (selected.length - visible) + '</button>', offs[visible], ''),
+        size: [size, size], anchor: anchorOf(), className: 'sl-featured-marker', off: offs[visible], tieStyle: tieStyle, moveStyle: moveStyle, angleOf: angleOf,
         onClick: () => openSpot(spot),
       });
     });
@@ -878,19 +882,24 @@ window.MapApp = (() => {
       // 已在點位旁呈現或收合的精選不再於原座標重複顯示。
       if (showSpots && e.featured === true && spotNums.has(e.item_num)) return;
       const url = entryFullUrl(e);
-      if (!Number.isFinite(e.lat) || !Number.isFinite(e.lon) || !url) return;
+      if (!Number.isFinite(e.lat) || !Number.isFinite(e.lon) || !url || !nearViewport(e.lat, e.lon)) return;
       const icon = entryIcon(e, size);
       specs.push({
         id: e.id, lat: e.lat, lon: e.lon, html: icon.html, size: icon.size, anchor: icon.anchor, label: e.name || t('featured_entry'),
         onClick: () => openLightbox(e, url),
       });
     });
+    const visibleSpots = new Set(specs.filter(s => s.spotNum != null).map(s => s.spotNum));
+    const changed = visibleSpots.size !== featuredVisibleSpots.size || [...visibleSpots].some(num => !featuredVisibleSpots.has(num));
+    featuredVisibleSpots = visibleSpots;
     engine.setMarkerLayer('contrib', specs);
+    if (changed) renderSpots();
+    featuredView = engine.viewportKey ? engine.viewportKey() : null;
     featuredKey = featuredKeyOf(specs, size);
   }
   // 縮放結束：精選預覽的集合沒變就只換位置（CSS 緩動滑過去），變了（例如縮圖與小方塊切換）才整層重建
   let featuredKey = '';
-  const featuredKeyOf = (specs, size) => String(size) + specs.filter(sp => sp.off).map(sp => sp.id).join('|');
+  const featuredKeyOf = (specs, size) => String(size) + specs.map(sp => sp.id).join('|');
   // 縮圖與小方塊切換（跨過縮圖級距）時整層重建，但新標記從舊的位置與大小（FLIP）以緩動滑到新位置，不是閃一下
   function snapshotFeatured() {
     const snap = new Map();
@@ -924,11 +933,14 @@ window.MapApp = (() => {
     glideFeatured(snap);
   }
   function relayoutFeatured() {
-    if (!showContributions || !showSpots) return;
+    if (!showContributions) return;
+    if (engine.viewportKey && engine.viewportKey() === featuredView) return;
+    if (!showSpots || EMBED || photoLayerOn) { renderContribGlide(); return; }
     const size = entrySize(engine.getZoom());
     const entries = effectiveEntries().filter(e => !filterPerson || e.name === filterPerson);
     const specs = featuredMarkerSpecs(entries, effectiveSpots(), size);
     if (featuredKeyOf(specs, size) !== featuredKey) { renderContribGlide(); return; }
+    featuredView = engine.viewportKey ? engine.viewportKey() : null;
     const els = engine.markerElements('contrib');
     specs.forEach(sp => {
       const el = els.get(String(sp.id));
@@ -2069,7 +2081,8 @@ window.MapApp = (() => {
     engine.mountControls({ zoomPosition: 'bottomleft', attributionPosition: 'bottomright', opButtons: [{ el: document.getElementById('resetBtn') }] });
     const redrawContrib = () => renderContribGlide();
     THUMB_ZOOMS.forEach(zoom => engine.onZoomThresholdCross(zoom, redrawContrib));
-    engine.onZoomEnd(() => relayoutFeatured()); // 預覽的位置依縮放重排，避開變近的點位；只換位置，緩動滑過去
+    if (engine.onMoveEnd) engine.onMoveEnd(() => relayoutFeatured());
+    else engine.onZoomEnd(() => relayoutFeatured()); // 預覽的位置依縮放重排，避開變近的點位；只換位置，緩動滑過去
 
     buildLegend();
     renderSpots();

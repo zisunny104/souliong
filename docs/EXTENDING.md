@@ -682,3 +682,5 @@ CSS 全部前綴 `.stat-card .col`，因為要蓋過同層的 `.stat-card .col o
 專案後台「標記外觀」可設定分類顏色（`meta.categoryColors`，分類代號對應 `#rrggbb`）與投稿數量角標底色（`meta.badgeColor`，預設 `#c0392b`）。分類配色只影響顯示，不改寫既有投稿紀錄；無分類或預設 `new` 點位固定使用中性灰 `#7a7f87`。篩選單一投稿者時，角標沿用該投稿者的顏色，文字保持白色。自訂圖片標記仍使用原圖片，不重新染色。
 
 嵌入地圖預設同時顯示點位和投稿。`spots=0` 隱藏地標，`contributions=0` 同時隱藏獨立投稿標記與數量角標。外部網站也可透過 postMessage 的 `setDisplay` 指令獨立切換；只影響該次嵌入顯示，不修改地圖資料。
+
+精選預覽的畫面範圍與排列使用引擎介面 `projectPoint(lat, lon)`（畫面像素座標）、`isNearViewport(lat, lon, margin)`、`viewportKey()` 及 `onMoveEnd(fn)`（移動結束／resize）。`featured-layout.js` 的 `place()` 可接收點位的畫面 `x`／`y`；結果數量最多為要求的 slots，空間不足時可能為零。
