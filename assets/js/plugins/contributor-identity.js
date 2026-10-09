@@ -1,5 +1,5 @@
 /* 選用插件：投稿者身分（見 souliong/docs/EXTENDING.md 第七節）
-   由 api/features.php 的 identity 旗標決定要不要載入（關閉時整個檔案不會載入，#identity 自然不存在；
+   訪客由 api/features.php 的 identity 旗標決定是否載入；已登入管理者在一般地圖仍載入，顯示身分與檢視模式；
    #idToggleBtn／#idFields 仍是 view.php 在 #unlockDialog 裡輸出的既有 DOM，見下方 idBtn 段落；
    personExplore 透過 dependsOn 一併隨之關閉，見 souliong_module_on()）。
    #identity 小標籤改由這裡自己建立、插入 #trItems 的最前面。
@@ -39,7 +39,7 @@
       if (trItems) trItems.insertBefore(host, trItems.firstChild);
 
       let idLpTimer = null, idLpFired = false;
-      idEl.addEventListener('pointerdown', () => { idLpFired = false; idLpTimer = setTimeout(() => { idLpFired = true; this.mapApp.rerollAnon(); }, 600); });
+      idEl.addEventListener('pointerdown', () => { if (window.APP.moduleState?.identity === false) return; idLpFired = false; idLpTimer = setTimeout(() => { idLpFired = true; this.mapApp.rerollAnon(); }, 600); });
       const idLpCancel = () => { if (idLpTimer) { clearTimeout(idLpTimer); idLpTimer = null; } };
       idEl.addEventListener('pointerup', idLpCancel);
       idEl.addEventListener('pointerleave', idLpCancel);

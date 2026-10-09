@@ -170,7 +170,7 @@ function souliong_modules(): array
         'embed'  => ['label' => '嵌入載入', 'desc' => '產生可嵌入其他網站的 iframe 碼。', 'default' => true],
         'share'  => ['label' => '分享', 'desc' => '分享連結／QR Code 彈窗。', 'default' => true],
         'homeLink' => ['label' => '回平台首頁', 'desc' => '右上角回到地圖清單的房子鈕。單獨對外掛一張地圖、不想讓訪客看到平台上其他地圖時可關閉（頁尾的來源標示不受影響）。', 'default' => true],
-        'identity' => ['label' => '投稿者身分', 'desc' => '右上角身分小標籤（暱稱／管理者／匿名預覽名）與建立身分（PIN）欄位。關閉後依序探索也會一併隱藏。', 'default' => true, 'dependsOn' => 'upload'],
+        'identity' => ['label' => '投稿者身分', 'desc' => '右上角身分小標籤（暱稱／管理者／匿名預覽名）與建立身分（PIN）欄位。關閉後依序探索也會一併隱藏；已登入管理者的身分指示仍顯示。', 'default' => true, 'dependsOn' => 'upload'],
         'personExplore' => ['label' => '依序探索', 'desc' => '選了投稿者後，可依序探索他的點位／零散照片時間軸。', 'default' => false, 'dependsOn' => 'identity'],
         'delegation' => ['label' => '管理者邀請登入', 'desc' => '地圖頁上的管理者登入／邀請兌換彈窗。關閉後這張地圖不再產生新的專案 PIN 或邀請連結，只能用主 PIN 從後台網址（/manager）登入管理，適合純檢視、僅超級管理者更新內容的部署。', 'default' => true],
         'map3d'  => ['label' => '3D 地圖模式', 'desc' => '訪客可切換到 MapLibre 3D 檢視（公用建物擠出＋自訂模型）。關閉後只有 2D 地圖，不載入 3D 相關程式。', 'default' => false],

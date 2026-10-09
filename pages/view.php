@@ -524,7 +524,7 @@ window.maplibregl = maplibregl;
 <?php if ($bare): ?>
 <script src="<?= $assetUrl('assets/js/embed-bridge.js') ?>"></script>
 <?php endif; ?>
-<?php if ($mod('identity')): ?>
+<?php if ($mod('identity') || ($isManager && !$bare && !$embed)): /* 管理者身分顯示不依賴投稿／設點開關 */ ?>
 <script src="<?= $assetUrl('assets/js/plugins/contributor-identity.js') ?>"></script>
 <?php endif; ?>
 <?php if ($contribFiles || $needAudioKind || $needPhotoKind): /* 型別檔要在外掛之前載入：外掛開機時就要有完整的型別註冊表才能決定分頁 */ ?>
