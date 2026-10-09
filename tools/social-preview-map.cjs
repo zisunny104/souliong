@@ -79,7 +79,7 @@ async function main() {
       const center = spot ? [spot.lon, spot.lat] : map.getCenter();
       map.jumpTo({ center, zoom: config.zoom, bearing: 0, pitch: 0 });
       const point = map.project(center);
-      map.panBy([point.x - 300, point.y - 315], { duration: 0 });
+      map.panBy([point.x - 400, point.y - 315], { duration: 0 });
       MapApp.setDisplay({ spots: true, contributions: false });
       const specs = spot ? MapApp.spotMarkerSpecs().filter(s => s.id === spot.num) : [];
       engine.setMarkerLayer('spots', specs);
@@ -92,7 +92,7 @@ async function main() {
       if (!map.isStyleLoaded() || !map.areTilesLoaded() || errors.length) throw new Error('Map tiles are incomplete');
       if (spot) {
         const location = map.project([spot.lon, spot.lat]);
-        if (Math.abs(location.x - 300) > 2 || Math.abs(location.y - 315) > 2) throw new Error('Point projection mismatch');
+        if (Math.abs(location.x - 400) > 2 || Math.abs(location.y - 315) > 2) throw new Error('Point projection mismatch');
       }
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     }, config);
