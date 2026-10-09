@@ -34,9 +34,6 @@
         '<input type="color" class="c-catcolor" value="#7A7F87" style="display:none" aria-label="' + esc(t('newspot_cat_color')) + '"></div>';
     }
 
-    // 留言框會成為第一個文字區塊，同樣支援 Markdown
-    extraBottomHtml() { return '<div class="sc-hint">' + esc(t('content_md_hint')) + '</div>'; }
-
     wireExtra(state, card) {
       const sel = card.querySelector('.c-cat');
       const lab = card.querySelector('.c-catlabel');

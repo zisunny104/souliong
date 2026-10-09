@@ -25,6 +25,7 @@ require_once __DIR__ . '/../api/i18n.php';
 require_once __DIR__ . '/../api/features.php';
 require_once __DIR__ . '/../api/pinicons.php';
 require_once __DIR__ . '/../api/licenses.php';
+require_once __DIR__ . '/../api/markdown.php';
 require_once __DIR__ . '/../api/packs.php';
 require_once __DIR__ . '/../api/layers.php';
 require_once __DIR__ . '/../api/navlinks.php';
@@ -417,6 +418,49 @@ if ($pack) {
 
 <!-- #lbMedia 是影片／音訊的播放槽：播放器要能點（拖進度條、按暫停），所以它自己吞掉 click，
      不能跟照片一樣讓點擊冒泡到 #lb 去關燈箱。內容由 openLightbox() 每次重建，關閉時清空停止播放。 -->
+<dialog id="markdownGuide" class="markdown-guide" aria-labelledby="markdownGuideTitle">
+  <div class="markdown-guide-head"><h2 id="markdownGuideTitle"><?= $t('markdown_guide_title') ?></h2><button class="icon-btn" type="button" data-markdown-close aria-label="<?= $t('close') ?>"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>
+  <div class="markdown-guide-body">
+    <p><?= $t('markdown_guide_intro') ?></p>
+    <?php
+    $examples = [
+      'markdown_common' => [
+        ['markdown_bold', '**' . $t('markdown_example') . '**'],
+        ['markdown_italic', '*' . $t('markdown_example') . '*'],
+        ['markdown_link', '[' . $t('markdown_example') . '](https://example.com)'],
+        ['markdown_list', '- ' . $t('markdown_example') . "\n- " . $t('markdown_example')],
+        ['markdown_paragraph', $t('markdown_example') . "\n\n" . $t('markdown_example')],
+      ],
+      'markdown_more' => [
+        ['markdown_heading', '## ' . $t('markdown_example')],
+        ['markdown_ordered', '1. ' . $t('markdown_example') . "\n2. " . $t('markdown_example')],
+        ['markdown_quote', '> ' . $t('markdown_example')],
+        ['markdown_strike', '~~' . $t('markdown_example') . '~~'],
+        ['markdown_code', '`code`'],
+        ['markdown_codeblock', "```\ncode\n```"],
+        ['markdown_table', "| A | B |\n| --- | --- |\n| 1 | 2 |"],
+        ['markdown_rule', '---'],
+      ],
+    ];
+    foreach ($examples as $heading => $rows): ?>
+      <h3><?= $t($heading) ?></h3>
+      <div class="markdown-guide-labels"><span><?= $t('markdown_syntax') ?></span><span><?= $t('markdown_result') ?></span></div>
+      <?php foreach ($rows as [$label, $source]): ?>
+        <div class="markdown-guide-example"><div><strong><?= $t($label) ?></strong><pre><code><?= $esc($source) ?></code></pre></div><div class="markdown-guide-result sc-md"><?= Markdown::toHtml($source, ['heading_ids' => false, 'soft_breaks' => true]) ?></div></div>
+      <?php endforeach; ?>
+    <?php endforeach; ?>
+    <p><?= $t('markdown_guide_note') ?></p>
+  </div>
+</dialog>
+<script>
+document.getElementById('markdownGuide').addEventListener('keydown', function(event) { event.stopPropagation(); });
+document.addEventListener('click', function(event) {
+  var guide = document.getElementById('markdownGuide');
+  if (event.target.closest('[data-markdown-help]')) { if (!guide.open) guide.showModal(); }
+  else if (event.target.closest('[data-markdown-close]') || event.target === guide) guide.close();
+});
+</script>
+
 <div id="lb" role="dialog" aria-modal="true" aria-label="<?= $t('photo_info_title') ?>" tabindex="-1" onclick="MapApp.closeLightbox()"><img id="lbImg" alt=""><div id="lbMedia" style="display:none" onclick="event.stopPropagation()"></div><div class="cap" id="lbCap"></div><div class="photo-editor" id="lbEditor" style="display:none" onclick="event.stopPropagation()"></div></div>
 
 <div id="extLinkDialog" class="dialog">

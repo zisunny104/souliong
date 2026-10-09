@@ -381,3 +381,19 @@
   background: #000
 }
 
+
+.markdown-guide { padding: 0; width: min(680px, calc(100vw - 24px)); max-width: calc(100vw - 24px); max-height: calc(100dvh - 24px); border: 1px solid var(--line); border-radius: var(--r-md); background: var(--panel); color: var(--fg-base); box-shadow: var(--sh-3); }
+.markdown-guide[open] { display: flex; flex-direction: column; }
+.markdown-guide::backdrop { background: rgba(0,0,0,.45); }
+.markdown-guide-head { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--line); flex-shrink: 0; }
+.markdown-guide-head h2 { margin: 0; flex: 1; font-size: 1rem; }
+.markdown-guide-body { overflow-y: auto; min-height: 0; padding: 12px 18px; font-size: .8125rem; line-height: 1.6; }
+.markdown-guide-body h3 { font-size: .9375rem; }
+.markdown-guide-labels, .markdown-guide-example { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 12px; }
+.markdown-guide-example { padding: 12px 0; border-bottom: 1px solid var(--line); }
+.markdown-guide-example > div { min-width: 0; overflow-wrap: anywhere; }
+.markdown-guide-example pre { margin: 6px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .75rem; }
+.markdown-guide-result :is(h1,h2,h3,h4,h5,h6) { font-size: 1rem; margin: 0; }
+.markdown-guide-result :is(p,ul,ol,pre,blockquote) { margin-top: 0; margin-bottom: 0; }
+.markdown-guide-result table { border-collapse: collapse; }
+.markdown-guide-result :is(td,th) { border: 1px solid var(--line); padding: 3px 8px; }

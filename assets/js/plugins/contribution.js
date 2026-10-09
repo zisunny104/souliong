@@ -130,7 +130,7 @@
         '<div class="modal-consent" id="modalConsent">' +
           '<div id="ccByRow" class="license-fields"><label class="modal-field"><span>' + esc(t('license_select_label')) + '</span><select id="ccByChk" aria-describedby="licenseSummary">' + Object.entries(APP.licenses).map(([key, value]) => '<option value="' + key + '">' + esc(value.label) + '</option>').join('') + '</select></label>' + nameField + '</div>' +
           '<div class="license-summary"><span id="licenseSummary" aria-live="polite"></span><a id="licenseHelp" target="_blank" rel="noopener noreferrer">' + esc(t('license_help')) + '</a></div>' +
-          '<details class="author-link"><summary>' + esc(t('author_url_label')) + '</summary><label class="modal-field"><span>' + esc(t('author_url_hint')) + '</span><input type="url" id="authorUrl" placeholder="https://" maxlength="500" autocomplete="url"></label></details>' +
+          '<details class="author-link"><summary><i class="fa-solid fa-angle-right" aria-hidden="true"></i><i class="fa-solid fa-link" aria-hidden="true"></i>' + esc(t('author_url_label')) + '</summary><label class="modal-field"><span>' + esc(t('author_url_hint')) + '</span><input type="url" id="authorUrl" placeholder="https://" maxlength="500" autocomplete="url"></label></details>' +
           '<label><input type="checkbox" id="wikidataChk"> ' + esc(t('wikidata_consent_label')) + '</label>' +
         '</div>';
       const anchor = document.getElementById('contribModal') || panel;
@@ -291,6 +291,7 @@
       if (summary.textContent !== hint) summary.textContent = hint;
     }
     closeModal() {
+      if (this.submitEmbed() && this.mapApp.isUnlocked()) return;
       const m = this.$('modal');
       if (!m) return;
       m.classList.remove('open');
@@ -408,13 +409,13 @@
           kind.extraTopHtml() +
           (this.captionAllowed(kind) ? '<textarea class="c-cmt" placeholder="' + esc(t(kind.key === 'newspot' ? 'newspot_story_placeholder' : 'write_something_placeholder')) + '"></textarea>' : '') +
           kind.extraBottomHtml() +
+          (this.captionAllowed(kind) ? '<button class="btn small markdown-help-trigger" type="button" data-markdown-help aria-haspopup="dialog"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Markdown</button>' : '') +
           (kind.needsSpot()
             ? '<label class="c-lab">' + esc(t('related_spot_label_multi')) + '</label>' +
               '<div class="row"><select class="c-spot"></select><button class="btn small c-nearest" type="button">' + esc(t('nearest_btn')) + '</button></div>'
             : '') +
           (kind.needsLocation()
-            ? '<div class="mini"></div><div class="loc"></div>' +
-              '<div class="row"><button class="btn small c-reset-loc" type="button">' + esc(t('reset_location_btn')) + '</button></div>'
+            ? '<div class="mini"></div><div class="location-tools"><div class="loc"></div><button class="btn small c-reset-loc" type="button">' + esc(t('reset_location_btn')) + '</button></div>'
             : '') +
           '<div class="row"><button class="btn primary c-send">' + esc(t('submit_this_one')) + '</button><span class="status"></span></div>' +
         '</div>';

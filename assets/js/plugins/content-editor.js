@@ -52,7 +52,7 @@
     buildBody(block) {
       const el = document.createElement('div');
       el.innerHTML = '<textarea class="sc-ta" placeholder="' + esc(t('story_textarea_placeholder')) + '">' + esc(block.comment) + '</textarea>' +
-        '<div class="sc-hint">' + esc(t('content_md_hint')) + '</div>';
+        '<button class="btn small markdown-help-trigger" type="button" data-markdown-help aria-haspopup="dialog"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Markdown</button>';
       el.querySelector('textarea').oninput = (ev) => { block.comment = ev.target.value; };
       return el;
     }

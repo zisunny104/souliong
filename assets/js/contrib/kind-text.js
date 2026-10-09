@@ -17,9 +17,6 @@
     // 關聯點位留著：文字紀錄一定是留給某個點位的（upload.php 允許不指定，但這裡預設會選最近的）
     needsSpot() { return true; }
 
-    // 文字投稿支援 Markdown，伺服器輸出時算出 html（見 viewer.core.js 投稿牆的 .txt）
-    extraBottomHtml() { return '<div class="sc-hint">' + esc(t('content_md_hint')) + '</div>'; }
-
     validate(state, card) {
       return card.querySelector('.c-cmt').value.trim() ? null : t('need_text_content');
     }

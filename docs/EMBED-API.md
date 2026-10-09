@@ -311,3 +311,5 @@ GET <站台>?api=navsheet&project=<slug>&spot=<spotId|num>&embed=1[&theme=light|
 後台將免碼開放與投稿碼整合為同一區塊。免碼可選長期、指定期間或預約時段，仍儲存原有 `contributionAccess.enabled / starts_at / expires_at`，不增加另一種投稿權限；指定期間須填結束時間，預約時段須填開始時間。免碼有效時投稿碼預設收合，仍可展開建立，重疊期間會提示不需要投稿碼。建立點位勾選沿用 `contrib.newSpot` 的 `contributor / off`；原有 `admin` 在未勾選時保留。此設定也適用投稿碼使用者。
 
 「開放期間與歷史」分目前、預約及已結束／已取消。修改或關閉免碼設定時，將原期間保存於 `contributionAccessHistory`；停用或移除投稿碼時，將不含碼值的期間摘要保存於 `contributionCodeHistory`，各保留最近 100 筆。投稿碼摘要只保存時間、標籤及雜湊參照，不保存碼值。這些歷史欄位不參與授權判斷。新增立即開放的設定以展示用 `contributionAccessOpenedAt` 記下開始時間；舊設定未記錄的開始時間不推測。尚未開始即取消的預約顯示「已取消」，不視為曾開放。歷史為期間資料，不是操作稽核紀錄。
+
+嵌入投稿視窗保持開啟，Escape 不會把投稿畫面關成空白。Markdown 說明是獨立的原生對話框，關閉後回到原投稿欄位；完整介面嵌入維持既有唯讀限制，bare 不載入投稿／建立點位外掛。
