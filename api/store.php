@@ -129,38 +129,6 @@ function store_backup(string $path): void {
 }
 
 /**
- * 專案整包備份成 ZIP：把專案資料夾現況打包，存在 projects/<proj>/_backup/ 底下——比 store_backup()
- * 單一滾動快照更完整（含所有 jsonl、照片、其他檔案），危險操作（批次改寫、一次性遷移工具）前
- * 先備份用，萬一出錯也能整個還原，不只回復單一檔案。做法比照 api/manager.php 既有的
- * backup=project 匯出（同樣用 zip.php 打包整個 project_dir()、跳過 .rate 快取），差別只在這裡
- * 是寫進磁碟留存，不是串流下載給使用者。
- *
- * $overrides：['相對路徑' => 暫存檔絕對路徑]，用來取代該相對路徑原本會讀到的即時檔案內容——
- * 呼叫端如果對某個檔案持有 flock(LOCK_EX)，讓這裡再開一次同一個檔案讀，在 Windows 上會撞鎖
- * （LockFileEx 連同一行程的第二個控制代碼都擋，不像 POSIX 的 flock() 只擋有另外呼叫 flock()
- * 的讀者），讀到的內容會是空的、CRC 對不上。呼叫端應把鎖住那份檔案「鎖定當下的既有內容」先
- * 寫成暫存檔，用這個參數指定改讀暫存檔。
- */
-function project_backup_zip(array $cfg, string $proj, array $overrides = []): ?string {
-    require_once __DIR__ . '/zip.php';
-    $absDir = project_dir($cfg, $proj);
-    if (!is_dir($absDir)) return null;
-    $files = [];
-    foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($absDir, FilesystemIterator::SKIP_DOTS)) as $f) {
-        if (!$f->isFile()) continue;
-        $path = $f->getPathname();
-        if (strpos($path, DIRECTORY_SEPARATOR . '.rate' . DIRECTORY_SEPARATOR) !== false) continue;
-        if (strpos($path, DIRECTORY_SEPARATOR . '_backup' . DIRECTORY_SEPARATOR) !== false) continue;
-        $rel = ltrim(str_replace('\\', '/', substr($path, strlen($absDir))), '/');
-        $files[$proj . '/' . $rel] = $overrides[$rel] ?? $path;
-    }
-    $backupDir = $absDir . '/_backup';
-    if (!is_dir($backupDir)) @mkdir($backupDir, 0775, true);
-    $out = $backupDir . '/backup-' . date('Ymd-His') . '.zip';
-    return zip_pack($out, $files) ? $out : null;
-}
-
-/**
  * 整檔重寫、跳過符合 $shouldRemove() 的那些行（store_delete()／store_delete_by() 共用）。
  * 回傳被移除的紀錄陣列；檔案不存在就什麼都不做。
  */
@@ -228,7 +196,7 @@ function store_delete_by(array $cfg, string $project, string $field, string $val
  */
 function store_patch(array $cfg, string $project, string $id, array $fields): ?array {
     $f = store_file($cfg, $project);
-    // 相容舊專案將投稿與點位保存在同一檔案的格式。
+    // 先在投稿檔找該 id，找不到就改查點位檔。
     $inEntries = false;
     foreach (_store_read_lines($f) as $row) {
         if (($row['id'] ?? '') === $id) { $inEntries = true; break; }

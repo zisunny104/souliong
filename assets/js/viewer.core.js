@@ -3,7 +3,7 @@
    地圖繪製透過 assets/js/engine/ 底下的 MapEngine 抽象層（見 map-engine.js）：這個檔案跟所有
    plugin 一律只呼叫 engine.* / MapApp.getEngine().*，不直接認得 MapLibre 的 API。 */
 window.MapApp = (() => {
-  const APP = window.APP || { base: './', project: 'chairs' };
+  const APP = window.APP || { base: './', project: '' };
   const I18N = window.I18N || {};
   // 翻譯輔助：key 缺就直接顯示 key 本身（不會整段消失，方便發現漏翻）
   const t = (key, vars) => {
@@ -12,11 +12,12 @@ window.MapApp = (() => {
     return s;
   };
   const params = new URLSearchParams(location.search);
-  const PROJECT = (APP.project || params.get('p') || 'chairs').replace(/[^a-z0-9_-]/gi, '');
+  const PROJECT = (APP.project || params.get('p') || '').replace(/[^a-z0-9_-]/gi, '');
   const EMBED = !!(APP.embed) || params.get('embed') === '1';
   // 嵌入參數（僅 embed=1 有效）。bare＝純地圖，控制由 assets/js/embed-bridge.js 負責，核心只讀這份旗標。
   const pick = (v, allowed, fallback) => (allowed.includes(v) ? v : fallback);
   const BARE = EMBED && params.get('ui') === 'bare';
+  const MOBILE_MQ = '(max-width:640px)';   // 與 assets/css/spot-panel.css 的手機斷點一致
   const SUBMIT = EMBED && params.get('ui') === 'submit';   // 嵌入投稿對話框，嵌入中唯一可投稿的模式
   const EMBED_UI = EMBED ? {
     bare: BARE,
@@ -576,7 +577,7 @@ window.MapApp = (() => {
     }
     return '<div class="who byline-text">' + esc(bylineText('entry', e.name, stamp)) + edited + '</div>';
   }
-  // 點位的顯示名稱。欄位名稱依資料來源而異（100chairs 是 theme／chair，一般地圖是 title，
+  // 點位的顯示名稱。欄位名稱依資料來源而異（部分地圖是 theme／chair，一般地圖是 title，
   // 訪客建立的點位也是 title），下拉選單與標題都走這一個函式，加新來源時只要改這裡。
   const spotName = (p) => p.theme || p.title || p.chair || '';
   function spotTitle(p) {
@@ -1154,10 +1155,10 @@ window.MapApp = (() => {
   function panelCoverage() {
     const panel = document.getElementById('panel'), mapEl = document.getElementById('map');
     if (!panel || !mapEl) return null;
-    const map = mapEl.getBoundingClientRect(), style = getComputedStyle(panel);
+    const map = mapEl.getBoundingClientRect();
     const w = panel.offsetWidth, h = Math.min(panel.offsetHeight, window.innerHeight * 0.82);
-    // 手機（CSS 在 640px 以下）是貼底的卡片。不能讀 computed top 判斷：定位元素的 computed top 是換算後的像素，不會是 auto
-    if (window.matchMedia('(max-width:640px)').matches) return { map, rect: { x0: 0, y0: window.innerHeight - 10 - h - map.top, x1: map.width, y1: map.height } };
+    // 手機是貼底的卡片。不能讀 computed top 判斷：定位元素的 computed top 是換算後的像素，不會是 auto
+    if (window.matchMedia(MOBILE_MQ).matches) return { map, rect: { x0: 0, y0: window.innerHeight - 10 - h - map.top, x1: map.width, y1: map.height } };
     const left = window.innerWidth - 14 - w - map.left;
     return { map, rect: { x0: left, y0: 0, x1: map.width, y1: map.height } };
   }
@@ -1178,7 +1179,7 @@ window.MapApp = (() => {
     engine.panTo(c.lat, c.lon, { animate: true, offset: [(free.x0 + free.x1) / 2 - m.width / 2, (free.y0 + free.y1) / 2 - m.height / 2] });
   }
   function openPanel(c) {
-    panelUserMoved = false;
+    if (!current || current.num !== c.num) panelUserMoved = false;   // 同一個點位重畫（例如換身分）不重設
     const panel = document.getElementById('panel');
     if (!panel.classList.contains('open')) panelReturnFocus = document.activeElement;
     panel.removeAttribute('inert'); panel.removeAttribute('aria-hidden');
@@ -1952,7 +1953,7 @@ window.MapApp = (() => {
       }
       lbImg.src = nextUrl;
     }
-    // 照片資訊改成「時間後面的 i 小圖示」，不佔一顆獨立按鈕
+    // 照片資訊用「時間後面的 i 小圖示」呈現，不佔獨立按鈕
     const who = (MOD(e.spotBlock ? 'spotByline' : 'entryByline') ? esc(bylineText(e.spotBlock ? 'spot' : 'entry', e.name, e.photo_time || e.created_at)).replace(/\n/g, ' ・ ') : '');
     const infoBtn = '<button class="lb-info-i" type="button" id="lbInfoBtn" title="' + esc(t('photo_info_title')) + '" aria-label="' + esc(t('photo_info_title')) + '"><i class="fa-solid fa-circle-info" aria-hidden="true"></i></button>';
     const markdown = !e.spotBlock && ['text', 'photo'].includes(kindOf(e)) && e.html;
@@ -2101,7 +2102,7 @@ window.MapApp = (() => {
     // 資料由 view.php 伺服器端內嵌（框架不供應靜態檔）；獨立部署時退回 fetch。
     META = APP.meta || await fetch(APP.base + 'projects/' + PROJECT + '/meta.json').then(r => r.json());
     SPOTS = APP.spots || [];
-    document.title = (META.title || t('map_title_fallback')) + (META.subtitle ? '・' + META.subtitle : '');
+    document.title = APP.docTitle || (META.title || t('map_title_fallback')) + (META.subtitle ? '・' + META.subtitle : '');   // 伺服器算好的標題優先，與分享標題同一串
     document.getElementById('titleTxt').textContent = META.title || t('map_title_fallback');
     document.getElementById('titleSub').textContent = META.subtitle ? '・' + META.subtitle : '';
     // 資料來源連結（meta.sources = [{label,url}]，可展開看原始 StoryMaps）與原始單位署名（meta.credit）
@@ -2205,12 +2206,12 @@ window.MapApp = (() => {
     const savedCollapsed = lsGet('ctlCollapsed');
     // 手機用 ?spot= / ?entry= 帶內容進站時，卡片會直接打開：左上面板一律先收起來讓出畫面，
     // 不受先前存過的偏好影響（只是這次載入的初始狀態，不寫回偏好）
-    const deepLinked = !BARE && !!(params.get('spot') || params.get('entry')) && window.matchMedia('(max-width:640px)').matches;
+    const deepLinked = !BARE && !!(params.get('spot') || params.get('entry')) && window.matchMedia(MOBILE_MQ).matches;
     const startCollapsed = urlCollapsed === '1' ? true
       : urlCollapsed === '0' ? false
       : deepLinked ? true
       : savedCollapsed !== null ? savedCollapsed === '1'
-      : window.matchMedia('(max-width:640px)').matches;
+      : window.matchMedia(MOBILE_MQ).matches;
     if (startCollapsed) { controls.classList.add('collapsed'); document.getElementById('collapseBtn').innerHTML = chevron(true); }
     document.getElementById('collapseBtn').onclick = function () {
       const c = controls.classList.toggle('collapsed');
@@ -2370,7 +2371,7 @@ window.MapApp = (() => {
     // 找不到對應點位（號碼錯誤或已刪除）就安靜略過，不擋其餘初始化。
     const urlSpot = BARE ? '' : params.get('spot');
     if (urlSpot) {
-      const pt = effectiveSpots().find(p => p.id === urlSpot || p.num === +urlSpot);
+      const pt = effectiveSpots().find(p => p.id === urlSpot || (/^\d{1,9}$/.test(urlSpot) && p.num === +urlSpot));
       if (pt) {
         openPanel(pt); revealSpot(pt);
         // 進站當下地圖還在載入、卡片內容也還在長：載完再確認一次，使用者還沒動過地圖才會自動挪

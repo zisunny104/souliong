@@ -32,8 +32,10 @@ function souliong_social_audio_seconds(?array $entry, ?array $spot): ?int
     return null;
 }
 
-function souliong_social_data(array $cfg, string $project, array $meta, string $entryId = '', string $spotRef = ''): ?array
+function souliong_social_data(array $cfg, string $project, array $meta, string $entryId = '', string $spotRef = '', string $lang = 'zh_TW'): ?array
 {
+    $lang = in_array($lang, i18n_supported(), true) ? $lang : 'zh_TW';
+    $dict = i18n_dict($lang);
     $entries = souliong_og_entries(store_all($cfg, $project));
     $entry = $entryId !== '' ? ($entries[$entryId] ?? null) : null;
     if ($entryId !== '' && !$entry) return null;
@@ -42,7 +44,7 @@ function souliong_social_data(array $cfg, string $project, array $meta, string $
         : ($spotRef !== '' ? souliong_og_resolve_spot($cfg, $project, $spotRef) : null);
     if (!$entry && $spotRef !== '' && !$spot) return null;
     $title = (string)($meta['title'] ?? 'Souliong');
-    $spotName = $spot ? souliong_og_spot_name($spot) : '';
+    $spotLabel = $spot ? souliong_og_spot_title(souliong_og_spot_name($spot), (int)$spot['num'], $meta['numbering'] ?? 'suffix') : '';   // 與網頁標題一樣帶編號
     $kind = $entry ? (string)($entry['kind'] ?? 'photo') : '';
     $image = $entry ? souliong_social_image($cfg, $project, $kind === 'video' ? ($entry['thumb'] ?? '') : ($entry['photo'] ?? '')) : null;
     if (!$entry && $spot) {
@@ -65,20 +67,19 @@ function souliong_social_data(array $cfg, string $project, array $meta, string $
     return [
         'kind' => $entry ? 'entry' : ($spot ? 'spot' : 'project'),
         'entryKind' => $kind,
-        'entryLabel' => $entry ? i18n_t(i18n_dict('zh_TW'), 'og_entry_label') : '',   // 投稿一律寫「投稿」，種類由畫面本身（照片、播放列、文字）表達
-        'brand' => i18n_t(i18n_dict('zh_TW'), 'app_title'),   // 與首頁相同的平台名稱（中英並列）
+        'entryLabel' => $entry ? i18n_t($dict, 'og_entry_label') : '',   // 一律寫「投稿」，種類由畫面本身表達
+        'brand' => i18n_t($dict, 'app_title'),   // 與頁面語言的首頁相同的平台名稱
+        'lang' => $lang,
         'projectTitle' => $title,
-        'title' => $spot ? souliong_og_spot_title($spotName, (int)$spot['num'], $meta['numbering'] ?? 'suffix') : $title,
-        'spotName' => $spotName,
+        'title' => $spot ? $spotLabel : $title,
+        'spotName' => $spotLabel,
         'spotId' => $spot ? (string)$spot['id'] : null,
-        'description' => souliong_og_truncate(souliong_og_plain((string)($entry ? ($entry['comment'] ?? '') : ($spot ? spot_content_text($spot) : ($meta['desc'] ?? $meta['subtitle'] ?? '')))), 240),
+        'description' => souliong_og_truncate(souliong_og_plain(mb_substr((string)($entry ? ($entry['comment'] ?? '') : ($spot ? spot_content_text($spot) : ($meta['desc'] ?? $meta['subtitle'] ?? ''))), 0, 2000)), 240),
         'author' => (string)($entry['name'] ?? ''),
         'license' => (string)($licenses[$entry['license'] ?? '']['label'] ?? ''),
         'image' => $image,
-        'map' => ($meta['cover']['mode'] ?? '') === 'auto' ? $cover : null,
         'markerColor' => $spot ? souliong_spot_color($meta, $spot) : null,
         'audioSeconds' => souliong_social_audio_seconds($entry, $spot),
-        'coordinates' => $spot && is_numeric($spot['lat'] ?? null) && is_numeric($spot['lon'] ?? null) ? [(float)$spot['lat'], (float)$spot['lon']] : null,
         'metaRevision' => hash('sha256', json_encode($meta)),
     ];
 }
@@ -87,10 +88,8 @@ function souliong_social_revision(array $cfg, string $project, array $meta, arra
 {
     $files = [];
     foreach (['assets/css/map-markers.css', 'assets/js/viewer.core.js', 'assets/js/engine/maplibre-engine.js'] as $file) $files[$file] = filemtime(dirname(__DIR__) . '/' . $file);
-    foreach (['image', 'map'] as $field) {
-        $path = $data[$field] ?? null;
-        if ($path && is_file($path)) $files[$field] = [filesize($path), filemtime($path)];
-    }
+    $image = $data['image'] ?? null;
+    if ($image && is_file($image)) $files['image'] = [filesize($image), filemtime($image)];
     foreach (souliong_layers_for($cfg, $meta, $project) as $layer) {
         $dir = souliong_layer_dir($cfg, (string)$layer['id'], $project);
         foreach ($dir ? (glob($dir . '/*.json') ?: []) : [] as $path) $files[$path] = [filesize($path), filemtime($path)];
@@ -112,11 +111,10 @@ function souliong_social_attribution(array $cfg, string $project, array $meta): 
 }
 
 /** Round only the corner pixels; image sizing always uses contain, never cover. */
-function souliong_social_round($canvas, int $x, int $y, int $width, int $height, int $radius, $background = null, bool $rightCorners = true): void
+function souliong_social_round($canvas, int $x, int $y, int $width, int $height, int $radius, $background = null): void
 {
     $radius = min($radius, (int)($width / 2), (int)($height / 2));
-    $corners = $rightCorners ? [[0, 0], [$width - $radius, 0], [0, $height - $radius], [$width - $radius, $height - $radius]] : [[0, 0], [0, $height - $radius]];
-    foreach ($corners as [$cx, $cy]) {
+    foreach ([[0, 0], [$width - $radius, 0], [0, $height - $radius], [$width - $radius, $height - $radius]] as [$cx, $cy]) {
         for ($i = 0; $i < $radius; $i++) for ($j = 0; $j < $radius; $j++) {
             $px = $cx + $i; $py = $cy + $j;
             $dx = $cx === 0 ? $radius - .5 - $i : $i + .5;
@@ -169,13 +167,19 @@ function souliong_social_font_bold(array $cfg): ?string
     return null;
 }
 
+/** imagettftext 會把 &#數字; 當字元實體解碼，使用者文字先跳脫 &，圖上才會和原文一致。 */
+function souliong_social_glyphs(string $line): string
+{
+    return str_replace('&', '&amp;', $line);
+}
+
 /** 名稱用粗體；沒有粗體字型時同一行錯開 1px 畫兩次。 */
 function souliong_social_text_bold($canvas, string $text, string $font, ?string $bold, int $size, int $x, int $y, int $width, int $lines, int $color, int $leading): void
 {
     $use = $bold ?: $font;
     foreach (souliong_social_wrap($text, $use, $size, $width, $lines) as $line) {
-        imagettftext($canvas, $size, 0, $x, $y, $color, $use, $line);
-        if (!$bold) imagettftext($canvas, $size, 0, $x + 1, $y, $color, $use, $line);
+        imagettftext($canvas, $size, 0, $x, $y, $color, $use, souliong_social_glyphs($line));
+        if (!$bold) imagettftext($canvas, $size, 0, $x + 1, $y, $color, $use, souliong_social_glyphs($line));
         $y += $leading;
     }
 }
@@ -189,7 +193,7 @@ function souliong_social_player($canvas, string $font, int $accent, int $y, int 
     imagettftext($canvas, 34, 0, 680, $y, $accent, $font, $label);
     $box = imagettfbbox(34, 0, $font, $label);
     $x0 = 680 + ($box[2] - $box[0]) + 28; $mid = $y - 13;
-    // 示意波形（固定圖樣，不代表實際音訊）：已播放約三分之一用主色，其餘淡色，一路延伸到畫面右緣之外
+    // 前段用主色表示已播放，其餘淡色
     $heights = [14, 26, 40, 22, 48, 30, 18, 42, 34, 52, 28, 16, 38, 46, 24, 34, 20, 44, 30, 14, 26, 40, 22, 36, 18, 30];
     $count = min(count($heights), (int)((1230 - $x0) / 18));
     if ($count < 6) return;
@@ -253,18 +257,16 @@ function souliong_social_wrap(string $text, string $font, int $size, int $width,
 function souliong_social_text($canvas, string $text, string $font, int $size, int $x, int $y, int $width, int $lines, int $color, int $leading): void
 {
     foreach (souliong_social_wrap($text, $font, $size, $width, $lines) as $line) {
-        imagettftext($canvas, $size, 0, $x, $y, $color, $font, $line);
+        imagettftext($canvas, $size, 0, $x, $y, $color, $font, souliong_social_glyphs($line));
         $y += $leading;
     }
 }
 
-/** Photographs retain their full bounds; only the decorative map background fills the canvas. */
+/** 畫名片：左側地圖、右側文字欄、上緣地標色線、下緣置中膠囊。照片完整縮放不裁切；名片文字固定用繁體中文。 */
 function souliong_social_render(array $data, string $font, ?string $bold = null): ?string
 {
     $canvas = imagecreatetruecolor(1200, 630);
-    imagefill($canvas, 0, 0, imagecolorallocate($canvas, 247, 249, 241));
-    $decodedMap = !empty($data['mapBytes']) ? souliong_image_decode_bytes($data['mapBytes'])
-        : (!empty($data['map']) ? souliong_image_decode_file($data['map']) : null);
+    $decodedMap = !empty($data['mapBytes']) ? souliong_image_decode_bytes($data['mapBytes']) : null;
     if ($decodedMap) {
         [$source, $w, $h] = $decodedMap;
         imagecopyresampled($canvas, $source, 0, 0, 0, 0, 1200, 630, $w, $h);
@@ -282,7 +284,7 @@ function souliong_social_render(array $data, string $font, ?string $bold = null)
     // 專案預覽的文字欄標題已經是專案名稱，不再重複放膠囊
     $titleLines = $data['kind'] === 'project' ? [] : souliong_social_wrap($data['projectTitle'], $bold ?: $font, 23, 520, 1);
     if ($titleLines) {
-        // 置中在整張圖的中線；最寬約 580px，落在 LINE 裁成正方形（中間約 630px）的範圍內，名稱太長就在單行結尾加「…」
+        // 置中在整張圖的中線，寬度上限是斷句寬 520 加兩側內距，名稱太長就在單行結尾加「…」
         $box = imagettfbbox(23, 0, $bold ?: $font, $titleLines[0]);
         $titleW = $box[2] - $box[0]; $titleX = 600 - (int)($titleW / 2);
         souliong_social_pill($canvas, $titleX - 28, 86 + $box[5] - 14, $titleX + $titleW + 28, 86 + $box[1] + 14);
@@ -291,18 +293,18 @@ function souliong_social_render(array $data, string $font, ?string $bold = null)
     $hasPhoto = false;
     if (!empty($data['image']) && ($decoded = souliong_image_decode_file($data['image']))) {
         [$source, $w, $h] = $decoded;
-        $boxH = $data['kind'] === 'entry' ? 280 : (!empty($data['audioSeconds']) ? 220 : 320);
+        $boxH = $data['kind'] === 'entry' ? 264 : (!empty($data['audioSeconds']) ? 204 : 304);
         $scale = min(518 / $w, $boxH / $h);
         $dw = max(1, (int)round($w * $scale)); $dh = max(1, (int)round($h * $scale));
-        $px = 618 + (int)((518 - $dw) / 2); $py = 93 + (int)(($boxH - $dh) / 2);
+        $px = 618 + (int)((518 - $dw) / 2); $py = 112 + (int)(($boxH - $dh) / 2);
         $under = imagecreatetruecolor($dw, $dh); imagecopy($under, $canvas, 0, 0, $px, $py, $dw, $dh);
         imagecopyresampled($canvas, $source, $px, $py, 0, 0, $dw, $dh, $w, $h);
         souliong_social_round($canvas, $px, $py, $dw, $dh, 18, $under); imagedestroy($under);
         imagedestroy($source); $hasPhoto = true;
         if (($data['entryKind'] ?? '') === 'video') {
-            $white = imagecolorallocate($canvas, 255, 255, 255);
-            imagefilledellipse($canvas, 877, 253, 64, 64, imagecolorallocatealpha($canvas, 35, 55, 48, 30));
-            imagefilledpolygon($canvas, [869, 237, 869, 269, 894, 253], $white);
+            $mx = $px + (int)($dw / 2); $my = $py + (int)($dh / 2);
+            imagefilledellipse($canvas, $mx, $my, 64, 64, imagecolorallocatealpha($canvas, 35, 55, 48, 30));
+            imagefilledpolygon($canvas, [$mx - 8, $my - 16, $mx - 8, $my + 16, $mx + 17, $my], imagecolorallocate($canvas, 255, 255, 255));
         }
     }
     if ($data['kind'] === 'entry') {
@@ -345,7 +347,7 @@ function souliong_social_render(array $data, string $font, ?string $bold = null)
     $left = 600 - (int)($total / 2);
     souliong_social_pill($canvas, $left - 24, 562, $left + $total + 24, 604);
     souliong_social_text_bold($canvas, $brandText, $font, $bold, 14, $left, 589, $brandW + 10, 1, $accent, 20);
-    if ($attr !== '') imagettftext($canvas, 9, 0, $left + $brandW + $gap, 588, $muted, $font, $attr);
+    if ($attr !== '') imagettftext($canvas, 9, 0, $left + $brandW + $gap, 588, $muted, $font, souliong_social_glyphs($attr));
     // 上緣一條粗線，顏色就是這個點位的地標色；沒有點位（專案預覽）時用主色。不倒圓角，整條切齊上緣
     $barColor = is_string($data['markerColor'] ?? null) && preg_match('/^#[0-9a-f]{6}$/iD', $data['markerColor'])
         ? imagecolorallocate($canvas, hexdec(substr($data['markerColor'], 1, 2)), hexdec(substr($data['markerColor'], 3, 2)), hexdec(substr($data['markerColor'], 5, 2))) : $accent;
@@ -353,4 +355,23 @@ function souliong_social_render(array $data, string $font, ?string $bold = null)
     ob_start(); $ok = imagejpeg($canvas, null, 88); $bytes = ob_get_clean();
     imagedestroy($canvas);
     return $ok ? $bytes : null;
+}
+
+/** 快取目錄的清理：每天最多一次，刪除超過 30 天沒有重畫的名片（含已刪除紀錄留下的舊圖）與遺留的暫存檔。 */
+function souliong_social_prune(array $cfg): void
+{
+    $root = rtrim($cfg['state_dir'], '/\\') . '/social-previews';
+    if (!is_dir($root)) return;
+    $marker = $root . '/.pruned';
+    if (is_file($marker) && filemtime($marker) > time() - 86400) return;
+    @touch($marker);
+    $now = time();
+    foreach (glob($root . '/*', GLOB_ONLYDIR) ?: [] as $dir) {
+        foreach (glob($dir . '/*') ?: [] as $file) {
+            if (!is_file($file)) continue;
+            $limit = str_ends_with($file, '.tmp') ? 3600 : 30 * 86400;
+            if (filemtime($file) < $now - $limit) @unlink($file);
+        }
+        @rmdir($dir);   // 空目錄才會成功
+    }
 }

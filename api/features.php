@@ -91,8 +91,7 @@ function souliong_contrib_kinds(): array
  * 解析某張地圖的投稿設定（meta.json 的 "contrib" 區塊），比照 souliong_module_on() 的精神：
  * PHP 端算一次，前端直接讀 $APP.contrib，不在兩邊各自重算預設值。
  *
- * 沒有 "contrib" 區塊的舊專案一律解析成「只有照片、不能建點」——也就是跟加入這功能之前
- * 完全一樣的行為，既有地圖不改設定檔就零變化。
+ * 沒有 "contrib" 區塊的舊專案一律解析成「只有照片、不能建點」——既有地圖不改設定檔就零變化。
  *
  * 回傳：kinds（依註冊表順序的啟用型別）、tabs（由 kinds 推導、去重後的分頁）、
  *       default（初始分頁，保證在 tabs 內）、newSpot（off｜admin｜contributor）。
@@ -151,7 +150,7 @@ function souliong_features(): array
 // 這是「這張地圖要不要有這個功能」的開關（view.php 用它決定渲不渲染、viewer.core.js
 // 用它決定要不要啟用行為），跟上面 souliong_features() 那份「事後統計要顯示的名稱」是兩件事。
 // 未在 meta.json 出現的 key 一律視為 default 值，舊專案（meta.json 沒有 features 欄位）
-// 因此完全不受影響、行為與拆分之前一致。
+// 因此完全不受影響。
 function souliong_modules(): array
 {
     return [

@@ -24,11 +24,13 @@ async function main() {
   }
   // 網站執行身分（如 www-data）的家目錄常常不可寫，Chromium 的 crashpad 與設定目錄會因此啟動失敗而崩潰；
   // 改用 state 底下專用的可寫目錄，並關掉 crash 回報。
-  const env = { ...process.env };
+  // 只把瀏覽器需要的環境變數交給它，不連整份環境一起傳
+  const env = Object.fromEntries(['PATH', 'HOME', 'LANG', 'LC_ALL', 'TMPDIR', 'TZ'].filter(key => process.env[key] !== undefined).map(key => [key, process.env[key]]));
   if (config.home) Object.assign(env, { HOME: config.home, XDG_CONFIG_HOME: config.home + '/.config', XDG_CACHE_HOME: config.home + '/.cache', XDG_DATA_HOME: config.home + '/.local/share' });
   const browser = await chromium.launch({
     executablePath: config.chromium,
     headless: true,
+    chromiumSandbox: config.sandbox !== false,   // Playwright 預設會加 --no-sandbox；這裡預設開啟沙箱，僅在伺服器明確設定時才關
     args: ['--disable-dev-shm-usage', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--disable-crash-reporter', '--disable-breakpad'],
     env,
     proxy,

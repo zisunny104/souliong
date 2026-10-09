@@ -79,7 +79,7 @@ function auth_source_visible(array $cfg, string $project, array $perms): bool {
 }
 /**
  * 既有身分的 perms 自我修復：backfill 鍵缺席時回填 true。有改動回傳 true（呼叫端負責存檔）。
- * pins_load() 與 project_perms_load() 共用，兩邊不再各寫一份迴圈。
+ * pins_load() 與 project_perms_load() 共用。
  */
 function auth_perms_migrate(array &$perms): bool {
     $dirty = false;

@@ -18,7 +18,7 @@ license, owner_hash, src_hash, contrib_id, contrib_hash, edit_of, created_at
 完整定義在 `api/features.php` 的 `souliong_kinds()`，見第三節。
 `edit_of` 指向被編輯的原始投稿 id（版本化：不覆寫，新增一筆版本紀錄，前端取最新版本蓋過原始值）。
 `contrib_id`/`contrib_hash` 是可選的投稿者身分（自選 PIN 才有）：前者對外可見（分組顯示用），後者僅供伺服器驗證「本人編輯/刪除」，不外流。
-`license` 是投稿時決定的授權：預設 `cc0`，已建立身分的投稿者可在投稿視窗勾選改成 `cc-by`（`api/upload.php` 會再驗一次有沒有 `ctoken`——沒有穩定身分就沒有名字可標示，一律回落 `cc0`）。
+`license` 是投稿時決定的授權，可用值見 `api/licenses.php`（`cc0`、`cc-by`、`cc-by-sa`、`cc-by-nd`、`cc-by-nc`、`cc-by-nc-sa`、`cc-by-nc-nd`）。有身分或有署名的投稿可選 CC 系列，否則一律回落 `cc0`。
 
 ## 二、新增一張地圖（完全不用改程式）
 
@@ -62,8 +62,7 @@ license, owner_hash, src_hash, contrib_id, contrib_hash, edit_of, created_at
 `$APP.contrib`**，不在兩邊各自重算預設值。回傳 `kinds`（依註冊表順序，不依 meta.json 的書寫順序，
 分頁排列才會每張地圖一致）、`tabs`（由 kinds 推導）、`default`（保證在 tabs 內）、`newSpot`。
 
-**沒有 `contrib` 區塊的舊地圖一律解析成 `kinds:["photo"]`、`newSpot:"off"`**，也就是跟加這個功能之前
-完全一樣——既有地圖不改設定檔就零變化。後台「編輯專案描述」對話框可以勾選型別、選預設分頁與建立點位權限；
+**沒有 `contrib` 區塊的地圖一律解析成 `kinds:["photo"]`、`newSpot:"off"`。**後台「編輯專案描述」對話框可以勾選型別、選預設分頁與建立點位權限；
 存檔前會再跑一次 `souliong_contrib_cfg()` 收斂（例如取消勾選所有媒體型別時，`default` 會自動從 `media`
 換成第一個還存在的分頁），寫進 `meta.json` 的就是前端實際拿到的東西。
 
@@ -83,9 +82,9 @@ license, owner_hash, src_hash, contrib_id, contrib_hash, edit_of, created_at
 | `kind-video.js` | 原檔直傳；`<video>` + canvas 抽第一幀當封面；讀長度 |
 | `kind-audio.js` | 選檔 ＋ MediaRecorder 現場錄音；無縮圖 |
 | `kind-text.js` | 無檔案、無座標的一則文字 |
-| `kind-newspot.js` | 建立點位視窗（`#spotModal`）：標題／分類／故事／小地圖選點，送 `api/newspot.php` |
+| `kind-newspot.js` | 建立點位視窗（`#spotModal`）：標題／分類／說明／小地圖選點，送 `api/newspot.php` |
 
-三個當時想清楚的決定：
+三個設計決定：
 
 1. **型別是掛在每張卡片上的物件，不是一個插件。** 一個批次本來就可能混型別（同時丟一張照片、一段錄音），
    所以用組合：卡片持有一個 `ContribKind` 實體，殼只認得 `accepts()`／`prepare()`／`fields()`／`submit()`
@@ -98,7 +97,7 @@ license, owner_hash, src_hash, contrib_id, contrib_hash, edit_of, created_at
    同一個檔案在音訊分頁是音訊、在媒體分頁是影片，這是刻意的。
 
 分頁文案同理有一層 fallback：分頁裡只剩一種型別時（只開放照片的地圖就是），用型別自己的文案，
-不然 100chairs 會看到「媒體／選擇照片或影片」——講的是這張地圖根本沒開放的東西。
+否則只開放照片的地圖會看到「媒體／選擇照片或影片」這類沒開放的文案。
 
 ### 3.4 儲存與端點
 
@@ -127,7 +126,7 @@ license, owner_hash, src_hash, contrib_id, contrib_hash, edit_of, created_at
 
 點位識別（這是哪個點、在哪裡、帶什麼原生內容）跟投稿內容（掛在點位底下的一則則投稿）是兩回事，
 物理上也分開存放：`spot` 紀錄只進 `spots.jsonl`，其餘所有 kind 都進 `entries.jsonl`
-（`store_file()` 依 `kind` 分流，見 `api/store.php`）。遷移前的 `data.jsonl` 是唯讀存底，不再被任何程式碼讀寫。
+（`store_file()` 依 `kind` 分流，見 `api/store.php`）。
 
 `spot` 套用跟內容型別完全相同的 `edit_of` 鏈狀版本化，不是另開一套機制：
 
@@ -188,7 +187,7 @@ license, owner_hash, src_hash, contrib_id, contrib_hash, edit_of, created_at
 
 **最小可見寬度是刻意的**：橫條最小 2%、直條最小 8%，值為 0 的直條另外畫一條 3% 的淺底。只出現過一次的項目也要看得到一小截，否則使用者會以為那一列是空的；0 值畫淺底則是讓人看得出「這一格存在但沒有資料」，而不是被誤讀成軸上少了一格。
 
-**無障礙**：橫條圖的標籤與數字本來就是真文字，只有色塊軌道 `aria-hidden`；直條圖沒有可讀的文字，所以整塊掛 `role="img"` ＋ `aria-label`，內容就是改版前那行文字摘要（例如「熱門時段（當地時間）：1 點·26、3 點·17、0 點·16」），軸標列 `aria-hidden`。圖表是**加上去的**，不是拿掉文字摘要換來的。
+**無障礙**：橫條圖的標籤與數字本來就是真文字，只有色塊軌道 `aria-hidden`；直條圖沒有可讀的文字，所以整塊掛 `role="img"` ＋ `aria-label`，內容是文字摘要（例如「熱門時段（當地時間）：1 點·26、3 點·17、0 點·16」），軸標列 `aria-hidden`。
 
 CSS 全部前綴 `.stat-card .col`，因為要蓋過同層的 `.stat-card .col ol`（特異度 0,2,1）；類別名一律 `stat*` 開頭，避免跟 Font Awesome 或其他全域規則撞名。
 
@@ -200,7 +199,7 @@ CSS 全部前綴 `.stat-card .col`，因為要蓋過同層的 `.stat-card .col o
 - **樣板**（`view.php`）：`$mod = fn($key) => souliong_module_on($meta, $key);`，模組關閉時直接不輸出對應的按鈕／彈窗 HTML（不是用 CSS 藏起來）。
 - **前端邏輯**（`viewer.core.js`）：`MOD(key)` 讀 `window.APP.meta.features[key]`（同樣「沒設定＝開」），`canPost()` 把 `MOD('upload')` 併進解鎖判斷；凡是對應 DOM 可能不存在的地方都要 `if (el)` 再綁事件，全域鍵盤快速鍵／Esc 關閉等會不分模組狀態一律觸發的路徑也要能安全跳過（見各 `close*()` 函式的 null 檢查）。
 
-`delegation`（管理者邀請登入）跟上面那些有專屬插件檔的模組不一樣（`homeLink` 也是，它只是核心模板裡的一顆連結），不是插件檔案，而是核心裡兩段既有 UI 的開關：地圖頁品牌區塊的彩蛋入口（連點六下開啟 `#pinDialog`，見 `setupBrandEgg()`）與邀請連結兌換彈窗 `#adminRedeemDialog`（見 `handleRedeemFragment()`）。關閉後這張地圖不會再讓人透過網址 fragment 兌換出新的專案 PIN，地圖頁上也不再有快速登入入口——但完全不影響 `config['primary_pin']`／`state/pins.json` 的主 PIN：主 PIN 是全域權限，一律能從 `/manager` 直接登入任何專案，這條路由不經過 `view.php`，不受這個旗標影響（見 `api/security.php` 的「主 PIN／專案 PIN」兩層設計）。適合「僅檢視、只有超級管理者能更新內容，不需要專案 PIN 或邀請代理」的部署。**已知缺口**：目前只有 `view.php`／`viewer.core.js`／`api/features.php` 接上這個旗標；`manager.php` 後台的邀請連結建立介面、與 `security.php` 的 `pins_redeem()` 對「這個專案要不要接受專案 PIN」的判斷，尚未跟著收斂，待補。
+`delegation`（管理者邀請登入）跟上面那些有專屬插件檔的模組不一樣（`homeLink` 也是，它只是核心模板裡的一顆連結），不是插件檔案，而是核心裡兩段既有 UI 的開關：地圖頁品牌區塊的彩蛋入口（連點六下開啟 `#pinDialog`，見 `setupBrandEgg()`）與邀請連結兌換彈窗 `#adminRedeemDialog`（見 `handleRedeemFragment()`）。關閉後這張地圖不會再讓人透過網址 fragment 兌換出新的專案 PIN，地圖頁上也不再有快速登入入口——但完全不影響 `config['primary_pin']`／`state/pins.json` 的主 PIN：主 PIN 是全域權限，一律能從 `/manager` 直接登入任何專案，這條路由不經過 `view.php`，不受這個旗標影響（見 `api/security.php` 的「主 PIN／專案 PIN」兩層設計）。適合「僅檢視、只有超級管理者能更新內容，不需要專案 PIN 或邀請代理」的部署。旗標關閉時，`manager.php` 不允許建立邀請連結與專案 PIN，`api/auth.php` 也不採用該專案的帳號型管理者與專案 PIN。
 
 `personExplore`（依序探索）使用扁平旗標寫法（`meta.json` 直接存 `personExplore: true/false`），`souliong_module_on()` 對這個 key 特殊處理，行為與既有插件機制（見下一節）相容。
 
@@ -216,7 +215,7 @@ CSS 全部前綴 `.stat-card .col`，因為要蓋過同層的 `.stat-card .col o
 2. **繼承共用基底類別**：核心提供 `MapApp.Plugin`（即 `SouliongPlugin`），插件寫 `class XxxPlugin extends MapApp.Plugin`，只需覆寫 `mount()`——插件自己的 DOM／事件綁定都在這裡建立。載入時由核心（或插件檔案自己，見參考實作）`new XxxPlugin().init(window.MapApp)`；`init()` 是基底類別定義的生命週期，會存好 `this.mapApp` 再呼叫 `mount()`，插件不需要重複寫這段。
 3. **自我管理**：state 放在 `this` 底下（不用模組層級的全域變數）、DOM 由 `mount()` 自己建立插入、CSS 用 `document.createElement('style')` 自己注入（不加進 `assets/css/*.css`——那些檔案是核心一定會載入的層疊樣式，插件的樣式必須跟著插件一起關掉）。
 4. **只透過 `window.MapApp` 溝通**：插件不可讀寫核心內部的 closure 變數，只能呼叫下面公開的 API。需要掛進既有版位時，可以直接用文件裡列出的容器 id（例如 `#ctlBody`）當掛勾點，不需要核心另外開一個「註冊按鈕」的 API——這就是 `person-explore.js` 已經在用的作法。
-5. **核心原生功能 vs. 模組專屬工具**：判斷「訪客能不能寫入」這類跟裝置權限有關的能力（`isUnlocked()`、`owner_hash`）是**核心原生功能**，任何模組都可以依賴；但某個模組自己專屬的工具函式（例如上傳模組的 `canPost()`、`resetQueue()`）**不算**核心原生功能，其他模組不可以呼叫它——即使當下剛好在同一個檔案裡摸得到。這條規則是為了避免「點位故事編輯」曾經誤呼叫上傳模組專屬的 `canPost()` 這種耦合。
+5. **核心原生功能 vs. 模組專屬工具**：判斷「訪客能不能寫入」這類跟裝置權限有關的能力（`isUnlocked()`、`owner_hash`）是**核心原生功能**，任何模組都可以依賴；但某個模組自己專屬的工具函式（例如上傳模組的 `canPost()`、`resetQueue()`）**不算**核心原生功能，其他模組不可以呼叫它——即使當下剛好在同一個檔案裡摸得到。這條規則是為了避免模組之間互相耦合。
 
 `window.MapApp`（核心）目前對插件公開：
 
@@ -231,9 +230,9 @@ CSS 全部前綴 `.stat-card .col`，因為要蓋過同層的 `.stat-card .col o
 - `assets/js/plugins/share-link.js`（`share` 旗標——全螢幕分享卡片＋QR code；`class ShareLinkPlugin extends MapApp.Plugin` 寫法。連帶的 vendor 函式庫 `qrcode-generator.js` 也一併只在 `share` 開啟時由 `view.php` 條件載入，避免關閉時仍多載一支用不到的腳本）。
 - `assets/js/plugins/route-tour.js`（`route` 旗標——多投稿者路徑／單人路徑／連點彩蛋動畫；`class RouteTourPlugin extends MapApp.Plugin` 寫法。資料或篩選狀態一變，核心就發送 `'stateChange'`，插件訂閱它自己決定要不要重繪，核心不認得「路徑」這個概念。`#routeBtn` 由插件在 `mount()` 建立並插入 `#ctlBody` 第一個 `.ctl-row`）。
 - `assets/js/plugins/content-editor.js`（`contentEdit` 旗標——點位內容區塊的編輯：新增／修改／刪除／排序 text、audio、photo 區塊，整體送 `spotcontent.php` 的 `op=save`；寫入權限看 `edit_spots`，旗標只決定前端顯不顯示入口）。
-- `assets/js/plugins/contribution.js`（`upload` 旗標——目前最大的一個插件，同一個類別依範圍開兩個實例：投稿視窗（`#contribModal`）與建立點位視窗（`#spotModal`），各有自己的右下角入口鈕。投稿按鈕、分頁式批次投稿視窗、每張卡片的小地圖／定位來源／點位下拉、送出（含 429 限流自動重試）。型別專屬的知識（EXIF、WebP 轉檔、抽影格、錄音、建立點位表單）全都不在這個檔案裡，而在 `assets/js/contrib/kind-*.js`，見第三節。`#uploadBtn`/`#unlockFab`/`#pickImages`（插在 `#resetBtn` 之後）與批次投稿彈窗 `#contribModal`（插在 `#panel` 之後）都已改為插件自己在 `mount()` 的 `injectDom()` 建立並插入固定位置，`view.php` 不再輸出這幾段 HTML。解鎖對話框（掃碼／投稿代碼／PIN）與 `?code=` 網址參數自動解鎖仍留在核心，完全不受此旗標影響——「能不能寫入」是核心原生功能，「怎麼上傳」才是這個模組的範圍，見上面第 5 點規則。嵌入投稿（`?embed=1&ui=submit`，見 EMBED-API.md）時只顯示投稿對話框，由 `submitEmbed()`／`mountSubmitEmbed()` 處理。身分小標籤點擊快速開啟批次視窗改用 `'identityUploadShortcut'` 事件（核心不再直接呼叫插件內部函式），`u` 鍵快速鍵與點位卡片裡的「投稿到這個點」按鈕都用 `MapApp.getCurrentSpot()`／`MapApp.isUnlocked()` 等核心原生功能拿到需要的狀態，不假設自己知道核心內部變數）。
-- `assets/js/plugins/contributor-identity.js`（`identity` 旗標——右上角身分小標籤的渲染（暱稱／管理者／匿名預覽名、解鎖狀態圖示）、點擊與長按換名的事件綁定、解鎖對話框裡「建立身分」PIN／暱稱欄位的展開收合按鈕。`#identity` 小標籤已改為插件自己在 `mount()` 建立並插入 `#trItems` 的最前面，`view.php` 不再輸出這段 HTML；旗標關閉時整個檔案不會被載入，`#identity` 自然不存在。`#idToggleBtn`/`#idFields` 仍是 `view.php` 在 `#unlockDialog` 裡輸出的既有 HTML（原因見下段），解鎖對話框其餘部分（投稿代碼輸入、QR 掃描）不受影響，純代碼解鎖照常可用。PIN／暱稱欄位本身的讀取（送出解鎖時）與重置（對話框重開時）仍留在核心——它們跟純代碼解鎖共用同一個對話框與送出按鈕，沒有乾淨的切點，且已對 DOM 是否存在做防呆（`if (el)`），旗標關閉時安全略過；`contribToken`/`contribInfo`/`myContribId` 這些「有無設定過 PIN」的實際存取也留在核心，因為 `submitContribution`／刪除／照片編輯等核心自身送出流程都要用到，且沒設 PIN 時它們本來就是無害的空字串，不受這個模組開關影響。`personExplore` 透過 `dependsOn` 相依這個模組，見下一節）。
-- `assets/js/plugins/person-explore.js`（`personExplore` 旗標——選了投稿者後可依序探索他的點位／零散照片時間軸；這個檔案早於 `MapApp.Plugin` 基底類別存在，尚未改寫成 `extends` 寫法，但其餘規則——旗標自我檢查、`<style>` 自己注入、DOM 自己插入 `#ctlBody`——仍是有效範例）。
+- `assets/js/plugins/contribution.js`（`upload` 旗標——目前最大的一個插件，同一個類別依範圍開兩個實例：投稿視窗（`#contribModal`）與建立點位視窗（`#spotModal`），各有自己的右下角入口鈕。投稿按鈕、分頁式批次投稿視窗、每張卡片的小地圖／定位來源／點位下拉、送出（含 429 限流自動重試）。型別專屬的知識（EXIF、WebP 轉檔、抽影格、錄音、建立點位表單）全都不在這個檔案裡，而在 `assets/js/contrib/kind-*.js`，見第三節。`#uploadBtn`/`#unlockFab`/`#pickImages`（插在 `#resetBtn` 之後）與批次投稿彈窗 `#contribModal`（插在 `#panel` 之後）由插件在 `mount()` 的 `injectDom()` 建立並插入，`view.php` 不輸出這幾段 HTML。解鎖對話框（掃碼／投稿代碼／PIN）與 `?code=` 網址參數自動解鎖仍留在核心，完全不受此旗標影響——「能不能寫入」是核心原生功能，「怎麼上傳」才是這個模組的範圍，見上面第 5 點規則。嵌入投稿（`?embed=1&ui=submit`，見 EMBED-API.md）時只顯示投稿對話框，由 `submitEmbed()`／`mountSubmitEmbed()` 處理。身分小標籤點擊快速開啟批次視窗透過 `'identityUploadShortcut'` 事件，`u` 鍵快速鍵與點位卡片裡的「投稿到這個點」按鈕都用 `MapApp.getCurrentSpot()`／`MapApp.isUnlocked()` 等核心原生功能拿到需要的狀態，不假設自己知道核心內部變數）。
+- `assets/js/plugins/contributor-identity.js`（`identity` 旗標——右上角身分小標籤的渲染（暱稱／管理者／匿名預覽名、解鎖狀態圖示）、點擊與長按換名的事件綁定、解鎖對話框裡「建立身分」PIN／暱稱欄位的展開收合按鈕。`#identity` 小標籤由插件在 `mount()` 建立並插入 `#trItems` 的最前面，`view.php` 不輸出這段 HTML；旗標關閉時整個檔案不會被載入，`#identity` 自然不存在。`#idToggleBtn`/`#idFields` 仍是 `view.php` 在 `#unlockDialog` 裡輸出的既有 HTML（原因見下段），解鎖對話框其餘部分（投稿代碼輸入、QR 掃描）不受影響，純代碼解鎖照常可用。PIN／暱稱欄位本身的讀取（送出解鎖時）與重置（對話框重開時）仍留在核心——它們跟純代碼解鎖共用同一個對話框與送出按鈕，沒有乾淨的切點，且已對 DOM 是否存在做防呆（`if (el)`），旗標關閉時安全略過；`contribToken`/`contribInfo`/`myContribId` 這些「有無設定過 PIN」的實際存取也留在核心，因為 `submitContribution`／刪除／照片編輯等核心自身送出流程都要用到，且沒設 PIN 時它們本來就是無害的空字串，不受這個模組開關影響。`personExplore` 透過 `dependsOn` 相依這個模組，見下一節）。
+- `assets/js/plugins/person-explore.js`（`personExplore` 旗標——選了投稿者後可依序探索他的點位／零散照片時間軸；這個檔案沒有使用 `extends` 寫法，但其餘規則——旗標自我檢查、`<style>` 自己注入、DOM 自己插入 `#ctlBody`——仍是有效範例）。
 
 ### 模組相依
 
@@ -261,7 +260,7 @@ CSS 全部前綴 `.stat-card .col`，因為要蓋過同層的 `.stat-card .col o
 比照 `api/packs.php`：註冊表就是資料夾底下的資料夾本身，沒有中央 index 檔，新增一層只要新增一個資料夾（內含 `layer.json`）。解析在 `api/layers.php`：
 
 - `souliong_layer_list($cfg, $proj)` — 掃兩層作用域，回傳 `[id => manifest]`，manifest 會被補上 `id`（資料夾名稱才算數，`layer.json` 內容不可覆寫）與 `scope`。
-- `souliong_layers_for($cfg, $meta, $proj)` — 這張地圖生效的**有序**陣列。`meta.json` 的 `"layers": ["paper-ink", "chungshing-art"]` 由下往上；沒有這個欄位就退回 `config` 的 `default_layers`（預設 `['paper-ink']`）。選到不存在的 id 會被靜靜略過；指定的 id 全都不存在時退回 `default_layers`，不讓整張地圖開天窗。
+- `souliong_layers_for($cfg, $meta, $proj)` — 這張地圖生效的**有序**陣列。`meta.json` 的 `"layers": ["paper-ink", "my-art"]` 由下往上；沒有這個欄位就退回 `config` 的 `default_layers`（預設 `['paper-ink']`）。選到不存在的 id 會被靜靜略過；指定的 id 全都不存在時退回 `default_layers`，不讓整張地圖開天窗。
 - `souliong_layers_public($cfg, $meta, $proj, $base)` — 前端版本，額外把相對 `url` 改寫成絕對網址。
 
 「特定專案才有插畫疊圖」不需要額外的開關：`meta.json` 沒寫就是沒有。
@@ -288,7 +287,7 @@ CSS 全部前綴 `.stat-card .col`，因為要蓋過同層的 `.stat-card .col o
 
 ```json
 {
-  "label": "中興新村手繪",
+  "label": "手繪地圖",
   "type": "image",
   "pane": "art",
   "url": "overlay.svg",
@@ -325,8 +324,8 @@ CSS 全部前綴 `.stat-card .col`，因為要蓋過同層的 `.stat-card .col o
 `layer.json` 的 `url` 若是相對路徑，代表圖檔就放在該層自己的資料夾裡。框架不供應靜態檔（理由同 `api/photo.php`），所以由 `api/layerfile.php` 輸出：
 
 ```
-圖磚   <base>/layer/100chairs/chungshing-art/tiles/16/54738/28275.png
-單張   <base>/layer/100chairs/demo-overlay/overlay.svg
+圖磚   <base>/layer/demo-project/my-art/tiles/16/54738/28275.png
+單張   <base>/layer/demo-project/demo-overlay/overlay.svg
 ```
 
 一支端點同時吃圖磚與單張：自繪插畫可能切成金字塔、也可能就是一張大透明 PNG／SVG，兩者只差在資料夾裡的路徑長相，`layer.json` 想換形式時網址結構不用跟著改。`<project>` 只決定解析範圍（專案層優先於全站層），全站層也走同一條網址——前端因此永遠拿到同一種網址形狀，不必知道圖層是誰的。
@@ -480,11 +479,11 @@ CSS 全部前綴 `.stat-card .col`，因為要蓋過同層的 `.stat-card .col o
 | 全站包 | 「工具」分頁 → 主題包 | 主要管理者 | `packs/<id>/` |
 | 專案包 | 專案卡片 → 主題包 | 該專案的管理者 | `projects/<proj>/packs/<id>/` |
 
-匯出（`backup=pack`）比照 `backup=layer`：沒帶 `project`＝全站包，權限看 `Auth::can($cfg, null, 'manage_layers')`；帶了＝該地圖自己的包，看該專案的 `edit_layers`（`$canLayers($pp)`）——權限跟著包實際住在哪裡走，不是看操作者是誰。匯入（`action=packimport`）比照 `layerimport`：呼叫 `$gateLayers($pp, 'primary_only_packs_msg', $backTo)`，同一套「全站層歸 `manage_layers`、專案層歸該專案 `edit_layers`」判斷收斂在這個 closure 裡（`Auth`／`auth_registry()` 完整架構見十三節）。刪除（`action=packdelete`）也是新加的、同樣走 `$gateLayers`——比照 `action=layerdelete`：路徑解析用**作用域對應的那個 root**，不是 `souliong_pack_dir()`（後者同名時偏好專案層，刪除時可能刪錯邊）；全站預設包（`state/settings.json` 的 `pack`）刪不掉，回 409，要刪請先去「工具」分頁換掉全站預設。包沒有圖層那種「檔案數量不固定」問題（固定兩個檔），所以匯出不需要遞迴走訪或大小上限。
+匯出（`backup=pack`）比照 `backup=layer`：沒帶 `project`＝全站包，權限看 `Auth::can($cfg, null, 'manage_layers')`；帶了＝該地圖自己的包，看該專案的 `edit_layers`（`$canLayers($pp)`）——權限跟著包實際住在哪裡走，不是看操作者是誰。匯入（`action=packimport`）比照 `layerimport`：呼叫 `$gateLayers($pp, 'primary_only_packs_msg', $backTo)`，同一套「全站層歸 `manage_layers`、專案層歸該專案 `edit_layers`」判斷收斂在這個 closure 裡（`Auth`／`auth_registry()` 完整架構見十三節）。刪除（`action=packdelete`）同樣走 `$gateLayers`——比照 `action=layerdelete`：路徑解析用**作用域對應的那個 root**，不是 `souliong_pack_dir()`（後者同名時偏好專案層，刪除時可能刪錯邊）；全站預設包（`state/settings.json` 的 `pack`）刪不掉，回 409，要刪請先去「工具」分頁換掉全站預設。包沒有圖層那種「檔案數量不固定」問題（固定兩個檔），所以匯出不需要遞迴走訪或大小上限。
 
-「編輯專案描述」對話框的包下拉選單現在也是 `souliong_pack_list($cfg, $proj)`——專案自己的包會出現在清單裡，並標注「本地圖專屬」（沿用圖層清單同一顆翻譯字串 `layer_scope_project`，文字本來就是通用的，沒有另外開一顆 `pack_scope_project`）。全站預設下拉（「工具」分頁的 `site_pack`）刻意維持 `souliong_pack_list($cfg)`（不帶 `$proj`）——全站預設本來就只該從全站包裡選，不然某張地圖刪掉自己的專案包後，其他地圖的全站預設會突然解析不到。
+「編輯專案描述」對話框的包下拉選單使用 `souliong_pack_list($cfg, $proj)`——專案自己的包會出現在清單裡，並標注「本地圖專屬」（沿用圖層清單同一顆翻譯字串 `layer_scope_project`，文字本來就是通用的，沒有另外開一顆 `pack_scope_project`）。全站預設下拉（「工具」分頁的 `site_pack`）刻意維持 `souliong_pack_list($cfg)`（不帶 `$proj`）——全站預設本來就只該從全站包裡選，不然某張地圖刪掉自己的專案包後，其他地圖的全站預設會突然解析不到。
 
-`Route::backupPack($packId, $project = '')` 現在也有第二個參數，網址形狀比照 `Route::backupLayer()`：`<base>/manager/packs/<id>.zip`（全站）／`<base>/manager/<project>/packs/<id>.zip`（專案），`Route::parseManager()` 對應加了一條專案層的 `PACKS` 分支。
+`Route::backupPack($packId, $project = '')` 的第二個參數決定作用域，網址形狀比照 `Route::backupLayer()`：`<base>/manager/packs/<id>.zip`（全站）／`<base>/manager/<project>/packs/<id>.zip`（專案），由 `Route::parseManager()` 的 `PACKS` 分支解析。
 
 ### 8.10 保持向量輸出
 
@@ -500,7 +499,7 @@ CSS 全部前綴 `.stat-card .col`，因為要蓋過同層的 `.stat-card .col o
 
 **在 `raster` 與 `vector` 之間切換**：同一個圖層 id 從向量模式改回一般切磚模式（或反過來）時，`begin` 動作在 `overwrite=1` 時會清掉舊有的 `layers/<id>/vector.svg`，避免它變成孤兒檔案——新版 `layer.json` 已經改指向 `tiles/`，但沒人會再去讀 `vector.svg`，它就只是佔空間又容易讓人誤會目前是哪個模式。
 
-**沒有動到的部分**：`layerfile.php`、`manager.php`、`pages/view.php`、viewer 端的 `MapLayer` 相關程式碼全部不用改——`type:"image"` 的讀取、後台圖層清單顯示、匯出 ZIP，這些機制在這次改動之前就已經對兩種 `type` 一視同仁。
+**沒有動到的部分**：`layerfile.php`、`manager.php`、`pages/view.php`、viewer 端的 `MapLayer` 相關程式碼全部不用改——`type:"image"` 的讀取、後台圖層清單顯示、匯出 ZIP，這些機制對兩種 `type` 一視同仁。
 
 ### 8.11 從圖磚重建（沒留原稿的降級路徑）
 
@@ -529,7 +528,7 @@ CSS 全部前綴 `.stat-card .col`，因為要蓋過同層的 `.stat-card .col o
 
 **跟 `tilecut.php` 的核心差異是「有沒有圖磚金字塔」**：一個區域固定只有兩個檔案，`model.glb` 一律整檔覆蓋（分塊上傳，最後一塊到齊才 `rename` 蓋過去）、`region.json` 一律整份重寫，沒有「上一版部分殘留」這種中間狀態。
 
-**`begin` 動作不清空舊檔**，這點與 `tilecut.php` 的 `begin`（覆蓋時清掉舊的 `tiles/`）相反，是刻意的設計：只改多邊形或模型參數、不重新上傳 `model.glb` 時，舊模型必須原封不動留著——呼應「編輯不可靜默遺失既有欄位」的原則（見 `feedback_souliong_no_data_loss.md`）。`begin` 唯一做的事是「id 已存在且沒勾覆蓋就回 409」與「資料夾不存在就建立」，不觸碰任何既有檔案；真正會覆蓋內容的是 `srcput`（整檔覆蓋 `model.glb`）與 `finish`（整份重寫 `region.json`）這兩步本身，不是 `begin`。
+**`begin` 動作不清空舊檔**，這點與 `tilecut.php` 的 `begin`（覆蓋時清掉舊的 `tiles/`）相反，是刻意的設計：只改多邊形或模型參數、不重新上傳 `model.glb` 時，舊模型必須原封不動留著——呼應「編輯不可靜默遺失既有欄位」的原則。`begin` 唯一做的事是「id 已存在且沒勾覆蓋就回 409」與「資料夾不存在就建立」，不觸碰任何既有檔案；真正會覆蓋內容的是 `srcput`（整檔覆蓋 `model.glb`）與 `finish`（整份重寫 `region.json`）這兩步本身，不是 `begin`。
 
 **排除清單是存檔當下算好、寫死進 `region.json` 的靜態清單，不是公開端即時重算**：`region3d.php` 內嵌一個管理端專用的 MapLibre 地圖，接的是跟公開端 `assets/js/plugins/map3d.js` 完全相同的 vector tile provider。畫完多邊形、按下「儲存」的當下，前端用 `queryRenderedFeatures` 把落在多邊形內的建物 `feature.id` 抓出來，隨 `finish` 一起送進 `excludedBuildingIds` 欄位——伺服器端只驗證格式（`region3d_valid_ids()`：只收 int/string、去重、上限 20000 筆）與落地，vector tile 的建物幾何在 PHP 端完全拿不到，這步天生只能在瀏覽器做。公開端 `souliong_region3d_excluded_ids()`（`api/regions3d.php`）只是把所有已存區域的這份清單攤平聯集，套成 `map3d.js` 建立 building 圖層時的一條固定 `filter`，圖層建立當下就生效，不管訪客怎麼平移——**不會**在訪客瀏覽過程中重新查詢。
 
@@ -665,7 +664,7 @@ CSS 全部前綴 `.stat-card .col`，因為要蓋過同層的 `.stat-card .col o
 | `manage_site` | site | 全站設定、權限管理（授權／撤銷其他身分的鍵）、全站備份匯入、容量重算等「工具」分頁的全站專屬操作 |
 | `create_project` | site | 建立新專案（`newproject.php`） |
 
-後七個 `scope: 'site'` 的鍵事實上等於「僅 primary」，不是「預設關閉、可授權」——這是刻意的區別，不要把它們當成可以下放給專案管理者的鍵。
+後六個 `scope: 'site'` 的鍵事實上等於「僅 primary」，不是「預設關閉、可授權」——這是刻意的區別，不要把它們當成可以下放給專案管理者的鍵。
 
 ### 13.4 `manager.php` 怎麼用：`$gate` / `$gateLayers`
 

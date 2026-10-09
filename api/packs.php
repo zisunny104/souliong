@@ -6,7 +6,7 @@
 // 一包最少要有 pack.json（給後台列表/匯出檔名用的中繼資料）跟 pack.css（真正的樣式，含材質、
 // 外框、字型）。pack.css 由 view.php 在既有的 base 主題 CSS 之後原樣 readfile() 進同一個
 // <style> 區塊，純靠 cascade 順序覆寫、不需要 !important；沒選包時這個 readfile() 根本不會執行，
-// 因此舊專案（meta.json 沒有 pack 欄位）行為與拆分之前完全一致。素材一律用 CSS 內嵌的
+// 因此舊專案（meta.json 沒有 pack 欄位）行為不變。素材一律用 CSS 內嵌的
 // data: URI（見 demo-loud 範例），不落地圖檔，所以不需要像 layers.php 那樣另開檔案端點。
 //
 // ── 兩層作用域（跟 api/layers.php 同一套，2026-08-25 使用者定調也適用於 packs）──
@@ -101,7 +101,7 @@ function souliong_pack_dir(array $cfg, string $id, string $proj = ''): ?string
  *   1. meta.json 有 pack 欄位 → 以它為準。**值是空字串代表「這張地圖明確不套用」**，
  *      即使全站設了包也不跟——想維持黑白的地圖要能拒絕全站換皮。
  *   2. 沒有 pack 欄位 → 用全站預設（state/settings.json 的 pack）。舊地圖都是這一類，
- *      全站沒設包時結果仍是 null，行為與加入這層之前完全一致。
+ *      全站沒設包時結果仍是 null。
  */
 function souliong_pack_for(array $cfg, ?array $meta, string $proj = ''): ?array
 {

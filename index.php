@@ -141,7 +141,7 @@ switch ($action) {
     case 'manager':
         // 後台：<base>/manager[/<mapid>][/<pane>|/backup.zip|/layers/<id>.zip]、<base>/manager/logout。
         // 完整清單與拆解規則都在 api/routes.php，這裡只把拆出來的結果餵進 $_GET；路徑贏過 query string，
-        // 這樣 /manager/100chairs?project=別的 不會出現兩個真相。相容 /admin 與 ?api=admin（manager.php 會導正）。
+        // 這樣 /manager/<地圖>?project=別的 不會出現兩個真相。相容 /admin 與 ?api=admin（manager.php 會導正）。
         $_GET = Route::parseManager(array_slice($seg, 1), $isProject) + $_GET;
         require __DIR__ . '/api/manager.php';
         return;

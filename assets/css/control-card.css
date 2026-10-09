@@ -411,7 +411,7 @@ a.btn, a.btn:hover, a.icon-btn, a.icon-btn:hover { text-decoration: none; }
 
 /* 不能用 opacity 當 hover 回饋：opacity 淡化的是「整個元素」，連文字、圖示一起變半透明，
    套主題包時底下的材質格紋會從按鈕正中央透出來，看起來像按鈕壞掉而不是被 hover 到。
-   改成跟 .btn:hover 同一招，在 --accent 底色上疊一層半透明色，底色本身維持不透明。 */
+   做法同 .btn:hover，在 --accent 底色上疊一層半透明色，底色本身維持不透明。 */
 @media (hover: hover) {
 .btn.on:hover,
 .btn.primary:hover {

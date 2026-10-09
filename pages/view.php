@@ -16,7 +16,7 @@ $submit  = $embed && (($_GET['ui'] ?? '') === 'submit');
 $bodyCls = trim(($embed ? 'embed' : '') . ($bare ? ' embed-bare' : '') . ($submit ? ' embed-submit' : '')
     . ($bare && ($_GET['interactive'] ?? '') !== '1' ? ' embed-static' : '')
     . ($embed && ($_GET['bg'] ?? '') === 'transparent' ? ' embed-bg-transparent' : ''));
-$proj    = preg_replace('/[^a-z0-9_-]/', '', $_GET['p'] ?? ($cfg['default_project'] ?? 'chairs'));
+$proj    = preg_replace('/[^a-z0-9_-]/', '', $_GET['p'] ?? '');
 $metaF   = __DIR__ . '/../projects/' . $proj . '/meta.json';
 $meta    = is_file($metaF) ? json_decode(file_get_contents($metaF), true) : null;
 
@@ -54,7 +54,7 @@ unset($spotRec);
 // 任何動作能不能做一律看具體權限鍵（APP.perms／APP.can(key)）。
 $actor     = Auth::actor($apiCfg, $proj);
 $isManager = $actor->isMember($proj);
-$canEditSpots = $actor->can($proj, 'edit_spots');   // 過渡期保留給舊前端；新前端改用 APP.can('edit_spots')
+$canEditSpots = $actor->can($proj, 'edit_spots');   // 伺服端判斷用；同時輸出到 APP.canEditSpots 供 authcheck 核對
 // 投稿開放條件由免碼設定與有效投稿碼組成；前端不取得真正的碼。
 // APP.gated 因此變成「現在有碼可解鎖」：一組都沒有時前端連解鎖鈕都不出現。
 $gated = codes_active($apiCfg, $proj) !== [];
@@ -165,7 +165,6 @@ $assetUrl = function (string $rel) use ($esc): string {
 // 依 entry > spot > 專案預設 優先序決定，跟 $mod('share') 開關無關——網址列本來就能複製。
 require_once __DIR__ . '/../api/oglib.php';
 require_once __DIR__ . '/../api/socialcardlib.php';
-$ogTitle = $meta['title'] ?? i18n_t($DICT, 'app_title');
 $ogDesc  = $meta['desc'] ?? $meta['subtitle'] ?? i18n_t($DICT, 'app_tagline');
 $ogImage = cover_file_of(project_dir($apiCfg, $proj) . '/cover') !== null
     ? Route::abs(Route::api('cover', ['project' => $proj]))
@@ -179,12 +178,11 @@ if ($entryId !== '' && ($entry = souliong_og_resolve_entry($apiCfg, $proj, $entr
     $sp = isset($entry['item_num']) ? souliong_og_resolve_spot($apiCfg, $proj, (int)$entry['item_num']) : null;
     $ogSpotLabel = $sp ? souliong_og_spot_title(souliong_og_spot_name($sp), (int)$entry['item_num'], $meta['numbering'] ?? 'suffix') : '';
     $kindKey = ['photo' => 'tab_photo', 'video' => 'tab_video', 'audio' => 'tab_audio'][$entry['kind'] ?? ''] ?? 'tab_text';
-    $ogDesc  = ($entry['comment'] ?? '') !== ''
-        ? souliong_og_truncate(souliong_og_plain((string)$entry['comment']))
-        : i18n_t($DICT, 'og_entry_fallback', ['name' => $entry['name'] ?: i18n_t($DICT, 'anon_fallback'), 'kind' => i18n_t($DICT, $kindKey)]);
+    $entryText = ($entry['comment'] ?? '') !== '' ? souliong_og_plain(mb_substr((string)$entry['comment'], 0, 2000)) : '';
+    $entryFallback = i18n_t($DICT, 'og_entry_fallback', ['name' => $entry['name'] ?: i18n_t($DICT, 'anon_fallback'), 'kind' => i18n_t($DICT, $kindKey)]);
+    $ogDesc = $entryText !== '' ? souliong_og_truncate($entryText) : $entryFallback;
     // 投稿沒有標題欄：有留言取前 20 字，沒有就用「誰分享的什麼」
-    $ogEntryLabel = ($entry['comment'] ?? '') !== '' ? souliong_og_truncate(souliong_og_plain((string)$entry['comment']), 20)
-        : i18n_t($DICT, 'og_entry_fallback', ['name' => $entry['name'] ?: i18n_t($DICT, 'anon_fallback'), 'kind' => i18n_t($DICT, $kindKey)]);
+    $ogEntryLabel = $entryText !== '' ? souliong_og_truncate($entryText, 20) : $entryFallback;
     if ($qs = souliong_og_entry_image_qs($entry)) $ogImage = Route::abs(Route::api($qs[0], $qs[1]));
     $ogUrl = Route::abs(Route::map($proj) . '?entry=' . rawurlencode($entryId));
 } elseif ($spotRef !== '' && ($sp = souliong_og_resolve_spot($apiCfg, $proj, $spotRef))) {
@@ -193,15 +191,17 @@ if ($entryId !== '' && ($entry = souliong_og_resolve_entry($apiCfg, $proj, $entr
     $ogUrl = Route::abs(Route::map($proj) . '?spot=' . rawurlencode((string)$sp['id']));   // 新連結一律用 spotId
 }
 // 標題由內而外：投稿｜點位｜專案｜平台。沒有的層級略過；專案關閉「回平台首頁」時不帶平台名稱
-$ogTitle = implode(' | ', array_values(array_unique(array_filter([
-    $ogEntryLabel ?? '', $ogSpotLabel ?? '',
-    (string)($meta['title'] ?? '') !== '' ? (string)$meta['title'] : i18n_t($DICT, 'app_title'),
+$projectLabel = (string)($meta['title'] ?? '') !== '' ? (string)$meta['title'] : i18n_t($DICT, 'app_title');
+$ogTitle = souliong_og_truncate(implode(' | ', array_values(array_unique(array_filter([
+    $ogEntryLabel ?? '', $ogSpotLabel ?? '', $projectLabel,
     $mod('homeLink') ? i18n_t($DICT, 'app_title') : '',
-], fn($v) => $v !== ''))));
-$socialCard = souliong_social_ready($apiCfg) && is_array($meta)
-    ? souliong_social_data($apiCfg, $proj, $meta, $entryId, $spotRef) : null;
+], fn($v) => $v !== '')))), 90);
+$APP['docTitle'] = $ogTitle;   // 前端的分頁標題沿用伺服器算好的同一串
+// 嵌入頁不需要分享預覽，略過整段資料組裝
+$socialCard = !$embed && souliong_social_ready($apiCfg) && is_array($meta)
+    ? souliong_social_data($apiCfg, $proj, $meta, $entryId, $spotRef, $LANG) : null;
 if ($socialCard) {
-    $socialQuery = ['project' => $proj, 'v' => substr(souliong_social_revision($apiCfg, $proj, $meta, $socialCard), 0, 16)];
+    $socialQuery = ['project' => $proj, 'lang' => $LANG, 'v' => substr(souliong_social_revision($apiCfg, $proj, $meta, $socialCard), 0, 16)];
     if ($entryId !== '') $socialQuery['entry'] = $entryId;
     elseif ($spotRef !== '') $socialQuery['spot'] = $spotRef;
     $ogImage = Route::abs(Route::api('socialpreview', $socialQuery));
@@ -214,6 +214,7 @@ if ($socialCard) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= $esc($ogTitle) ?></title>
 <meta property="og:type" content="website">
+<meta property="og:site_name" content="<?= $t('app_title') ?>">
 <meta property="og:title" content="<?= $esc($ogTitle) ?>">
 <meta property="og:description" content="<?= $esc($ogDesc) ?>">
 <meta property="og:url" content="<?= $esc($ogUrl) ?>">
@@ -243,7 +244,7 @@ if ($socialCard) {
 <?php endif; ?>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <?php
-// 依 style.css 原本的層疊順序列出各檔（見 assets/css/），新增樣式分類時在陣列加檔名即可。
+// 依層疊順序列出 assets/css/ 各檔，新增樣式分類時在陣列加檔名即可。
 $cssFiles = ['theme', 'control-card', 'popups', 'map-markers', 'spot-panel', 'map-controls', 'lightbox', 'page-frame'];
 // 投稿與建立點位對話框的樣式跟著它們的外掛走：沒載入外掛就沒必要送這段 CSS
 if ($contribFiles) {
@@ -280,7 +281,7 @@ if ($pack) {
 </head>
 <body class="<?= $esc($bodyCls) ?>">
 <main id="mapPage">
-<h1 class="sl-sr-only"><?= $esc($meta['title'] ?? $t('app_title')) ?></h1>
+<h1 class="sl-sr-only"><?= $esc($projectLabel) ?></h1>
 
 <?php if (!$bare): ?>
 <div id="skeleton" aria-hidden="true">
