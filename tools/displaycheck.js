@@ -29,6 +29,11 @@ const {chromium}=require(process.env.PLAYWRIGHT_PATH||'playwright');
    if((url.searchParams.get('f')||url.pathname).endsWith('/maplibre-engine.js'))return route.fulfill({contentType:'application/javascript',body:'window.MapLibreEngine=class {constructor(options){this.supportsSnapshot=false;window.testInitialOptions=options;window.testFits=0;} getZoom(){return window.testZoom??13;} markerElements(){return new Map();} mountControls(){} onZoomEnd(fn){window.testZoomEnd=fn;} onZoomThresholdCross(z,fn){window.testZoomCross=fn;} fitBounds(){window.testFits++;} setMarkerLayer(key,specs){(window.testLayers||=( {} ))[key]=specs;} clearMarkerLayer(key){(window.testLayers||=( {} ))[key]=[];} onBackgroundClick(){} panTo(){} applyTheme(){} setView(){} createMiniPicker(){return {onChange(){},setPosition(){},destroy(){}}}};'});
    return route.continue();
   });
+  for(const [query,expected] of [['','測試地圖'],['?spot=1','點位一'],['?entry=entry1','目前投稿']]){
+   const html=await (await fetch(base+'/test'+query)).text(),title=(html.match(/<title>([^<]*)<\/title>/)||[])[1]||'';
+   console.log('TITLE',JSON.stringify(query),title);
+   assert.ok(title.startsWith(expected)&&title.includes('測試地圖'),'分享標題由內而外：'+title);
+  }
   async function open(){await page.goto(base+'/test');await page.waitForFunction(()=>window.MapApp?.effectiveSpots().length===1,null,{timeout:10000}).catch(e=>{console.error(errors);throw e;});await page.evaluate(()=>MapApp.openPanel(MapApp.effectiveSpots()[0]));}
   for (const mode of ['meta','fit']) {
    meta.initialView=mode;meta.center=[23.1,121.2];meta.zoom=0;
