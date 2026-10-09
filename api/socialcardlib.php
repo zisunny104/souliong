@@ -189,6 +189,26 @@ function souliong_social_capsule($canvas, int $x0, int $y0, int $x1, int $y1, in
     imagefilledellipse($canvas, $x1 - $r, $y0 + $r, $r * 2, $r * 2, $color);
 }
 
+/** 播放圖示、時間與示意播放條（不代表實際進度）。外側一路延伸到畫面外，沒有圓形播放點；條身加粗，縮圖時才不會像分隔線。 */
+function souliong_social_player($canvas, string $font, int $accent, int $y, int $seconds): void
+{
+    imagefilledellipse($canvas, 642, $y - 13, 50, 50, $accent);
+    imagefilledpolygon($canvas, [633, $y - 25, 633, $y - 1, 655, $y - 13], imagecolorallocate($canvas, 255, 255, 255));
+    $label = sprintf('%d:%02d', intdiv($seconds, 60), $seconds % 60);
+    imagettftext($canvas, 34, 0, 680, $y, $accent, $font, $label);
+    $box = imagettfbbox(34, 0, $font, $label);
+    $x0 = 680 + ($box[2] - $box[0]) + 28; $mid = $y - 13; $h = 18;
+    if (1199 - $x0 > 120) {
+        $track = imagecolorallocate($canvas, 205, 220, 211);
+        $played = $x0 + (int)((1136 - $x0) * 0.38);
+        $r = (int)($h / 2);
+        imagefilledrectangle($canvas, $x0 + $r, $mid - $r, 1199, $mid + $r, $track);      // 未播放：延伸到右緣
+        imagefilledellipse($canvas, $x0 + $r, $mid, $h, $h, $track);
+        imagefilledrectangle($canvas, $x0 + $r, $mid - $r, $played, $mid + $r, $accent);  // 已播放
+        imagefilledellipse($canvas, $x0 + $r, $mid, $h, $h, $accent);
+    }
+}
+
 function souliong_social_ready(array $cfg): bool
 {
     return function_exists('imagecreatetruecolor') && function_exists('imagettftext')
@@ -282,7 +302,7 @@ function souliong_social_render(array $data, string $font, ?string $bold = null)
     $hasPhoto = false;
     if (!empty($data['image']) && ($decoded = souliong_image_decode_file($data['image']))) {
         [$source, $w, $h] = $decoded;
-        $boxH = ($data['kind'] !== 'entry' && !empty($data['audioSeconds'])) ? 240 : 320;
+        $boxH = $data['kind'] === 'entry' ? 280 : (!empty($data['audioSeconds']) ? 220 : 320);
         $scale = min(518 / $w, $boxH / $h);
         $dw = max(1, (int)round($w * $scale)); $dh = max(1, (int)round($h * $scale));
         $px = 618 + (int)((518 - $dw) / 2); $py = 93 + (int)(($boxH - $dh) / 2);
@@ -298,7 +318,9 @@ function souliong_social_render(array $data, string $font, ?string $bold = null)
     }
     if ($data['kind'] === 'entry') {
         if (!$hasPhoto) souliong_social_text($canvas, $data['entryLabel'] ?? '', $font, 18, 618, 130, 518, 1, $accent, 28);
-        if (!$hasPhoto && ($data['entryKind'] ?? '') === 'audio') {
+        if (!$hasPhoto && ($data['entryKind'] ?? '') === 'audio' && !empty($data['audioSeconds'])) {
+            souliong_social_player($canvas, $font, $accent, 230, (int)$data['audioSeconds']);
+        } elseif (!$hasPhoto && ($data['entryKind'] ?? '') === 'audio') {
             $wave = imagecolorallocate($canvas, 32, 115, 95);
             foreach ([30, 58, 86, 116, 86, 58, 30] as $i => $height) {
                 imagefilledrectangle($canvas, 760 + $i * 34, 204 - (int)($height / 2), 771 + $i * 34, 204 + (int)($height / 2), $wave);
@@ -309,33 +331,18 @@ function souliong_social_render(array $data, string $font, ?string $bold = null)
             imagefilledpolygon($canvas, [867, 185, 867, 223, 897, 204], imagecolorallocate($canvas, 255, 255, 255));
         }
         $media = !$hasPhoto && in_array($data['entryKind'] ?? '', ['audio', 'video'], true);
-        souliong_social_text($canvas, $data['description'], $font, 25, 618, $hasPhoto ? 452 : ($media ? 333 : 192), 518, $hasPhoto ? 2 : ($media ? 5 : 9), $ink, 38);
+        souliong_social_text($canvas, $data['description'], $font, 25, 618, $hasPhoto ? 418 : ($media ? 333 : 192), 518, $hasPhoto ? 2 : ($media ? 5 : 9), $ink, 38);
         $credit = implode(' · ', array_filter([$data['author'] ?? '', $data['license'] ?? ''], fn($v) => $v !== ''));
-        souliong_social_text($canvas, $credit, $font, 18, 618, 550, 518, 1, $muted, 28);
-        if (($data['spotName'] ?? '') !== '') souliong_social_text_bold($canvas, $data['spotName'], $font, $bold, 18, 618, 520, 518, 1, $accent, 28);
+        souliong_social_text($canvas, $credit, $font, 18, 618, 534, 518, 1, $muted, 28);
+        if (($data['spotName'] ?? '') !== '') souliong_social_text_bold($canvas, $data['spotName'], $font, $bold, 18, 618, 500, 518, 1, $accent, 28);
     } else {
         $hasAudio = !empty($data['audioSeconds']);
-        $titleY = $hasPhoto ? ($hasAudio ? 383 : 463) : 220;
+        $titleY = $hasPhoto ? ($hasAudio ? 363 : 463) : 220;
         souliong_social_text_bold($canvas, $data['title'], $font, $bold, $hasPhoto ? 28 : 39, 618, $titleY, 518, $hasPhoto ? 1 : 2, $ink, 54);
         souliong_social_text($canvas, $data['description'], $font, 24, 618, $hasPhoto ? $titleY + 49 : ($hasAudio ? 420 : 365), 518, $hasPhoto ? 2 : ($hasAudio ? 4 : 5), $muted, 36);
     }
     if (!empty($data['audioSeconds']) && $data['kind'] !== 'entry') {
-        $seconds = (int)$data['audioSeconds'];
-        $y = $hasPhoto ? 534 : 346;
-        imagefilledellipse($canvas, 642, $y - 13, 50, 50, $accent);
-        imagefilledpolygon($canvas, [633, $y - 25, 633, $y - 1, 655, $y - 13], imagecolorallocate($canvas, 255, 255, 255));
-        $label = sprintf('%d:%02d', intdiv($seconds, 60), $seconds % 60);
-        imagettftext($canvas, 34, 0, 680, $y, $accent, $font, $label);
-        // 時間後面接一條假的播放條（示意，不代表實際進度）；粗一點，縮小後才不會像分隔線
-        $labelBox = imagettfbbox(34, 0, $font, $label);
-        $barX0 = 680 + ($labelBox[2] - $labelBox[0]) + 28; $barX1 = 1136; $barMid = $y - 13; $barH = 18;
-        if ($barX1 - $barX0 > 120) {
-            souliong_social_capsule($canvas, $barX0, $barMid - (int)($barH / 2), $barX1, $barMid + (int)($barH / 2), imagecolorallocate($canvas, 205, 220, 211));
-            $knob = $barX0 + (int)(($barX1 - $barX0) * 0.38);
-            souliong_social_capsule($canvas, $barX0, $barMid - (int)($barH / 2), $knob, $barMid + (int)($barH / 2), $accent);
-            imagefilledellipse($canvas, $knob, $barMid, 34, 34, imagecolorallocate($canvas, 255, 255, 255));
-            imagefilledellipse($canvas, $knob, $barMid, 26, 26, $accent);
-        }
+        souliong_social_player($canvas, $font, $accent, $hasPhoto ? 508 : 346, (int)$data['audioSeconds']);
     }
     // 下緣置中：平台名稱與來源標示放同一個膠囊（LINE 最壞會裁成正方形，置中的內容才保得住）
     $brandText = (string)($data['brand'] ?? 'Souliong');
