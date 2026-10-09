@@ -12,13 +12,15 @@ if (!in_array($method, ['GET', 'HEAD'], true)) { header('Allow: GET, HEAD'); soc
 $project = $_GET['project'] ?? '';
 $entryId = $_GET['entry'] ?? '';
 $spotRef = $_GET['spot'] ?? '';
+$lang = $_GET['lang'] ?? 'zh_TW';
 if (!is_string($project) || !preg_match('/^[a-z0-9_-]{1,40}$/D', $project)
     || !is_string($entryId) || ($entryId !== '' && !preg_match('/^[A-Za-z0-9_-]{1,64}$/D', $entryId))
     || !is_string($spotRef) || ($spotRef !== '' && !preg_match('/^[A-Za-z0-9_-]{1,64}$/D', $spotRef))) social_preview_fail(400);
+if (!is_string($lang) || !in_array($lang, i18n_supported(), true)) $lang = 'zh_TW';
 $metaPath = project_dir($cfg, $project) . '/meta.json';
 $meta = is_file($metaPath) ? json_decode((string)file_get_contents($metaPath), true) : null;
 if (!is_array($meta)) social_preview_fail(404);
-$data = souliong_social_data($cfg, $project, $meta, $entryId, $spotRef);
+$data = souliong_social_data($cfg, $project, $meta, $entryId, $spotRef, $lang);
 if ($data === null) social_preview_fail(404);
 if (!souliong_social_ready($cfg)) social_preview_fail(503);
 $revision = souliong_social_revision($cfg, $project, $meta, $data);
@@ -26,7 +28,7 @@ header('Content-Type: image/jpeg');
 header('X-Content-Type-Options: nosniff');
 $dir = rtrim($cfg['state_dir'], '/\\') . '/social-previews/' . $project;
 if (!is_dir($dir)) @mkdir($dir, 0775, true);
-$key = hash('sha256', ($entryId !== '' ? 'entry:' . $entryId : ($spotRef !== '' ? 'spot:' . ($data['spotId'] ?? $spotRef) : 'project')));
+$key = hash('sha256', ($entryId !== '' ? 'entry:' . $entryId : ($spotRef !== '' ? 'spot:' . ($data['spotId'] ?? $spotRef) : 'project')) . ':' . $lang);
 $path = $dir . '/' . $key . '.jpg'; $infoPath = $dir . '/' . $key . '.json';
 $cache = is_file($infoPath) ? json_decode((string)@file_get_contents($infoPath), true) : null;
 $bytes = null;
@@ -59,6 +61,7 @@ if ($bytes === null) {
         else @unlink($temp);
     }
     if ($mapBytes === null) $maxAge = 60;
+    souliong_social_prune($cfg);
 }
 header('Cache-Control: public, max-age=' . $maxAge);
 $etag ??= '"' . hash('sha256', $bytes) . '"';

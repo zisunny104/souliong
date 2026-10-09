@@ -30,6 +30,7 @@ async function main() {
   const browser = await chromium.launch({
     executablePath: config.chromium,
     headless: true,
+    chromiumSandbox: config.sandbox !== false,   // Playwright 預設會加 --no-sandbox；這裡預設開啟沙箱，僅在伺服器明確設定時才關
     args: ['--disable-dev-shm-usage', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--disable-crash-reporter', '--disable-breakpad'],
     env,
     proxy,

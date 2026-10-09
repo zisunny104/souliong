@@ -119,6 +119,16 @@ JS);
         if (getenv('SOCIAL_PREVIEW_SAVE_MAP')) file_put_contents(getenv('SOCIAL_PREVIEW_SAVE_MAP'), $png);
     }
 }
+[$code, $zhBody] = sp_request($url . '&entry=text1&lang=zh_TW');
+[$code2, $enBody] = sp_request($url . '&entry=text1&lang=en');
+[$code3, $badBody] = sp_request($url . '&entry=text1&lang=../x');
+sp_assert($code === 200 && $code2 === 200 && $enBody !== $zhBody && $badBody === $zhBody, 'card follows page language, unknown language falls back');
+$cacheDir = $sandbox . '/state/social-previews/test';
+$old = $cacheDir . '/' . str_repeat('a', 64) . '.jpg'; file_put_contents($old, 'x'); touch($old, time() - 40 * 86400);
+@unlink($sandbox . '/state/social-previews/.pruned');
+sp_request($url . '&entry=audio1&lang=en&x=1');
+[$c] = sp_request($url . '&spot=aabbccdd11223344&lang=en');
+sp_assert(!is_file($old), 'stale cache files are pruned');
 $entries = array_values(array_filter($entries, fn($entry) => $entry['id'] !== 'photo1'));
 file_put_contents($sandbox . '/projects/test/entries.jsonl', implode("\n", array_map('json_encode', $entries)) . "\n");
 sp_assert(sp_request($url . '&entry=photo1')[0] === 404, 'deleted original cannot serve cached image');

@@ -199,9 +199,9 @@ $ogTitle = souliong_og_truncate(implode(' | ', array_values(array_unique(array_f
 $APP['docTitle'] = $ogTitle;   // 前端的分頁標題沿用伺服器算好的同一串
 // 嵌入頁不需要分享預覽，略過整段資料組裝
 $socialCard = !$embed && souliong_social_ready($apiCfg) && is_array($meta)
-    ? souliong_social_data($apiCfg, $proj, $meta, $entryId, $spotRef) : null;
+    ? souliong_social_data($apiCfg, $proj, $meta, $entryId, $spotRef, $LANG) : null;
 if ($socialCard) {
-    $socialQuery = ['project' => $proj, 'v' => substr(souliong_social_revision($apiCfg, $proj, $meta, $socialCard), 0, 16)];
+    $socialQuery = ['project' => $proj, 'lang' => $LANG, 'v' => substr(souliong_social_revision($apiCfg, $proj, $meta, $socialCard), 0, 16)];
     if ($entryId !== '') $socialQuery['entry'] = $entryId;
     elseif ($spotRef !== '') $socialQuery['spot'] = $spotRef;
     $ogImage = Route::abs(Route::api('socialpreview', $socialQuery));

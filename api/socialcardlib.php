@@ -32,8 +32,10 @@ function souliong_social_audio_seconds(?array $entry, ?array $spot): ?int
     return null;
 }
 
-function souliong_social_data(array $cfg, string $project, array $meta, string $entryId = '', string $spotRef = ''): ?array
+function souliong_social_data(array $cfg, string $project, array $meta, string $entryId = '', string $spotRef = '', string $lang = 'zh_TW'): ?array
 {
+    $lang = in_array($lang, i18n_supported(), true) ? $lang : 'zh_TW';
+    $dict = i18n_dict($lang);
     $entries = souliong_og_entries(store_all($cfg, $project));
     $entry = $entryId !== '' ? ($entries[$entryId] ?? null) : null;
     if ($entryId !== '' && !$entry) return null;
@@ -65,8 +67,9 @@ function souliong_social_data(array $cfg, string $project, array $meta, string $
     return [
         'kind' => $entry ? 'entry' : ($spot ? 'spot' : 'project'),
         'entryKind' => $kind,
-        'entryLabel' => $entry ? i18n_t(i18n_dict('zh_TW'), 'og_entry_label') : '',   // 一律寫「投稿」，種類由畫面本身表達
-        'brand' => i18n_t(i18n_dict('zh_TW'), 'app_title'),   // 與繁中首頁相同的平台名稱
+        'entryLabel' => $entry ? i18n_t($dict, 'og_entry_label') : '',   // 一律寫「投稿」，種類由畫面本身表達
+        'brand' => i18n_t($dict, 'app_title'),   // 與頁面語言的首頁相同的平台名稱
+        'lang' => $lang,
         'projectTitle' => $title,
         'title' => $spot ? $spotLabel : $title,
         'spotName' => $spotLabel,
@@ -352,4 +355,23 @@ function souliong_social_render(array $data, string $font, ?string $bold = null)
     ob_start(); $ok = imagejpeg($canvas, null, 88); $bytes = ob_get_clean();
     imagedestroy($canvas);
     return $ok ? $bytes : null;
+}
+
+/** 快取目錄的清理：每天最多一次，刪除超過 30 天沒有重畫的名片（含已刪除紀錄留下的舊圖）與遺留的暫存檔。 */
+function souliong_social_prune(array $cfg): void
+{
+    $root = rtrim($cfg['state_dir'], '/\\') . '/social-previews';
+    if (!is_dir($root)) return;
+    $marker = $root . '/.pruned';
+    if (is_file($marker) && filemtime($marker) > time() - 86400) return;
+    @touch($marker);
+    $now = time();
+    foreach (glob($root . '/*', GLOB_ONLYDIR) ?: [] as $dir) {
+        foreach (glob($dir . '/*') ?: [] as $file) {
+            if (!is_file($file)) continue;
+            $limit = str_ends_with($file, '.tmp') ? 3600 : 30 * 86400;
+            if (filemtime($file) < $now - $limit) @unlink($file);
+        }
+        @rmdir($dir);   // 空目錄才會成功
+    }
 }

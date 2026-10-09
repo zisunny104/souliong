@@ -58,7 +58,7 @@ function souliong_social_map(array $cfg, string $project, ?string $spotId, int $
         fwrite($pipes[0], json_encode([
             'url' => $url, 'spot' => $spotId, 'zoom' => max(1, min(20, $zoom)),
             'playwright' => $runtime['playwright'], 'chromium' => $runtime['chromium'],
-            'debug' => !empty($cfg['debug']), 'home' => is_dir($home) && is_writable($home) ? $home : null,
+            'debug' => !empty($cfg['debug']), 'sandbox' => empty($cfg['social_preview_no_sandbox']), 'home' => is_dir($home) && is_writable($home) ? $home : null,
             'allowedHosts' => array_values(array_filter((array)($cfg['social_preview_hosts'] ?? []), fn($host) => is_string($host) && preg_match('/^[a-z0-9.-]+$/iD', $host))),
         ], JSON_UNESCAPED_SLASHES));
         fclose($pipes[0]); unset($pipes[0]);
