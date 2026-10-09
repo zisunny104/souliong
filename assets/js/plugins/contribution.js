@@ -172,7 +172,7 @@
       if (modalName) {
         modalName.value = document.getElementById('myName').value;
         modalName.setAttribute('placeholder', t('attribution_placeholder'));
-        modalName.oninput = e => { const previous = document.getElementById('myName').value; document.getElementById('myName').value = e.target.value; localStorage.setItem('myName', e.target.value); this.$('queue').querySelectorAll('.c-name').forEach(input => { if (!input.value || input.value === previous) input.value = e.target.value; }); this.refreshLicense(); };
+        modalName.oninput = e => { const previous = document.getElementById('myName').value; document.getElementById('myName').value = e.target.value; localStorage.setItem('myName', e.target.value); this.$('queue').querySelectorAll('.c-name').forEach(input => { if (!input.disabled && (!input.value || input.value === previous)) input.value = e.target.value; }); this.refreshLicense(); };
         this.mapApp.onHook('identityReroll', () => {
           modalName.value = '';
           modalName.setAttribute('placeholder', t('attribution_placeholder'));
@@ -190,6 +190,14 @@
       this.mapApp[this.scope === 'spot' ? 'closeSpotModal' : 'closeModal'] = () => this.closeModal();
 
       const modalEl = this.$('modal');
+      if (modalEl) modalEl.addEventListener('keydown', event => {
+        if (event.key !== 'Tab') return;
+        const fields = Array.from(modalEl.querySelectorAll('button,input,select,textarea,summary,a[href]')).filter(el => !el.disabled && el.getClientRects().length);
+        const first = fields[0], last = fields[fields.length - 1];
+        if (!modalEl.contains(document.activeElement)) { event.preventDefault(); first?.focus(); }
+        else if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+      });
       if (modalEl) modalEl.querySelectorAll('.sl-tab').forEach(btn => {
         btn.onclick = () => this.switchTab(btn.dataset.tab);
       });
@@ -273,9 +281,12 @@
       if (!APP.licenses[this.preferredLicense]) this.preferredLicense = 'cc-by-sa';
       this.refreshLicense();
       const wikidataChk = document.getElementById('wikidataChk');
-      const authorUrl = document.getElementById('authorUrl'); if (authorUrl) authorUrl.value = '';
-      if (wikidataChk) wikidataChk.checked = localStorage.getItem('prefWikidata') === '1';
+      const authorUrl = this.scope === 'contrib' ? document.getElementById('authorUrl') : null; if (authorUrl && !this.batchRunning) authorUrl.value = '';
+      if (wikidataChk && this.scope === 'contrib' && !this.batchRunning) wikidataChk.checked = localStorage.getItem('prefWikidata') === '1';
+      if (!this.$('modal').classList.contains('open')) this.returnFocus = document.activeElement;
       this.$('modal').classList.add('open');
+      this.$('queue').querySelector('.c-title:not(:disabled),.c-cmt:not(:disabled),.queue-empty button')?.focus({preventScroll:true});
+      this.updateSubmitState();
       this.modalContext = contextSpot || null;
     }
     refreshLicense() {
@@ -293,10 +304,27 @@
     closeModal() {
       if (this.submitEmbed() && this.mapApp.isUnlocked()) return;
       const m = this.$('modal');
-      if (!m) return;
+      if (!m || !m.classList.contains('open')) return;
       m.classList.remove('open');
+      if (this.returnFocus?.isConnected && this.returnFocus.getClientRects().length) this.returnFocus.focus({preventScroll:true});
       // 批次送出仍在背景進行時不可清空佇列，否則尚未送出的內容會直接遺失；重開視窗會看到原本的佇列與進度
       if (!this.batchRunning) this.resetQueue();
+    }
+
+    updateSubmitState() {
+      const button = this.$('submit');
+      if (!button) return;
+      const pending = Object.values(this.cards).filter(state => !state.done && !state.preparing).length;
+      button.disabled = this.batchRunning || pending === 0 || Object.values(this.cards).some(state => state.preparing || state.sending);
+      button.textContent = pending === 1 ? t(this.scope === 'spot' ? 'create_dialog_title' : 'submit_this_one') : t('submit_all');
+    }
+
+    revealStatus(card) {
+      const content = this.$('modal').querySelector('.modal-content');
+      const status = card.querySelector('.status');
+      const viewport = content.getBoundingClientRect(), rect = status.getBoundingClientRect();
+      if (rect.bottom > viewport.bottom) content.scrollTop += rect.bottom - viewport.bottom + 12;
+      else if (rect.top < viewport.top) content.scrollTop -= viewport.top - rect.top + 12;
     }
 
     // ---- 佇列 ----
@@ -307,6 +335,7 @@
       // 只有空狀態要換（佇列裡已經有的卡片保留——一個批次本來就可以混型別）
       if (!Object.keys(this.cards).length) this.renderEmpty();
       this.refreshLicense();
+      this.updateSubmitState();
     }
     syncTabUi() {
       const modalEl = this.$('modal');
@@ -354,6 +383,7 @@
       Object.keys(this.cards).forEach(k => delete this.cards[k]);
       this.renderEmpty();
       this.refreshLicense();
+      this.updateSubmitState();
     }
     cancelCard(id) {
       const st = this.cards[id];
@@ -365,6 +395,7 @@
       if (card) card.remove();
       if (!Object.keys(this.cards).length) this.renderEmpty();
       this.refreshLicense();
+      this.updateSubmitState();
     }
 
     getDeviceLoc() {
@@ -405,7 +436,6 @@
         (kind.hasPreview() ? '<div class="thumb">' + kind.placeholderHtml() + '</div>' : '') +
         '<div class="fields">' +
           (kind.needsFile() ? '<div class="time">' + esc(t('loading')) + '</div>' : '') +
-          '<details class="card-attribution"><summary><i class="fa-solid fa-angle-right" aria-hidden="true"></i>' + esc(t('individual_attribution')) + '</summary><input type="text" class="c-name" placeholder="' + anon + '"></details>' +
           kind.extraTopHtml() +
           (this.captionAllowed(kind) ? '<div class="markdown-field"><textarea class="c-cmt" placeholder="' + esc(t(kind.key === 'newspot' ? 'newspot_story_placeholder' : 'write_something_placeholder')) + '"></textarea><button class="markdown-help-trigger" type="button" data-markdown-help aria-haspopup="dialog" aria-label="' + esc(t('markdown_guide_title')) + '" title="' + esc(t('markdown_guide_title')) + '"><i class="fa-solid fa-circle-question" aria-hidden="true"></i></button></div>' : '') +
           kind.extraBottomHtml() +
@@ -416,7 +446,8 @@
           (kind.needsLocation()
             ? '<div class="mini"></div><div class="location-tools"><div class="loc"></div><button class="btn small c-reset-loc" type="button">' + esc(t('reset_location_btn')) + '</button></div>'
             : '') +
-          '<div class="row"><button class="btn primary c-send">' + esc(t('submit_this_one')) + '</button><span class="status"></span></div>' +
+          '<details class="card-attribution"><summary><i class="fa-solid fa-angle-right" aria-hidden="true"></i>' + esc(t('individual_attribution')) + '</summary><input type="text" class="c-name" placeholder="' + anon + '"></details>' +
+          '<div class="row"><button class="btn small c-send">' + esc(t('submit_this_one')) + '</button><span class="status" role="status" aria-live="polite"></span></div>' +
         '</div>';
     }
 
@@ -434,8 +465,10 @@
       card.querySelector('.c-name').oninput = () => this.refreshLicense();
       this.refreshLicense();
 
-      const state = { id, kind, file, blob: null, thumb: null, duration: null, urls: [], loc: null, origLoc: null, source: null, done: false, picker: null };
+      const state = { id, kind, file, blob: null, thumb: null, duration: null, urls: [], loc: null, origLoc: null, source: null, done: false, preparing: true, picker: null };
       this.cards[id] = state;
+      card.querySelector('.c-send').disabled = true;
+      this.updateSubmitState();
       card.querySelector('.c-cancel').onclick = () => this.cancelCard(id);
       kind.wireExtra(state, card);
       card.querySelector('.c-send').onclick = () => this.submitCard(state, card);
@@ -472,6 +505,9 @@
         };
       }
       if (kind.needsLocation()) this.setupMiniMap(state, card);
+      state.preparing = false;
+      card.querySelector('.c-send').disabled = this.batchRunning;
+      this.updateSubmitState();
     }
 
     // 迷你地圖（可拖曳；只調整這一筆投稿自己的座標，不會改動點位座標）
@@ -515,12 +551,15 @@
     async submitCard(state, card, opts) {
       opts = opts || {};
       if (state.done) return true;
+      if (state.preparing || state.sending || (this.batchRunning && !opts.bulk)) return false;
       const kind = state.kind;
       const statusEl = card.querySelector('.status');
       const btn = card.querySelector('.c-send');
       const cancelBtn = card.querySelector('.c-cancel');
       const bad = kind.validate(state, card);
-      if (bad) { statusEl.textContent = bad; statusEl.className = 'status err'; return false; }
+      if (bad) { statusEl.textContent = bad; statusEl.className = 'status err'; this.revealStatus(card); return false; }
+      state.sending = true;
+      this.updateSubmitState();
       btn.disabled = true; if (cancelBtn) cancelBtn.disabled = true;
       statusEl.textContent = t('uploading'); statusEl.className = 'status';
       try {
@@ -535,14 +574,16 @@
           lon: state.loc ? state.loc.lon : undefined,
           loc_source: state.loc ? state.source : undefined,
         };
-        // 授權與連結共用，沒有身分及署名的個別項目使用 CC0。
-        // 伺服器另行驗證授權白名單與署名條件。
-        const ccByChk = document.getElementById('ccByChk');
-        const wikidataChk = document.getElementById('wikidataChk');
-        common.license = ccByChk && (this.mapApp.hasIdentity() || common.name) ? ccByChk.value : 'cc0';
-        common.author_url = document.getElementById('authorUrl')?.value.trim() || '';
-        if (common.author_url && !/^https?:\/\//i.test(common.author_url)) throw Error(t('author_url_invalid'));
-        common.wikidata_ok = (wikidataChk && wikidataChk.checked) ? 1 : 0;
+        if (this.scope === 'contrib') {
+          // 授權與連結共用，沒有身分及署名的個別項目使用 CC0。
+          // 伺服器另行驗證授權白名單與署名條件。
+          const ccByChk = document.getElementById('ccByChk');
+          const wikidataChk = document.getElementById('wikidataChk');
+          common.license = ccByChk && (this.mapApp.hasIdentity() || common.name) ? ccByChk.value : 'cc0';
+          common.author_url = document.getElementById('authorUrl')?.value.trim() || '';
+          if (common.author_url && !/^https?:\/\//i.test(common.author_url)) throw Error(t('author_url_invalid'));
+          common.wikidata_ok = (wikidataChk && wikidataChk.checked) ? 1 : 0;
+        }
 
         await kind.submit(this.mapApp, kind.fields(state, card, common), {
           maxRetry: MAX_RATE_RETRY,
@@ -551,6 +592,7 @@
         this.mapApp.trackFeature(kind.key === 'newspot' ? 'newspot' : 'upload');
         // 成功：鎖定卡片
         state.done = true;
+        this.updateSubmitState();
         // 建立點位會改變點位清單與圖例，批次模式那套「只更新計數」不夠用，一律整個重繪
         if (opts.bulk && kind.key !== 'newspot') { this.mapApp.refreshCounts(); } else { this.mapApp.refreshAll(); }
         card.classList.add('done');
@@ -562,20 +604,27 @@
         // 重試次數用盡仍被限流：留在佇列裡，讓使用者可按「送出這則」手動再試，不會憑空消失
         statusEl.textContent = err.rateLimited ? t('failed_rate_limited_retry_manually') : t('save_failed', { err: err.message || err });
         statusEl.className = 'status err';
+        this.revealStatus(card);
         btn.disabled = false; if (cancelBtn) cancelBtn.disabled = false;
         return false;
+      } finally {
+        state.sending = false;
+        this.updateSubmitState();
       }
     }
 
     async submitAll() {
-      const ids = Object.keys(this.cards).filter(id => !this.cards[id].done);
+      const ids = Object.keys(this.cards).filter(id => !this.cards[id].done && !this.cards[id].preparing && !this.cards[id].sending);
       if (!ids.length) return;
       this.batchRunning = true;
       const submitBtn = this.$('submit');
       const prog = this.$('prog');
       const total = ids.length;
       let ok = 0, fail = 0;
-      if (submitBtn) submitBtn.disabled = true;
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.setAttribute('aria-busy', 'true'); }
+      const sharedFields = Array.from(this.$('modal').querySelectorAll('.modal-consent input,.modal-consent select'));
+      sharedFields.forEach(field => { field.disabled = true; });
+      this.$('queue').querySelectorAll('.c-send,.c-cancel').forEach(button => { button.disabled = true; });
       const showProg = () => { if (prog) { prog.removeAttribute('data-done'); prog.textContent = t('upload_progress', { done: ok + fail, total: total, failSuffix: fail ? t('upload_fail_suffix', { fail: fail }) : '' }); } };
       showProg();
       for (const id of ids) {
@@ -588,8 +637,14 @@
       // 批次跑完後才一次重繪地圖／清單，避免每送出一筆就整層重繪造成卡頓
       this.mapApp.refreshAll();
       this.batchRunning = false;
+      sharedFields.forEach(field => { field.disabled = false; });
+      Object.values(this.cards).filter(state => !state.done).forEach(state => {
+        const card = document.getElementById(state.id);
+        card?.querySelectorAll('.c-send,.c-cancel').forEach(button => { button.disabled = !!state.preparing; });
+      });
+      if (submitBtn) submitBtn.removeAttribute('aria-busy');
       if (this.notifyParent) this.notifyParent('contribSubmitted', { ok, fail });
-      if (submitBtn) submitBtn.disabled = false;
+      this.updateSubmitState();
       if (prog) {
         if (!fail) { prog.dataset.done = '1'; prog.innerHTML = '<i class="fa-solid fa-check"></i> ' + esc(t('upload_all_done', { ok: ok })); setTimeout(() => { if (prog.dataset.done === '1') { prog.textContent = ''; delete prog.dataset.done; } }, 5000); }
         else prog.textContent = t('upload_partial_done', { ok: ok, total: total, fail: fail });
