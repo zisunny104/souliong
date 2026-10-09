@@ -180,16 +180,7 @@ function souliong_social_text_bold($canvas, string $text, string $font, ?string 
     }
 }
 
-/** 實心膠囊條（不用透明度，避免圓角與矩形接縫重疊變色）。 */
-function souliong_social_capsule($canvas, int $x0, int $y0, int $x1, int $y1, int $color): void
-{
-    $r = (int)(($y1 - $y0) / 2);
-    imagefilledrectangle($canvas, $x0 + $r, $y0, $x1 - $r, $y1, $color);
-    imagefilledellipse($canvas, $x0 + $r, $y0 + $r, $r * 2, $r * 2, $color);
-    imagefilledellipse($canvas, $x1 - $r, $y0 + $r, $r * 2, $r * 2, $color);
-}
-
-/** 播放圖示、時間與示意播放條（不代表實際進度）。外側一路延伸到畫面外，沒有圓形播放點；條身加粗，縮圖時才不會像分隔線。 */
+/** 播放圖示、時間與示意波形（不代表實際音訊或進度）。外側一路延伸到畫面外；長條夠粗，縮圖時才不會像分隔線。 */
 function souliong_social_player($canvas, string $font, int $accent, int $y, int $seconds): void
 {
     imagefilledellipse($canvas, 642, $y - 13, 50, 50, $accent);
@@ -197,15 +188,15 @@ function souliong_social_player($canvas, string $font, int $accent, int $y, int 
     $label = sprintf('%d:%02d', intdiv($seconds, 60), $seconds % 60);
     imagettftext($canvas, 34, 0, 680, $y, $accent, $font, $label);
     $box = imagettfbbox(34, 0, $font, $label);
-    $x0 = 680 + ($box[2] - $box[0]) + 28; $mid = $y - 13; $h = 18;
-    if (1199 - $x0 > 120) {
-        $track = imagecolorallocate($canvas, 205, 220, 211);
-        $played = $x0 + (int)((1136 - $x0) * 0.38);
-        $r = (int)($h / 2);
-        imagefilledrectangle($canvas, $x0 + $r, $mid - $r, 1199, $mid + $r, $track);      // 未播放：延伸到右緣
-        imagefilledellipse($canvas, $x0 + $r, $mid, $h, $h, $track);
-        imagefilledrectangle($canvas, $x0 + $r, $mid - $r, $played, $mid + $r, $accent);  // 已播放
-        imagefilledellipse($canvas, $x0 + $r, $mid, $h, $h, $accent);
+    $x0 = 680 + ($box[2] - $box[0]) + 28; $mid = $y - 13;
+    // 示意波形（固定圖樣，不代表實際音訊）：已播放約三分之一用主色，其餘淡色，一路延伸到畫面右緣之外
+    $heights = [14, 26, 40, 22, 48, 30, 18, 42, 34, 52, 28, 16, 38, 46, 24, 34, 20, 44, 30, 14, 26, 40, 22, 36, 18, 30];
+    $count = min(count($heights), (int)((1230 - $x0) / 18));
+    if ($count < 6) return;
+    $light = imagecolorallocate($canvas, 190, 210, 200);
+    for ($i = 0; $i < $count; $i++) {
+        $left = $x0 + $i * 18;
+        imagefilledrectangle($canvas, $left, $mid - (int)($heights[$i] / 2), $left + 9, $mid + (int)($heights[$i] / 2), $i < $count * 0.38 ? $accent : $light);
     }
 }
 
@@ -278,27 +269,24 @@ function souliong_social_render(array $data, string $font, ?string $bold = null)
         [$source, $w, $h] = $decodedMap;
         imagecopyresampled($canvas, $source, 0, 0, 0, 0, 1200, 630, $w, $h);
         imagedestroy($source);
-        for ($x = 0; $x < 1200; $x++) {
-            if ($x < 520) continue;   // 左側地圖不加任何覆蓋，只在文字欄前漸層
-            $opacity = (int)round(127 - 122 * min(1, ($x - 520) / 140));
-            imageline($canvas, $x, 0, $x, 629, imagecolorallocatealpha($canvas, 250, 250, 244, $opacity));
-        }
     } else {
-        for ($y = 0; $y < 630; $y++) {
-            $mix = $y / 629;
-            imageline($canvas, 0, $y, 1199, $y, imagecolorallocate($canvas, (int)(239 + 9 * $mix), (int)(246 + 2 * $mix), (int)(237 + 7 * $mix)));
-        }
+        imagefill($canvas, 0, 0, imagecolorallocate($canvas, 222, 226, 222));   // 沒有地圖時地圖的位置用灰底
+    }
+    for ($x = 520; $x < 1200; $x++) {   // 地圖本身不加覆蓋，只在文字欄前漸層
+        $opacity = (int)round(127 - 122 * min(1, ($x - 520) / 140));
+        imageline($canvas, $x, 0, $x, 629, imagecolorallocatealpha($canvas, 250, 250, 244, $opacity));
     }
     $ink = imagecolorallocate($canvas, 35, 55, 48);
     $muted = imagecolorallocate($canvas, 78, 95, 86);
     $accent = imagecolorallocate($canvas, 32, 115, 95);
-    $titleLines = souliong_social_wrap($data['projectTitle'], $bold ?: $font, 23, 520, 1);
+    // 專案預覽的文字欄標題已經是專案名稱，不再重複放膠囊
+    $titleLines = $data['kind'] === 'project' ? [] : souliong_social_wrap($data['projectTitle'], $bold ?: $font, 23, 520, 1);
     if ($titleLines) {
         $box = imagettfbbox(23, 0, $bold ?: $font, $titleLines[0]);
         // 離左緣 300px：LINE 最壞裁成正方形時（中間約 630px）仍在畫面內
         souliong_social_pill($canvas, 300, 86 + $box[5] - 14, 328 + ($box[2] - $box[0]) + 28, 86 + $box[1] + 14);
     }
-    souliong_social_text_bold($canvas, $data['projectTitle'], $font, $bold, 23, 328, 86, 520, 1, $accent, 32);
+    if ($titleLines) souliong_social_text_bold($canvas, $data['projectTitle'], $font, $bold, 23, 328, 86, 520, 1, $accent, 32);
     $hasPhoto = false;
     if (!empty($data['image']) && ($decoded = souliong_image_decode_file($data['image']))) {
         [$source, $w, $h] = $decoded;
