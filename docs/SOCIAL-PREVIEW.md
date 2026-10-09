@@ -28,3 +28,5 @@ bash tools/setup-social-preview.sh
 快取存於 `state/social-previews/`，每個專案、投稿／點位一份，不修改原照片或任何專案資料。內容、關聯、代表照片及專案設定改變會更新版本；完成的地圖名片快取一天，地圖降級結果一分鐘後重試。對外快取最多五分鐘；更新後可使用平台提供的分享偵錯工具要求重新抓取。
 
 部署與 PHP 預覽程序皆會自動偵測 `/usr/bin/chromium`、`/usr/bin/chromium-browser`、`/usr/bin/google-chrome`、`/usr/bin/google-chrome-stable`，優先沿用系統瀏覽器，之後才尋找 Playwright 下載的 Chromium。已有 Google Chrome 的舊版 Ubuntu 不必為此重新下載 Chromium 或升級整個系統；仍須確認 Chrome 可由網站 PHP 執行身分啟動。
+
+母專案的 `package.json` 若宣告 `"type": "module"`，`.js` 會被當成 ES module；渲染腳本因此用 `.cjs`，不受上層設定影響。每次渲染失敗的原因（逾時、瀏覽器無法啟動、圖磚載入失敗等）會寫入 `state/social-preview-error.log`，只保留最近一次，不需要開 debug。

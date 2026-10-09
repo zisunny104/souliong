@@ -23,6 +23,12 @@ function souliong_social_runtime(array $cfg): ?array
     return compact('node', 'playwright', 'chromium', 'origin');
 }
 
+/** 最近一次渲染失敗原因，只留一份、不論 debug 是否開啟，方便查地圖名片為何退回淡色底。 */
+function souliong_social_log(array $cfg, string $message): void
+{
+    @file_put_contents(rtrim($cfg['state_dir'], '/\\') . '/social-preview-error.log', date('c') . ' ' . substr($message, -1500) . "\n", LOCK_EX);
+}
+
 /** A single bounded browser process reuses the actual map engine, layer selection and pin renderer. */
 function souliong_social_map(array $cfg, string $project, ?string $spotId, int $zoom): ?string
 {
@@ -35,7 +41,7 @@ function souliong_social_map(array $cfg, string $project, ?string $spotId, int $
     $process = null; $pipes = [];
     try {
         $url = $runtime['origin'] . Route::map($project) . '?embed=1&ui=bare&view=meta&contributions=0';
-        $process = @proc_open([$runtime['node'], dirname(__DIR__) . '/tools/social-preview-map.js'], [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+        $process = @proc_open([$runtime['node'], dirname(__DIR__) . '/tools/social-preview-map.cjs'], [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
         if (!is_resource($process)) return null;
         fwrite($pipes[0], json_encode([
             'url' => $url, 'spot' => $spotId, 'zoom' => max(1, min(20, $zoom)),
@@ -49,13 +55,13 @@ function souliong_social_map(array $cfg, string $project, ?string $spotId, int $
         do {
             $bytes .= stream_get_contents($pipes[1]); $errors = substr($errors . stream_get_contents($pipes[2]), -2000);
             $status = proc_get_status($process);
-            if (strlen($bytes) > 4 * 1024 * 1024 || microtime(true) >= $deadline) { proc_terminate($process); return null; }
+            if (strlen($bytes) > 4 * 1024 * 1024 || microtime(true) >= $deadline) { proc_terminate($process); souliong_social_log($cfg, 'renderer stopped: ' . (microtime(true) >= $deadline ? 'timeout' : 'output too large') . ($errors !== '' ? ' / ' . $errors : '')); return null; }
             if ($status['running']) usleep(40000);
         } while ($status['running']);
         $bytes .= stream_get_contents($pipes[1]);
         $errors = substr($errors . stream_get_contents($pipes[2]), -2000);
         $info = @getimagesizefromstring($bytes);
-        if (!$info && !empty($cfg['debug'])) error_log('souliong social-preview: ' . $errors);
+        if (!$info) souliong_social_log($cfg, $errors !== '' ? $errors : 'renderer produced no image');
         return $info && $info[0] === 1200 && $info[1] === 630 && ($info['mime'] ?? '') === 'image/png' ? $bytes : null;
     } finally {
         foreach ($pipes as $pipe) if (is_resource($pipe)) fclose($pipe);
