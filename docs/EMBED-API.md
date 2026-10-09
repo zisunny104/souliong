@@ -241,6 +241,7 @@ GET <站台>?api=navsheet&project=<slug>&spot=<spotId|num>&embed=1[&theme=light|
 - 專案或點位不存在：`404`（頁面內顯示找不到的訊息）；`POST` 等其他方法：`405`。成功時 `Cache-Control: public, max-age=60`。
 - 使用者按關閉鈕或向下滑動收起時，頁面對父視窗送 `{v:1, ns:"souliong", type:"navsheet-close"}`，目標 origin 只取自允許清單。父頁據此關閉 modal 或 iframe。
 - `embed=1` 且清單非空時送 `frame-ancestors`，規則與地圖頁相同。
+- 嵌入視窗高度不超過 520px 時直接填滿視窗，不顯示背景遮罩與拉柄，也不使用滑入動畫／下滑收起；保留關閉按鈕、Escape 與內容捲動。較高視窗維持原有抽屜／置中視窗，調整 iframe 尺寸時自動切換。
 
 ---
 

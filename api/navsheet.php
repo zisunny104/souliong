@@ -88,7 +88,7 @@ $closeLabel = $t('nav_sheet_close');
 <link rel="stylesheet" href="<?= $asset('assets/css/spot-panel.css') ?>">
 <link rel="stylesheet" href="<?= $asset('assets/css/navsheet.css') ?>">
 </head>
-<body class="nsheet-body" data-nsheet-origins="<?= $esc(json_encode($embed ? $origins : [], JSON_UNESCAPED_SLASHES)) ?>">
+<body class="nsheet-body<?= $embed ? ' nsheet-embed' : '' ?>" data-nsheet-origins="<?= $esc(json_encode($embed ? $origins : [], JSON_UNESCAPED_SLASHES)) ?>">
 <div class="nsheet-backdrop" id="nsheetBackdrop"></div>
 <section class="nsheet" id="nsheet" role="dialog" aria-modal="true" aria-labelledby="nsheetTitle">
   <div class="nsheet-grab" id="nsheetGrab" aria-hidden="true"><span></span></div>

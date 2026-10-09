@@ -35,6 +35,7 @@
   // 下滑收起：在抓握條或標題列拖曳，超過 80px 或快速下甩就收起，否則彈回
   var drag = null;
   function onDown(ev) {
+    if (body.classList.contains('nsheet-embed') && window.matchMedia('(max-height: 520px)').matches) return;
     if (ev.target.closest('.nsheet-close, .nsheet-item')) return;
     if (!ev.target.closest('.nsheet-grab, .nsheet-head') && sheet.scrollTop > 0) return;
     drag = { y: ev.clientY, t: Date.now(), dy: 0, id: ev.pointerId };
