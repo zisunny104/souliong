@@ -59,6 +59,10 @@ async function main() {
       const engine = MapApp.getEngine(), map = engine.getRawMap();
       const errors = [];
       map.on('error', event => errors.push(event.error?.message || 'Map source error'));
+      // 預覽底圖不要文字：隱藏樣式裡所有帶文字的圖層（地標是疊在上面的 DOM 標記，不受影響）
+      (map.getStyle().layers || []).forEach(layer => {
+        if (layer.type === 'symbol' && layer.layout && layer.layout['text-field'] !== undefined) map.setLayoutProperty(layer.id, 'visibility', 'none');
+      });
       const spot = config.spot ? MapApp.effectiveSpots().find(s => String(s.id) === config.spot) : null;
       if (config.spot && !spot) throw new Error('Linked point is unavailable');
       const center = spot ? [spot.lon, spot.lat] : map.getCenter();

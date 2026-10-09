@@ -20,6 +20,17 @@ function souliong_social_image(array $cfg, string $project, mixed $photo): ?stri
     return null;
 }
 
+/** 名片上顯示的聲音長度（秒）：聲音投稿用該筆的長度，點位用內容裡第一個有長度的聲音區塊；沒有就是 null。 */
+function souliong_social_audio_seconds(?array $entry, ?array $spot): ?int
+{
+    $pick = fn($v) => is_numeric($v) && $v > 0 && $v <= 86400 ? (int)round((float)$v) : null;
+    if ($entry) return ($entry['kind'] ?? '') === 'audio' ? $pick($entry['duration'] ?? null) : null;
+    foreach ((array)($spot['content'] ?? []) as $block) {
+        if (is_array($block) && ($block['kind'] ?? '') === 'audio' && ($seconds = $pick($block['duration'] ?? null))) return $seconds;
+    }
+    return null;
+}
+
 function souliong_social_data(array $cfg, string $project, array $meta, string $entryId = '', string $spotRef = ''): ?array
 {
     $entries = souliong_og_entries(store_all($cfg, $project));
@@ -63,6 +74,8 @@ function souliong_social_data(array $cfg, string $project, array $meta, string $
         'license' => (string)($licenses[$entry['license'] ?? '']['label'] ?? ''),
         'image' => $image,
         'map' => ($meta['cover']['mode'] ?? '') === 'auto' ? $cover : null,
+        'markerColor' => $spot ? souliong_spot_color($meta, $spot) : null,
+        'audioSeconds' => souliong_social_audio_seconds($entry, $spot),
         'coordinates' => $spot && is_numeric($spot['lat'] ?? null) && is_numeric($spot['lon'] ?? null) ? [(float)$spot['lat'], (float)$spot['lon']] : null,
         'metaRevision' => hash('sha256', json_encode($meta)),
     ];
@@ -179,7 +192,7 @@ function souliong_social_render(array $data, string $font): ?string
         imagecopyresampled($canvas, $source, 0, 0, 0, 0, 1200, 630, $w, $h);
         imagedestroy($source);
         for ($x = 0; $x < 1200; $x++) {
-            $opacity = (int)round(108 - 103 * min(1, pow($x / 920, 1.2)));
+            $opacity = (int)round(120 - 115 * min(1, pow($x / 920, 1.2)));
             imageline($canvas, $x, 0, $x, 629, imagecolorallocatealpha($canvas, 250, 250, 244, $opacity));
         }
     } else {
@@ -227,10 +240,22 @@ function souliong_social_render(array $data, string $font): ?string
         if (($data['spotName'] ?? '') !== '') souliong_social_text($canvas, $data['spotName'], $font, 18, 618, 553, 518, 1, $accent, 28);
     } else {
         souliong_social_text($canvas, $data['title'], $font, $hasPhoto ? 28 : 39, 618, $hasPhoto ? 463 : 220, 518, $hasPhoto ? 1 : 2, $ink, 54);
-        souliong_social_text($canvas, $data['description'], $font, 24, 618, $hasPhoto ? 512 : 365, 518, $hasPhoto ? 2 : 5, $muted, 36);
+        $hasAudio = !empty($data['audioSeconds']);
+        souliong_social_text($canvas, $data['description'], $font, 24, 618, $hasPhoto ? 512 : ($hasAudio ? 408 : 365), 518, $hasPhoto ? 2 : ($hasAudio ? 4 : 5), $muted, 36);
+    }
+    if (!empty($data['audioSeconds']) && $data['kind'] !== 'entry') {
+        $seconds = (int)$data['audioSeconds'];
+        $y = $hasPhoto ? 590 : 330;
+        imagefilledellipse($canvas, 632, $y - 8, 30, 30, $accent);
+        imagefilledpolygon($canvas, [626, $y - 15, 626, $y - 1, 639, $y - 8], imagecolorallocate($canvas, 255, 255, 255));
+        imagettftext($canvas, 20, 0, 656, $y, $accent, $font, sprintf('%d:%02d', intdiv($seconds, 60), $seconds % 60));
     }
     souliong_social_text($canvas, 'Souliong', $font, 14, 32, 582, 530, 1, $accent, 20);
     if (!empty($data['attribution'])) souliong_social_text($canvas, $data['attribution'], $font, 9, 32, 603, 540, 2, $muted, 14);
+    // 右緣一條粗線，顏色就是這個點位的地標色；整張名片沒有點位（專案預覽）時用主色
+    $barColor = is_string($data['markerColor'] ?? null) && preg_match('/^#[0-9a-f]{6}$/iD', $data['markerColor'])
+        ? imagecolorallocate($canvas, hexdec(substr($data['markerColor'], 1, 2)), hexdec(substr($data['markerColor'], 3, 2)), hexdec(substr($data['markerColor'], 5, 2))) : $accent;
+    imagefilledrectangle($canvas, 1200 - 22, 0, 1199, 629, $barColor);
     souliong_social_round($canvas, 0, 0, 1200, 630, 24);
     ob_start(); $ok = imagejpeg($canvas, null, 88); $bytes = ob_get_clean();
     imagedestroy($canvas);

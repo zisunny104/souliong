@@ -32,3 +32,5 @@ bash tools/setup-social-preview.sh
 母專案的 `package.json` 若宣告 `"type": "module"`，`.js` 會被當成 ES module；渲染腳本因此用 `.cjs`，不受上層設定影響。每次渲染失敗的原因（逾時、瀏覽器無法啟動、圖磚載入失敗等）會寫入 `state/social-preview-error.log`，只保留最近一次，不需要開 debug。
 
 瀏覽器以網站執行身分啟動時，家目錄（例如 `/var/www`）常常不可寫，Chromium 的 crashpad 與設定目錄會因此崩潰。渲染時改用 `state/social-preview-home/` 當 `HOME` 與 XDG 目錄，並關閉 crash 回報；這個目錄放在 `state/`（網站可寫），不放進依賴目錄，因為依賴目錄的擁有者可能是安裝時的 root。
+
+名片右緣有一條粗線，顏色是該點位目前的地標色（含單點自訂色）；專案預覽沒有點位時用主色。點位內容裡有聲音且記錄了長度時，名片顯示播放圖示與長度；聲音投稿的名片沿用既有的聲音圖樣。地圖底圖會隱藏樣式裡所有文字圖層，只留地標；若專案使用的是文字已烙在圖磚上的點陣底圖，這些字無法隱藏。
