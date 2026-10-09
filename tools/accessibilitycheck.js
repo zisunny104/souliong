@@ -39,7 +39,13 @@ const {chromium}=require(process.env.PLAYWRIGHT_PATH||'playwright');
   }
   for (const width of [390,1280]) {
    await page.setViewportSize({width,height:900});
-   for(const route of ['/','/privacy','/manager']){await page.goto(base+route);await audit(route+' '+width);if(route==='/manager'){await page.locator('#toAcctLogin').focus();await page.keyboard.press('Enter');await page.locator('#loginAcctFields').waitFor({state:'visible'});await audit('帳號登入 '+width);await page.locator('#toPinLogin').focus();await page.keyboard.press('Enter');await page.locator('#loginPinFields').waitFor({state:'visible'});}}
+   for(const route of ['/','/privacy','/manager']){await page.goto(base+route);await audit(route+' '+width);if(route==='/manager'){await page.locator('#toAcctLogin').focus();await page.keyboard.press('Enter');await page.locator('#loginAcctFields').waitFor({state:'visible'});await audit('帳號登入 '+width);
+    await page.locator('[name=userid]').first().fill('invalid-user');await page.locator('[name=pw]').first().fill('wrong-password');
+    await Promise.all([page.waitForNavigation(),page.locator('#panel-login > button').click()]);
+    assert.equal(await page.locator('#loginMode').inputValue(),'account');assert.equal(await page.locator('#loginAcctFields [name=userid]').inputValue(),'invalid-user');assert.equal(await page.locator('#loginAcctFields [name=pw]').inputValue(),'');await audit('帳號登入錯誤 '+width);
+    await page.reload();assert.equal(await page.locator('#loginMode').inputValue(),'account');
+    await page.goto(base+'/manager/test');assert.equal(await page.locator('#loginMode').inputValue(),'account');
+    await page.locator('#toPinLogin').focus();await page.keyboard.press('Enter');await page.locator('#loginPinFields').waitFor({state:'visible'});assert.equal(await page.locator('#loginAcctFields [name=userid]').isDisabled(),true);await page.locator('#loginPinFields [name=pin]').fill('9999');await Promise.all([page.waitForNavigation(),page.locator('#panel-login > button').click()]);assert.equal(await page.locator('#loginMode').inputValue(),'pin');await audit('PIN 登入錯誤 '+width);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth),true);}}
    await page.goto(base+'/test');await page.waitForSelector('#uploadBtn');await page.waitForTimeout(400);await audit('地圖 '+width);
    await page.evaluate(()=>MapApp.openPanel(MapApp.effectiveSpots()[0]));await page.waitForTimeout(350);await audit('點位 '+width);
    await page.evaluate(()=>MapApp.closePanel());await page.locator('#uploadBtn').click();await page.locator('#addMoreBtn').click();await audit('投稿 '+width);

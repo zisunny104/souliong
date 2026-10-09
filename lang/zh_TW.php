@@ -327,6 +327,7 @@ return [
     'login_btn'               => '登入',
     'primary_scope_label'     => '主要管理 · ',
     'project_scope_label'    => '{project} 專案管理 · ',
+    'enter_admin_account' => '輸入帳號與密碼',
     'enter_admin_pin'        => '輸入管理 PIN',
     'share_link_expired'     => '此分享連結已到期或已達使用次數上限',
 

@@ -319,6 +319,7 @@ return [
     'login_btn'               => 'Log in',
     'primary_scope_label'     => 'Main admin · ',
     'project_scope_label'    => '{project} project admin · ',
+    'enter_admin_account' => 'Enter your account and password',
     'enter_admin_pin'        => 'Enter admin PIN',
     'share_link_expired'     => 'This share link has expired or reached its use limit',
 

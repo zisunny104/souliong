@@ -43,7 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'login
   $ok = false;
   $go = Route::manager();
   $label = '';
-  if ($userid !== '') {
+  if (($_POST['login_mode'] ?? '') === 'account' || $userid !== '') {
     // 帳號登入（userid+密碼）：與 PIN 互斥的另一種憑證，欄位有填 userid 就走這條，不落入下面的 PIN 分支
     $r = account_login($cfg, $userid, $pw);
     if ($r['ok']) {
@@ -488,6 +488,7 @@ if (!$authed) {
         outline: 2px solid var(--accent);
         outline-offset: 2px
       }
+      @media(prefers-color-scheme:light) { .err { color: #b42318; } }
     </style>
   </head>
 
@@ -500,20 +501,21 @@ if (!$authed) {
     <?php
       // 失敗重新整理後要保留原本在看的面板（否則 register/activate 送出失敗會被彈回登入面板、錯誤訊息看起來像消失了）
       $postAction = (string)($_POST['action'] ?? '');
+      $loginMode = $postAction === 'login' && (($_POST['login_mode'] ?? '') === 'account' || trim((string)($_POST['userid'] ?? '')) !== '') ? 'account' : 'pin';
       $initPanel = in_array($postAction, ['account_register', 'account_activate'], true) ? $postAction : 'login';
     ?>
     <main style="display:contents">
     <form method="post" id="panel-login" style="display:<?= $initPanel === 'login' ? '' : 'none' ?>">
-      <input type="hidden" name="action" value="login"><input type="hidden" name="project" value="<?= $esc($reqProject) ?>">
+      <input type="hidden" id="loginMode" name="login_mode" value="<?= $loginMode ?>"><input type="hidden" name="action" value="login"><input type="hidden" name="project" value="<?= $esc($reqProject) ?>">
       <h1><?= $t('app_title') ?></h1>
-      <div class="s"><?= $reqProject !== '' ? $t('project_scope_label', ['project' => $reqProject]) : $t('primary_scope_label') ?><?= $t('enter_admin_pin') ?></div>
-      <div class="err"><?= $esc($loginErr) ?></div>
-      <div id="loginPinFields">
-        <input name="pin" aria-label="PIN" type="password" autocomplete="off" autofocus placeholder="PIN" data-pin-toggle data-pin-slots="4" data-pin-keypad>
+      <div class="s"><?= $reqProject !== '' ? $t('project_scope_label', ['project' => $reqProject]) : $t('primary_scope_label') ?><span id="loginHint"><?= $t($loginMode === 'account' ? 'enter_admin_account' : 'enter_admin_pin') ?></span></div>
+      <div class="err" role="alert"><?= $esc($loginErr) ?></div>
+      <div id="loginPinFields" style="display:<?= $loginMode === 'pin' ? '' : 'none' ?>">
+        <input name="pin" aria-label="PIN" type="password" autocomplete="off" <?= $loginMode === 'pin' ? 'autofocus' : 'disabled' ?> placeholder="PIN" data-pin-toggle data-pin-slots="4" data-pin-keypad>
       </div>
-      <div id="loginAcctFields" style="display:none">
-        <input name="userid" type="text" class="textfield" autocomplete="username" placeholder="<?= $t('userid_placeholder') ?>">
-        <input name="pw" type="password" class="textfield" autocomplete="current-password" placeholder="<?= $t('password_placeholder') ?>">
+      <div id="loginAcctFields" style="display:<?= $loginMode === 'account' ? '' : 'none' ?>">
+        <input name="userid" aria-label="<?= $t('userid_placeholder') ?>" <?= $loginMode === 'account' ? 'autofocus' : 'disabled' ?> value="<?= $esc($postAction === 'login' ? (string)($_POST['userid'] ?? '') : '') ?>" type="text" class="textfield" autocomplete="username" placeholder="<?= $t('userid_placeholder') ?>">
+        <input name="pw" aria-label="<?= $t('password_placeholder') ?>" <?= $loginMode === 'account' ? '' : 'disabled' ?> type="password" class="textfield" autocomplete="current-password" placeholder="<?= $t('password_placeholder') ?>">
       </div>
       <button><?= $t('login_btn') ?></button>
       <div class="switchlink" id="toAcctWrap"><a href="#" id="toAcctLogin"><?= $t('login_with_account_link') ?></a></div>
@@ -558,22 +560,28 @@ if (!$authed) {
         }
         var toAcct = document.getElementById('toAcctLogin');
         var toPin = document.getElementById('toPinLogin');
-        if (toAcct) toAcct.addEventListener('click', function (e) {
-          e.preventDefault();
-          document.getElementById('loginPinFields').style.display = 'none';
-          document.getElementById('loginAcctFields').style.display = '';
-          document.getElementById('toAcctWrap').style.display = 'none';
-          document.getElementById('toPinWrap').style.display = '';
-          document.querySelector('#loginAcctFields input[name=userid]').focus();
-        });
-        if (toPin) toPin.addEventListener('click', function (e) {
-          e.preventDefault();
-          document.getElementById('loginAcctFields').style.display = 'none';
-          document.getElementById('loginPinFields').style.display = '';
-          document.getElementById('toPinWrap').style.display = 'none';
-          document.getElementById('toAcctWrap').style.display = '';
-          document.querySelector('#loginPinFields input[name=pin]').focus();
-        });
+        function setLoginMode(mode, focus) {
+          var account = mode === 'account';
+          document.getElementById('loginHint').textContent = window.I18N[account ? 'enter_admin_account' : 'enter_admin_pin'];
+          document.getElementById('loginMode').value = account ? 'account' : 'pin';
+          ['loginPinFields', 'loginAcctFields'].forEach(function (id) {
+            var active = (id === 'loginAcctFields') === account;
+            var fields = document.getElementById(id);
+            fields.style.display = active ? '' : 'none';
+            fields.querySelectorAll('input, button').forEach(function (el) { el.disabled = !active; });
+          });
+          document.getElementById('toAcctWrap').style.display = account ? 'none' : '';
+          document.getElementById('toPinWrap').style.display = account ? '' : 'none';
+          try { sessionStorage.setItem('souliong-manager-login-mode', account ? 'account' : 'pin'); } catch (e) {}
+          if (focus) document.querySelector(account ? '#loginAcctFields input[name=userid]' : '#loginPinFields input[name=pin]').focus();
+        }
+        var mode = document.getElementById('loginMode').value;
+        if (<?= json_encode($postAction !== 'login') ?>) {
+          try { mode = sessionStorage.getItem('souliong-manager-login-mode') || mode; } catch (e) {}
+        }
+        setLoginMode(mode, <?= json_encode($initPanel === 'login') ?>);
+        if (toAcct) toAcct.addEventListener('click', function (e) { e.preventDefault(); setLoginMode('account', true); });
+        if (toPin) toPin.addEventListener('click', function (e) { e.preventDefault(); setLoginMode('pin', true); });
         var toReg = document.getElementById('toRegister');
         if (toReg) toReg.addEventListener('click', function (e) { e.preventDefault(); showPanel('panel-register'); });
         var backReg = document.getElementById('backToLoginFromRegister');
