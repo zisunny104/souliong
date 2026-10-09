@@ -266,9 +266,10 @@ function souliong_social_render(array $data, string $font, ?string $bold = null)
     $titleLines = souliong_social_wrap($data['projectTitle'], $bold ?: $font, 23, 520, 1);
     if ($titleLines) {
         $box = imagettfbbox(23, 0, $bold ?: $font, $titleLines[0]);
-        souliong_social_pill($canvas, 40, 86 + $box[5] - 14, 68 + ($box[2] - $box[0]) + 28, 86 + $box[1] + 14);
+        // 離左緣 300px：LINE 最壞裁成正方形時（中間約 630px）仍在畫面內
+        souliong_social_pill($canvas, 300, 86 + $box[5] - 14, 328 + ($box[2] - $box[0]) + 28, 86 + $box[1] + 14);
     }
-    souliong_social_text_bold($canvas, $data['projectTitle'], $font, $bold, 23, 68, 86, 520, 1, $accent, 32);
+    souliong_social_text_bold($canvas, $data['projectTitle'], $font, $bold, 23, 328, 86, 520, 1, $accent, 32);
     $hasPhoto = false;
     if (!empty($data['image']) && ($decoded = souliong_image_decode_file($data['image']))) {
         [$source, $w, $h] = $decoded;
