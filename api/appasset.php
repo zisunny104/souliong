@@ -7,7 +7,7 @@ $cfg = require __DIR__ . '/config.php';
 
 $norm = fn($p) => str_replace('\\', '/', (string)$p);
 $serve = function (string $absPath, string $ext): void {
-    $mimes = ['css' => 'text/css; charset=utf-8', 'js' => 'text/javascript; charset=utf-8'];
+    $mimes = ['css' => 'text/css; charset=utf-8', 'js' => 'text/javascript; charset=utf-8', 'svg' => 'image/svg+xml'];
     header('Content-Type: ' . $mimes[$ext]);
     header('X-Content-Type-Options: nosniff');
     header('Content-Length: ' . filesize($absPath));
@@ -31,7 +31,7 @@ if (isset($_GET['pack'])) {
 $raw = (string)($_GET['f'] ?? '');
 // 僅允許 assets/css/<name>.css 或 assets/js/<...>/<name>.js，字元白名單＋realpath 收尾。
 if (strpos($raw, '..') !== false
-    || !preg_match('#^assets/(css/[a-z0-9_-]+\.css|js/(?:[a-z0-9_-]+/)*[a-z0-9_.-]+\.js)$#', $raw)) {
+    || ($raw !== 'assets/favicon.svg' && !preg_match('#^assets/(css/[a-z0-9_-]+\.css|js/(?:[a-z0-9_-]+/)*[a-z0-9_.-]+\.js)$#', $raw))) {
     http_response_code(400);
     exit;
 }

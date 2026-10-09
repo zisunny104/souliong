@@ -200,6 +200,7 @@ if ($socialCard) {
 ?><!DOCTYPE html>
 <html lang="<?= $LANG === 'en' ? 'en' : 'zh-Hant' ?>">
 <head>
+<link rel="icon" type="image/svg+xml" href="<?= $assetUrl('assets/favicon.svg') ?>">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= $t('app_title') ?></title>
@@ -355,7 +356,7 @@ if ($pack) {
     <div class="cat" id="pCat"></div>
     <h2 id="pTitle"></h2>
     <div class="sub" id="pSub"></div>
-    <button class="btn small" id="spotEditBtn" type="button" style="display:none"><i class="fa-solid fa-location-dot"></i> <?= $t('adjust_location') ?></button>
+    <button class="btn small" id="spotEditBtn" type="button" style="display:none" title="<?= htmlspecialchars($t('adjust_location'), ENT_QUOTES) ?>" aria-label="<?= htmlspecialchars($t('adjust_location'), ENT_QUOTES) ?>"><i class="fa-solid fa-location-dot" aria-hidden="true"></i></button>
     <div class="photo-editor spot-editor" id="spotEditor" style="display:none"></div>
   </div>
   <div class="p-body">
@@ -409,12 +410,14 @@ if ($pack) {
 <div id="pinDialog" class="dialog">
   <div class="dialog-box pin-box">
     <div class="dialog-head"><b><?= $t('admin_login') ?></b><button class="icon-btn" onclick="MapApp.closePin()" aria-label="<?= $t('close') ?>"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>
+    <form id="pinForm">
     <input id="pinInput" class="name-in" style="width:100%;text-align:center;font-size:1.125rem" type="password" placeholder="PIN" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-pin-toggle data-pin-slots="4" data-pin-keypad aria-label="<?= $t('pin_input_area') ?>">
     <div id="pinMsg" class="hint" role="status"></div>
     <div class="dialog-actions">
       <span class="spacer"></span>
-      <button class="btn primary" id="pinSubmitBtn"><?= $t('confirm_ok') ?></button>
+      <button class="btn primary" type="submit" id="pinSubmitBtn"><?= $t('confirm_ok') ?></button>
     </div>
+    </form>
   </div>
 </div>
 <?php endif; ?>

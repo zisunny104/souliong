@@ -262,7 +262,8 @@
       if (!actions) return;
       const btn = document.createElement('button');
       btn.className = 'btn small sc-edit-btn'; btn.type = 'button';
-      btn.innerHTML = '<i class="fa-solid fa-pen"></i> ' + esc(t('content_edit_btn'));
+      btn.title = t('content_edit_btn'); btn.setAttribute('aria-label', t('content_edit_btn'));
+      btn.innerHTML = '<i class="fa-solid fa-pen" aria-hidden="true"></i>';
       btn.onclick = () => this.open(spot);
       actions.insertBefore(btn, actions.firstChild);
       const draft = this.drafts.get(spot.num);

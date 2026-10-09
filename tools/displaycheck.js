@@ -31,6 +31,23 @@ const {chromium}=require(process.env.PLAYWRIGHT_PATH||'playwright');
   });
   async function open(){await page.goto(base+'/test');await page.waitForFunction(()=>window.MapApp?.effectiveSpots().length===1,null,{timeout:10000}).catch(e=>{console.error(errors);throw e;});await page.evaluate(()=>MapApp.openPanel(MapApp.effectiveSpots()[0]));}
   await open();assert.equal(await page.locator('#personFilter option').first().textContent(),'點位清單');assert.equal(await page.locator('#spotFilterCount').textContent(),'1');
+  for (const [cat, label, expected] of [['test',' 自訂類別 ','自訂類別'],['secret-code','',meta.title],['secret-code','   ',meta.title],['new','新增點位',meta.title],['new','new',meta.title]]) {
+   const records=[{...spot,cat,catLabel:label},{...edit,cat,catLabel:label},entry,entryEdit];
+   fs.writeFileSync(tmp+'/projects/test/spots.jsonl',records.map(JSON.stringify).join('\n')+'\n');
+   await open();assert.equal(await page.locator('#pCat').textContent(),expected);assert.equal(await page.locator('#legend .chip').textContent(),expected);
+   const project=await (await fetch(base+'/?api=project&project=test')).json();
+   assert.ok(JSON.stringify(project).includes(expected));
+  }
+  fs.writeFileSync(tmp+'/projects/test/spots.jsonl',[spot,edit,entry,entryEdit].map(JSON.stringify).join('\n')+'\n');
+  await open();
+  const favicon=await (await fetch(base+'/?api=appasset&f=assets/favicon.svg'));
+  assert.equal(favicon.status,200);assert.equal(favicon.headers.get('content-type'),'image/svg+xml');
+  meta.features.delegation=true;meta.features.categoryLegend=false;
+  fs.writeFileSync(tmp+'/projects/test/meta.json',JSON.stringify(meta));await open();
+  assert.equal(await page.locator('#legend').count(),0);
+  assert.equal(await page.locator('#pinInput').evaluate(el=>el.form.id),'pinForm');
+  meta.features.delegation=false;meta.features.categoryLegend=true;
+  fs.writeFileSync(tmp+'/projects/test/meta.json',JSON.stringify(meta));await open();
   const cardHeight = await page.locator('#controls').evaluate(el=>el.getBoundingClientRect().height);
   await page.locator('#spotFilterTrigger').click();
   assert.ok(await page.locator('#spotFilterOptions').evaluate(el=>el.matches(':popover-open')));
@@ -202,6 +219,27 @@ const {chromium}=require(process.env.PLAYWRIGHT_PATH||'playwright');
     }
     console.log('PASS: 地圖 390／1280 無障礙掃描、分類鍵盤操作、面板隱藏與焦點、精選星章及 Markdown 語意');
   }
+  // 各型別共用操作列：編輯與分享、引用相鄰，授權文字接在後面。
+  meta.features={...meta.features,contentEdit:true,share:true};meta.contrib.kinds=['photo','audio','video','text'];
+  fs.writeFileSync(tmp+'/projects/test/meta.json',JSON.stringify(meta));
+  const actionEntries=['photo','audio','video','text'].map((kind,i)=>({...entry,id:'action-'+kind,kind,comment:'操作測試 '+kind,...(kind==='photo'?{photo:'test.jpg'}:kind==='text'?{}:{media:'test.'+(kind==='audio'?'m4a':'mp4')})}));
+  fs.writeFileSync(tmp+'/projects/test/spots.jsonl',[spot,edit,...actionEntries].map(JSON.stringify).join('\n')+'\n');
+  await open();
+  for(const kind of ['photo','audio','video','text']){
+    const card=page.locator('.entry.sl-kind-'+kind),footer=card.locator('.entry-footer');
+    assert.equal(await card.locator('.edit-btn').count(),1);
+    assert.equal(await card.locator('[data-entry-link]').count(),1);
+    const state=await footer.evaluate(el=>({orders:[getComputedStyle(el.querySelector('.entry-link-actions')).order,getComputedStyle(el.querySelector(':scope > .entry-icon-action')).order,getComputedStyle(el.querySelector('.entry-actions')).order,getComputedStyle(el.querySelector('.entry-license')).order],buttons:[...el.querySelectorAll('button')].map(b=>({label:b.getAttribute('aria-label'),title:b.title,text:b.textContent.trim(),width:b.getBoundingClientRect().width}))}));
+    assert.deepEqual(state.orders,['1','2','3','4']);
+    assert.ok(state.buttons.every(b=>b.label&&b.title&&b.text===''&&b.width===32));
+    await card.locator('.edit-btn').click();assert.ok(await card.locator('.photo-editor').isVisible());
+  }
+  for(const selector of ['#spotEditBtn','.sc-edit-btn']){
+    const button=page.locator(selector);assert.equal(await button.count(),1);
+    assert.ok(await button.getAttribute('aria-label'));assert.ok(await button.getAttribute('title'));assert.equal((await button.textContent()).trim(),'');
+    assert.equal(await button.evaluate(el=>el.getBoundingClientRect().width),32);
+  }
+  console.log('PASS: 圖片、音訊、影片、文字操作列及編輯展開；地點操作 icon 與可及名稱');
   const source=fs.readFileSync(root+'/assets/js/engine/maplibre-engine.js','utf8');
   const zoomMethod=source.slice(source.indexOf('    _checkZoomThresholds('),source.indexOf('    _nextId('));
   const redraws=await page.evaluate(method=>{

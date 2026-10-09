@@ -1094,6 +1094,13 @@ window.MapApp = (() => {
     });
   }
 
+  // 類別名稱只供顯示；內部 key、篩選與樣式維持原值。
+  function categoryDisplayName(item) {
+    const label = typeof item.catLabel === 'string' ? item.catLabel.trim() : '';
+    return label && !(item.cat === 'new' && ['new', '新增點位'].includes(label))
+      ? label : String(META.title || '').trim();
+  }
+
   /* ---------- legend ---------- */
   // 圖例的分類清單。用 effectiveSpots() 而非 SPOTS：訪客建立的點位可能帶了一個這張地圖
   // 原本沒有的分類（newspot.php 已把 catLabel／color 存進紀錄），不從這裡推導的話，
@@ -1102,7 +1109,7 @@ window.MapApp = (() => {
   const catDefaulted = {};   // ?cat= 的預設只對「第一次出現」的分類套用，不覆蓋使用者後來按過的開關
   function rebuildCats() {
     const seen = {};
-    effectiveSpots().forEach(c => { if (c.cat && !seen[c.cat]) seen[c.cat] = { key: c.cat, label: c.catLabel || c.cat, color: c.color }; });
+    effectiveSpots().forEach(c => { if (c.cat && !seen[c.cat]) seen[c.cat] = { key: c.cat, label: categoryDisplayName(c), color: c.color }; });
     const order = (META && META.categoryOrder) || catOrder;
     CATS = order.filter(k => seen[k]).map(k => seen[k]);
     Object.keys(seen).forEach(k => { if (!CATS.find(c => c.key === k)) CATS.push(seen[k]); });
@@ -1134,7 +1141,7 @@ window.MapApp = (() => {
     panel.removeAttribute('inert'); panel.removeAttribute('aria-hidden');
     current = c;
     const cat = CATS.find(x => x.key === c.cat) || { label: '', color: '' };
-    document.getElementById('pCat').textContent = cat.label;
+    document.getElementById('pCat').textContent = categoryDisplayName(c);
     document.getElementById('pCat').style.color = cat.color;
     document.getElementById('pTitle').textContent = spotTitle(c);
     document.getElementById('pSub').innerHTML = spotSub(c);
@@ -1562,8 +1569,8 @@ window.MapApp = (() => {
         (e.comment ? (['text', 'photo'].includes(kindOf(e)) && e.html ? '<div class="txt sc-md">' + e.html + '</div>' : '<div class="txt">' + esc(e.comment) + '</div>') : '') +
         '<div class="entry-footer"><span class="entry-link-actions"></span><div class="entry-actions">' +
         (canEdit ? '<button class="btn small entry-icon-action edit-btn" type="button" title="' + esc(t('edit')) + '" aria-label="' + esc(t('edit')) + '"><i class="fa-solid fa-pen" aria-hidden="true"></i></button>' : '') +
-        (!EMBED && MOD('entryHistory') && e.editHistory && e.editHistory.length > 1 ? '<button class="btn small hist-btn" type="button">' + esc(t('history_versions', { n: e.editHistory.length })) + '</button>' : '') +
-        (!EMBED && isMine(e) ? '<button class="del-btn" type="button"><i class="fa-solid fa-trash"></i> ' + esc(t('delete')) + '</button>' : '') + '</div>' + entryLicenseHtml(e) + '</div>' +
+        (!EMBED && MOD('entryHistory') && e.editHistory && e.editHistory.length > 1 ? '<button class="btn small entry-icon-action hist-btn" type="button" title="' + esc(t('history_versions', { n: e.editHistory.length })) + '" aria-label="' + esc(t('history_versions', { n: e.editHistory.length })) + '"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i></button>' : '') +
+        (!EMBED && isMine(e) ? '<button class="btn small danger entry-icon-action del-btn" type="button" title="' + esc(t('delete')) + '" aria-label="' + esc(t('delete')) + '"><i class="fa-solid fa-trash" aria-hidden="true"></i></button>' : '') + '</div>' + entryLicenseHtml(e) + '</div>' +
         '</div><div class="photo-editor" style="display:none"></div><div class="photo-history" style="display:none"></div>';
       addFeaturedStar(d, e);
       const open = d.querySelector('.sl-open');   // 文字與音訊沒有這個元素：文字不開燈箱，音訊直接在卡片上聽
@@ -1904,7 +1911,7 @@ window.MapApp = (() => {
     const canEdit = !e.spotBlock && canEditEntry(e);   // 說明區的照片區塊不是投稿，沒有可編輯的投稿紀錄
     const actions =
       (canEdit ? '<button class="btn small entry-icon-action" type="button" id="lbEditBtn" title="' + esc(t('edit')) + '" aria-label="' + esc(t('edit')) + '"><i class="fa-solid fa-pen" aria-hidden="true"></i></button>' : '') +
-      (!EMBED && isMine(e) ? '<button class="btn small danger" type="button" id="lbDelBtn"><i class="fa-solid fa-trash"></i> ' + esc(t('delete')) + '</button>' : '');
+      (!EMBED && isMine(e) ? '<button class="btn small danger entry-icon-action" type="button" id="lbDelBtn" title="' + esc(t('delete')) + '" aria-label="' + esc(t('delete')) + '"><i class="fa-solid fa-trash" aria-hidden="true"></i></button>' : '');
     const cap = document.getElementById('lbCap');
     cap.style.display = '';
     cap.innerHTML = infoBtn + (who ? '<div class="lb-who byline-text">' + who + '</div>' : '') + txt + (!e.spotBlock ? '<div class="entry-footer"><span class="lb-link-actions"></span>' + (actions ? '<div class="lb-actions">' + actions + '</div>' : '') + entryLicenseHtml(e) + '</div>' : '') +
@@ -2264,10 +2271,8 @@ window.MapApp = (() => {
     if (arPin) arPin.addEventListener('keydown', e => { if (e.key === 'Enter') trySubmitAdminRedeem(); });
     const uci = document.getElementById('unlockCodeInput');
     if (uci) uci.addEventListener('keydown', e => { if (e.key === 'Enter') trySubmitUnlock(); });
-    const pinBtn = document.getElementById('pinSubmitBtn');
-    if (pinBtn) pinBtn.onclick = pinSubmit;
-    const pinInputEl = document.getElementById('pinInput');
-    if (pinInputEl) pinInputEl.addEventListener('keydown', e => { if (e.key === 'Enter') pinSubmit(); });
+    const pinForm = document.getElementById('pinForm');
+    if (pinForm) pinForm.addEventListener('submit', e => { e.preventDefault(); pinSubmit(); });
     if (params.get('code') && (!EMBED || SUBMIT) && MOD('upload')) {
       const c = params.get('code');
       params.delete('code');

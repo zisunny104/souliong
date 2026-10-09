@@ -38,7 +38,7 @@ EOF
 for a in "$@"; do case "$a" in -h|--help|help) show_help; exit 0 ;; esac; done
 
 # ── 選用：修復路徑權限（./deploy.sh --fix-perms[-only] [--dry-run]）──────────────────
-# 預設只檢查不代勞；明確加旗標才動檔案。只動 projects/、state/、api/config.php：
+# 預設部署會修復權限；--no-fix-perms 可略過。只動 projects/、state/、api/config.php：
 # 資料夾 2775（setgid，新檔繼承群組）、檔案 664、擁有者＝php-fpm 使用者；config.php 640（含機密，不給 other 讀）。
 # php-fpm 使用者：DEPLOY_WEB_USER 指定，否則從執行中的 php-fpm／apache／nginx 行程偵測。需要 root 或 sudo。
 # 儲存網站對外網址，供自我檢查使用：./deploy.sh --set-check-url https://example.com/project
@@ -77,7 +77,10 @@ done
 detect_web_user() {
   local u=""
   if [ -n "${DEPLOY_WEB_USER:-}" ]; then echo "$DEPLOY_WEB_USER"; return; fi
-  u="$(ps -eo user=,comm= 2>/dev/null | awk '$2 ~ /^(php-fpm|php-cgi|apache2|httpd|nginx)/ && $1 != "root" {print $1; exit}')"
+  u="$(ps -eo user=,comm= 2>/dev/null | awk '$2 ~ /^(php-fpm|php-cgi)/ && $1 != "root" {print $1; exit}')"
+  if [ -z "$u" ]; then
+    u="$(ps -eo user=,comm= 2>/dev/null | awk '$2 ~ /^(apache2|httpd)/ && $1 != "root" {print $1; exit}')"
+  fi
   if [ -z "$u" ]; then
     for c in www-data nginx apache http; do id "$c" >/dev/null 2>&1 && { u="$c"; break; }; done
   fi
@@ -105,7 +108,7 @@ fix_perms() {
   local d bad_o bad_d bad_f
   for d in projects state; do
     [ -d "$d" ] || { warn "$d/ 不存在，略過"; continue; }
-    bad_o="$(find "$d" -path state/social-preview-runtime -prune -o ! -user "$WEB_USER" -print 2>/dev/null | wc -l | tr -d ' ')"
+    bad_o="$(find "$d" -path state/social-preview-runtime -prune -o \( ! -user "$WEB_USER" -o ! -group "$WEB_GROUP" \) -print 2>/dev/null | wc -l | tr -d ' ')"
     bad_d="$(find "$d" -path state/social-preview-runtime -prune -o -type d ! -perm 2775 -print 2>/dev/null | wc -l | tr -d ' ')"
     bad_f="$(find "$d" -path state/social-preview-runtime -prune -o -type f ! -perm 664 -print 2>/dev/null | wc -l | tr -d ' ')"
     if [ "$DRY_RUN" -eq 1 ]; then
@@ -113,18 +116,18 @@ fix_perms() {
       continue
     fi
     if [ "$((bad_o + bad_d + bad_f))" -eq 0 ]; then ok "$d/：權限已正確"; continue; fi
-    $SUDO find "$d" -path state/social-preview-runtime -prune -o -exec chown --no-dereference "$WEB_USER:$WEB_GROUP" {} +
-    $SUDO find "$d" -path state/social-preview-runtime -prune -o -type d -exec chmod 2775 {} +
-    $SUDO find "$d" -path state/social-preview-runtime -prune -o -type f -exec chmod 664 {} +
+    $SUDO find "$d" -path state/social-preview-runtime -prune -o -exec chown --no-dereference "$WEB_USER:$WEB_GROUP" {} + || return 1
+    $SUDO find "$d" -path state/social-preview-runtime -prune -o -type d -exec chmod 2775 {} + || return 1
+    $SUDO find "$d" -path state/social-preview-runtime -prune -o -type f -exec chmod 664 {} + || return 1
     ok "$d/：已修正（擁有者 ${bad_o}、資料夾 ${bad_d}、檔案 ${bad_f} 項）"
   done
   if [ -f api/config.php ]; then
     if [ "$DRY_RUN" -eq 1 ]; then
       warn "api/config.php：目前 $(stat -c '%a %U:%G' api/config.php 2>/dev/null || echo '?')，將設為 640（dry-run，未修改）"
     else
-      if [ "$(stat -c %a api/config.php 2>/dev/null)" = "640" ]; then ok "api/config.php：已是 640"; else
-      $SUDO chgrp "$WEB_GROUP" api/config.php
-      $SUDO chmod 640 api/config.php
+      if [ "$(stat -c %a api/config.php 2>/dev/null)" = "640" ] && [ "$(stat -c %G api/config.php 2>/dev/null)" = "$WEB_GROUP" ]; then ok "api/config.php：已是 640"; else
+      $SUDO chgrp "$WEB_GROUP" api/config.php || return 1
+      $SUDO chmod 640 api/config.php || return 1
       ok "api/config.php：640，群組 ${WEB_GROUP}（機密不給 other 讀）"; fi
     fi
   fi
@@ -457,7 +460,7 @@ if [ "${DEPLOY_SKIP_SOCIAL_PREVIEW:-0}" != 1 ] && [ -f tools/setup-social-previe
     fi
   fi
 fi
-if [ "$FIX_PERMS" -eq 1 ]; then fix_perms || true; fi
+if [ "$FIX_PERMS" -eq 1 ]; then fix_perms || exit 1; fi
 run_selfcheck
 VERSION=''
 if [ "$HAS_PHP" -eq 1 ]; then

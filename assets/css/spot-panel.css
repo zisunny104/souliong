@@ -208,7 +208,9 @@
   margin-top: 0
 }
 
-.p-nav-trigger {
+.p-nav-trigger,
+#spotEditBtn,
+.story-actions .sc-edit-btn {
   width: 32px;
   height: 32px;
   padding: 0;
@@ -1094,11 +1096,11 @@
 .entry-link-actions:empty, .lb-link-actions:empty { display: none; }
 
 .entry-footer .entry-actions, .entry-footer .lb-actions { display: inline-flex; align-items: center; gap: 6px; margin: 0; padding: 0; }
-/* 順序：連結、引用（左）→ 授權 → 編輯與刪除（最右）；編輯類從另一端加 */
+/* 全型別共用：連結、引用、編輯等操作連續排列，授權接在操作列後。 */
 .entry-footer .entry-link-actions, .entry-footer .lb-link-actions { order: 1; }
 .entry-footer > .entry-icon-action { order: 2; }
-.entry-footer .entry-license { margin: 0 0 0 auto; order: 3; }
-.entry-footer .entry-actions, .entry-footer .lb-actions { order: 4; }
+.entry-footer .entry-license { margin: 0; order: 4; }
+.entry-footer .entry-actions, .entry-footer .lb-actions { order: 3; }
 
 .entry-footer .btn.entry-icon-action,
 #lb .cap .entry-footer .btn.entry-icon-action {

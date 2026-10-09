@@ -139,7 +139,7 @@ function dataapi_cats(array $cfg, array $meta, string $slug): array
     foreach (spot_effective_all($cfg, $slug) as $s) {
         $k = (string)($s['cat'] ?? '');
         if ($k === '' || isset($seen[$k])) continue;
-        $seen[$k] = ['key' => $k, 'label' => (string)($s['catLabel'] ?? $k), 'color' => souliong_spot_color($meta, $s)];
+        $seen[$k] = ['key' => $k, 'label' => spot_category_display_name($meta, $s), 'color' => souliong_spot_color($meta, $s)];
     }
     $out = [];
     foreach ((array)($meta['categoryOrder'] ?? []) as $k) {

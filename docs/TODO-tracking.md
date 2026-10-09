@@ -102,3 +102,10 @@ tilecut.php 擴增選區「不拉伸原圖」功能（程式碼、lang 檔、doc
 ### 1.2.4：沿用 Google Chrome 產生社群預覽
 
 - 部署環境檢查與 PHP 執行路徑皆納入系統 Google Chrome／Google Chrome Stable，避免已有 Chrome 卻重試 Playwright 不支援的 Ubuntu 20.04 Chromium 安裝。優先順序為系統瀏覽器，再查找下載瀏覽器；自訂 social_preview_chromium 仍優先。
+
+## 2026-10-09：v1.2.5 維護
+
+- 類別顯示名稱缺漏、空白及舊版 new 預設名稱，改以 meta.title 顯示；保留分類 key、篩選與樣式，不改寫專案資料。
+- 部署權限修復優先使用 PHP-FPM 帳號，檢查群組及設定檔群組，修復失敗停止部署。媒體 HTTP 500 日誌已確認為 Permission denied；須於 VPS 執行子專案部署套用權限修復。
+- PIN 登入使用表單提交，加入第一方 favicon。
+- 驗證使用隔離測試資料及瀏覽器，不修改實際專案資料。

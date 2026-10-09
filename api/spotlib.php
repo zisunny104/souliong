@@ -192,3 +192,13 @@ function spot_links_validate($links): array {
     }
     return $out;
 }
+
+/** 僅解析顯示名稱，不改寫分類識別碼或原始資料。 */
+function spot_category_display_name(array $meta, array $spot): string
+{
+    $label = trim((string)($spot['catLabel'] ?? ''));
+    if ($label === '' || (($spot['cat'] ?? '') === 'new' && in_array($label, ['new', '新增點位'], true))) {
+        return trim((string)($meta['title'] ?? ''));
+    }
+    return $label;
+}
