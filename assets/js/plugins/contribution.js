@@ -405,11 +405,10 @@
         (kind.hasPreview() ? '<div class="thumb">' + kind.placeholderHtml() + '</div>' : '') +
         '<div class="fields">' +
           (kind.needsFile() ? '<div class="time">' + esc(t('loading')) + '</div>' : '') +
-          '<details class="card-attribution"><summary>' + esc(t('individual_attribution')) + '</summary><input type="text" class="c-name" placeholder="' + anon + '"></details>' +
+          '<details class="card-attribution"><summary><i class="fa-solid fa-angle-right" aria-hidden="true"></i>' + esc(t('individual_attribution')) + '</summary><input type="text" class="c-name" placeholder="' + anon + '"></details>' +
           kind.extraTopHtml() +
-          (this.captionAllowed(kind) ? '<textarea class="c-cmt" placeholder="' + esc(t(kind.key === 'newspot' ? 'newspot_story_placeholder' : 'write_something_placeholder')) + '"></textarea>' : '') +
+          (this.captionAllowed(kind) ? '<div class="markdown-field"><textarea class="c-cmt" placeholder="' + esc(t(kind.key === 'newspot' ? 'newspot_story_placeholder' : 'write_something_placeholder')) + '"></textarea><button class="markdown-help-trigger" type="button" data-markdown-help aria-haspopup="dialog" aria-label="' + esc(t('markdown_guide_title')) + '" title="' + esc(t('markdown_guide_title')) + '"><i class="fa-solid fa-circle-question" aria-hidden="true"></i></button></div>' : '') +
           kind.extraBottomHtml() +
-          (this.captionAllowed(kind) ? '<button class="btn small markdown-help-trigger" type="button" data-markdown-help aria-haspopup="dialog"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Markdown</button>' : '') +
           (kind.needsSpot()
             ? '<label class="c-lab">' + esc(t('related_spot_label_multi')) + '</label>' +
               '<div class="row"><select class="c-spot"></select><button class="btn small c-nearest" type="button">' + esc(t('nearest_btn')) + '</button></div>'

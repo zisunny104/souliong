@@ -431,13 +431,14 @@
 }
 
 .contrib-modal .card-attribution { margin-bottom: 8px; }
-.contrib-modal .card-attribution summary { cursor: pointer; font-size: .75rem; color: var(--muted); padding: 4px 0; }
+.contrib-modal .card-attribution summary { display: flex; align-items: center; gap: 8px; list-style: none; cursor: pointer; font-size: .75rem; color: var(--muted); padding: 4px 0; }
+.contrib-modal .card-attribution summary::-webkit-details-marker { display: none; }
+.contrib-modal .card-attribution[open] summary .fa-angle-right { transform: rotate(90deg); }
 .contrib-modal .card-attribution input { margin-top: 6px; }
 .contrib-modal .card .row:has(.c-cat) { margin-bottom: 8px; }
 .contrib-modal .location-tools { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; align-items: start; margin: 0 0 12px; }
 .contrib-modal .location-tools .loc { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .contrib-modal .location-tools .c-reset-loc { white-space: nowrap; }
-.contrib-modal .markdown-help-trigger { margin: 0 0 10px; }
 .contrib-modal .author-link summary { display: flex; align-items: center; gap: 8px; list-style: none; }
 .contrib-modal .author-link summary::-webkit-details-marker { display: none; }
 .contrib-modal .author-link[open] summary .fa-angle-right { transform: rotate(90deg); }
@@ -445,3 +446,4 @@
   .contrib-modal .location-tools { grid-template-columns: minmax(0, 1fr); }
   .contrib-modal .location-tools .c-reset-loc { justify-self: end; }
 }
+.contrib-modal .markdown-field textarea { margin-bottom: 0; }

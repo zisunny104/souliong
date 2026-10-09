@@ -73,4 +73,4 @@
 
 可使用 `php tools/contributioncheck.php` 驗證投稿與授權 API，以及 `node tools/contributionuicheck.js` 驗證手機／桌面與深淺色投稿、建立點位視窗。兩者只寫入隔離暫存專案，前端測試以模擬地圖引擎保留真實投稿 API。
 
-Markdown 說明改為問號圖示按鈕，投稿、建立點位與點位文字編輯共用同一個說明視窗。常用與更多語法提供寫法／顯示效果對照，範例沿用伺服器 Markdown 解析器；不宣稱支援任意 Markdown 擴充。說明使用原生 dialog，Escape 只關閉說明並恢復觸發按鈕的焦點。個人連結收合入口使用 Font Awesome 連結與方向圖示；定位來源與還原定位共用一個可換列操作區。
+Markdown 說明使用輸入區旁的精簡問號圖示，不另外佔一列；個別署名收合使用 Font Awesome 方向圖示。投稿、建立點位與點位文字編輯共用同一個說明視窗。常用與更多語法提供寫法／顯示效果對照，範例沿用伺服器 Markdown 解析器；不宣稱支援任意 Markdown 擴充。說明使用原生 dialog，Escape 只關閉說明並恢復觸發按鈕的焦點。個人連結收合入口使用 Font Awesome 連結與方向圖示；定位來源與還原定位共用一個可換列操作區。

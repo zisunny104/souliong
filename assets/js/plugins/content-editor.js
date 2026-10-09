@@ -51,8 +51,8 @@
 
     buildBody(block) {
       const el = document.createElement('div');
-      el.innerHTML = '<textarea class="sc-ta" placeholder="' + esc(t('story_textarea_placeholder')) + '">' + esc(block.comment) + '</textarea>' +
-        '<button class="btn small markdown-help-trigger" type="button" data-markdown-help aria-haspopup="dialog"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Markdown</button>';
+      el.innerHTML = '<div class="markdown-field"><textarea class="sc-ta" placeholder="' + esc(t('story_textarea_placeholder')) + '">' + esc(block.comment) + '</textarea>' +
+        '<button class="markdown-help-trigger" type="button" data-markdown-help aria-haspopup="dialog" aria-label="' + esc(t('markdown_guide_title')) + '" title="' + esc(t('markdown_guide_title')) + '"><i class="fa-solid fa-circle-question" aria-hidden="true"></i></button></div>';
       el.querySelector('textarea').oninput = (ev) => { block.comment = ev.target.value; };
       return el;
     }
