@@ -188,30 +188,45 @@ function souliong_social_ready(array $cfg): bool
 
 function souliong_social_wrap(string $text, string $font, int $size, int $width, int $limit): array
 {
+    $measure = function (string $t) use ($font, $size): int { $box = imagettfbbox($size, 0, $font, $t); return $box[2] - $box[0]; };
     if ($limit === 1) {
         $line = souliong_og_truncate($text, 500); $trimmed = false;
-        while ($line !== '' && (($box = imagettfbbox($size, 0, $font, $line . ($trimmed ? '…' : '')))[2] - $box[0] > $width)) {
+        while ($line !== '' && $measure($line . ($trimmed ? '…' : '')) > $width) {
             $line = preg_replace('/.$/us', '', $line); $trimmed = true;
         }
         return $line === '' ? [] : [$line . ($trimmed ? '…' : '')];
     }
-    $chars = preg_split('//u', souliong_og_truncate($text, 500), -1, PREG_SPLIT_NO_EMPTY) ?: [];
-    $lines = []; $line = '';
-    foreach ($chars as $i => $char) {
-        $box = imagettfbbox($size, 0, $font, $line . $char);
-        if ($line !== '' && $box[2] - $box[0] > $width) {
-            $lines[] = rtrim($line); $line = ltrim($char);
+    // 斷句單位：英數字詞整個一組（不從單字中間斷開）、其餘一字一組；超過欄寬的長字詞才拆成單字元
+    preg_match_all('/[A-Za-z0-9][A-Za-z0-9_\'’.\-]*|./us', souliong_og_truncate($text, 500), $found);
+    $units = [];
+    foreach ($found[0] as $unit) {
+        if (preg_match('/^[A-Za-z0-9]/', $unit) && mb_strlen($unit) > 1 && $measure($unit) > $width) {
+            foreach (preg_split('//u', $unit, -1, PREG_SPLIT_NO_EMPTY) as $ch) $units[] = $ch;
+        } else $units[] = $unit;
+    }
+    $noStart = ['，', '。', '、', '．', '；', '：', '！', '？', '）', '】', '」', '』', '》', '〉', '”', '’', '…', '～', ',', '.', ';', ':', '!', '?', ')', ']', '}'];   // 不可出現在行首
+    $noEnd = ['（', '【', '「', '『', '《', '〈', '“', '‘', '(', '[', '{'];                                                                                  // 不可出現在行尾
+    $lines = []; $line = []; $count = count($units);
+    for ($i = 0; $i < $count; $i++) {
+        $unit = $units[$i];
+        if ($line && $measure(implode('', $line) . $unit) > $width) {
+            $carry = [];
+            if (in_array($unit, $noStart, true) && count($line) > 1) $carry[] = array_pop($line);   // 標點不落在行首：把前一個字一起帶下去
+            while ($line && in_array(end($line), $noEnd, true)) array_unshift($carry, array_pop($line));   // 開括號不留在行尾
             if (count($lines) === $limit - 1) {
-                $line = implode('', array_slice($chars, $i));
-                while ($line !== '' && (($box = imagettfbbox($size, 0, $font, $line . '…'))[2] - $box[0] > $width)) {
-                    $line = preg_replace('/.$/us', '', $line);
-                }
-                $lines[] = rtrim($line) . '…';
+                $rest = ltrim(implode('', $carry) . implode('', array_slice($units, $i)));
+                while ($rest !== '' && $measure($rest . '…') > $width) $rest = preg_replace('/.$/us', '', $rest);
+                $lines[] = rtrim(implode('', $line));
+                $lines[] = rtrim($rest) . '…';
                 return $lines;
             }
-        } else $line .= $char;
+            $lines[] = rtrim(implode('', $line));
+            $line = $carry;
+            if ($unit === ' ') continue;   // 行首不留空白
+        }
+        $line[] = $unit;
     }
-    if ($line !== '') $lines[] = rtrim($line);
+    if ($line) $lines[] = rtrim(implode('', $line));
     return $lines;
 }
 
@@ -253,7 +268,7 @@ function souliong_social_render(array $data, string $font, ?string $bold = null)
         souliong_social_pill($canvas, 36, 69 + $box[5] - 14, 64 + ($box[2] - $box[0]) + 28, 69 + $box[1] + 14);
     }
     souliong_social_text_bold($canvas, $data['projectTitle'], $font, $bold, 23, 64, 69, 520, 1, $accent, 32);
-    $cx = 826; $cw = 296;   // 資訊欄文字起點與寬度（右側留給色條）
+    $cx = 824; $cw = 320;   // 資訊欄文字起點與寬度（右側留給色條）
     $hasPhoto = false;
     $photoBottom = 0;
     if (!empty($data['image']) && ($decoded = souliong_image_decode_file($data['image']))) {
@@ -317,7 +332,7 @@ function souliong_social_render(array $data, string $font, ?string $bold = null)
     souliong_social_round($canvas, 0, 0, 1200, 630, 24, null, false);
     $barColor = is_string($data['markerColor'] ?? null) && preg_match('/^#[0-9a-f]{6}$/iD', $data['markerColor'])
         ? imagecolorallocate($canvas, hexdec(substr($data['markerColor'], 1, 2)), hexdec(substr($data['markerColor'], 3, 2)), hexdec(substr($data['markerColor'], 5, 2))) : $accent;
-    imagefilledrectangle($canvas, 1200 - 56, 0, 1199, 629, $barColor);
+    imagefilledrectangle($canvas, 1200 - 44, 0, 1199, 629, $barColor);
     ob_start(); $ok = imagejpeg($canvas, null, 88); $bytes = ob_get_clean();
     imagedestroy($canvas);
     return $ok ? $bytes : null;
