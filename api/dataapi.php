@@ -2,7 +2,7 @@
 /**
  * 對外唯讀資料 API（v1）。由 index.php 以 $dataApiKind 指定要哪一支：
  *   GET ?api=project&project=<slug>   專案描述：標題、預設視角、圖層、分類
- *   GET ?api=spots&project=<slug>     目前有效狀態的點位清單（spotId／num／座標／導航連結）
+ *   GET ?api=spots&project=<slug>     目前有效狀態的點位清單（spotId／num／標題／地址／座標／導航連結）
  *
  * 輸出一律由白名單欄位組成，不含任何雜湊（contrib_hash、owner_hash、src_hash）、IP、投稿者身分、
  * 後台網址、CSRF、perms。點位以起點＋edit_of 鏈算出的有效狀態為準（api/spotlib.php）。
@@ -103,6 +103,16 @@ function dataapi_layers(array $cfg, array $meta, string $slug): array
     return $out;
 }
 
+/** 內容文字區塊裡第一行「地址：…」的內容；沒有或空白就是空字串（只取同一行，不讀下一段）。 */
+function dataapi_spot_address(array $eff): string
+{
+    foreach ((array)($eff['content'] ?? []) as $block) {
+        if (!is_array($block) || ($block['kind'] ?? '') !== 'text' || !is_string($block['comment'] ?? null)) continue;
+        if (preg_match('/^地址[：:][\t \x{3000}]*(.+)$/mu', $block['comment'], $match)) return mb_substr(trim($match[1]), 0, 200);
+    }
+    return '';
+}
+
 /** 有效點位 → 對外白名單形狀；沒有合法座標的點位略過。 */
 function dataapi_spots(array $cfg, string $slug): array
 {
@@ -124,6 +134,7 @@ function dataapi_spots(array $cfg, string $slug): array
             'title'  => $title,
             'area'   => (string)($s['area'] ?? ''),
             'cat'    => (string)($s['cat'] ?? ''),
+            'address' => dataapi_spot_address($s),
             'lat'    => $lat,
             'lon'    => $lon,
             'nav'    => $nav,
