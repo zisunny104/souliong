@@ -234,6 +234,7 @@ window.MapLibreEngine = (() => {
         center: [o.center ? o.center[1] : 120.7, o.center ? o.center[0] : 23.9],
         zoom: o.zoom ?? 14,
         attributionControl: false,
+        ...(o.pixelRatio ? { pixelRatio: o.pixelRatio } : {}),   // 嵌入的背景地圖在高密度螢幕上限制像素比（見 viewer.core.js），畫布像素數隨比例平方增加
         preserveDrawingBuffer: true,   // 讓 getCanvasDataURL() 讀得到畫面（見下方快照擷圖）；WebGL 預設畫完就可能清緩衝區
       });
       this.map.on('load', () => this._mountOverlays());
