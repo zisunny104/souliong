@@ -506,6 +506,43 @@ window.MapApp = (() => {
 
   let META = null, SPOTS = [], CATS = [], active = {}, CONTRIB = [], counts = {}, audioSpots = new Set(), playingSpots = new Set();
   let engine = null, photoLayerOn = false;
+
+  // 效能診斷：網址帶 ?perf=1 才啟用，沒帶時完全不執行。把耗時的階段、圖層組成、畫布大小、長任務與長畫格
+  // 印到主控台（前綴 [perf]），並放在 window.__perf，用來判斷卡頓是裝置、圖層還是程式造成。
+  function installPerfProbe(eng) {
+    const map = eng.getRawMap();
+    const t0 = performance.now();
+    const log = (window.__perf = { events: [], longTasks: [], longFrames: [] });
+    const at = () => Math.round(performance.now() - t0);
+    const mark = (name, extra) => { const e = Object.assign({ name, ms: at() }, extra || {}); log.events.push(e); console.info('[perf]', name, e.ms + 'ms', extra || ''); };
+    mark('engine created');
+    ['load', 'style.load', 'idle'].forEach(name => map.once(name, () => mark(name)));
+    let firstRender = true;
+    map.on('render', () => { if (firstRender) { firstRender = false; mark('first render'); } });
+    try {
+      new PerformanceObserver(list => list.getEntries().forEach(en => {
+        const e = { start: Math.round(en.startTime - t0), ms: Math.round(en.duration) };
+        log.longTasks.push(e); console.info('[perf] long task', e.ms + 'ms', 'at', e.start + 'ms');
+      })).observe({ type: 'longtask', buffered: true });
+    } catch (e) { /* 瀏覽器不支援 longtask 就只看畫格 */ }
+    let last = performance.now();
+    const frame = now => {
+      if (now - last > 100) { const e = { start: Math.round(last - t0), ms: Math.round(now - last) }; log.longFrames.push(e); console.info('[perf] slow frame', e.ms + 'ms', 'at', e.start + 'ms'); }
+      last = now; requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+    map.once('idle', () => {
+      const canvas = map.getCanvas(), style = map.getStyle() || { layers: [], sources: {} };
+      const types = {};
+      (style.layers || []).forEach(l => { types[l.type] = (types[l.type] || 0) + 1; });
+      const summary = {
+        canvas: canvas.width + 'x' + canvas.height, devicePixelRatio: window.devicePixelRatio, in3D: !!eng._in3D,
+        layers: (style.layers || []).length, layerTypes: types, sources: Object.keys(style.sources || {}).length, spots: SPOTS.length,
+      };
+      log.summary = summary; console.info('[perf] summary', summary);
+    });
+  }
+
   let filterPerson = '';
 
   function updateThemeIcon() {
@@ -2146,6 +2183,7 @@ window.MapApp = (() => {
     // 嵌入 view=meta／none 不自動 fitBounds：鏡頭已在引擎建構時設為 meta center/zoom
     if (SPOTS.length && initialViewMode() === 'fit') engine.fitBounds(SPOTS.map(c => [c.lat, c.lon]), { pad: 0.08 });
     emitHook('engineReady', engine);
+    if (params.get('perf') === '1') installPerfProbe(engine);
 
     // 封面快照要等圖磚真的畫完才擷圖，不然存到的是半載入的畫面；只有 MapLibre 引擎有 'idle' 事件
     // 可等（見 engine.supportsSnapshot）。
