@@ -8,6 +8,37 @@
 window.MapLibreEngine = (() => {
   const MAPLIBRE_CREDIT = { text: 'MapLibre', url: 'https://maplibre.org' };
 
+  // 自動調整畫布像素比：預設完整解析度，只有地圖移動（飛行、縮放、拖曳）時畫格持續太慢才降一級，
+  // 並記在這個分頁的 sessionStorage，之後載入直接從降過的比例開始，不再來回閃動。
+  // 暫停（分頁在背景、iframe 不在視野）造成的超長間隔不算樣本。
+  const PR_STORAGE_KEY = 'souliong.pixelRatio';
+  const PR_WINDOW = 24;        // 連續幾個移動中的畫格做一次判斷
+  const PR_SLOW_MS = 40;       // 平均畫格時間超過這個值（約低於 25 fps）才降級
+  const PR_PAUSE_MS = 2000;    // 超過這個間隔視為被瀏覽器暫停，不採樣
+  const PR_STEP = 0.8;         // 每次降到目前的 80%
+  const PR_MIN = 1.25;         // 不低於這個比例，避免地圖字模糊到難讀
+  function createPixelGovernor(startRatio) {
+    let ratio = startRatio;
+    const samples = [];
+    return {
+      get ratio() { return ratio; },
+      // 回傳新的像素比（需要降級時），否則回傳 null
+      sample(dtMs) {
+        if (!(dtMs > 0) || dtMs > PR_PAUSE_MS || ratio <= PR_MIN) return null;
+        samples.push(dtMs);
+        if (samples.length < PR_WINDOW) return null;
+        const avg = samples.reduce((a, b) => a + b, 0) / samples.length;
+        samples.length = 0;
+        if (avg <= PR_SLOW_MS) return null;
+        ratio = Math.max(PR_MIN, Math.round(ratio * PR_STEP * 100) / 100);
+        return ratio;
+      },
+    };
+  }
+  function storedPixelRatio() {
+    try { const v = parseFloat(sessionStorage.getItem(PR_STORAGE_KEY)); return v >= PR_MIN && v <= 8 ? v : 0; } catch (e) { return 0; }
+  }
+
   // 3D 期間允許壓到接近水平的視角；MapLibre 預設上限 60 度
   const DEFAULT_MAX_PITCH = 60;
   const MAX_PITCH_3D = 70;
@@ -228,13 +259,14 @@ window.MapLibreEngine = (() => {
       this.THREE = null;
       this.GLTFLoader = null;
 
+      const adaptive = !!o.adaptivePixelRatio, stored = adaptive ? storedPixelRatio() : 0;
       this.map = new maplibregl.Map({
         container: o.container,
         style: this._styleFor(this._dark),
         center: [o.center ? o.center[1] : 120.7, o.center ? o.center[0] : 23.9],
         zoom: o.zoom ?? 14,
         attributionControl: false,
-        ...(o.pixelRatio ? { pixelRatio: o.pixelRatio } : {}),   // 嵌入的背景地圖在高密度螢幕上限制像素比（見 viewer.core.js），畫布像素數隨比例平方增加
+        ...(adaptive && stored ? { pixelRatio: Math.min(window.devicePixelRatio || 1, stored) } : {}),
         preserveDrawingBuffer: true,   // 讓 getCanvasDataURL() 讀得到畫面（見下方快照擷圖）；WebGL 預設畫完就可能清緩衝區
       });
       this.map.on('load', () => this._mountOverlays());
@@ -245,6 +277,26 @@ window.MapLibreEngine = (() => {
         if (this._in3D) this._apply3DStyle();
       });
       this.map.on('zoomend', () => this._checkZoomThresholds());
+      if (adaptive) this._startPixelGovernor();
+    }
+
+    _startPixelGovernor() {
+      const map = this.map, gov = createPixelGovernor(map.getPixelRatio());
+      let moving = false, last = 0, raf = 0;
+      const tick = (now) => {
+        if (!moving) { raf = 0; return; }
+        if (last) {
+          const next = gov.sample(now - last);
+          if (next) {
+            map.setPixelRatio(next);
+            try { sessionStorage.setItem(PR_STORAGE_KEY, String(next)); } catch (e) { /* 無法記住就每次重新判斷 */ }
+          }
+        }
+        last = now;
+        raf = requestAnimationFrame(tick);
+      };
+      map.on('movestart', () => { moving = true; last = 0; if (!raf) raf = requestAnimationFrame(tick); });
+      map.on('moveend', () => { moving = false; });
     }
 
     get type() { return 'maplibre'; }
@@ -736,5 +788,6 @@ window.MapLibreEngine = (() => {
   // 3D 插件畫出的建物／樹木共用的光線：白天柔和日照，夜間壓低並偏冷藍
   MapLibreEngine.lights3D = (dark) => (dark ? { ambient: 1.1, sun: 0.5, sunColor: 0xa5b8e6 } : { ambient: 2.2, sun: 1.5 });
 
+  MapLibreEngine.createPixelGovernor = createPixelGovernor;
   return MapLibreEngine;
 })();
