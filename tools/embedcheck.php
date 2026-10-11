@@ -92,7 +92,7 @@ ec_write("$sb/projects/$E/meta.json", [
 ]);
 // 第二點帶一筆編輯版本
 ec_jsonl("$sb/projects/$E/spots.jsonl", [
-    $mk($ID1, 1, '第一點', 24.051, 120.691),
+    $mk($ID1, 1, '第一點', 24.051, 120.691, ['content' => [['kind' => 'text', 'comment' => "簡介一行\n地址：  台中市某路 1 號 \n地址：第二個不取"]]]),
     $mk($ID2, 2, '第二點', 24.052, 120.692),
     $mk($ID3, 3, 'Name With Space & 符號', 24.053, 120.693),
     ['id' => 'e5e5e5e5e5e5e5e5', 'project' => $E, 'kind' => 'spot', 'item_num' => 2, 'edit_of' => $ID2, 'lat' => 24.0525, 'lon' => 120.6925,
@@ -207,10 +207,11 @@ ck($keysOf($sp) === ['etag', 'project', 'spots', 'v'] && ($sp['v'] ?? null) === 
 $list = $sp['spots'] ?? [];
 ck(count($list) === 3, '三個點位', count($list));
 foreach ($list as $s) {
-    ck($keysOf($s) === ['area', 'cat', 'lat', 'lon', 'nav', 'num', 'spotId', 'title'], 'spot 欄位白名單', $keysOf($s));
+    ck($keysOf($s) === ['address', 'area', 'cat', 'lat', 'lon', 'nav', 'num', 'spotId', 'title'], 'spot 欄位白名單', $keysOf($s));
     ck(preg_match('/^[0-9a-f]{16}$/', $s['spotId']) === 1 && is_int($s['num']) && is_float($s['lat']) && is_float($s['lon']), 'spot 欄位型別', $s);
     ck($keysOf($s['nav'] ?? []) === ['apple', 'geo', 'google', 'osm'], 'nav 四種連結', $keysOf($s['nav'] ?? []));
 }
+ck(($list[0]['address'] ?? null) === '台中市某路 1 號' && ($list[1]['address'] ?? null) === '', 'address 取第一行「地址：」且去空白，沒有就是空字串', array_column($list, 'address'));
 foreach ($secrets as $sec) ck(strpos($b, $sec) === false, 'spots 不含機密值：' . $sec);
 ck(!preg_match('/contrib_hash|owner_hash|src_hash|"ip"|csrf|perms|edit_of|"kind"/', $b), 'spots 內容不含儲存層欄位名');
 ck(array_column($list, 'spotId') === [$ID1, $ID2, $ID3] && array_column($list, 'num') === [1, 2, 3], 'spotId 取自起點 id、依 num 排序', array_column($list, 'spotId'));
