@@ -2171,6 +2171,8 @@ window.MapApp = (() => {
     engine = new window.MapLibreEngine({
       container: 'map', center: META.center || [23.9, 120.7], zoom: META.zoom ?? 14,
       dark: isDark(), manifests: layerManifests(),
+      // 嵌入的純地圖（bare）多半是背景：移動時畫格持續太慢才自動降低像素比，裝置夠快就維持完整解析度
+      adaptivePixelRatio: BARE,
     });
     engine.mountControls({ zoomPosition: 'bottomleft', attributionPosition: 'bottomright', opButtons: [{ el: document.getElementById('resetBtn') }, { el: document.getElementById('locateBtn') }] });
     const redrawContrib = () => renderContribGlide();
