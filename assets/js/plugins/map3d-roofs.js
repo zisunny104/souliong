@@ -53,16 +53,24 @@
     }
     return inside;
   };
-  // ring 的面積有多少比例被 others（一組外環）蓋住：以外框內的格點取樣估算
+  // 外環加上外接矩形，取樣點先比矩形再做多邊形內外判斷，絕大多數外環在矩形就被排除
+  const prepare = (rings) => rings.map((r) => {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    r.forEach((q) => { if (q[0] < x0) x0 = q[0]; if (q[0] > x1) x1 = q[0]; if (q[1] < y0) y0 = q[1]; if (q[1] > y1) y1 = q[1]; });
+    return { r, x0, y0, x1, y1 };
+  });
+  // ring 的面積有多少比例被 others（prepare() 的結果）蓋住：以外框內的格點取樣估算
   const coverage = (ring, others) => {
-    const xs = ring.map((q) => q[0]), ys = ring.map((q) => q[1]);
-    const x0 = Math.min(...xs), y0 = Math.min(...ys), dx = (Math.max(...xs) - x0) / SAMPLES, dy = (Math.max(...ys) - y0) / SAMPLES;
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    ring.forEach((q) => { if (q[0] < x0) x0 = q[0]; if (q[0] > x1) x1 = q[0]; if (q[1] < y0) y0 = q[1]; if (q[1] > y1) y1 = q[1]; });
+    const dx = (x1 - x0) / SAMPLES, dy = (y1 - y0) / SAMPLES;
+    const near = others.filter((o) => o.x1 >= x0 && o.x0 <= x1 && o.y1 >= y0 && o.y0 <= y1);   // 只剩外接矩形有交集的
     let total = 0, hit = 0;
     for (let i = 0; i < SAMPLES; i++) for (let j = 0; j < SAMPLES; j++) {
       const pt = [x0 + dx * (i + 0.5), y0 + dy * (j + 0.5)];
       if (!pointInRing(pt, ring)) continue;
       total++;
-      if (others.some((r) => pointInRing(pt, r))) hit++;
+      if (near.some((o) => pt[0] >= o.x0 && pt[0] <= o.x1 && pt[1] >= o.y0 && pt[1] <= o.y1 && pointInRing(pt, o.r))) hit++;
     }
     return total ? hit / total : 0;
   };
@@ -249,7 +257,8 @@
         map.addLayer(this.makeLayer(engine, THREE));
         this.syncExclusion(engine);
         if (!this.onIdle) {
-          this.onIdle = () => this.syncExclusion(engine);
+          // 在 idle 事件裡（地圖畫格的 requestAnimationFrame 內）直接算會拖住那一格，延到下一個工作再做並合併連續觸發
+          this.onIdle = () => { clearTimeout(this.syncTimer); this.syncTimer = setTimeout(() => this.syncExclusion(engine), 0); };
           map.on('idle', this.onIdle);
         }
       });
@@ -257,6 +266,7 @@
 
     clear(engine) {
       const map = engine.getRawMap();
+      clearTimeout(this.syncTimer);
       if (this.onIdle) { map.off('idle', this.onIdle); this.onIdle = null; }
       if (map.getLayer(LAYER_ID)) map.removeLayer(LAYER_ID);
       this.excluded = 0;
@@ -267,18 +277,27 @@
     // 圖磚建物常比 OSM 分件大，資料要涵蓋該棟所有分件才不會留空洞。圖磚是漸進載入的，
     // 每次地圖閒置時重掃，id 數量有變才重設 filter。
     syncExclusion(engine) {
+      if (!this.built) return;
       const map = engine.getRawMap();
       const layer = (map.getStyle().layers || []).find((l) => l.type === 'fill-extrusion' && (l['source-layer'] === 'building' || /building/i.test(l.id)));
       if (!layer) return;
       const fps = this.built.footprints;
       // 只排除多數面積（≥50%）被屋頂輪廓蓋住的圖磚建物；僅相鄰或稍微重疊的鄰棟建物要保留
-      const outers = fps.map((fp) => fp[0]);
-      const covered = (ring) => coverage(ring, outers) >= EXCLUDE_COVER;
+      // 外環與判斷結果都記在 built 上：每次地圖閒置都重掃，已判斷過的圖磚建物（同一個 id）不再重算
+      const built = this.built;
+      if (!built.outers) { built.outers = prepare(fps.map((fp) => fp[0])); built.coverMemo = new Map(); }
+      const covered = (ring) => coverage(ring, built.outers) >= EXCLUDE_COVER;
       const ids = new Set();
       map.querySourceFeatures(layer.source, { sourceLayer: layer['source-layer'] }).forEach((f) => {
-        const g = f.geometry;
-        const polys = g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : [];
-        if (f.id != null && polys.some((rings) => rings[0] && covered(rings[0]))) ids.add(f.id);
+        if (f.id == null) return;
+        let hit = built.coverMemo.get(f.id);
+        if (hit === undefined) {
+          const g = f.geometry;
+          const polys = g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : [];
+          hit = polys.some((rings) => rings[0] && covered(rings[0]));
+          built.coverMemo.set(f.id, hit);
+        }
+        if (hit) ids.add(f.id);
       });
       if (ids.size === this.excluded) return;
       this.excluded = ids.size;
@@ -298,7 +317,8 @@
       const isPart = (f) => f && f.properties && f.properties.kind === 'part';
       const partRings = [];
       features.filter(isPart).forEach((f) => outerOf(f).forEach((rings) => partRings.push(rings[0])));
-      const partCovered = (ring) => coverage(ring, partRings) >= PART_COVER;
+      const parts = prepare(partRings);
+      const partCovered = (ring) => coverage(ring, parts) >= PART_COVER;
       const footprints = [];
       let minLat = 90, maxLat = -90, minLon = 180, maxLon = -180;
       features.forEach((f) => {
