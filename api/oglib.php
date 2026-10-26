@@ -44,9 +44,9 @@ function souliong_og_truncate(string $s, int $len = 200): string
  * spotcontent.php 共用同一套「起點＋edit_of 鏈取最新覆寫」演算法。回傳 null 表示這個點位
  * 不存在（回退到專案預設卡）。
  */
-function souliong_og_resolve_spot(array $apiCfg, string $project, $ref): ?array
+function souliong_og_resolve_spot(array $apiCfg, string $project, $ref, ?array $rows = null): ?array
 {
-    return spot_effective_by_ref($apiCfg, $project, (string)$ref);
+    return spot_effective_by_ref($apiCfg, $project, (string)$ref, $rows);
 }
 
 /** 與投稿牆相同：說明及關聯點位取最新編輯，作者與檔案沿用原投稿。 */
@@ -70,10 +70,10 @@ function souliong_og_entries(array $rows): array
     return $originals;
 }
 
-function souliong_og_resolve_entry(array $apiCfg, string $project, string $id): ?array
+function souliong_og_resolve_entry(array $apiCfg, string $project, string $id, ?array $rows = null): ?array
 {
     if (!preg_match('/^[A-Za-z0-9_-]{1,64}$/D', $id)) return null;
-    return souliong_og_entries(store_all($apiCfg, $project))[$id] ?? null;
+    return souliong_og_entries($rows ?? store_all($apiCfg, $project))[$id] ?? null;
 }
 
 /**

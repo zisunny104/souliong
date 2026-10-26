@@ -32,16 +32,17 @@ function souliong_social_audio_seconds(?array $entry, ?array $spot): ?int
     return null;
 }
 
-function souliong_social_data(array $cfg, string $project, array $meta, string $entryId = '', string $spotRef = '', string $lang = 'zh_TW'): ?array
+function souliong_social_data(array $cfg, string $project, array $meta, string $entryId = '', string $spotRef = '', string $lang = 'zh_TW', ?array $rows = null): ?array
 {
     $lang = in_array($lang, i18n_supported(), true) ? $lang : 'zh_TW';
     $dict = i18n_dict($lang);
-    $entries = souliong_og_entries(store_all($cfg, $project));
+    $rows ??= store_all($cfg, $project);
+    $entries = souliong_og_entries($rows);
     $entry = $entryId !== '' ? ($entries[$entryId] ?? null) : null;
     if ($entryId !== '' && !$entry) return null;
     $spot = $entry
-        ? (isset($entry['item_num']) ? souliong_og_resolve_spot($cfg, $project, (string)$entry['item_num']) : null)
-        : ($spotRef !== '' ? souliong_og_resolve_spot($cfg, $project, $spotRef) : null);
+        ? (isset($entry['item_num']) ? souliong_og_resolve_spot($cfg, $project, (string)$entry['item_num'], $rows) : null)
+        : ($spotRef !== '' ? souliong_og_resolve_spot($cfg, $project, $spotRef, $rows) : null);
     if (!$entry && $spotRef !== '' && !$spot) return null;
     $title = (string)($meta['title'] ?? 'Souliong');
     $spotLabel = $spot ? souliong_og_spot_title(souliong_og_spot_name($spot), (int)$spot['num'], $meta['numbering'] ?? 'suffix') : '';   // 與網頁標題一樣帶編號

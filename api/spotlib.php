@@ -50,11 +50,11 @@ function _spot_overlay(array $origin, array $chain): array
  * 面那筆勝出，所以一筆版本紀錄只需要寫它真的改到的欄位。疊加用 array_key_exists() 而非
  * isset()——「沒帶這個 key」與「明確覆寫成 null／空陣列」是兩回事。
  */
-function spot_effective_all(array $cfg, string $project): array
+function spot_effective_all(array $cfg, string $project, ?array $rows = null): array
 {
     $origins = [];
     $edits = [];
-    foreach (store_all($cfg, $project) as $r) {
+    foreach ($rows ?? _store_read_lines(store_file($cfg, $project, 'spot')) as $r) {
         if (($r['kind'] ?? '') !== 'spot') continue;
         if (empty($r['edit_of']) && isset($r['num'])) {
             $origins[] = $r;
@@ -71,19 +71,19 @@ function spot_effective_all(array $cfg, string $project): array
 }
 
 /** 單一點位的有效狀態，依 num 找；找不到這個 item_num 的起點回傳 null。 */
-function spot_effective(array $cfg, string $project, int $itemNum): ?array
+function spot_effective(array $cfg, string $project, int $itemNum, ?array $rows = null): ?array
 {
-    foreach (spot_effective_all($cfg, $project) as $s) {
+    foreach (spot_effective_all($cfg, $project, $rows) as $s) {
         if ((int)$s['num'] === $itemNum) return $s;
     }
     return null;
 }
 
 /** 單一點位的有效狀態，依 spotId 找；找不到回傳 null。 */
-function spot_effective_by_id(array $cfg, string $project, string $spotId): ?array
+function spot_effective_by_id(array $cfg, string $project, string $spotId, ?array $rows = null): ?array
 {
     if (!spot_id_valid($spotId)) return null;
-    foreach (spot_effective_all($cfg, $project) as $s) {
+    foreach (spot_effective_all($cfg, $project, $rows) as $s) {
         if (($s['id'] ?? '') === $spotId) return $s;
     }
     return null;
@@ -93,10 +93,10 @@ function spot_effective_by_id(array $cfg, string $project, string $spotId): ?arr
  * 點位參照解析（?spot=）：16 位十六進位視為 spotId，
  * 純數字視為 num；其他回 null。回傳有效狀態，找不到回 null。
  */
-function spot_effective_by_ref(array $cfg, string $project, string $ref): ?array
+function spot_effective_by_ref(array $cfg, string $project, string $ref, ?array $rows = null): ?array
 {
-    if (spot_id_valid($ref)) return spot_effective_by_id($cfg, $project, $ref);
-    if ($ref !== '' && ctype_digit($ref) && strlen($ref) <= 9) return spot_effective($cfg, $project, (int)$ref);
+    if (spot_id_valid($ref)) return spot_effective_by_id($cfg, $project, $ref, $rows);
+    if ($ref !== '' && ctype_digit($ref) && strlen($ref) <= 9) return spot_effective($cfg, $project, (int)$ref, $rows);
     return null;
 }
 

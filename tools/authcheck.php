@@ -10,8 +10,8 @@
  *   - 行程內：註冊表、預設與回填、Actor 的 kind／audit／can／csrf／isMember、Contributor。
  *   - 子行程（因為 Auth::require／contrib_gate 失敗會 exit）：Auth::require 逐情境逐鍵逐 CSRF 型態，
  *     以及 editspot／spotcontent／upload／newspot 四支端點的實際回應（沙盒內的 api/ 副本，逐字複製）。
- *   - view.php：對真正的 _authcheck_alpha 頁面在各情境下輸出 APP.actor／perms／csrf，並確認 APP.csrf
- *     餵給 Auth::require 會被接受；身分資料以預先植入快取的方式提供，不寫真實 state。
+ *   - view.php：對沙盒 alpha 頁面在各情境下輸出 APP.actor／perms／csrf，並確認 APP.csrf
+ *     餵給 Auth::require 會被接受；頁面與 API 設定均使用沙盒副本，不讀寫真實 state。
  */
 error_reporting(E_ALL);
 $root = dirname(__DIR__);
@@ -51,8 +51,18 @@ function fx_scenarios(array $cfg, string $A, string $B): array {
     $ks = fn(array $on) => array_values(array_filter($ALL, fn($k) => in_array($k, $on, true)));
     // 子行程會重建情境，父行程發的 token 要沿用，所以落在沙盒裡
     $tokFile = $cfg['state_dir'] . '/.ac_primtoken';
-    if (!is_file($tokFile)) file_put_contents($tokFile, primary_session_issue($cfg, 'cfg'));
-    $primToken = trim((string)file_get_contents($tokFile));
+    $fp = fopen($tokFile, 'c+');
+    if (!$fp || !flock($fp, LOCK_EX)) throw new RuntimeException('Cannot lock fixture token');
+    try {
+        $primToken = trim((string)stream_get_contents($fp));
+        $cookies = $_COOKIE;
+        $_COOKIE[PRIMARY_COOKIE] = $primToken;
+        try { $valid = _primary_session($cfg) !== null; } finally { $_COOKIE = $cookies; }
+        if (!$valid) {
+            $primToken = primary_session_issue($cfg, 'cfg');
+            ftruncate($fp, 0); rewind($fp); fwrite($fp, $primToken); fflush($fp);
+        }
+    } finally { flock($fp, LOCK_UN); fclose($fp); }
     $prim = [PRIMARY_COOKIE => $primToken];
     $acct = fn(string $id, ?string $sig = null) => [ACCOUNT_COOKIE => $id . '.' . ($sig ?? account_derived($cfg, $id))];
     $pin  = fn(string $p, string $id, ?string $sig = null) => [pin_cookie_name($p) => $id . '.' . ($sig ?? pin_derived($cfg, $p, $id))];
@@ -153,7 +163,7 @@ if (($argv[1] ?? '') === '--child') {
         $root = $p['root'];
         require_once $root . '/api/security.php';
         $keepCfg = require $root . '/api/config.php';
-        $A = '_authcheck_alpha'; $B = '_authcheck_beta';
+        $A = 'alpha'; $B = 'beta';
         $sc = fx_scenarios($keepCfg, $A, $B)[$p['scenario']];
         fx_seed($A, $B, fx_data($A, $B));
         $_COOKIE = $sc['cookies'];
@@ -213,6 +223,11 @@ unset($cfg['admin_pin'], $cfg['admin_pin_label']);
 mkdir("$sb/state", 0777, true);
 ac_copy_dir($root . '/api', "$sb/api");
 ac_copy_dir($root . '/lang', "$sb/lang");
+ac_copy_dir($root . '/pages', "$sb/pages");
+ac_copy_dir($root . '/assets', "$sb/assets");
+copy($root . '/config.php', "$sb/config.php");
+mkdir("$sb/tools");
+copy($root . '/tools/social-preview-map.cjs', "$sb/tools/social-preview-map.cjs");
 ac_write("$sb/api/config.php", "<?php\nreturn json_decode(file_get_contents(__DIR__ . '/../cfg.json'), true);\n");
 ac_write("$sb/cfg.json", $cfg);
 
@@ -295,7 +310,12 @@ function ac_classify(string $out): string {
     };
 }
 
+$expired = primary_session_issue($cfg, 'cfg');
+file_put_contents($cfg['state_dir'] . '/.ac_primtoken', $expired);
+_sessions_update($cfg, function (array $rows): array { foreach ($rows as &$row) $row['exp'] = time() - 1; return $rows; });
 $S = fx_scenarios($cfg, 'alpha', 'beta');
+ck('fixture', $S['primary_cookie']['cookies'][PRIMARY_COOKIE] !== $expired, '過期測試 token 已重新建立');
+
 $regKeys = array_keys(auth_registry());
 $probeKeys = array_merge($regKeys, ['nope']);
 $projKeys = auth_perm_keys('project');
@@ -504,7 +524,7 @@ $blockedAlpha = json_decode((string)file_get_contents("$sb/projects/alpha/codes.
 
 // 7. view.php：APP.actor／perms／csrf 與 Actor 一致，且 APP.csrf 會被 Auth::require 接受
 $viewJobs = [];
-foreach ($S as $name => $sc) { $viewJobs[$name] = ['mode' => 'view', 'p' => ['root' => $root, 'scenario' => $name]]; }
+foreach ($S as $name => $sc) { $viewJobs[$name] = ['mode' => 'view', 'p' => ['root' => $sb, 'scenario' => $name]]; }
 $viewRes = ac_jobs_run($viewJobs, 6);
 foreach ($S as $name => $sc) {
     $rows = ac_lines($viewRes[$name] ?? '');

@@ -1,7 +1,7 @@
 <?php
 /**
  * 簡易資安/韌性工具：每 IP 檔案式速率限制（滑動視窗），緩解洪水與掃描。
- * 無外部相依；限流本身失敗時「放行」而非拒服務（避免自我 DoS）。
+ * 無外部相依；限速儲存失效時回可重試的 503，不讓保護無聲失效。
  * 位於 Nginx 反代後，需在 config 開 trust_forwarded 才會用 X-Forwarded-For。
  */
 require_once __DIR__ . '/contribaccess.php';
@@ -504,6 +504,14 @@ function block_remove(array $cfg, string $project, ?string $ownerHash, ?string $
 }
 
 /** 超過限制時直接以 429 結束請求；$consume=false 只檢查、不計次。個別 bucket 可在 config['rate_limits'][$bucket] 覆寫 max/window（例如批次投稿量遠高於刪除/換鎖等低頻動作）。 */
+function rate_limit_unavailable(string $bucket, string $operation): never {
+    error_log('souliong rate-limit: ' . preg_replace('/[^a-z0-9_-]/i', '_', $bucket) . ' storage ' . $operation . ' failed');
+    header('Retry-After: 30');
+    header('Cache-Control: no-store');
+    json_out(['error' => '服務暫時無法處理請求，請稍後再試'], 503);
+    exit;
+}
+
 function rate_limit(array $cfg, string $bucket = 'default', bool $consume = true): void {
     $override = $cfg['rate_limits'][$bucket] ?? [];
     $max = $override['max']    ?? $cfg['rate_max']    ?? 40;
@@ -521,9 +529,10 @@ function rate_limit(array $cfg, string $bucket = 'default', bool $consume = true
         foreach ((glob($dir . '/*.txt') ?: []) as $old) { if ((int)@filemtime($old) < $stale) @unlink($old); }
     }
     $fp = @fopen($f, 'c+');
-    if (!$fp) return;                       // 開檔失敗 → 放行
-    if (!flock($fp, LOCK_EX)) { fclose($fp); return; }
-    $raw = stream_get_contents($fp);
+    if (!$fp) rate_limit_unavailable($bucket, 'open');
+    if (!@flock($fp, LOCK_EX)) { fclose($fp); rate_limit_unavailable($bucket, 'lock'); }
+    $raw = @stream_get_contents($fp);
+    if ($raw === false) { flock($fp, LOCK_UN); fclose($fp); rate_limit_unavailable($bucket, 'read'); }
     $hits = array_values(array_filter(array_map('intval', array_filter(explode(',', trim((string)$raw)), 'strlen')), fn($t) => $t > $now - $win));
     if (count($hits) >= $max) {
         flock($fp, LOCK_UN); fclose($fp);
@@ -532,8 +541,10 @@ function rate_limit(array $cfg, string $bucket = 'default', bool $consume = true
     }
     if (!$consume) { flock($fp, LOCK_UN); fclose($fp); return; }
     $hits[] = $now;
-    ftruncate($fp, 0); rewind($fp); fwrite($fp, implode(',', $hits));
+    $serialized = implode(',', $hits);
+    $ok = @ftruncate($fp, 0) && @rewind($fp) && @fwrite($fp, $serialized) === strlen($serialized) && @fflush($fp);
     flock($fp, LOCK_UN); fclose($fp);
+    if (!$ok) rate_limit_unavailable($bucket, 'write');
 }
 
 require_once __DIR__ . '/auth.php';   // 權限單一入口（Actor／Auth／權限鍵註冊表）
