@@ -7,7 +7,7 @@
     const category = hex((meta.categoryColors || {})[item.cat || ''], null);
     if (category) return category;
     if (!item.cat || item.cat === 'new') return '#7a7f87';
-    return hex((meta.categoryColors || {})[item.cat], hex(item.color, '#7a7f87'));
+    return hex(item.color, '#7a7f87');
   }
   function badge(meta, person) {
     return hex(person, hex(meta.badgeColor, '#c0392b'));

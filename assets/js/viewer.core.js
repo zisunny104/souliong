@@ -728,7 +728,20 @@ window.MapApp = (() => {
   const SPOT_FIELDS = Array.isArray(APP.spotFields) ? APP.spotFields : [];
   const hasOwn = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
   const byCreatedAt = (a, b) => { const x = String(a.created_at || ''), y = String(b.created_at || ''); return x < y ? -1 : x > y ? 1 : 0; };
+  // 只在一次同步畫面更新內共用整理結果；離開作用域立即丟棄，避免編輯後仍讀到舊資料。
+  let spotSnapshot = null;
+  function withSpotSnapshot(update) {
+    if (spotSnapshot !== null) return update();
+    spotSnapshot = { spots: null };
+    try { return update(); } finally { spotSnapshot = null; }
+  }
   function effectiveSpots() {
+    if (spotSnapshot === null) return buildEffectiveSpots();
+    if (spotSnapshot.spots === null) spotSnapshot.spots = buildEffectiveSpots();
+    // 清單會就地 sort；每個呼叫保有自己的陣列，避免改變其他呼叫者的順序。
+    return spotSnapshot.spots.slice();
+  }
+  function buildEffectiveSpots() {
     const origins = {}, edits = {};
     CONTRIB.forEach(e => {
       if (e.kind !== 'spot') return;
@@ -2095,7 +2108,10 @@ window.MapApp = (() => {
   }
   // 供插件在自己完成一次會影響地圖/清單顯示的動作（例如上傳、建立點位）後，一次重繪所有受影響的畫面。
   // rebuildCats() 要排在 renderSpots() 之前：新建立的點位可能帶來一個新分類，圖例得先有那一格。
-  function refreshAll() { rebuildCats(); buildLegend(); recount(); renderSpots(); renderContribLayer(); rebuildPersonFilter(); emitHook('stateChange'); renderEntries(); }
+  function refreshMapAndFilters() {
+    withSpotSnapshot(() => { rebuildCats(); buildLegend(); recount(); renderSpots(); renderContribLayer(); rebuildPersonFilter(); });
+  }
+  function refreshAll() { refreshMapAndFilters(); emitHook('stateChange'); renderEntries(); }
   // 「投稿」鈕顯示投稿總則數；有投稿的點位數移到 title 提示裡
   function updatePhotoBtn() {
     const btn = document.getElementById('photoLayerBtn');
@@ -2122,8 +2138,7 @@ window.MapApp = (() => {
         return r;
       });
       // 投稿裡可能含 kind:'newspot'（訪客建立的點位），分類與圖例得重算一次才看得到那些點
-      rebuildCats(); buildLegend();
-      recount(); renderSpots(); renderContribLayer(); rebuildPersonFilter(); emitHook('stateChange');
+      refreshMapAndFilters(); emitHook('stateChange');
       // 注意：這裡不因為 filterPerson 記得先前篩選就把地圖對焦過去——那樣專案層級的進站縮放
       // 會被投稿者自己散落各地的投稿位置拉開，核心點位範圍反而被壓縮成一小塊。進站永遠維持
       // boot() 那份只看 SPOTS 的縮放；使用者自己從下拉選單「重新選取」投稿者時（見下方

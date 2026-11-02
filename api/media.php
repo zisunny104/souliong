@@ -12,7 +12,7 @@ $cfg = require __DIR__ . '/config.php';
 
 $f = $_GET['f'] ?? '';
 // 僅允許 <project>/<檔名>，禁止路徑穿越
-if (strpos($f, '..') !== false || !preg_match('#^[a-z0-9_-]+/[A-Za-z0-9_.-]+$#', $f)) {
+if (!is_string($f) || strpos($f, '..') !== false || !preg_match('#^[a-z0-9_-]+/[A-Za-z0-9_.-]+$#', $f)) {
     http_response_code(400);
     exit;
 }
@@ -45,7 +45,18 @@ $mimes = [
     'webp' => 'image/webp', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png',
 ];
 $mime = $mimes[$ext] ?? 'application/octet-stream';
-$size = filesize($path);
+// 在送出成功標頭前確認實際可讀，HEAD 與 GET 使用相同檢查。
+$fp = @fopen($path, 'rb');
+$stat = $fp ? fstat($fp) : false;
+if (!$fp || $stat === false || !isset($stat['size']) || $stat['size'] < 0) {
+    if (is_resource($fp)) fclose($fp);
+    error_log('souliong media: cannot open or stat media file');
+    http_response_code(500);
+    header('Cache-Control: no-store');
+    header('Content-Length: 0');
+    exit;
+}
+$size = $stat['size'];
 
 // 有 gzip 之類的輸出緩衝在跑時，送出去的 Content-Length 會跟實際位元組數對不上，
 // 播放器（尤其是還要靠 Range 續傳的）會直接壞掉，所以先把緩衝全部關掉。
@@ -80,22 +91,26 @@ if ($size > 0 && preg_match('/^bytes=(\d*)-(\d*)$/', trim($range), $m)) {
     if (!$ok) {
         http_response_code(416);
         header('Content-Range: bytes */' . $size);
+        header('Cache-Control: no-store');
+        header('Content-Length: 0');
+        fclose($fp);
         exit;
     }
     http_response_code(206);
     header('Content-Range: bytes ' . $start . '-' . $end . '/' . $size);
 }
 
-$length = $end - $start + 1;
-header('Content-Length: ' . $length);
-if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'HEAD') exit;
-
-$fp = fopen($path, 'rb');
-if (!$fp) {
+if (fseek($fp, $start) !== 0) {
+    fclose($fp);
     http_response_code(500);
+    header('Cache-Control: no-store');
+    header_remove('Content-Range');
+    header('Content-Length: 0');
     exit;
 }
-fseek($fp, $start);
+$length = $end - $start + 1;
+header('Content-Length: ' . $length);
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'HEAD') { fclose($fp); exit; }
 $remain = $length;
 while ($remain > 0 && !feof($fp)) {
     $chunk = fread($fp, (int)min(262144, $remain));

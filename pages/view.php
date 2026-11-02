@@ -43,7 +43,8 @@ require_once __DIR__ . '/../api/uploadlib.php';
 // spots.jsonl 是點位唯一的真相來源，跟 assets/js/viewer.core.js 的 effectiveSpots() 同一套判斷式。
 // 位置與內容的版本疊加交給前端讀 CONTRIB 做，這裡只給起點紀錄；起點自帶的 content 區塊附加
 // 衍生欄位 html（見 spot_content_render()）。
-$spots     = $meta ? array_values(array_filter(store_all($apiCfg, $proj), fn($r) => ($r['kind'] ?? null) === 'spot' && empty($r['edit_of']) && isset($r['num']))) : [];
+$viewRows = $meta ? store_all($apiCfg, $proj) : [];
+$spots     = $meta ? array_values(array_filter($viewRows, fn($r) => ($r['kind'] ?? null) === 'spot' && empty($r['edit_of']) && isset($r['num']))) : [];
 foreach ($spots as &$spotRec) {
     if (is_array($spotRec['content'] ?? null)) $spotRec['content'] = spot_content_render($spotRec['content']);
     $spotRec['content_rev'] = $spotRec['id'] ?? null;
@@ -174,8 +175,8 @@ $ogUrl   = Route::abs(Route::map($proj));
 $entryId = is_string($_GET['entry'] ?? null) && preg_match('/^[A-Za-z0-9_-]{1,64}$/D', $_GET['entry']) ? $_GET['entry'] : '';
 $spotRef = is_string($_GET['spot'] ?? null) && preg_match('/^[A-Za-z0-9_-]{1,64}$/D', $_GET['spot']) ? $_GET['spot'] : '';   // spotId（新連結）或 num（舊連結）
 
-if ($entryId !== '' && ($entry = souliong_og_resolve_entry($apiCfg, $proj, $entryId))) {
-    $sp = isset($entry['item_num']) ? souliong_og_resolve_spot($apiCfg, $proj, (int)$entry['item_num']) : null;
+if ($entryId !== '' && ($entry = souliong_og_resolve_entry($apiCfg, $proj, $entryId, $viewRows))) {
+    $sp = isset($entry['item_num']) ? souliong_og_resolve_spot($apiCfg, $proj, (int)$entry['item_num'], $viewRows) : null;
     $ogSpotLabel = $sp ? souliong_og_spot_title(souliong_og_spot_name($sp), (int)$entry['item_num'], $meta['numbering'] ?? 'suffix') : '';
     $kindKey = ['photo' => 'tab_photo', 'video' => 'tab_video', 'audio' => 'tab_audio'][$entry['kind'] ?? ''] ?? 'tab_text';
     $entryText = ($entry['comment'] ?? '') !== '' ? souliong_og_plain(mb_substr((string)$entry['comment'], 0, 2000)) : '';
@@ -185,7 +186,7 @@ if ($entryId !== '' && ($entry = souliong_og_resolve_entry($apiCfg, $proj, $entr
     $ogEntryLabel = $entryText !== '' ? souliong_og_truncate($entryText, 20) : $entryFallback;
     if ($qs = souliong_og_entry_image_qs($entry)) $ogImage = Route::abs(Route::api($qs[0], $qs[1]));
     $ogUrl = Route::abs(Route::map($proj) . '?entry=' . rawurlencode($entryId));
-} elseif ($spotRef !== '' && ($sp = souliong_og_resolve_spot($apiCfg, $proj, $spotRef))) {
+} elseif ($spotRef !== '' && ($sp = souliong_og_resolve_spot($apiCfg, $proj, $spotRef, $viewRows))) {
     $ogSpotLabel = souliong_og_spot_title(souliong_og_spot_name($sp), (int)$sp['num'], $meta['numbering'] ?? 'suffix');
     $ogDesc  = souliong_og_truncate(souliong_og_plain(spot_content_text($sp)) ?: (string)($meta['desc'] ?? i18n_t($DICT, 'app_tagline')));
     $ogUrl = Route::abs(Route::map($proj) . '?spot=' . rawurlencode((string)$sp['id']));   // 新連結一律用 spotId
@@ -199,7 +200,7 @@ $ogTitle = souliong_og_truncate(implode(' | ', array_values(array_unique(array_f
 $APP['docTitle'] = $ogTitle;   // 前端的分頁標題沿用伺服器算好的同一串
 // 嵌入頁不需要分享預覽，略過整段資料組裝
 $socialCard = !$embed && souliong_social_ready($apiCfg) && is_array($meta)
-    ? souliong_social_data($apiCfg, $proj, $meta, $entryId, $spotRef, $LANG) : null;
+    ? souliong_social_data($apiCfg, $proj, $meta, $entryId, $spotRef, $LANG, $viewRows) : null;
 if ($socialCard) {
     $socialQuery = ['project' => $proj, 'lang' => $LANG, 'v' => substr(souliong_social_revision($apiCfg, $proj, $meta, $socialCard), 0, 16)];
     if ($entryId !== '') $socialQuery['entry'] = $entryId;

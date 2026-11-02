@@ -60,7 +60,7 @@ $phpFiles = checkall_files($root, 'php');
 [$c, $o, $n] = checkall_each($root, $phpFiles, fn($f) => "$php -l " . escapeshellarg($f));
 $results[] = ["php -l（$n 個檔案）", $c, $o];
 
-foreach (['authlint', 'authcheck', 'contentcheck', 'embedcheck', 'securitycheck', 'contributioncheck', 'sessioncheck'] as $tool) {
+foreach (['authlint', 'authcheck', 'contentcheck', 'embedcheck', 'securitycheck', 'contributioncheck', 'sessioncheck', 'ratelimitcheck', 'mediaresponsecheck', 'spotsnapshotcheck'] as $tool) {
     [$c, $o] = checkall_run("$php " . escapeshellarg("tools/$tool.php"), $root);
     $results[] = [$tool, $c, $c === 0 ? '' : $o];
 }
@@ -77,6 +77,8 @@ if ($nodeCode === 0) {
     $results[] = ['markercolorcheck.js', $c, $c === 0 ? '' : $o];
     [$c, $o] = checkall_run('node tools/featuredlayoutcheck.js', $root);
     $results[] = ['featuredlayoutcheck.js', $c, $c === 0 ? '' : $o];
+    [$c, $o] = checkall_run('node tools/spotsnapshotcheck.cjs', $root);
+    $results[] = ['spotsnapshotcheck.cjs', $c, $c === 0 ? '' : $o];
 } else {
     echo "（略過 node --check：找不到 node）\n";
 }

@@ -7,7 +7,7 @@ $cfg = require __DIR__ . '/config.php';
 
 $f = $_GET['f'] ?? '';
 // 僅允許 <project>/<檔名>，禁止路徑穿越
-if (strpos($f, '..') !== false || !preg_match('#^[a-z0-9_-]+/[A-Za-z0-9_.-]+$#', $f)) {
+if (!is_string($f) || strpos($f, '..') !== false || !preg_match('#^[a-z0-9_-]+/[A-Za-z0-9_.-]+$#', $f)) {
     http_response_code(400);
     exit;
 }
@@ -23,10 +23,21 @@ if (!empty($_GET['th'])) {
 $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
 $mimes = ['webp' => 'image/webp', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png'];
 $mime = $mimes[$ext] ?? 'application/octet-stream';
+$fp = @fopen($path, 'rb');
+$stat = $fp ? fstat($fp) : false;
+if (!$fp || $stat === false || !isset($stat['size']) || $stat['size'] < 0) {
+    if (is_resource($fp)) fclose($fp);
+    error_log('souliong photo: cannot open or stat photo file');
+    http_response_code(500);
+    header('Cache-Control: no-store');
+    header('Content-Length: 0');
+    exit;
+}
 header('Content-Type: ' . $mime);
-header('Content-Length: ' . filesize($path));
+header('Content-Length: ' . $stat['size']);
 header('Cache-Control: public, max-age=31536000, immutable');
-readfile($path);
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'HEAD') fpassthru($fp);
+fclose($fp);
 
 /** 既有或新產生的縮圖檔路徑；產不出來（無 GD、格式不支援、寫檔失敗…）回 null，由呼叫端輸出原圖 */
 function photo_thumb_of(string $path): ?string {

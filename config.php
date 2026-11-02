@@ -3,7 +3,7 @@
 return [
     'name'            => 'Souliong | 循跡',
     'description'     => '循著地方留下的痕跡，用地圖探索、記錄一座城市。',
-    'version'         => '1.2.7',
+    'version'         => '1.2.8',
     'author'          => 'Tokas(Xiang-zi Xie)',
     'icon'            => 'map',        // Tocas UI 圖標名（框架卡片用）
 ];
