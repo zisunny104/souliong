@@ -36,6 +36,7 @@ function auth_registry(): array {
         'delete_others'   => ['scope' => 'project', 'label' => 'perm_delete_others',   'backfill' => false],
         'edit_others'     => ['scope' => 'project', 'label' => 'perm_edit_others',     'backfill' => false],
         'edit_spots'      => ['scope' => 'project', 'label' => 'perm_edit_spots',      'backfill' => false],
+        'edit_pages'      => ['scope' => 'project', 'label' => 'perm_edit_pages',      'backfill' => false],
         'grant_access'    => ['scope' => 'project', 'label' => 'perm_grant_access',    'backfill' => false],
         'edit_3d_regions' => ['scope' => 'project', 'label' => 'perm_edit_3d_regions', 'backfill' => false],
         'edit_meta'       => ['scope' => 'project', 'label' => 'perm_edit_meta',       'backfill' => true],

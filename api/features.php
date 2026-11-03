@@ -165,6 +165,7 @@ function souliong_modules(): array
         'spotByline' => ['label' => '點位署名', 'desc' => '顯示點位內容編輯者與時間。', 'default' => true],
         'entryByline' => ['label' => '投稿署名', 'desc' => '顯示投稿者與時間。', 'default' => true],
         'contentEdit' => ['label' => '點位內容編輯', 'desc' => '具編輯點位權限的管理者可在點位說明區新增、修改、刪除、排序內容區塊（文字、聲音、照片），直接寫入該點位的原生內容（spots.jsonl 的 content 欄位）。這只是前端顯示開關，寫入權限看 edit_spots，與投稿代碼無關。', 'default' => true],
+        'pages' => ['label' => '專案說明頁', 'desc' => '左上角地圖名稱旁的說明按鈕，開啟多分頁的說明面板，每頁一份 Markdown（可貼上圖片）。具編輯說明頁權限（edit_pages）的管理者可在面板內切換編輯／對照／檢視。這只是前端顯示開關，寫入權限看 edit_pages。', 'default' => false],
         'upload' => ['label' => '上傳投稿', 'desc' => '訪客上傳照片／文字紀錄；關閉後整張地圖唯讀，投稿代碼與解鎖流程一併隱藏。', 'default' => true],
         'embed'  => ['label' => '嵌入載入', 'desc' => '產生可嵌入其他網站的 iframe 碼。', 'default' => true],
         'share'  => ['label' => '分享', 'desc' => '分享連結／QR Code 彈窗。', 'default' => true],
