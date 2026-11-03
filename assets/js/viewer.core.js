@@ -908,7 +908,7 @@ window.MapApp = (() => {
         specs.push({
           id: e.id, spotNum: spot.num, lat: spot.lat, lon: spot.lon, html: withTie(icon.html, offs[index], e.name || t('featured_entry')), size: icon.size, className: 'sl-featured-marker', off: offs[index], tieStyle: tieStyle, moveStyle: moveStyle, angleOf: angleOf,
           anchor: anchorOf(),
-          onClick: () => { if (url) openLightbox(e, url); else openSpot(spot); },
+          onClick: () => { if (!openEntryCard(e)) { if (url) openLightbox(e, url); else openSpot(spot); } },
         });
       });
       if (selected.length > visible) specs.push({
@@ -937,7 +937,7 @@ window.MapApp = (() => {
       const icon = entryIcon(e, size);
       specs.push({
         id: e.id, lat: e.lat, lon: e.lon, html: icon.html, size: icon.size, anchor: icon.anchor, label: e.name || t('featured_entry'),
-        onClick: () => openLightbox(e, url),
+        onClick: () => { if (!openEntryCard(e)) openLightbox(e, url); },   // 有所屬點位就開卡片，沒有才退回滿版
       });
     });
     const visibleSpots = new Set(specs.filter(s => s.spotNum != null).map(s => s.spotNum));
@@ -1246,6 +1246,26 @@ window.MapApp = (() => {
     renderNav(c);
     renderEntries();
     statSend('spot', c.num);
+  }
+  // 點投稿（地圖標記、?entry= 連結）：開啟它所屬點位的卡片並捲到那則投稿、短暫高亮。
+  // 滿版檢視（燈箱）只由使用者在卡片上手動點開，不從標記或網址直接觸發——滿版沒有導航，網址帶進來也不該直接蓋滿畫面。
+  // 音訊指向時邀請點擊播放，永遠不自動出聲。沒有所屬點位（item_num 空）時回傳 false，由呼叫端決定退路。
+  function openEntryCard(e) {
+    if (!e || e.item_num == null) return false;
+    const spot = effectiveSpots().find(p => p.num === e.item_num);
+    if (!spot) return false;
+    openPanel(spot);
+    if (engine) engine.panTo(spot.lat, spot.lon, { animate: true });
+    requestAnimationFrame(() => {
+      const card = document.querySelector('.entry[data-entry-id="' + CSS.escape(e.id) + '"]');
+      if (!card) return;
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      card.classList.add('entry-highlight');
+      const playBtn = card.querySelector('.sl-play-btn');
+      if (playBtn) playBtn.classList.add('sl-invite');
+      setTimeout(() => card.classList.remove('entry-highlight'), 2400);
+    });
+    return true;
   }
   function closePanel() {
     const panel = document.getElementById('panel');
@@ -2437,6 +2457,14 @@ window.MapApp = (() => {
       }
     }
 
+    // 網址帶 ?entry=<投稿id>：開啟它所屬點位的卡片並捲到那則投稿（QR／分享連結用）；不開滿版檢視。
+    // 找不到那則或它沒有所屬點位就安靜略過。
+    const urlEntry = BARE ? '' : params.get('entry');
+    if (urlEntry && !urlSpot) {
+      const hit = effectiveEntries().find(e => e.id === urlEntry);
+      if (hit) openEntryCard(hit);
+    }
+
     if (!BARE) statVisit();      // 匿名累加瀏覽 / 工作階段 / 裝置別
     hideSkeleton();
     emitHook('bootDone');
@@ -2619,7 +2647,7 @@ window.MapApp = (() => {
 
   boot();
   return {
-    closePanel, togglePanelSize, openLightbox, closeLightbox, closePin, closeUnlock, closeAdminRedeem,
+    closePanel, togglePanelSize, openLightbox, openEntryCard, closeLightbox, closePin, closeUnlock, closeAdminRedeem,
     extLinkProceed, closeExtLinkDialog, openShortcuts, closeShortcuts,
     // ---- 選用插件掛勾點 API（見 souliong/docs/EXTENDING.md）----
     onHook, registerPhotoFilter, registerEntriesHint, registerEntryAction, registerScopeParam, registerShortcut,
