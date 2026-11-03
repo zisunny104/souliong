@@ -697,6 +697,7 @@
   white-space: normal
 }
 
+.sc-md img { max-width: 100%; height: auto; }
 .sc-md pre {
   white-space: pre
 }

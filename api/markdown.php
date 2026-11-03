@@ -15,7 +15,7 @@
  * 不會被二次逸出（`double_encode` 關掉），否則作者寫 `&amp;` 會在畫面上看到 `&amp;amp;`。
  *
  * 支援：ATX 標題、段落、圍欄程式碼、行內程式碼、粗體、斜體、連結、清單（可縮排一層）、
- * 表格、引言、水平線。列表與表格是逐行狀態機，不是先照空行切塊——文件裡的表格與
+ * 表格、引言、水平線，以及選用的圖片（`images` 選項，預設關，見 toHtml）。列表與表格是逐行狀態機，不是先照空行切塊——文件裡的表格與
  * 清單常常上下都黏著文字，照空行切會把它們切碎。
  *
  * 換行就是換行：段落內的單一換行預設算繪成 `<br>`（`soft_breaks` 可關）。專案的說明
@@ -27,14 +27,20 @@ final class Markdown
     /** 連結放行的協定。其餘一律退回純文字，包含 `javascript:`、`data:`。 */
     private const SAFE_SCHEMES = ['http', 'https', 'mailto'];
 
+    /** 目前這次 toHtml 的圖片設定（見 toHtml 的 images 選項）；遞迴進引言時沿用，所以放在靜態屬性。 */
+    private static bool|array $images = false;
+
     /**
      * 把一段 Markdown 算繪成 HTML 片段（不含 <html>／<body> 外殼）。
      *
-     * @param array{skip_h1?:bool,heading_ids?:bool,heading_offset?:int,soft_breaks?:bool} $opt
+     * @param array{skip_h1?:bool,heading_ids?:bool,heading_offset?:int,soft_breaks?:bool,images?:bool|string[]} $opt
      *        skip_h1        略過第一個 # 標題（頁面自己有標題時用）
      *        heading_ids    幫標題加 id，讓目錄能連過去（預設開）
      *        heading_offset 標題整體降級，例如 1 表示 # 變成 <h2>
      *        soft_breaks    段落內換行算繪成 <br>（預設開，見檔頭說明）
+     *        images         圖片 `![說明](網址 "標題")`：false（預設）＝不算繪，維持原樣；true＝網址過連結同一份白名單
+     *                       （http／https 與站內路徑）就算繪成 <img>；字串陣列＝網址還要以其中某個前綴開頭
+     *                       （例如只准專案自己的媒體路徑，外部圖一律退回純文字）。mailto 不能當圖片來源
      */
     public static function toHtml(string $md, array $opt = []): string
     {
@@ -42,6 +48,7 @@ final class Markdown
         $withIds = (bool)($opt['heading_ids'] ?? true);
         $offset  = max(0, min(5, (int)($opt['heading_offset'] ?? 0)));
         $soft    = (bool)($opt['soft_breaks'] ?? true);
+        self::$images = $opt['images'] ?? false;
 
         $lines = explode("\n", str_replace(["\r\n", "\r", "\t"], ["\n", "\n", '    '], $md));
         $out   = [];
@@ -306,6 +313,22 @@ final class Markdown
     {
         $s = self::esc($s);
 
+        // 圖片：![說明](網址 "標題")，要在連結之前處理，否則會被當成連結。過不了白名單就整段退回純文字。
+        if (self::$images !== false) {
+            $s = preg_replace_callback(
+                '/!\[([^\]]*)\]\(([^)\s]+)(?:\s+&quot;(.*?)&quot;)?\)/',    // 引號此時已被逸出成 &quot;
+                static function (array $m): string {
+                    $src = html_entity_decode($m[2], ENT_QUOTES, 'UTF-8');
+                    if (!self::safeImage($src)) {
+                        return $m[0];
+                    }
+                    $title = ($m[3] ?? '') !== '' ? ' title="' . self::esc($m[3]) . '"' : '';
+                    return '<img src="' . self::esc($src) . '" alt="' . $m[1] . '"' . $title . ' loading="lazy" decoding="async">';
+                },
+                $s
+            ) ?? $s;
+        }
+
         // 連結：[文字](網址)。網址過不了白名單就整段退回純文字。
         $s = preg_replace_callback(
             '/\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/',
@@ -342,6 +365,24 @@ final class Markdown
             return in_array(strtolower($m[1]), self::SAFE_SCHEMES, true);
         }
         return !str_contains($url, ':');                     // 相對路徑；含冒號的可疑，擋掉
+    }
+
+    /** 圖片來源：不能是 mailto，過連結白名單，images 給了前綴清單時還要以其中之一開頭。 */
+    private static function safeImage(string $url): bool
+    {
+        $url = trim($url);
+        if (!self::safeUrl($url) || stripos($url, 'mailto:') === 0 || $url[0] === '#' || $url[0] === '?' || str_contains($url, '..')) {
+            return false;
+        }
+        if (is_array(self::$images)) {
+            foreach (self::$images as $prefix) {
+                if (is_string($prefix) && $prefix !== '' && str_starts_with($url, $prefix)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        return true;
     }
 
     /** 標題 id。中文標題保留原字（URL 裡是合法的），只把空白與標點換成連字號。 */
