@@ -2,10 +2,8 @@
    跟 share-link.js 用同一個 features.share 開關載入：分享整張地圖既然開放，分享某一則
    投稿（例如省府聲景裡的一段聲音）也合理。
 
-   - 消費端：網址帶 ?entry=<id> 時，開機完成、投稿資料載好後自動開啟該則所屬點位的面板，
-     並捲到那張卡片、短暫高亮（卡片上有播放鍵時同時加邀請脈衝）——不呼叫 openLightbox()，音訊卡片本來就是 <audio controls
-     preload="none">（見 viewer.core.js entryPreviewHtml()），永遠要訪客自己按下播放，
-     深層連結不該讓它自動出聲。
+   - 消費端：網址帶 ?entry=<id> 的處理已移到核心（viewer.core.js 的 openEntryCard()），不依賴這個插件，
+     也不開滿版檢視、不自動出聲；這個插件只負責產生端。
    - 產生端：在每張投稿卡的操作列多掛一顆「複製此則連結」，複製的網址只帶 entry 參數，
      不合併目前的篩選範圍（分享單一則內容時，篩選狀態沒有意義）。 */
 (() => {
@@ -18,12 +16,10 @@
   const esc = (s) => String(s).replace(/[&<>"]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m]));
 
   class EntryLinkPlugin extends MapApp.Plugin {
-    constructor() { super('entryLink'); this.handled = false; }
+    constructor() { super('entryLink'); }
 
     mount() {
       this.registerCopyButton();
-      this.tryOpenFromUrl();
-      this.mapApp.onHook('stateChange', () => this.tryOpenFromUrl());
     }
 
     entryUrl(entryId) {
@@ -49,34 +45,6 @@
           } catch (err) {}
         };
         return btn;
-      });
-    }
-
-    // 投稿資料是非同步載入的，第一次呼叫時多半還是空的；stateChange 觸發時再試一次，
-    // 直到 CONTRIB 載完（不論有沒有找到那則 id）才不再重試。
-    tryOpenFromUrl() {
-      if (this.handled) return;
-      const id = new URLSearchParams(location.search).get('entry');
-      if (!id) { this.handled = true; return; }
-      const App = this.mapApp;
-      const entries = App.effectiveEntries();
-      if (!entries.length) return;
-      this.handled = true;
-      const entry = entries.find(e => e.id === id);
-      if (!entry || entry.item_num == null) return;
-      const spot = App.effectiveSpots().find(p => p.num === entry.item_num);
-      if (!spot) return;
-      App.openPanel(spot);
-      const engine = App.getEngine();
-      if (engine) engine.panTo(spot.lat, spot.lon, { animate: true });
-      requestAnimationFrame(() => {
-        const card = document.querySelector('.entry[data-entry-id="' + CSS.escape(id) + '"]');
-        if (!card) return;
-        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        card.classList.add('entry-highlight');
-        const playBtn = card.querySelector('.sl-play-btn');   // 指向聲音時邀請點擊播放，按下後由播放器自己拿掉
-        if (playBtn) playBtn.classList.add('sl-invite');
-        setTimeout(() => card.classList.remove('entry-highlight'), 2400);
       });
     }
   }
