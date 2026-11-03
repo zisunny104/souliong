@@ -113,6 +113,9 @@ switch ($action) {
     case 'spotcontent':
         require __DIR__ . '/api/spotcontent.php';   // 點位原生內容（text／audio／photo 區塊），把關比照 editspot.php
         return;
+    case 'pages':
+        require __DIR__ . '/api/pages.php';   // 專案說明頁（選用模組 pages）：讀公開，寫入看 edit_pages
+        return;
     case 'unlock':
         require __DIR__ . '/api/unlock.php';
         return;

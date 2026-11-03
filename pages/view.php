@@ -574,6 +574,9 @@ window.maplibregl = maplibregl;
 <?php if ($hasAudioKind || $mod('contentEdit')): ?>
 <script src="<?= $assetUrl('assets/js/plugins/sound-player.js') ?>"></script>
 <?php endif; ?>
+<?php if ($mod('pages')): ?>
+<script src="<?= $assetUrl('assets/js/plugins/info-pages.js') ?>"></script>
+<?php endif; ?>
 <?php if ($mod('personExplore')): ?>
 <script src="<?= $assetUrl('assets/js/plugins/person-explore.js') ?>"></script>
 <?php endif; ?>

@@ -371,7 +371,7 @@ final class Markdown
     private static function safeImage(string $url): bool
     {
         $url = trim($url);
-        if (!self::safeUrl($url) || stripos($url, 'mailto:') === 0 || $url[0] === '#' || $url[0] === '?' || str_contains($url, '..')) {
+        if (!self::safeUrl($url) || stripos($url, 'mailto:') === 0 || $url[0] === '#' || str_contains($url, '..')) {
             return false;
         }
         if (is_array(self::$images)) {
