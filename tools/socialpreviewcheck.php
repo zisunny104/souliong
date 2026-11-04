@@ -49,7 +49,7 @@ sp_json($sandbox . '/projects/test/meta.json', $meta);
 $spot = ['id' => 'aabbccdd11223344', 'kind' => 'spot', 'num' => 1, 'title' => '原點位', 'lat' => 24, 'lon' => 120, 'content' => [['kind' => 'text', 'comment' => '原介紹']]];
 $spotEdit = ['id' => '11223344aabbccdd', 'kind' => 'spot', 'edit_of' => 'aabbccdd11223344', 'content' => [['kind' => 'text', 'comment' => '最新介紹']], 'created_at' => '2026-10-08T00:00:00Z'];
 file_put_contents($sandbox . '/projects/test/spots.jsonl', json_encode($spot) . "\n" . json_encode($spotEdit) . "\n");
-$photo = imagecreatetruecolor(600, 400); imagefill($photo, 0, 0, imagecolorallocate($photo, 175, 105, 40)); imagejpeg($photo, $sandbox . '/projects/test/photos/test.jpg'); imagedestroy($photo);
+$photo = imagecreatetruecolor(600, 400); imagefill($photo, 0, 0, imagecolorallocate($photo, 175, 105, 40)); imagejpeg($photo, $sandbox . '/projects/test/photos/test.jpg');
 $entries = [];
 foreach (['photo', 'video', 'audio', 'text'] as $kind) $entries[] = ['id' => $kind . '1', 'kind' => $kind, 'item_num' => 1, 'name' => '原作者', 'comment' => '**測試說明**', 'license' => 'cc-by-nc-nd', 'photo' => $kind === 'photo' ? 'test/test.jpg' : null, 'thumb' => $kind === 'video' ? 'test/test.jpg' : null, 'media' => in_array($kind, ['video', 'audio']) ? 'test/test.mp4' : null, 'created_at' => '2026-10-07T00:00:00Z'];
 $entries[] = ['id' => 'photo2', 'kind' => 'photo', 'edit_of' => 'photo1', 'name' => '編輯者', 'comment' => '最新版說明', 'item_num' => 1, 'created_at' => '2026-10-08T00:00:00Z'];
@@ -115,7 +115,6 @@ JS);
         $map = imagecreatefromstring($png);
         sp_assert((imagecolorat($map, 50, 100) & 0xffffff) === 0xdce9cf, 'selected project layer retained');
         sp_assert((imagecolorat($map, 300, 315) & 0xffffff) !== 0xdce9cf, 'existing point icon appears at projected position');
-        imagedestroy($map);
         if (getenv('SOCIAL_PREVIEW_SAVE_MAP')) file_put_contents(getenv('SOCIAL_PREVIEW_SAVE_MAP'), $png);
     }
 }

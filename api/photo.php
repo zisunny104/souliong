@@ -50,6 +50,5 @@ function photo_thumb_of(string $path): ?string {
     if ($d === null) return null;
     [$src, $w, $h] = $d;
     $out = souliong_image_resize_encode($src, $w, $h, 640, $base . '_t');   // 跟前端上傳縮圖同規格（最長邊 640）
-    imagedestroy($src);
     return $out;
 }
