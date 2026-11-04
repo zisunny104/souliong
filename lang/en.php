@@ -1158,4 +1158,13 @@ return [
     'initial_view_label' => 'Initial view',
     'initial_view_meta' => 'Project settings',
     'initial_view_fit' => 'Fit all spots',
+    'urls_heading' => 'URL settings',
+    'urls_hint' => 'The public slug is what appears in URLs (the internal folder name stays, so entries and photos are unaffected). Aliases and old slugs redirect to the same place under the public slug, including the rest of the path, ?query and #fragment, so printed QR codes keep working.',
+    'urls_slug_label' => 'Public URL slug',
+    'urls_slug_hint' => 'Lowercase letters, digits, underscore, hyphen; up to 40 characters. Empty = use the internal id ({id}).',
+    'urls_aliases_label' => 'Aliases (other URLs)',
+    'urls_aliases_hint' => 'One per line. All of these redirect to the public URL; when you change the public slug, the old one is added automatically.',
+    'urls_save_btn' => 'Save URL settings',
+    'urls_current' => 'Current URL: ',
+    'urls_saved' => 'URL settings saved',
 ];
