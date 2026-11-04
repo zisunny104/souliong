@@ -33,6 +33,11 @@ if ($m !== false) {
     $after = ltrim($reqPath, '/');   // 獨立部署
 }
 $seg = array_values(array_filter(explode('/', rawurldecode($after)), 'strlen'));
+// 專案別名與公開代號（api/aliases.php）：頁面網址用別名或舊代號開啟時 301 導向公開代號，其餘一律先換成內部代號再分派
+require_once __DIR__ . '/api/aliases.php';
+$prefixPath = $m !== false ? substr($reqPath, 0, $m + strlen($appName) + 1) : '';
+$normAction = $seg[0] ?? null;
+souliong_normalize_request($seg, $normAction, $reqPath, $prefixPath);
 // 動作來源優先序：路徑段 → ?api= → 框架 action → index（兩種寫法都相容）
 $action = $seg[0] ?? null;
 if ($action === null || $action === '') { $action = $_GET['api'] ?? ($_APP['action'] ?? 'index'); }
@@ -136,6 +141,9 @@ switch ($action) {
         return;
     case 'newproject':
         require __DIR__ . '/api/newproject.php';  // 常駐工具：建立新專案
+        return;
+    case 'renameproject':
+        require __DIR__ . '/api/renameproject.php';  // 常駐工具：專案改名（資料夾與資料裡的代號，主管理者專用）
         return;
     case 'stat':
         require __DIR__ . '/api/stat.php';

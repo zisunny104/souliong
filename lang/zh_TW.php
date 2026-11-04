@@ -1160,4 +1160,13 @@ return [
     'initial_view_label' => '初始取景',
     'initial_view_meta' => '專案設定',
     'initial_view_fit' => '自動取景',
+    'urls_heading' => '網址設定',
+    'urls_hint' => '公開網址代號是網址上實際顯示的名稱（內部資料夾名稱不變，投稿與照片都不受影響）。別名與舊的代號打開時，會自動導向公開網址的同一個位置，包含後面的路徑、?參數與 # 位置；已經印出去的 QR 不會失效。',
+    'urls_slug_label' => '公開網址代號',
+    'urls_slug_hint' => '小寫英文字母、數字、底線、減號，最多 40 字；留空＝沿用內部代號（{id}）。',
+    'urls_aliases_label' => '別名（其他網址）',
+    'urls_aliases_hint' => '一行一個。這些名字都會導向公開網址；改公開代號時，舊的代號會自動加進來。',
+    'urls_save_btn' => '儲存網址設定',
+    'urls_current' => '目前網址：',
+    'urls_saved' => '已儲存網址設定',
 ];

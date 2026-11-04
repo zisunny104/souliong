@@ -43,6 +43,13 @@ final class Route
     private static ?string $base = null;
     private static ?string $origin = null;
 
+    /** 網址上用的專案代號：設了公開代號（見 api/aliases.php）就用它，否則就是內部代號 */
+    public static function pub(string $project): string
+    {
+        require_once __DIR__ . '/aliases.php';
+        return souliong_public_slug($project);
+    }
+
     // ── 掛載位置 ────────────────────────────────────────────────────────────
 
     /**
@@ -80,7 +87,7 @@ final class Route
     /** 公開地圖頁；$project 留空就是平台首頁 */
     public static function map(string $project = ''): string
     {
-        return self::base() . ($project !== '' ? rawurlencode($project) : '');
+        return self::base() . ($project !== '' ? rawurlencode(self::pub($project)) : '');
     }
 
     // ── 後台 ────────────────────────────────────────────────────────────────
@@ -92,7 +99,7 @@ final class Route
     public static function manager(string $project = '', string $pane = '', string $frag = ''): string
     {
         $u = self::base() . self::MANAGER;
-        if ($project !== '') $u .= '/' . rawurlencode($project);
+        if ($project !== '') $u .= '/' . rawurlencode(self::pub($project));
         if ($pane !== '' && in_array($pane, self::PANES, true)) $u .= '/' . $pane;
         return $u . ($frag !== '' ? '#' . $frag : '');
     }
@@ -111,14 +118,14 @@ final class Route
     /** 單張地圖備份 */
     public static function backupProject(string $project): string
     {
-        return self::base() . self::MANAGER . '/' . rawurlencode($project) . '/' . self::BACKUP;
+        return self::base() . self::MANAGER . '/' . rawurlencode(self::pub($project)) . '/' . self::BACKUP;
     }
 
     /** 主題包匯出。$project 留空＝全站層，非空＝該地圖的專案層（兩層作用域見 api/packs.php） */
     public static function backupPack(string $packId, string $project = ''): string
     {
         $u = self::base() . self::MANAGER;
-        if ($project !== '') $u .= '/' . rawurlencode($project);
+        if ($project !== '') $u .= '/' . rawurlencode(self::pub($project));
         return $u . '/' . self::PACKS . '/' . rawurlencode($packId) . '.zip';
     }
 
@@ -130,7 +137,7 @@ final class Route
     public static function backupLayer(string $layerId, string $project = '', bool $withSrc = false): string
     {
         $u = self::base() . self::MANAGER;
-        if ($project !== '') $u .= '/' . rawurlencode($project);
+        if ($project !== '') $u .= '/' . rawurlencode(self::pub($project));
         $u .= '/' . self::LAYERS . '/' . rawurlencode($layerId) . '.zip';
         return $withSrc ? $u . '?src=1' : $u;
     }
@@ -141,7 +148,7 @@ final class Route
      */
     public static function backupRegion3d(string $regionId, string $project): string
     {
-        $u = self::base() . self::MANAGER . '/' . rawurlencode($project);
+        $u = self::base() . self::MANAGER . '/' . rawurlencode(self::pub($project));
         return $u . '/' . self::REGIONS3D . '/' . rawurlencode($regionId) . '.zip';
     }
 
@@ -164,13 +171,13 @@ final class Route
     public static function layerFile(string $project, string $id, string $rel): string
     {
         $segs = array_map('rawurlencode', explode('/', $rel));
-        return self::base() . 'layer/' . rawurlencode($project) . '/' . rawurlencode($id) . '/' . implode('/', $segs);
+        return self::base() . 'layer/' . rawurlencode(self::pub($project)) . '/' . rawurlencode($id) . '/' . implode('/', $segs);
     }
 
     /** 專案預先抓取的 OSM 資料集（index.php 的 osm/ 路徑，實作在 api/osmfile.php）；$kind 見 api/osmdata.php */
     public static function osm(string $project, string $kind): string
     {
-        return self::base() . 'osm/' . rawurlencode($project) . '/' . rawurlencode($kind);
+        return self::base() . 'osm/' . rawurlencode(self::pub($project)) . '/' . rawurlencode($kind);
     }
 
     /** 維護工具頁（exiffix／thumbfix／tilecut）；$extra 是該工具自己的參數 */

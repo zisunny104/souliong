@@ -33,7 +33,8 @@ if (($_GET['action'] ?? '') === 'check') {
         json_out(['error' => $tr('primary_only_newproject_msg')], 403);
     }
     $id = $cleanId($_GET['id'] ?? '');
-    $available = $id !== '' && !in_array($id, NEWPROJECT_RESERVED, true) && !is_dir(project_dir($cfg, $id));
+    require_once __DIR__ . '/aliases.php';
+    $available = $id !== '' && !in_array($id, NEWPROJECT_RESERVED, true) && !in_array($id, SOULIONG_RESERVED_SLUGS, true) && !is_dir(project_dir($cfg, $id)) && !isset(souliong_url_registry($cfg, true)['names'][$id]);
     json_out(['available' => $available]);
 }
 
@@ -42,11 +43,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'creat
     $actor = Auth::require($cfg, null, 'create_project', true, $tr('primary_only_newproject_msg'));
 
     $id = $cleanId($_POST['id'] ?? '');
-    if ($id === '' || in_array($id, NEWPROJECT_RESERVED, true)) {
+    require_once __DIR__ . '/aliases.php';
+    if ($id === '' || in_array($id, NEWPROJECT_RESERVED, true) || in_array($id, SOULIONG_RESERVED_SLUGS, true)) {
         json_out(['error' => $tr('newproject_bad_id_msg')], 400);
     }
     $dir = project_dir($cfg, $id);
-    if (is_dir($dir)) {
+    if (is_dir($dir) || isset(souliong_url_registry($cfg, true)['names'][$id])) {
         json_out(['error' => $tr('newproject_id_taken_msg')], 409);
     }
 

@@ -22,6 +22,7 @@ require_once __DIR__ . '/metawrite.php';
 require_once __DIR__ . '/settings.php';   // packs.php 內部也會載它，兩邊都用 require_once 才不會重複宣告
 require __DIR__ . '/../pages/error.php';
 require_once __DIR__ . '/i18n.php';
+require_once __DIR__ . '/aliases.php';
 $cfg = require __DIR__ . '/config.php';
 rate_limit($cfg, 'manage');
 [$LANG, $DICT] = i18n_init();
@@ -720,6 +721,35 @@ if (!$authed) {
           }
           audit_log($cfg, $auditWho(), 'contribution_access', $p, $enabled ? 'enabled' : 'disabled');
           header('Location: ' . Route::manager($scopeProject, 'access'));
+          exit;
+        }
+        // 網址設定：公開網址代號與別名（api/aliases.php）。舊代號與別名會自動導向公開代號
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'urls') {
+          $p = clean_id($_POST['project'] ?? '');
+          $gate($p, 'edit_meta', 'no_project_permission_msg', Route::manager($scopeProject));
+          require_once __DIR__ . '/aliases.php';
+          $mf = $cfg['projects_dir'] . '/' . $p . '/meta.json';
+          $meta = is_file($mf) ? json_decode((string)file_get_contents($mf), true) : [];
+          if (!is_array($meta)) $meta = [];
+          $slug = strtolower(trim((string)($_POST['public_slug'] ?? '')));
+          if ($slug === $p) $slug = '';
+          $aliases = [];
+          foreach (preg_split('/[\s,]+/', strtolower((string)($_POST['aliases'] ?? '')), -1, PREG_SPLIT_NO_EMPTY) ?: [] as $a) {
+            if ($a !== $p && $a !== $slug) $aliases[$a] = true;
+          }
+          $oldSlug = souliong_public_slug($p, $cfg);
+          if ($oldSlug !== $p && $oldSlug !== $slug) $aliases[$oldSlug] = true;   // 換公開代號時，舊的自動變別名
+          $aliases = array_keys($aliases);
+          $err = souliong_urls_error($p, $slug, $aliases, $cfg);
+          if ($err !== '') error_page(400, $t('urls_heading'), $err, Route::manager($scopeProject));
+          if ($slug === '') unset($meta['slug']); else $meta['slug'] = $slug;
+          if (!$aliases) unset($meta['aliases']); else $meta['aliases'] = $aliases;
+          if (file_put_contents($mf, json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) . "\n", LOCK_EX) === false) {
+            error_page(500, '儲存失敗', '請稍後再試。');
+          }
+          souliong_url_registry($cfg, true);
+          audit_log($cfg, $auditWho(), 'project_urls', $p, ($slug !== '' ? $slug : $p) . ' / ' . implode(',', $aliases));
+          header('Location: ' . Route::manager($scopeProject !== '' ? $p : ''));
           exit;
         }
         // 編輯專案描述（只改標題/副標/說明/資料來源，其餘欄位保留；免手改 meta.json）
@@ -4188,6 +4218,28 @@ if (!$authed) {
               </div>
             </div>
           </dialog>
+          <?php if ($canMeta($p)):
+            $urlSlug = souliong_public_slug($p, $cfg);
+            $urlAliases = (array)($meta['aliases'] ?? []);
+          ?>
+          <button type="button" class="btn" onclick="document.getElementById('urldlg-<?= $esc($p) ?>').showModal()"><i class="fa-solid fa-link"></i> <?= $t('urls_heading') ?></button>
+          <dialog aria-label="<?= $t('urls_heading') ?>" id="urldlg-<?= $esc($p) ?>" class="metadlg" onclick="if(event.target===this)this.close()">
+            <form method="post" class="metaform">
+              <h3><i class="fa-solid fa-link"></i> <?= $t('urls_heading') ?></h3>
+              <input type="hidden" name="csrf" value="<?= $esc_csrf ?>"><input type="hidden" name="action" value="urls"><input type="hidden" name="project" value="<?= $esc($p) ?>">
+              <div class="hint"><?= $t('urls_hint') ?></div>
+              <p class="hint"><?= $t('urls_current') ?><code><?= $esc(Route::abs(Route::map($p))) ?></code></p>
+              <label><?= $t('urls_slug_label') ?><input name="public_slug" maxlength="40" pattern="[a-z0-9_\-]*" value="<?= $esc($urlSlug !== $p ? $urlSlug : '') ?>" placeholder="<?= $esc($p) ?>"></label>
+              <div class="hint"><?= $esc(i18n_t($DICT, 'urls_slug_hint', ['id' => $p])) ?></div>
+              <label><?= $t('urls_aliases_label') ?><textarea name="aliases" rows="3" placeholder="old-spelling"><?= $esc(implode("\n", $urlAliases)) ?></textarea></label>
+              <div class="hint"><?= $t('urls_aliases_hint') ?></div>
+              <div class="dlgactions">
+                <button class="btn solid"><i class="fa-solid fa-floppy-disk"></i> <?= $t('urls_save_btn') ?></button>
+                <button type="button" class="btn" onclick="this.closest('dialog').close()"><?= $t('close') ?></button>
+              </div>
+            </form>
+          </dialog>
+          <?php endif; ?>
           <button type="button" class="btn" onclick="document.getElementById('covdlg-<?= $esc($p) ?>').showModal()"><i class="fa-solid fa-image"></i> <?= $t('cover_heading') ?></button>
           <dialog aria-label="<?= $t('cover_heading') ?>" id="covdlg-<?= $esc($p) ?>" class="metadlg" onclick="if(event.target===this)this.close()">
             <div class="metaform">
