@@ -27,6 +27,12 @@ license, owner_hash, src_hash, contrib_id, contrib_hash, edit_of, created_at
 3. 要開放投稿就到後台建一組投稿代碼（碼即開關，見 `api/security.php` 的 `contrib_open()`）。
 4. 進入方式：`https://example.com/project/demo`；`https://example.com/project/` 首頁會自動列出它。
 
+### 網址代號、別名與改名
+
+- **內部代號**＝資料夾名稱，寫進每筆紀錄的 `project` 與照片路徑，建立後不輕易改。
+- **公開網址代號與別名**（`api/aliases.php`，後台每張地圖的「網址設定」）：`meta.json` 的 `slug`（網址上顯示的名稱）與 `aliases`（別名清單）。資料不動、隨時可改。頁面網址（`<base>/<代號>[/…]`、`<base>/manager/<代號>[/…]`、`?p=<代號>`）用別名或舊代號開啟時，`index.php` 會 301 導向公開代號的同一位置，路徑其餘部分與 query 原樣帶過去（`#fragment` 由瀏覽器保留）；資料端點（`?api=…`、`list/`、`photo`、`layer/`…）與所有 POST 不導向，直接把別名換成內部代號處理，舊的圖片網址與表單送出照常運作。程式內組網址一律走 `Route`（它會自動換成公開代號），自己拼網址時用 `Route::pub($id)`。
+- **改名**（`<base>/renameproject`，僅主管理者）：真的把資料夾與資料裡的代號改掉（紀錄的 `project`、`photo`／`thumb`／`media` 路徑、專案 PIN 清單、社群預覽快取），舊代號自動變別名。執行前先做全站備份；改名後專案 PIN 登入與訪客投稿代碼解鎖會失效。
+
 點位紀錄欄位：`num, item_num, title, cat, catLabel, color, lat, lon, content`（非椅子主題可自訂欄位；`spotSub()` 會退回 `sub` 欄位。）
 
 ## 三、投稿型別（kind）：一個殼 ＋ 一組型別檔

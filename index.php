@@ -142,6 +142,9 @@ switch ($action) {
     case 'newproject':
         require __DIR__ . '/api/newproject.php';  // 常駐工具：建立新專案
         return;
+    case 'renameproject':
+        require __DIR__ . '/api/renameproject.php';  // 常駐工具：專案改名（資料夾與資料裡的代號，主管理者專用）
+        return;
     case 'stat':
         require __DIR__ . '/api/stat.php';
         return;
