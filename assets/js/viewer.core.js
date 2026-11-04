@@ -791,6 +791,16 @@ window.MapApp = (() => {
   const PIN_MARK_IMAGE_URL = apiUrl('pinmark') + '&project=' + encodeURIComponent(PROJECT);
   // pinSize：圓點直徑——sm/lg 對應 CSS 的 .sl-sz-sm/.sl-sz-lg 修飾類別，沒設或非白名單值就是預設 24px
   const PIN_SIZE_PX = { sm: 18, lg: 32 };
+  // 網址深層連結（?spot=、?entry=）剛進站時：縮放到該地點，並讓那個點位與那則投稿的標記脈衝幾下，之後自動停止。
+  // 狀態放在這裡、由圖示函式讀取，標記因縮放重畫時脈衝不會中斷。
+  const DEEPLINK_ZOOM = 17, DEEPLINK_PULSE_MS = 6600;   // 2.2 秒一輪 × 3 輪
+  let deepPulse = null, deepPulseTimer = 0;
+  function startDeepPulse(spotId, entryId) {
+    deepPulse = { spotId: spotId != null ? String(spotId) : '', entryId: entryId != null ? String(entryId) : '' };
+    clearTimeout(deepPulseTimer);
+    deepPulseTimer = setTimeout(() => { deepPulse = null; if (engine) renderSpots(); }, DEEPLINK_PULSE_MS);
+    if (engine) renderSpots();
+  }
   function spotIcon(c, count, badgeColor) {
     const badgeBg = SouliongMarkerColors.badge(META, badgeColor);
     const badge = count ? '<div class="badge" style="background:' + badgeBg + '">' + count + '</div>' : '';
@@ -798,7 +808,7 @@ window.MapApp = (() => {
     // pinBorder：白色外框開關，沒設過就預設為 true
     const borderCls = META.pinBorder === false ? ' sl-noborder' : '';
     // has-audio：這個點位掛了聲音；is-playing：其中一則正在播放，脈衝光暈只在播放中顯示（見 map-markers.css）
-    const cls = 'dot-pin' + sizeCls + borderCls + (count ? ' has-contrib' : '') + (audioSpots.has(c.num) ? ' has-audio' : '') + (playingSpots.has(c.num) ? ' is-playing' : '');
+    const cls = 'dot-pin' + sizeCls + borderCls + (count ? ' has-contrib' : '') + (audioSpots.has(c.num) ? ' has-audio' : '') + (playingSpots.has(c.num) ? ' is-playing' : '') + (deepPulse && deepPulse.spotId && deepPulse.spotId === String(c.id || '') ? ' is-highlight' : '');
     // pinMark：地圖上圓點裡要放什麼——number（預設，顯示編號）／blank（留空）／shape（依 num 固定配一個幾何圖形）／image（自訂圖片取代整個標記）
     const isImage = META.pinMark === 'image';
     const pinMark = isImage || META.pinMark === 'blank' ? '' : META.pinMark === 'icon' ? '<span class="sl-pin-icon">' + SouliongPinIcons.svg(APP.pinIcons, (META.categoryIcons || {})[c.cat || 'new']) + '</span>' : META.pinMark === 'shape' ? '<span>' + pinShapeSvg(c.num) + '</span>' : '<span>' + c.num + '</span>';
@@ -859,7 +869,7 @@ window.MapApp = (() => {
     const thumb = sz > 14, half = sz / 2;
     const def = kindDef(e);
     const url = entryThumbUrl(e);
-    const cls = 'photo-sq' + (thumb ? '' : ' plain');
+    const cls = 'photo-sq' + (thumb ? '' : ' plain') + (deepPulse && deepPulse.entryId && deepPulse.entryId === String(e.id) ? ' is-highlight' : '');
     const dimensions = 'width:' + sz + 'px;height:' + sz + 'px;';
     const html = url
       ? '<div class="' + cls + '" style="' + dimensions + 'background-image:url(' + esc(url) + ')">' +
@@ -1197,7 +1207,7 @@ window.MapApp = (() => {
     // 卡片內容（照片、投稿）載入後高度會變，原本沒蓋到的地標可能變成被蓋住
     if (panel && window.ResizeObserver) new ResizeObserver(() => {
       if (panelRevealFrame || panelUserMoved || !current || !panel.classList.contains('open')) return;
-      panelRevealFrame = requestAnimationFrame(() => { panelRevealFrame = 0; if (!panelUserMoved && current) revealSpot(current, true, true); });
+      panelRevealFrame = requestAnimationFrame(() => { panelRevealFrame = 0; if (!panelUserMoved && current) revealSpot(current, true, true, deepZoom || undefined); });
     }).observe(panel);
   }
   // 卡片蓋住的範圍（相對地圖容器的像素）。手機是底部卡片、電腦是右側卡片；用版面尺寸推算打開後的位置，
@@ -1213,20 +1223,24 @@ window.MapApp = (() => {
     return { map, rect: { x0: left, y0: 0, x1: map.width, y1: map.height } };
   }
   // 打開卡片後，讓點位停在沒被卡片蓋住的區域中央。onlyIfCovered：點位本來就看得到就不動地圖
-  function revealSpot(c, onlyIfCovered, auto) {
-    if (EMBED || BARE || !engine || !c || !engine.projectPoint) return;
+  // zoom：同時縮放到這個級別（深層連結剛進站用；之後再呼叫也要帶同一個值，否則會把進行中的縮放動畫停在半路）。回傳有沒有真的平移。
+  function revealSpot(c, onlyIfCovered, auto, zoom) {
+    if (EMBED || BARE || !engine || !c || !engine.projectPoint) return false;
     watchPanelCoverage();
-    if (auto && panelUserMoved) return;
+    if (auto && panelUserMoved) return false;
     const cover = panelCoverage();
-    if (!cover) return;
+    if (!cover) return false;
     const r = cover.rect, m = cover.map, pad = 36;
     const free = r.x0 > 0 ? { x0: 0, y0: 0, x1: r.x0, y1: m.height } : { x0: 0, y0: 0, x1: m.width, y1: Math.max(0, r.y0) };
-    if (free.x1 - free.x0 < 80 || free.y1 - free.y0 < 80) return;
-    if (onlyIfCovered) {
+    if (free.x1 - free.x0 < 80 || free.y1 - free.y0 < 80) return false;
+    if (onlyIfCovered && !zoom) {
       const pt = engine.projectPoint(c.lat, c.lon);
-      if (pt && pt[0] >= 0 && pt[1] >= 0 && pt[0] <= m.width && pt[1] <= m.height && !(pt[0] > r.x0 - pad && pt[1] > r.y0 - pad)) return;
+      if (pt && pt[0] >= 0 && pt[1] >= 0 && pt[0] <= m.width && pt[1] <= m.height && !(pt[0] > r.x0 - pad && pt[1] > r.y0 - pad)) return false;
     }
-    engine.panTo(c.lat, c.lon, { animate: true, offset: [(free.x0 + free.x1) / 2 - m.width / 2, (free.y0 + free.y1) / 2 - m.height / 2] });
+    const opts = { animate: true, offset: [(free.x0 + free.x1) / 2 - m.width / 2, (free.y0 + free.y1) / 2 - m.height / 2] };
+    if (zoom) { opts.zoom = zoom; opts.duration = 0.9; }
+    engine.panTo(c.lat, c.lon, opts);
+    return true;
   }
   function openPanel(c) {
     if (!current || current.num !== c.num) panelUserMoved = false;   // 同一個點位重畫（例如換身分）不重設
@@ -1250,12 +1264,13 @@ window.MapApp = (() => {
   // 點投稿（地圖標記、?entry= 連結）：開啟它所屬點位的卡片並捲到那則投稿、短暫高亮。
   // 滿版檢視（燈箱）只由使用者在卡片上手動點開，不從標記或網址直接觸發——滿版沒有導航，網址帶進來也不該直接蓋滿畫面。
   // 音訊指向時邀請點擊播放，永遠不自動出聲。沒有所屬點位（item_num 空）時回傳 false，由呼叫端決定退路。
-  function openEntryCard(e) {
+  function openEntryCard(e, opts) {
     if (!e || e.item_num == null) return false;
+    const o = opts || {};
     const spot = effectiveSpots().find(p => p.num === e.item_num);
     if (!spot) return false;
     openPanel(spot);
-    if (engine) engine.panTo(spot.lat, spot.lon, { animate: true });
+    if (engine) { if (o.deepLink) deepLinkFocus(spot); else engine.panTo(spot.lat, spot.lon, { animate: true }); }
     requestAnimationFrame(() => {
       const card = document.querySelector('.entry[data-entry-id="' + CSS.escape(e.id) + '"]');
       if (!card) return;
@@ -1263,9 +1278,25 @@ window.MapApp = (() => {
       card.classList.add('entry-highlight');
       const playBtn = card.querySelector('.sl-play-btn');
       if (playBtn) playBtn.classList.add('sl-invite');
-      setTimeout(() => card.classList.remove('entry-highlight'), 2400);
+      setTimeout(() => card.classList.remove('entry-highlight'), o.highlightMs || 2400);
     });
     return true;
+  }
+  // 深層連結的縮放：目前縮放比目標小才拉近（已經夠近就不動，也不超過地圖的最大縮放）
+  function deepLinkTargetZoom() {
+    if (!engine || !engine.getZoom) return 0;
+    const z = engine.getZoom(), maxZ = engine.getMaxZoom ? engine.getMaxZoom() : 19;
+    const target = Math.min(DEEPLINK_ZOOM, maxZ);
+    return z < target ? target : 0;
+  }
+  // 縮放到該地點，並避開卡片蓋住的區域（跟點點位時的 revealSpot 同一套）；卡片還量不到時退回單純平移＋縮放
+  let deepZoom = 0, deepZoomTimer = 0;   // deepZoom：剛進站這幾秒內，卡片大小變動引起的重新定位都要帶同一個縮放，不然會把縮放動畫停在半路
+  function deepLinkFocus(spot) {
+    deepZoom = deepLinkTargetZoom();
+    clearTimeout(deepZoomTimer); deepZoomTimer = setTimeout(() => { deepZoom = 0; }, 3500);
+    if (!revealSpot(spot, false, false, deepZoom || undefined) && engine) {
+      engine.panTo(spot.lat, spot.lon, deepZoom ? { animate: true, zoom: deepZoom, duration: 0.9 } : { animate: true });
+    }
   }
   function closePanel() {
     const panel = document.getElementById('panel');
@@ -2448,10 +2479,10 @@ window.MapApp = (() => {
     if (urlSpot) {
       const pt = effectiveSpots().find(p => p.id === urlSpot || (/^\d{1,9}$/.test(urlSpot) && p.num === +urlSpot));
       if (pt) {
-        openPanel(pt); revealSpot(pt);
+        openPanel(pt); deepLinkFocus(pt); startDeepPulse(pt.id, null);
         // 進站當下地圖還在載入、卡片內容也還在長：載完再確認一次，使用者還沒動過地圖才會自動挪
         const rawMap = engine && engine.getRawMap && engine.getRawMap();
-        if (rawMap && rawMap.once) rawMap.once('idle', () => { if (current && !panelUserMoved) revealSpot(current, true, true); });
+        if (rawMap && rawMap.once) rawMap.once('idle', () => { if (current && !panelUserMoved) revealSpot(current, true, true, deepZoom || undefined); });
         const urlBlock = params.get('block');
         if (urlBlock) focusBlock(urlBlock);
       }
@@ -2462,7 +2493,10 @@ window.MapApp = (() => {
     const urlEntry = BARE ? '' : params.get('entry');
     if (urlEntry && !urlSpot) {
       const hit = effectiveEntries().find(e => e.id === urlEntry);
-      if (hit) openEntryCard(hit);
+      if (hit && openEntryCard(hit, { deepLink: true, highlightMs: DEEPLINK_PULSE_MS })) {
+        const hitSpot = effectiveSpots().find(p => p.num === hit.item_num);
+        startDeepPulse(hitSpot && hitSpot.id, hit.id);
+      }
     }
 
     if (!BARE) statVisit();      // 匿名累加瀏覽 / 工作階段 / 裝置別

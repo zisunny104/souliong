@@ -86,6 +86,7 @@ window.MapEngine = (() => {
     getCenter() { throw new Error('MapEngine.getCenter() not implemented'); }
     getZoom() { throw new Error('MapEngine.getZoom() not implemented'); }
     setView(center, zoom) { throw new Error('MapEngine.setView() not implemented'); }
+    // opts：animate、duration（秒）、offset（像素）、zoom（同時縮放到這個級別，沒給就維持目前縮放）
     panTo(lat, lon, opts) { throw new Error('MapEngine.panTo() not implemented'); }
     fitBounds(latlonPairs, opts) { throw new Error('MapEngine.fitBounds() not implemented'); }
     destroy() {}
