@@ -42,7 +42,6 @@ function cover_apply_bytes(array $cfg, string $coverBase, string $mf, array $met
     if ($d === null) return ['ok' => false, 'error' => 'unsupported image'];
     [$src, $w, $h] = $d;
     $out = souliong_image_resize_encode($src, $w, $h, (int)($cfg['cover_max_dim'] ?? 960), $coverBase);
-    imagedestroy($src);
     if ($out === null) return ['ok' => false, 'error' => 'save failed'];
     cover_purge_other($coverBase, $out);
     $meta['cover'] = ['mode' => $mode, 'updatedAt' => gmdate('c')];
@@ -70,7 +69,6 @@ function pinmark_apply_bytes(array $cfg, string $pmBase, string $mf, array $meta
     if ($d === null) return ['ok' => false, 'error' => 'unsupported image'];
     [$src, $w, $h] = $d;
     $out = souliong_image_resize_encode($src, $w, $h, (int)($cfg['pinmark_max_dim'] ?? 200), $pmBase);
-    imagedestroy($src);
     if ($out === null) return ['ok' => false, 'error' => 'save failed'];
     cover_purge_other($pmBase, $out);
     $meta['pinMark'] = 'image';

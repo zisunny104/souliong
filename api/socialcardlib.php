@@ -271,7 +271,6 @@ function souliong_social_render(array $data, string $font, ?string $bold = null)
     if ($decodedMap) {
         [$source, $w, $h] = $decodedMap;
         imagecopyresampled($canvas, $source, 0, 0, 0, 0, 1200, 630, $w, $h);
-        imagedestroy($source);
     } else {
         imagefill($canvas, 0, 0, imagecolorallocate($canvas, 222, 226, 222));   // 沒有地圖時地圖的位置用灰底
     }
@@ -300,8 +299,8 @@ function souliong_social_render(array $data, string $font, ?string $bold = null)
         $px = 618 + (int)((518 - $dw) / 2); $py = 112 + (int)(($boxH - $dh) / 2);
         $under = imagecreatetruecolor($dw, $dh); imagecopy($under, $canvas, 0, 0, $px, $py, $dw, $dh);
         imagecopyresampled($canvas, $source, $px, $py, 0, 0, $dw, $dh, $w, $h);
-        souliong_social_round($canvas, $px, $py, $dw, $dh, 18, $under); imagedestroy($under);
-        imagedestroy($source); $hasPhoto = true;
+        souliong_social_round($canvas, $px, $py, $dw, $dh, 18, $under);
+        $hasPhoto = true;
         if (($data['entryKind'] ?? '') === 'video') {
             $mx = $px + (int)($dw / 2); $my = $py + (int)($dh / 2);
             imagefilledellipse($canvas, $mx, $my, 64, 64, imagecolorallocatealpha($canvas, 35, 55, 48, 30));
@@ -354,7 +353,6 @@ function souliong_social_render(array $data, string $font, ?string $bold = null)
         ? imagecolorallocate($canvas, hexdec(substr($data['markerColor'], 1, 2)), hexdec(substr($data['markerColor'], 3, 2)), hexdec(substr($data['markerColor'], 5, 2))) : $accent;
     imagefilledrectangle($canvas, 0, 0, 1199, 27, $barColor);
     ob_start(); $ok = imagejpeg($canvas, null, 88); $bytes = ob_get_clean();
-    imagedestroy($canvas);
     return $ok ? $bytes : null;
 }
 

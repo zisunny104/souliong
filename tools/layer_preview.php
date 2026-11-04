@@ -187,7 +187,6 @@ foreach ($ids as $id) {
     }
     $im = imagecreatefrompng($png);
     imagejpeg($im, $dir . '/preview.jpg', 82);
-    imagedestroy($im);
     printf("%s → preview.jpg（%d KB）\n", $id, intdiv(filesize($dir . '/preview.jpg'), 1024));
 }
 

@@ -45,12 +45,10 @@ function souliong_image_resize_encode($src, int $w, int $h, int $maxDim, string 
         $out = $outBase . '.jpg';
         $write = fn(string $p): bool => imagejpeg($dst, $p, 80);
     } else {
-        imagedestroy($dst);
         return null;
     }
     $tmp = $out . '.' . bin2hex(random_bytes(4)) . '.tmp';
     $ok = @$write($tmp);
-    imagedestroy($dst);
     if (!$ok || !@rename($tmp, $out)) {
         @unlink($tmp);
         return null;

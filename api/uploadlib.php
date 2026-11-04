@@ -125,10 +125,10 @@ function uploadlib_compress_photo(array $cfg, string $src, string $mime, array $
         $hasAlpha = true;
     }
     $useWebp = isset($allowed['image/webp']) && function_exists('imagewebp');
-    if (!$useWebp && (!isset($allowed['image/jpeg']) || $hasAlpha)) { imagedestroy($img); return null; }
+    if (!$useWebp && (!isset($allowed['image/jpeg']) || $hasAlpha)) { return null; }
 
     $rot = [3 => 180, 6 => -90, 8 => 90][$orient] ?? 0;
-    if ($rot) { $r = @imagerotate($img, $rot, 0); if ($r) { imagedestroy($img); $img = $r; } }
+    if ($rot) { $r = @imagerotate($img, $rot, 0); if ($r) { $img = $r; } }
 
     $cw = imagesx($img); $ch = imagesy($img);
     $scale = min(1.0, $maxDim / max($cw, $ch));
@@ -149,10 +149,8 @@ function uploadlib_compress_photo(array $cfg, string $src, string $mime, array $
             clearstatcache(true, $out);
             if ($ok && filesize($out) <= $limitBytes) { $best = true; break; }
         }
-        imagedestroy($dst);
         $scale *= 0.8;
     }
-    imagedestroy($img);
     clearstatcache(true, $out);
     if (!$best || filesize($out) >= $size) { @unlink($out); return null; }
     return $useWebp ? ['tmp' => $out, 'mime' => 'image/webp', 'ext' => $allowed['image/webp']]
