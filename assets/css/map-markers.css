@@ -58,7 +58,8 @@
    圓點邊緣完全貼合，不留空隙；擴散最大半徑抽成 --pulse-max 變數，sm/lg 只要覆寫這個數字，不用整組
    @keyframes 各寫一份；顏色走 --pulse-color（預設 teal），透明度由 color-mix 疊上去。 */
 .dot-pin.has-audio.is-playing::after,
-.dot-pin.is-highlight::after {
+.dot-pin.is-highlight::after,
+.photo-sq.is-highlight::after {
   content: '';
   position: absolute;
   inset: 0;

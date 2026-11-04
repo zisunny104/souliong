@@ -366,8 +366,15 @@
 /* 透過 ?entry= 深層連結進來時，捲到這張卡片後短暫高亮提示（見 assets/js/plugins/entry-link.js） */
 .entry.entry-highlight {
   border-color: #14b8a6;
-  box-shadow: 0 0 0 3px rgba(20, 184, 166, .35)
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, .35);
+  animation: sl-entry-pulse 2.2s ease-out infinite
 }
+@keyframes sl-entry-pulse {
+  0%   { box-shadow: 0 0 0 3px rgba(20, 184, 166, .55) }
+  70%  { box-shadow: 0 0 0 12px rgba(20, 184, 166, 0) }
+  100% { box-shadow: 0 0 0 12px rgba(20, 184, 166, 0) }
+}
+@media (prefers-reduced-motion: reduce) { .entry.entry-highlight { animation: none } }
 
 .entry img {
   width: 100%;
