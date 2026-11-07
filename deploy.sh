@@ -260,11 +260,21 @@ selfcheck_php_ini() {
     if ($b("upload_max_filesize") < $need) $w[] = "upload_max_filesize=" . $mb($b("upload_max_filesize")) . "（需 ≥ " . $mb($need) . "）";
     if ($b("post_max_size") < $need) $w[] = "post_max_size=" . $mb($b("post_max_size")) . "（需 ≥ " . $mb($need) . "，建議多留幾 MB）";
     if ((int)ini_get("max_file_uploads") < 20) $w[] = "max_file_uploads=" . ini_get("max_file_uploads") . "（需 ≥ 20，否則切圖磚工具一批 16 張會被無聲丟掉）";
-    echo implode("; ", $w);
+    echo implode("; ", $w), "\n", (int)ceil($need / 1048576);
   ' 2>/dev/null || true)"
+  local need_mb="${out##*$'\n'}"
+  out="${out%%$'\n'*}"
   if [ -n "$out" ]; then
     warn "PHP CLI 讀到的上傳設定偏小：$out"
-    echo "  ${DIM}CLI 與 PHP-FPM 的 php.ini 可能不同，FPM 的 upload_max_filesize／post_max_size 與反向代理的請求大小上限（例如 Nginx 的 client_max_body_size）都需不小於上述需求，post_max_size 與代理上限建議再多留幾 MB${RESET}"
+    echo "  ${DIM}CLI 與 FPM 的 php.ini 可能不同；以下建議值請套用在 FPM 與反向代理${RESET}"
+    if [[ "$need_mb" =~ ^[0-9]+$ ]]; then
+      echo "  ${BOLD}建議值${RESET}：upload_max_filesize ${need_mb}M、post_max_size $((need_mb + 8))M、max_file_uploads 20、Nginx client_max_body_size $((need_mb + 16))m"
+      echo "  ${BOLD}修法${RESET}：前三行放 php-fpm 池設定並 reload，最後一行放 nginx server 區塊並 reload："
+      echo "${CYAN}php_admin_value[upload_max_filesize] = ${need_mb}M"
+      echo "php_admin_value[post_max_size] = $((need_mb + 8))M"
+      echo "php_admin_value[max_file_uploads] = 20"
+      echo "client_max_body_size $((need_mb + 16))m;${RESET}"
+    fi
   else
     ok "PHP CLI 的上傳設定足夠（FPM 的 php.ini 與反向代理的請求大小上限請另外確認）"
   fi
