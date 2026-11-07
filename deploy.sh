@@ -26,7 +26,7 @@ ${BOLD}選項${RESET}
 
 ${BOLD}環境變數${RESET}
   DEPLOY_BRANCH          要更新的分支，預設 main
-  DEPLOY_WEB_USER        PHP 執行身分，未指定時自動偵測
+  DEPLOY_WEB_USER        PHP 執行身分，未指定時依 php-fpm／apache 行程、state/ 與 projects/ 現有擁有者偵測
   DEPLOY_RELOAD_CMD      程式碼有更新時要執行的重載指令
   DEPLOY_CHECK_URL       網站對外網址，優先於已儲存的設定
   DEPLOY_SKIP_SOCIAL_PREVIEW  設為 1 時略過社群地圖預覽環境安裝
@@ -40,7 +40,7 @@ for a in "$@"; do case "$a" in -h|--help|help) show_help; exit 0 ;; esac; done
 # ── 選用：修復路徑權限（./deploy.sh --fix-perms[-only] [--dry-run]）──────────────────
 # 預設部署會修復權限；--no-fix-perms 可略過。只動 projects/、state/、api/config.php：
 # 資料夾 2775（setgid，新檔繼承群組）、檔案 664、擁有者＝php-fpm 使用者；config.php 640（含機密，不給 other 讀）。
-# php-fpm 使用者：DEPLOY_WEB_USER 指定，否則從執行中的 php-fpm／apache／nginx 行程偵測。需要 root 或 sudo。
+# php-fpm 使用者：DEPLOY_WEB_USER 指定，否則依 php-fpm／apache 行程偵測，再沿用 state/、projects/ 的非 root 擁有者。需要 root 或 sudo。
 # 儲存網站對外網址，供自我檢查使用：./deploy.sh --set-check-url https://example.com/project
 if [ "${1:-}" = "--set-check-url" ]; then
   case "${2:-}" in https://*|http://*) ;; *) fail "請提供以 https:// 或 http:// 開頭的網址"; exit 2 ;; esac
@@ -80,6 +80,15 @@ detect_web_user() {
   u="$(ps -eo user=,comm= 2>/dev/null | awk '$2 ~ /^(php-fpm|php-cgi)/ && $1 != "root" {print $1; exit}')"
   if [ -z "$u" ]; then
     u="$(ps -eo user=,comm= 2>/dev/null | awk '$2 ~ /^(apache2|httpd)/ && $1 != "root" {print $1; exit}')"
+  fi
+  if [ -z "$u" ]; then
+    # 行程看不到時沿用 state/、projects/ 現有的非 root 擁有者，避免改成別的帳號
+    local d o
+    for d in state projects; do
+      o="$(stat -c %U "$d" 2>/dev/null || true)"
+      case "$o" in ""|root|UNKNOWN) continue ;; esac
+      id "$o" >/dev/null 2>&1 && { u="$o"; break; }
+    done
   fi
   if [ -z "$u" ]; then
     for c in www-data nginx apache http; do id "$c" >/dev/null 2>&1 && { u="$c"; break; }; done
