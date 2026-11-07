@@ -95,7 +95,8 @@ header .tag{color:var(--muted);font-size:0.875rem;margin-top:10px;line-height:1.
 .card .desc{font-size:0.8125rem;line-height:1.6}
 .empty{text-align:center;color:var(--muted);padding:50px;font-size:0.875rem}
 footer{text-align:center;color:var(--muted);font-size:0.75rem;padding:22px;line-height:1.8;margin-top:auto}
-footer a{color:inherit}
+footer a{color:inherit;text-decoration:none}
+footer a:hover .lbl,footer a:hover:not(:has(.lbl)){text-decoration:underline;text-underline-offset:3px}
 .langsw{position:fixed;top:16px;right:16px;z-index:3;display:flex;gap:2px;font-size:0.75rem}
 .langsw a{color:var(--muted);text-decoration:none;padding:4px 8px;border-radius:999px}
 .langsw a.on{color:var(--fg);font-weight:700;background:var(--card);border:1px solid var(--line)}
@@ -144,7 +145,7 @@ footer a{color:inherit}
     <span class="cr-sep" aria-hidden="true"></span>
     <?php endif; ?>
     <span class="cr-own">
-      <a href="https://github.com/zisunny104/souliong" target="_blank" rel="noopener"><i class="fa-brands fa-github"></i> GitHub</a>
+      <a href="https://github.com/zisunny104/souliong" target="_blank" rel="noopener"><i class="fa-brands fa-github"></i> <span class="lbl">GitHub</span></a>
       ・ <a href="<?= $b ?>">Souliong</a>
       ・ <a href="https://toka.dev" target="_blank" rel="noopener">prjToka</a>
     </span>
