@@ -18,8 +18,9 @@ function accounts_file(array $cfg): string { return rtrim($cfg['state_dir'], '/\
 // account_current() 會被逐專案呼叫（例如 manager.php 列出多個
 // 專案時），一次請求內用行程內靜態快取避免每個專案都重讀整份 accounts.json；accounts_save()
 // 寫入後同步更新快取。
-function _accounts_cache(?array $set = null): ?array {
+function _accounts_cache(?array $set = null, bool $reset = false): ?array {
     static $cache = null;
+    if ($reset) $cache = null;
     if ($set !== null) $cache = $set;
     return $cache;
 }
@@ -48,6 +49,19 @@ function accounts_save(array $cfg, array $d): void {
         error_log('souliong: accounts_save 寫入失敗：' . accounts_file($cfg));
     }
     _accounts_cache($d);
+}
+
+/** 在檔案鎖內重讀、修改、寫回，並行請求不會互相覆蓋。$fn 收到最新資料的參照，回 ['ok'=>true,…] 或帶 'save'=>true 才寫入。 */
+function accounts_mutate(array $cfg, callable $fn): array {
+    $lock = @fopen(accounts_file($cfg) . '.lock', 'c');
+    if (!$lock || !flock($lock, LOCK_EX)) { if ($lock) fclose($lock); return ['ok' => false, 'error' => 'busy']; }
+    try {
+        _accounts_cache(null, true);
+        $d = accounts_load($cfg);
+        $r = $fn($d);
+        if (!empty($r['ok']) || !empty($r['save'])) accounts_save($cfg, $d);
+        return $r;
+    } finally { flock($lock, LOCK_UN); fclose($lock); }
 }
 
 function account_find_by_userid(array $cfg, string $userid): ?array {
@@ -134,22 +148,22 @@ function account_login(array $cfg, string $userid, string $pw): array {
         return ['ok' => false, 'error' => 'invalid'];
     }
     if (!empty($a['locked_until']) && $a['locked_until'] > time()) return ['ok' => false, 'error' => 'locked'];
-    $d = accounts_load($cfg);
-    foreach ($d['accounts'] as $i => $e) {
-        if ((string)($e['id'] ?? '') !== (string)$a['id']) continue;
-        if (!password_verify($pw, (string)$e['password_hash'])) {
-            $fails = (int)($e['fail_count'] ?? 0) + 1;
-            $d['accounts'][$i]['fail_count'] = $fails;
-            if ($fails >= 8) $d['accounts'][$i]['locked_until'] = time() + 900;   // 8 次失敗鎖 15 分鐘
-            accounts_save($cfg, $d);
-            return ['ok' => false, 'error' => 'invalid'];
+    $pwOk = password_verify($pw, (string)$a['password_hash']);
+    return accounts_mutate($cfg, function (array &$d) use ($a, $pwOk) {
+        foreach ($d['accounts'] as $i => $e) {
+            if ((string)($e['id'] ?? '') !== (string)$a['id']) continue;
+            if (!$pwOk) {
+                $fails = (int)($e['fail_count'] ?? 0) + 1;
+                $d['accounts'][$i]['fail_count'] = $fails;
+                if ($fails >= 8) $d['accounts'][$i]['locked_until'] = time() + 900;   // 8 次失敗鎖 15 分鐘
+                return ['ok' => false, 'error' => 'invalid', 'save' => true];
+            }
+            $d['accounts'][$i]['fail_count'] = 0;
+            $d['accounts'][$i]['locked_until'] = null;
+            return ['ok' => true, 'account' => $d['accounts'][$i]];
         }
-        $d['accounts'][$i]['fail_count'] = 0;
-        $d['accounts'][$i]['locked_until'] = null;
-        accounts_save($cfg, $d);
-        return ['ok' => true, 'account' => $d['accounts'][$i]];
-    }
-    return ['ok' => false, 'error' => 'invalid'];
+        return ['ok' => false, 'error' => 'invalid'];
+    });
 }
 
 // ── 自助註冊（僅 souliong_registration_open($cfg) 開啟時允許；新帳號預設無任何專案權限，
@@ -355,4 +369,176 @@ function audit_log(array $cfg, string $who, string $action, ?string $project = n
     fwrite($fp, $line . "\n");
     flock($fp, LOCK_UN);
     fclose($fp);
+}
+
+// ── den 單一登入 ──
+// den 只確認是誰，這裡換成本站原本的工作階段，PIN 與帳密登入不受影響。
+// super 成為主要管理者；user 要有指定身分組，已綁定的帳號直接登入，第一次先到選擇頁綁定現有帳號或建立新帳號。
+// 票證只能用一次，驗票後的待綁定狀態放進簽章 cookie，選擇頁的 CSRF 由它衍生。
+const DEN_STATE_COOKIE = 'souliong_den_state';
+const DEN_PENDING_COOKIE = 'souliong_den_pending';
+const DEN_PENDING_TTL = 600;
+function _den_key(array $cfg): string {
+    static $keys = [];
+    $f = (string)($cfg['den_sso']['key_file'] ?? '');
+    return $keys[$f] ??= ($f !== '' && is_readable($f)) ? trim((string)@file_get_contents($f)) : '';
+}
+function _den_cookie_opts(int $ttl): array { return ['expires' => time() + $ttl] + _cookie_opts(); }
+function den_sso_enabled(array $cfg): bool { return !empty($cfg['den_sso']['login_url']) && _den_key($cfg) !== ''; }
+/** 導向 den 登入頁的網址並種下一次性 state；回呼固定落在後台根網址。 */
+function den_sso_begin(array $cfg, string $project, string $backBase): ?string {
+    if (!den_sso_enabled($cfg)) return null;
+    $state = bin2hex(random_bytes(16));
+    setcookie(DEN_STATE_COOKIE, $state, _den_cookie_opts(600));
+    $back = $backBase . '?den_return=1&state=' . $state . ($project !== '' ? '&project=' . rawurlencode($project) : '');
+    return rtrim((string)$cfg['den_sso']['login_url'], '?') . '?app=' . rawurlencode((string)($cfg['den_sso']['app'] ?? 'souliong')) . '&next=' . rawurlencode($back);
+}
+/** 向 den 驗票，任何異常都回 null。 */
+function den_sso_verify(array $cfg, string $ticket): ?array {
+    $key = _den_key($cfg);
+    if ($key === '' || !preg_match('/^[A-Za-z0-9._~-]{16,2048}$/', $ticket)) return null;
+    $ctx = stream_context_create(['http' => [
+        'method' => 'POST', 'timeout' => 4, 'ignore_errors' => true, 'follow_location' => 0,
+        'header' => "Content-Type: application/json\r\nX-SSO-Key: $key\r\n",
+        'content' => json_encode(['app' => (string)($cfg['den_sso']['app'] ?? 'souliong'), 'ticket' => $ticket]),
+    ]]);
+    $raw = @file_get_contents((string)$cfg['den_sso']['verify_url'], false, $ctx);
+    $d = $raw !== false ? json_decode($raw, true) : null;
+    if (!is_array($d) || ($d['ok'] ?? false) !== true || !in_array($d['kind'] ?? '', ['super', 'user'], true) || (string)($d['id'] ?? '') === '') return null;
+    return ['kind' => $d['kind'], 'id' => (string)$d['id'], 'email' => (string)($d['email'] ?? ''), 'roles' => is_array($d['roles'] ?? null) ? array_map('strval', $d['roles']) : []];
+}
+function account_find_by_den_id(array $cfg, string $denId): ?array {
+    if ($denId === '') return null;
+    foreach (accounts_load($cfg)['accounts'] as $a) { if ((string)($a['den_id'] ?? '') === $denId) return $a; }
+    return null;
+}
+// 待綁定狀態：base64url(json) . HMAC，只在驗票成功後簽發，過期或被改過一律視為不存在。
+function _den_pending_sign(array $cfg, string $body): string { return hash_hmac('sha256', 'souliong-den-pending|' . $body, (string)($cfg['ip_salt'] ?? '')); }
+function _den_pending_set(array $cfg, array $who): void {
+    $body = rtrim(strtr(base64_encode(json_encode(['id' => $who['id'], 'email' => $who['email'], 'exp' => time() + DEN_PENDING_TTL])), '+/', '-_'), '=');
+    $_COOKIE[DEN_PENDING_COOKIE] = $body . '.' . _den_pending_sign($cfg, $body);
+    setcookie(DEN_PENDING_COOKIE, $_COOKIE[DEN_PENDING_COOKIE], _den_cookie_opts(DEN_PENDING_TTL));
+}
+function den_sso_pending_clear(): void {
+    setcookie(DEN_PENDING_COOKIE, '', ['expires' => time() - 3600, 'path' => '/']);
+    unset($_COOKIE[DEN_PENDING_COOKIE]);
+}
+/** 目前待綁定的 den 身分：['id','email','csrf','suggest']；沒有、過期、被竄改回 null。 */
+function den_sso_pending(array $cfg): ?array {
+    $raw = (string)($_COOKIE[DEN_PENDING_COOKIE] ?? '');
+    $dot = strrpos($raw, '.');
+    if ($dot === false) return null;
+    $body = substr($raw, 0, $dot);
+    if (!hash_equals(_den_pending_sign($cfg, $body), substr($raw, $dot + 1))) return null;
+    $p = json_decode((string)base64_decode(strtr($body, '-_', '+/')), true);
+    if (!is_array($p) || (int)($p['exp'] ?? 0) <= time() || (string)($p['id'] ?? '') === '') return null;
+    $local = strstr((string)$p['email'], '@', true);
+    return ['id' => (string)$p['id'], 'email' => (string)$p['email'],
+        'csrf' => hash_hmac('sha256', 'souliong-den-csrf|' . $raw, (string)($cfg['ip_salt'] ?? '')),
+        'suggest' => account_userid_dedupe($cfg, 'den-' . ($local !== false && $local !== '' ? $local : (string)$p['id']))];
+}
+function _den_pending_check(array $cfg, string $csrf): ?array {
+    $p = den_sso_pending($cfg);
+    return ($p !== null && hash_equals($p['csrf'], $csrf)) ? $p : null;
+}
+/**
+ * 處理 den 回呼。成功回 ['ok'=>true] 加下列其一：
+ *   'primary'=>true            super，已種好主要管理者工作階段
+ *   'account_id'=>…            已綁定帳號，已種好帳號 cookie
+ *   'pending'=>true            第一次進來，已種好待綁定 cookie，呼叫端導向選擇頁
+ * 失敗回 ['ok'=>false,'error'=>'denied'|'failed']。導向目標由呼叫端組，不吃任何輸入。
+ */
+function den_sso_complete(array $cfg, string $state, string $ticket): array {
+    $cookie = (string)($_COOKIE[DEN_STATE_COOKIE] ?? '');
+    setcookie(DEN_STATE_COOKIE, '', ['expires' => time() - 3600, 'path' => '/']);
+    if ($cookie === '' || !hash_equals($cookie, $state)) return ['ok' => false, 'error' => 'failed'];
+    $who = den_sso_verify($cfg, $ticket);
+    if ($who === null) return ['ok' => false, 'error' => 'failed'];
+    if ($who['kind'] === 'super') {
+        primary_set_cookie($cfg, 'den:' . $who['id']);
+        audit_log($cfg, 'den:' . $who['id'], 'den_login', null, 'primary');
+        return ['ok' => true, 'primary' => true];
+    }
+    if (!in_array((string)($cfg['den_sso']['role'] ?? 'souliong'), $who['roles'], true)) {
+        audit_log($cfg, 'den:' . $who['id'], 'den_login_denied');
+        return ['ok' => false, 'error' => 'denied'];
+    }
+    $acc = account_find_by_den_id($cfg, $who['id']);
+    if ($acc === null) { _den_pending_set($cfg, $who); return ['ok' => true, 'pending' => true]; }
+    if (!empty($acc['disabled'])) return ['ok' => false, 'error' => 'denied'];
+    account_set_cookie($cfg, (string)$acc['id']);
+    audit_log($cfg, 'den:' . $who['id'], 'den_login', null, 'acct:' . $acc['id']);
+    return ['ok' => true, 'account_id' => (string)$acc['id']];
+}
+/** 綁定現有帳號：密碼驗證走 account_login，含失敗鎖定。回 ['ok'=>true,'account'=>…] 或 ['ok'=>false,'error'=>'expired'|'invalid'|'locked'|'bound']。 */
+function den_sso_bind(array $cfg, string $csrf, string $userid, string $pw): array {
+    $p = _den_pending_check($cfg, $csrf);
+    if ($p === null) return ['ok' => false, 'error' => 'expired'];
+    $r = account_login($cfg, $userid, $pw);
+    if (!$r['ok']) return $r;
+    $accId = (string)$r['account']['id'];
+    $res = accounts_mutate($cfg, function (array &$d) use ($cfg, $p, $accId) {
+        if (account_find_by_den_id($cfg, $p['id']) !== null) return ['ok' => false, 'error' => 'bound'];
+        foreach ($d['accounts'] as $i => $e) {
+            if ((string)($e['id'] ?? '') !== $accId) continue;
+            if ((string)($e['den_id'] ?? '') !== '') return ['ok' => false, 'error' => 'bound'];
+            $d['accounts'][$i]['den_id'] = $p['id'];
+            return ['ok' => true, 'account' => $d['accounts'][$i]];
+        }
+        return ['ok' => false, 'error' => 'invalid'];
+    });
+    if (!$res['ok']) return $res;
+    den_sso_pending_clear();
+    account_set_cookie($cfg, $accId);
+    audit_log($cfg, 'den:' . $p['id'], 'den_bind', null, 'acct:' . $accId);
+    return $res;
+}
+/** 建立新帳號：userid 規則同 account_register，不設密碼，之後只能經 den 進來。userid 留空用建議值。 */
+function den_sso_create(array $cfg, string $csrf, string $userid, string $label): array {
+    $p = _den_pending_check($cfg, $csrf);
+    if ($p === null) return ['ok' => false, 'error' => 'expired'];
+    $userid = trim($userid) === '' ? $p['suggest'] : account_userid_normalize($userid);
+    if ($userid === '') return ['ok' => false, 'error' => 'userid_invalid'];
+    $res = accounts_mutate($cfg, function (array &$d) use ($cfg, $p, $userid, $label) {
+        if (account_find_by_den_id($cfg, $p['id']) !== null) return ['ok' => false, 'error' => 'bound'];
+        if (account_find_by_userid($cfg, $userid) !== null) return ['ok' => false, 'error' => 'userid_taken'];
+        $acc = [
+            'id' => 'acc_' . bin2hex(random_bytes(6)), 'userid' => $userid,
+            'password_hash' => '',   // 空雜湊讓 account_login() 一律拒絕
+            'label' => substr(trim($label) !== '' ? trim($label) : ($p['email'] !== '' ? $p['email'] : account_default_label($userid)), 0, 80),
+            'role' => 'user', 'created_at' => gmdate('c'), 'disabled' => false, 'fail_count' => 0, 'locked_until' => null,
+            'den_id' => $p['id'],
+        ];
+        $d['accounts'][] = $acc;
+        return ['ok' => true, 'account' => $acc];
+    });
+    if (!$res['ok']) return $res;
+    den_sso_pending_clear();
+    account_set_cookie($cfg, (string)$res['account']['id']);
+    audit_log($cfg, 'den:' . $p['id'], 'den_create', null, 'acct:' . $res['account']['id']);
+    return $res;
+}
+/** 目前登入帳號的綁定狀態，給解除綁定按鈕用；未登入或沒綁定回 null。 */
+function den_account_info(array $cfg): ?array {
+    $a = account_current($cfg);
+    if ($a === null || (string)($a['den_id'] ?? '') === '') return null;
+    return ['csrf' => account_derived($cfg, (string)$a['id']), 'has_password' => (string)($a['password_hash'] ?? '') !== ''];
+}
+/** 解除目前帳號的綁定；沒有密碼的帳號不准解除，否則會失去所有登入方式。回 ['ok'=>true] 或 ['ok'=>false,'error'=>'csrf'|'none'|'needs_password']。 */
+function den_sso_unbind(array $cfg, string $csrf): array {
+    $a = account_current($cfg);
+    if ($a === null || (string)($a['den_id'] ?? '') === '') return ['ok' => false, 'error' => 'none'];
+    if (!hash_equals(account_derived($cfg, (string)$a['id']), $csrf)) return ['ok' => false, 'error' => 'csrf'];
+    if ((string)($a['password_hash'] ?? '') === '') return ['ok' => false, 'error' => 'needs_password'];
+    $accId = (string)$a['id'];
+    $res = accounts_mutate($cfg, function (array &$d) use ($accId) {
+        foreach ($d['accounts'] as $i => $e) {
+            if ((string)($e['id'] ?? '') !== $accId) continue;
+            unset($d['accounts'][$i]['den_id']);
+            return ['ok' => true];
+        }
+        return ['ok' => false, 'error' => 'none'];
+    });
+    if ($res['ok']) audit_log($cfg, 'acct:' . $accId, 'den_unbind', null, 'den:' . $a['den_id']);
+    return $res;
 }

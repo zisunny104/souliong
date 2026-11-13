@@ -59,6 +59,16 @@ return [
     'trust_forwarded' => false,   // ★ 位於 Nginx 反代後請設 true
     'debug'           => false,   // ★ 開發時可設 true；true 會在錯誤回應帶出內部細節
 
+    // den 單一登入（api/accounts.php 檔尾）：key_file 不存在就整段關閉，登入頁也不顯示按鈕
+    'den_sso'         => [
+        'login_url'  => 'https://pb.toka.dev/tools/sso/',
+        'verify_url' => 'http://127.0.0.1:8090/api/den/sso/verify',
+        'key_file'   => '/etc/den-sso/souliong.key',
+        'app'        => 'souliong',
+        'role'       => 'souliong',   // 一般使用者要有這個身分組才放行
+        'origin'     => 'https://toka.dev',   // 回呼網址的協定＋主機；留空用目前請求的 Host
+    ],
+
     // 冒名鑑識：加鹽 IP 雜湊（僅管理端可見）
     'log_src'         => true,
     'ip_salt'         => 'CHANGE-ME-隨機鹽值',
