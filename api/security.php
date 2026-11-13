@@ -28,6 +28,7 @@ function client_ip(array $cfg): string {
  */
 define('PRIMARY_COOKIE', 'souliong_primary');
 const PRIMARY_SESSION_TTL = 7 * 86400;
+const DEN_RECHECK = 300;
 function sessions_file(array $cfg): string { return rtrim($cfg['state_dir'], '/\\') . '/sessions.json'; }
 /** 設定檔主 PIN 的指紋：換掉設定檔的 PIN 就讓用它登入的工作階段全部失效。 */
 function _cfg_pin_fingerprint(array $cfg): string { return hash('sha256', (string)($cfg['primary_pin_hash'] ?? '') . '|' . _cfg_primary_pin($cfg)); }
@@ -52,7 +53,7 @@ function _sessions_update(array $cfg, callable $fn): void {
 function primary_session_issue(array $cfg, string $via): string {
     $token = bin2hex(random_bytes(32));
     _sessions_update($cfg, function (array $rows) use ($cfg, $token, $via) {
-        $rows[] = ['h' => hash('sha256', $token), 'via' => $via, 'fp' => $via === 'cfg' ? _cfg_pin_fingerprint($cfg) : null, 'exp' => time() + PRIMARY_SESSION_TTL];
+        $rows[] = ['h' => hash('sha256', $token), 'via' => $via, 'fp' => $via === 'cfg' ? _cfg_pin_fingerprint($cfg) : null, 'chk' => time(), 'exp' => time() + PRIMARY_SESSION_TTL];
         return $rows;
     });
     return $token;
@@ -71,9 +72,21 @@ function _primary_session(array $cfg): ?string {
             $id = substr($via, 4);
             if (!array_filter(pins_load($cfg)['primary'], fn($e) => (string)($e['id'] ?? '') === $id)) return null;
         }
+        if (str_starts_with($via, 'den:') && time() - (int)($r['chk'] ?? 0) >= DEN_RECHECK && _den_primary_alive($cfg, $h, substr($via, 4)) === false) return null;
         return $token;
     }
     return null;
+}
+/** den 登入的主要管理者定期向 den 確認；只有 den 明確回覆失效才移除工作階段，連不上不踢人，30 秒後再試。 */
+function _den_primary_alive(array $cfg, string $hash, string $denId): ?bool {
+    $alive = den_sso_check($cfg, $denId);
+    $next = $alive === true ? time() : time() - DEN_RECHECK + 30;
+    _sessions_update($cfg, function (array $rows) use ($hash, $alive, $next) {
+        if ($alive === false) return array_values(array_filter($rows, fn($r) => !hash_equals((string)($r['h'] ?? ''), $hash)));
+        foreach ($rows as &$r) { if (hash_equals((string)($r['h'] ?? ''), $hash)) $r['chk'] = $next; }
+        return $rows;
+    });
+    return $alive;
 }
 function primary_csrf_for_token(array $cfg, string $token): string { return hash_hmac('sha256', 'souliong-csrf|' . $token, (string)($cfg['ip_salt'] ?? '')); }
 /** 主要管理者的 CSRF 值：綁登入 token；以主要帳號通過時沿用該帳號的衍生值；未登入為 null。 */
