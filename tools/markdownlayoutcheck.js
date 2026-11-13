@@ -1,6 +1,11 @@
-const fs=require('fs'),path=require('path'),assert=require('assert');
-const {execFileSync}=require('child_process');
-const {chromium}=require(process.env.PLAYWRIGHT_PATH||'/workspace/.cloud-setup/browser/node_modules/playwright-core');
+import fs from 'node:fs';
+import path from 'node:path';
+import assert from 'node:assert';
+import {execFileSync} from 'node:child_process';
+import {createRequire} from 'node:module';
+import {fileURLToPath} from 'node:url';
+const __dirname=path.dirname(fileURLToPath(import.meta.url));
+const {chromium}=createRequire(import.meta.url)(process.env.PLAYWRIGHT_PATH||'/workspace/.cloud-setup/browser/node_modules/playwright-core');
 (async()=>{
  const root=path.resolve(__dirname,'..');
  const source='**經典日常**\n李奕智\n作品簡述\n\n第二段說明\n\n```\n  第一行\n    第二行\n```';

@@ -1,6 +1,11 @@
 // Regression checks for neutral uncategorized markers, overrides and CSS input validation.
-const assert = require('node:assert/strict');
-const colors = require('../assets/js/marker-colors.js');
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+// 瀏覽器端是一般 script 的 UMD，用 vm 載入取得匯出。
+const sandbox = { module: { exports: {} } };
+vm.runInNewContext(fs.readFileSync(new URL('../assets/js/marker-colors.js', import.meta.url), 'utf8'), sandbox);
+const colors = sandbox.module.exports;
 const cases = [
   ['missing category stays neutral despite legacy blue', () => colors.spot({}, { color: '#0000ff' }), '#7a7f87'],
   ['default new category stays neutral', () => colors.spot({}, { cat: 'new', color: '#0000ff' }), '#7a7f87'],

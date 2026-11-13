@@ -1,6 +1,12 @@
 // Isolated HTTP checks for inherited source visibility and migration authorization.
-const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),assert=require('node:assert/strict');
-const {spawn,execFileSync}=require('node:child_process');
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import {spawn,execFileSync} from 'node:child_process';
+import {createRequire} from 'node:module';
+import {fileURLToPath} from 'node:url';
+const __dirname=path.dirname(fileURLToPath(import.meta.url));
 (async()=>{
  const root=path.resolve(__dirname,'..'),tmp=fs.mkdtempSync(path.join(os.tmpdir(),'souliong-identity-')),port=26300+Math.floor(Math.random()*500),base='http://127.0.0.1:'+port;let server;
  try{
@@ -26,7 +32,7 @@ const {spawn,execFileSync}=require('node:child_process');
   }
   const response=await fetch(base+'/manager/test/access',{method:'POST',headers:{cookie:auth.pin,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({action:'migrate_create',project:'test',source:'project',legacy_id:'low',label:'test',csrf:auth.csrf}),redirect:'manual'});await response.text();assert.ok(response.status<400);
   const pending=JSON.parse(fs.readFileSync(tmp+'/state/accounts.json')).pending;assert.equal(pending.length,1);
-  const {chromium}=require(process.env.PLAYWRIGHT_PATH||'playwright');
+  const {chromium}=createRequire(import.meta.url)(process.env.PLAYWRIGHT_PATH||'playwright');
   const browser=await chromium.launch({executablePath:'/usr/bin/chromium',args:['--no-sandbox']});
   try {
    const context=await browser.newContext();await context.addCookies([{name:auth.pin.split('=')[0],value:auth.pin.split('=')[1],url:base}]);

@@ -95,7 +95,7 @@ function souliong_social_revision(array $cfg, string $project, array $meta, arra
         $dir = souliong_layer_dir($cfg, (string)$layer['id'], $project);
         foreach ($dir ? (glob($dir . '/*.json') ?: []) : [] as $path) $files[$path] = [filesize($path), filemtime($path)];
     }
-    return hash('sha256', json_encode([$data, $files, souliong_social_runtime($cfg), filemtime(__FILE__), filemtime(__DIR__ . '/socialmaplib.php'), filemtime(dirname(__DIR__) . '/tools/social-preview-map.cjs')]));
+    return hash('sha256', json_encode([$data, $files, souliong_social_runtime($cfg), filemtime(__FILE__), filemtime(__DIR__ . '/socialmaplib.php'), filemtime(dirname(__DIR__) . '/tools/social-preview-map.js')]));
 }
 
 function souliong_social_attribution(array $cfg, string $project, array $meta): string

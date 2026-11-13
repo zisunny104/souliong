@@ -1,5 +1,10 @@
 // 自動像素比（assets/js/engine/maplibre-engine.js 的 createPixelGovernor）：慢才降、暫停不算、有下限、不重複降。
-const fs = require('node:fs'), path = require('node:path'), vm = require('node:vm'), assert = require('node:assert/strict');
+import fs from 'node:fs';
+import path from 'node:path';
+import vm from 'node:vm';
+import assert from 'node:assert/strict';
+import {fileURLToPath} from 'node:url';
+const __dirname=path.dirname(fileURLToPath(import.meta.url));
 const sandbox = { window: {}, sessionStorage: { getItem: () => null, setItem() {} }, console };
 sandbox.window = sandbox;
 vm.createContext(sandbox);

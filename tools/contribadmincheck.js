@@ -1,7 +1,13 @@
 // Isolated browser test: real settings POSTs, persisted periods, desktop/mobile collapse.
-const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),assert=require('node:assert/strict');
-const {spawn,execFileSync}=require('node:child_process');
-const {chromium}=require(process.env.PLAYWRIGHT_PATH||'playwright');
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import {spawn,execFileSync} from 'node:child_process';
+import {createRequire} from 'node:module';
+import {fileURLToPath} from 'node:url';
+const __dirname=path.dirname(fileURLToPath(import.meta.url));
+const {chromium}=createRequire(import.meta.url)(process.env.PLAYWRIGHT_PATH||'playwright');
 (async()=>{
  const root=path.resolve(__dirname,'..'),tmp=fs.mkdtempSync(path.join(os.tmpdir(),'souliong-contribadmin-')),port=25100+Math.floor(Math.random()*500),base='http://127.0.0.1:'+port;
  let server,browser;

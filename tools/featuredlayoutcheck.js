@@ -1,9 +1,11 @@
 // Regression checks for featured previews: crowded maps collapse instead of covering markers.
-const assert = require('node:assert/strict');
-// Evaluate the browser UMD module directly so a parent package's type:module does not change this test.
-const source = require('node:fs').readFileSync(require('node:path').join(__dirname, '../assets/js/featured-layout.js'), 'utf8');
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+// 瀏覽器端是一般 script 的 UMD，用 vm 載入取得匯出。
+const source = fs.readFileSync(new URL('../assets/js/featured-layout.js', import.meta.url), 'utf8');
 const sandbox = { module: { exports: {} } };
-require('node:vm').runInNewContext(source, sandbox);
+vm.runInNewContext(source, sandbox);
 const layout = sandbox.module.exports;
 const pinPx = 24;
 

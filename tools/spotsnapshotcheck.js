@@ -1,5 +1,10 @@
 // Execute the actual viewer data/update functions with isolated render hooks.
-const fs = require('node:fs'), path = require('node:path'), vm = require('node:vm'), assert = require('node:assert/strict');
+import fs from 'node:fs';
+import path from 'node:path';
+import vm from 'node:vm';
+import assert from 'node:assert/strict';
+import {fileURLToPath} from 'node:url';
+const __dirname=path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
 const source = fs.readFileSync(path.join(root, 'assets/js/viewer.core.js'), 'utf8');
 const sandbox = { module: { exports: {} } };

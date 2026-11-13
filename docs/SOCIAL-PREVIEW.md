@@ -41,7 +41,7 @@ bash tools/setup-social-preview.sh
 - 一般部署會先檢查，缺少時嘗試自動安裝；以 root 執行可一併安裝瀏覽器系統依賴。已就緒時不重新安裝。可用 `DEPLOY_SKIP_SOCIAL_PREVIEW=1 ./deploy.sh` 略過安裝，預覽仍會提供灰底名片。
 - 可在 `api/config.php` 覆寫 `social_preview_font`、`social_preview_font_bold`、`social_preview_node`、`social_preview_chromium`、`social_preview_playwright`、`social_preview_base_url`、`social_preview_no_sandbox`。網站網址僅取可信設定或 `state/deploy_check_url`，不使用請求 Host 決定瀏覽器連線目的地。
 - 部署與 PHP 預覽程序皆會自動偵測 `/usr/bin/chromium`、`/usr/bin/chromium-browser`、`/usr/bin/google-chrome`、`/usr/bin/google-chrome-stable`，優先沿用系統瀏覽器，之後才尋找 Playwright 下載的 Chromium。已有 Google Chrome 的舊版 Ubuntu 不必為此重新下載 Chromium；仍須確認 Chrome 可由網站 PHP 執行身分啟動。
-- 渲染腳本是 `tools/social-preview-map.cjs`：母專案的 `package.json` 若宣告 `"type": "module"`，`.js` 會被當成 ES module 而無法使用 `require`，所以用 `.cjs`。
+- 渲染腳本是 `tools/social-preview-map.js`，是 ES module，由專案根目錄 `package.json` 的 `"type": "module"` 決定，部署時要一併保留該檔。
 - 網站執行身分（如 www-data）的家目錄常常不可寫，Chromium 的 crashpad 會因此崩潰。渲染時以 `state/social-preview-home/` 當 `HOME` 與 XDG 目錄並關閉 crash 回報；這個目錄放在 `state/`（網站可寫），不放進依賴目錄，因為依賴目錄的擁有者可能是安裝時的 root。瀏覽器只拿到 `PATH`、`HOME`、語系等少數環境變數。
 - 每次渲染失敗的原因（逾時、瀏覽器無法啟動、圖磚載入失敗等）與使用的網址寫入 `state/social-preview-error.log`，只留最近一次、壓成單行，不需要開 debug。
 

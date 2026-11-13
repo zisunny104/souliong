@@ -1,5 +1,10 @@
-const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),assert=require('node:assert/strict');
-const {execFileSync}=require('node:child_process');
+import fs from 'node:fs';
+import path from 'node:path';
+import vm from 'node:vm';
+import assert from 'node:assert/strict';
+import {execFileSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
+const __dirname=path.dirname(fileURLToPath(import.meta.url));
 const root=path.resolve(__dirname,'..'),context={};
 vm.runInNewContext(fs.readFileSync(root+'/assets/js/marker-colors.js','utf8'),context);
 const cases=[
