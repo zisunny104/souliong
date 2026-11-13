@@ -61,7 +61,7 @@ return [
 
     // den 單一登入（api/accounts.php 檔尾）：key_file 不存在就整段關閉，登入頁也不顯示按鈕
     'den_sso'         => [
-        'login_url'  => 'https://pb.toka.dev/tools/sso/',
+        'login_url'  => 'https://pb.toka.dev/den/sso/',
         'verify_url' => 'http://127.0.0.1:8090/api/den/sso/verify',
         'key_file'   => '/etc/den-sso/souliong.key',
         'app'        => 'souliong',
