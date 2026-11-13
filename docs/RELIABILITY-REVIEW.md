@@ -41,7 +41,7 @@ AXE_PATH=/path/to/axe-core/axe.min.js node tools/accessibilitycheck.js
 
 ## 真實地圖引擎與縮圖分級
 
-`tools/realmapcheck.cjs` 使用實際 MapLibre 6.6.0 與前台／引擎程式，資料、PHP 設定及圖片請求均隔離。空白底圖與小型合成縮圖不代表正式圖磚或原始大圖片。測試不寫入正式專案。
+`tools/realmapcheck.js` 使用實際 MapLibre 6.6.0 與前台／引擎程式，資料、PHP 設定及圖片請求均隔離。空白底圖與小型合成縮圖不代表正式圖磚或原始大圖片。測試不寫入正式專案。
 
 390／1280px 視窗、50 個密集地點、300 張照片、200 個預覽標記：14／22／32px 級距、跨級距過渡、縮圖點擊開啟燈箱與減少動態效果設定通過；沒有 JavaScript 執行錯誤。這是桌面 Chromium 改變視窗尺寸，沒有模擬手機 CPU。
 
@@ -50,7 +50,7 @@ AXE_PATH=/path/to/axe-core/axe.min.js node tools/accessibilitycheck.js
 重跑測試：準備 MapLibre 6.6.0 dist 目錄中的 `maplibre-gl.mjs`、`maplibre-gl-shared.mjs`、`maplibre-gl-worker.mjs`、`maplibre-gl.css`，再執行：
 
 ```bash
-MAPLIBRE_DIST=/path/to/maplibre-6.6.0/dist node tools/realmapcheck.cjs
+MAPLIBRE_DIST=/path/to/maplibre-6.6.0/dist node tools/realmapcheck.js
 ```
 
 需要 PHP、Playwright 與 Chromium；必要時透過 `PLAYWRIGHT_PATH` 指定已安裝的 Playwright 套件。測試輸出分開標示功能檢查結果與密集重疊觀測，截圖儲存在 `/tmp/souliong-realmap-390.png`、`/tmp/souliong-realmap-1280.png`。

@@ -1,7 +1,6 @@
-'use strict';
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const vm = require('node:vm');
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
 const ctx = { window: { APP: {base: '/'}, I18N: {evil: '<img src=x onerror=alert(1)>'} } };
 vm.runInNewContext(fs.readFileSync('assets/js/engine/map-engine.js', 'utf8'), ctx);
 const credit = attribution => ctx.window.MapEngine.buildCredit([{attribution}], null);

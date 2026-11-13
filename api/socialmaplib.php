@@ -53,7 +53,7 @@ function souliong_social_map(array $cfg, string $project, ?string $spotId, int $
             if (($layer['pane'] ?? 'art') === 'base' && str_ends_with((string)($layer['id'] ?? ''), '-nolabels')) { $layerParam = '&layer=' . rawurlencode((string)$layer['id']); break; }
         }
         $url = $runtime['origin'] . Route::map($project) . '?embed=1&ui=bare&view=meta&contributions=0' . $layerParam;
-        $process = @proc_open([$runtime['node'], dirname(__DIR__) . '/tools/social-preview-map.cjs'], [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+        $process = @proc_open([$runtime['node'], dirname(__DIR__) . '/tools/social-preview-map.js'], [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
         if (!is_resource($process)) return null;
         fwrite($pipes[0], json_encode([
             'url' => $url, 'spot' => $spotId, 'zoom' => max(1, min(20, $zoom)),

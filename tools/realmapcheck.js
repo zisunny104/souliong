@@ -1,8 +1,14 @@
 // 真實 MapLibre 引擎與隔離資料；底圖為本機空白樣式，測量不含 VPS／圖磚網路。
 // MAPLIBRE_DIST 必須指向 6.6.0 的 mjs、shared、worker 與 CSS 檔案目錄。
-const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),assert=require('node:assert/strict');
-const {spawn}=require('node:child_process');
-const {chromium}=require(process.env.PLAYWRIGHT_PATH||'playwright');
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import {spawn} from 'node:child_process';
+import {createRequire} from 'node:module';
+import {fileURLToPath} from 'node:url';
+const __dirname=path.dirname(fileURLToPath(import.meta.url));
+const {chromium}=createRequire(import.meta.url)(process.env.PLAYWRIGHT_PATH||'playwright');
 (async()=>{
  const root=path.resolve(__dirname,'..'),dist=process.env.MAPLIBRE_DIST;
  assert.ok(dist,'請設定 MAPLIBRE_DIST（MapLibre 6.6.0 dist 目錄）');

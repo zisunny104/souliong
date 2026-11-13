@@ -1,7 +1,6 @@
 #!/usr/bin/env node
-'use strict';
-const fs = require('node:fs');
-const { createRequire } = require('node:module');
+import fs from 'node:fs';
+import { createRequire } from 'node:module';
 
 async function main() {
   const config = JSON.parse(fs.readFileSync(0, 'utf8'));
