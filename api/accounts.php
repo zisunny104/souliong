@@ -407,6 +407,19 @@ function den_sso_verify(array $cfg, string $ticket): ?array {
     if (!is_array($d) || ($d['ok'] ?? false) !== true || !in_array($d['kind'] ?? '', ['super', 'user'], true) || (string)($d['id'] ?? '') === '') return null;
     return ['kind' => $d['kind'], 'id' => (string)$d['id'], 'email' => (string)($d['email'] ?? ''), 'roles' => is_array($d['roles'] ?? null) ? array_map('strval', $d['roles']) : []];
 }
+/** 確認 den 登入的主要管理者是否仍有效：true 有效、false den 明確回覆失效、null 連不上或回應異常。 */
+function den_sso_check(array $cfg, string $denId): ?bool {
+    $key = _den_key($cfg);
+    if ($key === '' || $denId === '') return null;
+    $ctx = stream_context_create(['http' => [
+        'method' => 'POST', 'timeout' => 3, 'ignore_errors' => true, 'follow_location' => 0,
+        'header' => "Content-Type: application/json\r\nX-SSO-Key: $key\r\n",
+        'content' => json_encode(['app' => (string)($cfg['den_sso']['app'] ?? 'souliong'), 'id' => $denId, 'kind' => 'super']),
+    ]]);
+    $raw = @file_get_contents((string)preg_replace('#/verify$#', '/check', (string)$cfg['den_sso']['verify_url']), false, $ctx);
+    $d = $raw !== false ? json_decode($raw, true) : null;
+    return is_array($d) && is_bool($d['ok'] ?? null) ? $d['ok'] : null;
+}
 function account_find_by_den_id(array $cfg, string $denId): ?array {
     if ($denId === '') return null;
     foreach (accounts_load($cfg)['accounts'] as $a) { if ((string)($a['den_id'] ?? '') === $denId) return $a; }
