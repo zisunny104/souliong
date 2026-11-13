@@ -37,6 +37,33 @@ function clean_id($raw): string
 
 // ── 登入（POST pin[, project]）→ 種 cookie ──
 $loginErr = '';
+// ── den 單一登入：?den=1 導去 den，回來帶 ?den_return=1&state=…&den_ticket=…，換發都在 accounts.php ──
+$denProject = clean_id($_REQUEST['project'] ?? '');
+if ($denProject !== '' && !is_dir($cfg['projects_dir'] . '/' . $denProject)) $denProject = '';
+function den_landing_url(array $cfg, string $project, ?string $accountId): string {
+  if ($accountId === null) return Route::manager($project);
+  $list = account_project_list($cfg, $accountId);
+  if ($project !== '' && in_array($project, $list, true)) return Route::manager($project);
+  return count($list) === 1 ? Route::manager($list[0]) : Route::manager();
+}
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && (isset($_GET['den']) || isset($_GET['den_return']))) {
+  $denBase = (string)($cfg['den_sso']['origin'] ?? '') !== '' ? rtrim((string)$cfg['den_sso']['origin'], '/') . Route::manager() : Route::origin() . Route::manager();
+  if (isset($_GET['den'])) {
+    $to = den_sso_begin($cfg, $denProject, $denBase);
+    if ($to !== null) { header('Location: ' . $to); exit; }
+  } else {
+    header('Referrer-Policy: no-referrer');
+    header('Cache-Control: no-store');
+    $r = den_sso_complete($cfg, (string)($_GET['state'] ?? ''), (string)($_GET['den_ticket'] ?? ''));
+    if ($r['ok']) {
+      header('Location: ' . (!empty($r['pending'])
+        ? Route::manager() . '?den_choose=1' . ($denProject !== '' ? '&project=' . rawurlencode($denProject) : '')
+        : den_landing_url($cfg, $denProject, $r['account_id'] ?? null)));
+      exit;
+    }
+    $loginErr = i18n_t($DICT, $r['error'] === 'denied' ? 'den_login_denied_msg' : 'den_login_failed_msg');
+  }
+}
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'login') {
   $pin = (string)($_POST['pin'] ?? '');
   $proj = clean_id($_POST['project'] ?? '');
@@ -116,6 +143,33 @@ $accountErrMsg = function (string $err) use ($DICT): string {
   ];
   return i18n_t($DICT, $map[$err] ?? 'account_err_generic');
 };
+
+// ── den 第一次登入的選擇頁與解除綁定，待綁定狀態與 CSRF 都在 accounts.php ──
+$denErr = '';
+$denAction = $_SERVER['REQUEST_METHOD'] === 'POST' ? (string)($_POST['action'] ?? '') : '';
+if ($denAction === 'den_cancel') { den_sso_pending_clear(); header('Location: ' . Route::manager()); exit; }
+if ($denAction === 'den_bind' || $denAction === 'den_create') {
+  $r = $denAction === 'den_bind'
+    ? den_sso_bind($cfg, (string)($_POST['csrf'] ?? ''), (string)($_POST['userid'] ?? ''), (string)($_POST['pw'] ?? ''))
+    : den_sso_create($cfg, (string)($_POST['csrf'] ?? ''), (string)($_POST['userid'] ?? ''), (string)($_POST['label'] ?? ''));
+  if ($r['ok']) { header('Location: ' . den_landing_url($cfg, $denProject, (string)$r['account']['id'])); exit; }
+  $denErr = match ($r['error']) {
+    'expired' => i18n_t($DICT, 'den_session_expired_msg'),
+    'bound'   => i18n_t($DICT, 'den_bound_already_msg'),
+    'locked'  => i18n_t($DICT, 'account_locked_msg'),
+    'invalid' => i18n_t($DICT, 'account_login_failed_msg'),
+    default   => $accountErrMsg((string)$r['error']),
+  };
+}
+if ($denAction === 'den_unbind') {
+  $r = den_sso_unbind($cfg, (string)($_POST['csrf'] ?? ''));
+  if (!$r['ok'] && $r['error'] === 'csrf') { http_response_code(403); exit(i18n_t($DICT, 'auth_csrf_invalid')); }
+  header('Location: ' . Route::manager());
+  exit;
+}
+$denPending = den_sso_pending($cfg);
+$showDen = $denPending !== null && (isset($_GET['den_choose']) || in_array($denAction, ['den_bind', 'den_create'], true));
+if ($denErr !== '' && !$showDen) $loginErr = $denErr;
 
 // ── 帳號自助註冊（POST userid, pw[, label]）→ 僅 registration_open 開啟時允許；新帳號預設無任何專案權限 ──
 $registerErr = '';
@@ -209,6 +263,7 @@ $authed = $primary
   || ($reqProject !== '' && Auth::actor($cfg, $reqProject)->isMember($reqProject))
   || ($isAcct && $acctProjects !== []);
 if (!$authed) {
+  if ($loginErr === '' && $isAcct && $acctProjects === []) $loginErr = i18n_t($DICT, 'account_no_project_msg');
   http_response_code(401);
   header('Content-Type: text/html; charset=utf-8');
 ?>
@@ -491,6 +546,11 @@ if (!$authed) {
         outline-offset: 2px
       }
       @media(prefers-color-scheme:light) { .err { color: #b42318; } }
+      .panel-den { display: flex; flex-direction: column; align-items: center; gap: var(--sp-3); text-align: center }
+      .panel-den .err { margin: 0; min-height: 0 }
+      .panel-den form.plain { background: none; border: 0; box-shadow: none; padding: 0; width: auto }
+      .linkbtn { width: auto; min-height: var(--tap); padding: 0 var(--sp-3); background: none; color: var(--muted); font-size: 0.8125rem; font-weight: 400; text-decoration: underline }
+      .linkbtn:hover { color: var(--fg) }
     </style>
   </head>
 
@@ -505,6 +565,7 @@ if (!$authed) {
       $postAction = (string)($_POST['action'] ?? '');
       $loginMode = $postAction === 'login' && (($_POST['login_mode'] ?? '') === 'account' || trim((string)($_POST['userid'] ?? '')) !== '') ? 'account' : 'pin';
       $initPanel = in_array($postAction, ['account_register', 'account_activate'], true) ? $postAction : 'login';
+      if ($showDen) $initPanel = 'den';
     ?>
     <main style="display:contents">
     <form method="post" id="panel-login" style="display:<?= $initPanel === 'login' ? '' : 'none' ?>">
@@ -522,6 +583,9 @@ if (!$authed) {
       <button><?= $t('login_btn') ?></button>
       <div class="switchlink" id="toAcctWrap"><a href="#" id="toAcctLogin"><?= $t('login_with_account_link') ?></a></div>
       <div class="switchlink" id="toPinWrap" style="display:none"><a href="#" id="toPinLogin"><?= $t('login_with_pin_link') ?></a></div>
+      <?php if (den_sso_enabled($cfg)): ?>
+        <div class="switchlink"><a href="?den=1<?= $reqProject !== '' ? '&project=' . rawurlencode($reqProject) : '' ?>"><?= $t('den_login_link') ?></a></div>
+      <?php endif; ?>
       <?php if (souliong_registration_open($cfg)): ?>
         <div class="switchlink"><a href="#" id="toRegister"><?= $t('register_link') ?></a></div>
       <?php endif; ?>
@@ -550,6 +614,30 @@ if (!$authed) {
       <button><?= $t('activate_btn') ?></button>
     </form>
 
+    <?php if ($showDen): ?>
+    <div id="panel-den" class="panel-den">
+      <div>
+        <h1><?= $t('den_choose_title') ?></h1>
+        <div class="s"><?= $esc($denPending['email']) ?></div>
+      </div>
+      <?php if ($denErr !== ''): ?><div class="err" role="alert"><?= $esc($denErr) ?></div><?php endif; ?>
+      <form method="post" aria-labelledby="den-bind-hint">
+        <input type="hidden" name="action" value="den_bind"><input type="hidden" name="csrf" value="<?= $esc($denPending['csrf']) ?>"><input type="hidden" name="project" value="<?= $esc($denProject) ?>">
+        <div class="s" id="den-bind-hint"><?= $t('den_bind_hint') ?></div>
+        <input name="userid" type="text" class="textfield" autocomplete="username" aria-label="<?= $t('userid_placeholder') ?>" placeholder="<?= $t('userid_placeholder') ?>">
+        <input name="pw" type="password" class="textfield" autocomplete="current-password" aria-label="<?= $t('password_placeholder') ?>" placeholder="<?= $t('password_placeholder') ?>">
+        <button><?= $t('den_bind_btn') ?></button>
+      </form>
+      <form method="post" aria-labelledby="den-create-hint">
+        <input type="hidden" name="action" value="den_create"><input type="hidden" name="csrf" value="<?= $esc($denPending['csrf']) ?>"><input type="hidden" name="project" value="<?= $esc($denProject) ?>">
+        <div class="s" id="den-create-hint"><?= $t('den_create_hint') ?></div>
+        <input name="userid" type="text" class="textfield" autocomplete="username" aria-label="<?= $t('userid_placeholder') ?>" value="<?= $esc($denPending['suggest']) ?>" placeholder="<?= $t('userid_placeholder') ?>">
+        <input name="label" type="text" class="textfield" autocomplete="nickname" aria-label="<?= $t('nickname_optional_placeholder') ?>" placeholder="<?= $t('nickname_optional_placeholder') ?>">
+        <button><?= $t('den_create_btn') ?></button>
+      </form>
+      <form method="post" class="plain"><input type="hidden" name="action" value="den_cancel"><button class="linkbtn"><?= $t('back_to_login_link') ?></button></form>
+    </div>
+    <?php endif; ?>
     </main>
     <script>window.I18N = <?= json_encode($DICT, JSON_UNESCAPED_UNICODE) ?>; window.LANG = <?= json_encode($LANG) ?>;</script>
     <script><?php readfile(__DIR__ . '/../assets/js/pin-input.js'); ?></script>
@@ -3596,6 +3684,9 @@ if (!$authed) {
       <a class="btn" href="<?= $esc($frontUrl) ?>"><i class="fa-solid fa-arrow-left"></i> <?= $t($scopeProject !== '' ? 'back_to_map_btn' : 'back_to_site_btn') ?></a>
       <?php if ($primary && $scopeProject === ''): ?>
       <a class="btn solid" href="<?= $esc(Route::tool('newproject')) ?>"><i class="fa-solid fa-plus"></i> <?= $t('new_project_btn') ?></a>
+      <?php endif; ?>
+      <?php if (($denInfo = den_account_info($cfg)) !== null && $denInfo['has_password']): ?>
+      <form method="post" style="display:inline"><input type="hidden" name="action" value="den_unbind"><input type="hidden" name="csrf" value="<?= $esc($denInfo['csrf']) ?>"><button class="btn"><i class="fa-solid fa-link-slash"></i> <?= $t('den_unbind_btn') ?></button></form>
       <?php endif; ?>
       <a class="btn" href="<?= $esc(Route::logout()) ?>"><i class="fa-solid fa-right-from-bracket"></i> <?= $t('logout_btn') ?></a>
     </div>
