@@ -628,6 +628,8 @@ CSS 全部前綴 `.stat-card .col`，因為要蓋過同層的 `.stat-card .col o
 
 `Auth::actor($cfg, $project)` 回傳這個請求在某個專案（`$project = null` 為全站層級）的身分，每請求每專案只解析一次並快取（不可變）。解析順序（權限與 CSRF 共用同一順序，瀏覽器同時帶帳號與專案 PIN cookie 時兩邊才對得上）：`primary`（主 PIN cookie，或角色為 primary 的帳號）→ `account`（此專案有成員資格的帳號）→ `pin`（此專案仍有效的專案 PIN）→ `anon`，取到第一個就定案。
 
+den 單一登入不是新的 `Actor` 種類：`api/accounts.php` 檔尾驗證 den 票證後，換成原本的主要管理者或本機帳號的身分，之後權限與 CSRF 都走上面的順序，所以 `tools/authlint.php` 的規則不用放寬。den 衍生的主要管理者工作階段帶可辨識的來源標記，每 5 分鐘向 den 確認，明確失效才登出。設定見 `api/config.example.php` 的 `den_sso`。
+
 `Actor` 公開：
 
 - `kind()`：`'primary'|'account'|'pin'|'anon'`。
